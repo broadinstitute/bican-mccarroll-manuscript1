@@ -1,0 +1,20 @@
+Package: bican.mccarroll.helloworld
+Type: Package
+Title: Example R Package
+Version: 0.1.0
+Authors@R: c(
+    person(
+      "Alec", "Wysoker",
+      email = "alecw@broadinstitute.org",
+      role = c("aut", "cre")
+    )
+  )
+Description: Example for R packages in bican-mccarroll-manuscript1 repository.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+Imports: spgs
+RoxygenNote: 7.3.2
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
