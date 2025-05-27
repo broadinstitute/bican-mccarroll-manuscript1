@@ -1,0 +1,31 @@
+name: Python Package using Conda
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'python/bican_mccarroll_helloworld/**'
+
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 5
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: '3.8'
+    - name: Install package including dependencies
+      run: |
+        cd python
+        pip install bican_mccarroll_helloworld
+    - name: Test with unittest
+      run: |
+        cd python/bican_mccarroll_helloworld
+        PYTHONPATH=src python -m unittest discover -s tests
