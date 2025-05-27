@@ -8,7 +8,7 @@ on:
     paths:
       - 'R/bican.mccarroll.helloworld/**'
 
-name: R-helloworld.yaml
+name: Build and check R bican.mccarroll.helloworld package
 
 permissions: read-all
 

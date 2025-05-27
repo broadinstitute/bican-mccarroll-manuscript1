@@ -6,7 +6,7 @@ on:
     paths:
       - 'R/bican.mccarroll.helloworld/**'
 
-name: pr-commands.yaml
+name: Run roxygen2 on R package bican.mccarroll.helloworld and commit changes
 
 permissions: read-all
 
