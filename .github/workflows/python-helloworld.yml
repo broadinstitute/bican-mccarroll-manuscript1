@@ -24,7 +24,8 @@ jobs:
     - name: Install package including dependencies
       run: |
         cd python
-        pip install bican_mccarroll_helloworld
+        ls
+        pip install ./bican_mccarroll_helloworld
     - name: Test with unittest
       run: |
         cd python/bican_mccarroll_helloworld
