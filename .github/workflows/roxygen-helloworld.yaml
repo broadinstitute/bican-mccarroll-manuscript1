@@ -32,6 +32,7 @@ jobs:
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
+          working-directory: R/packages/bican.mccarroll.helloworld
           extra-packages: any::roxygen2
           needs: pr-document
 
