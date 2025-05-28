@@ -12,3 +12,4 @@ Example R package for bican-mccarroll-manuscript1 repository
 # install.packages("devtools")
 devtools::install_github("broadinstitute/bican-mccarroll-manuscript1", subdir="R/bican.mccarroll.helloworld")
 ```
+
