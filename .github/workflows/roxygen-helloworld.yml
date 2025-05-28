@@ -8,7 +8,7 @@ on:
 
 name: Run roxygen2 on R package bican.mccarroll.helloworld and commit changes
 
-permissions: read-all
+permissions: write-all
 
 jobs:
   call-roxygen-reusable:
