@@ -23,8 +23,8 @@ jobs:
     - name: Install package including dependencies
       run: |
         cd python
-        pip install ./${{ inputs.package_name }}
+        pip install ./bican_mccarroll_${{ inputs.package_name }}
     - name: Test with unittest
       run: |
-        cd python/${{ inputs.package_name }}
+        cd python/bican_mccarroll_${{ inputs.package_name }}
         PYTHONPATH=src python -m unittest discover -s tests

@@ -14,5 +14,5 @@ jobs:
   call-roxygen-reusable:
     uses: ./.github/workflows/roxygen-reusable.yml
     with:
-      package_name: bican.mccarroll.helloworld
+      package_name: helloworld
     secrets: inherit

@@ -15,5 +15,5 @@ jobs:
   call-R-reusable:
     uses: ./.github/workflows/R-reusable.yml
     with:
-      package_name: bican.mccarroll.helloworld
+      package_name: helloworld
     secrets: inherit

@@ -54,13 +54,13 @@ jobs:
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          working-directory: R/${{ inputs.package_name }}
+          working-directory: R/bican.mccarroll.${{ inputs.package_name }}
           extra-packages: any::rcmdcheck,testthat
           needs: check
           dependencies: '"hard"'
 
       - uses: r-lib/actions/check-r-package@v2
         with:
-          working-directory: R/${{ inputs.package_name }}
+          working-directory: R/bican.mccarroll.${{ inputs.package_name }}
           upload-snapshots: true
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
