@@ -15,7 +15,7 @@
 #   Document Package:          'Cmd + Shift + D'
 
 #' Hello, world!
-#' @@param mom If TRUE, say hello to mom instead of world.
+#' @param mom If TRUE, say hello to mom instead of world.
 #' @export
 hello <- function(mom=FALSE) {
   if (!is.logical(mom)) {

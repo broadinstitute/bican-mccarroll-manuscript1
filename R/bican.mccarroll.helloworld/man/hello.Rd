@@ -6,6 +6,9 @@
 \usage{
 hello(mom = FALSE)
 }
+\arguments{
+\item{mom}{If TRUE, say hello to mom instead of world.}
+}
 \description{
 Hello, world!
 }
