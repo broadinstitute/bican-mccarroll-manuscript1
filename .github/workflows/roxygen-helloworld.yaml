@@ -11,82 +11,8 @@ name: Run roxygen2 on R package bican.mccarroll.helloworld and commit changes
 permissions: read-all
 
 jobs:
-  document:
-    if: ${{ github.event.issue.pull_request && (github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'OWNER') && startsWith(github.event.comment.body, '/document') }}
-    name: document
-    runs-on: ubuntu-latest
-    env:
-      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: r-lib/actions/pr-fetch@v2
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: r-lib/actions/setup-r@v2
-        with:
-          use-public-rspm: true
-
-      - uses: r-lib/actions/setup-r-dependencies@v2
-        with:
-          working-directory: R/bican.mccarroll.helloworld
-          extra-packages: any::roxygen2
-          needs: pr-document
-
-      - name: Document
-        run: |
-          setwd("R/bican.mccarroll.helloworld")
-          roxygen2::roxygenise()
-        shell: Rscript {0}
-
-      - name: commit
-        run: |
-          git config --local user.name "$GITHUB_ACTOR"
-          git config --local user.email "$GITHUB_ACTOR@users.noreply.github.com"
-          cd R/bican.mccarroll.helloworld
-          git add man/\* NAMESPACE
-          git commit -m 'Document'
-
-      - uses: r-lib/actions/pr-push@v2
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-  style:
-    if: ${{ github.event.issue.pull_request && (github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'OWNER') && startsWith(github.event.comment.body, '/style') }}
-    name: style
-    runs-on: ubuntu-latest
-    env:
-      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: r-lib/actions/pr-fetch@v2
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: r-lib/actions/setup-r@v2
-
-      - name: Install dependencies
-        run: install.packages("styler")
-        shell: Rscript {0}
-
-      - name: Style
-        run: styler::style_pkg()
-        shell: Rscript {0}
-
-      - name: commit
-        run: |
-          git config --local user.name "$GITHUB_ACTOR"
-          git config --local user.email "$GITHUB_ACTOR@users.noreply.github.com"
-          cd R/bican.mccarroll.helloworld
-          git add \*.R
-          git commit -m 'Style'
-
-      - uses: r-lib/actions/pr-push@v2
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+  call-roxygen-reusable:
+    uses: ./.github/workflows/roxygen-reusable.yml
+    with:
+      package_name: bican.mccarroll.helloworld
+    secrets: inherit
