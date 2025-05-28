@@ -11,7 +11,7 @@ on:
 
 jobs:
   call-python-reusable:
-    uses: .github/workflows/python-reusable.yml
+    uses: ./.github/workflows/python-reusable.yml
     with:
       package_name: bican_mccarroll_helloworld
     secrets: inherit
