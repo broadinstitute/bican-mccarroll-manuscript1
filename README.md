@@ -1,2 +1,2 @@
 # bican-mccarroll-manuscript1
-Scripts used to process the first McCarroll lab BICAN manuscript
+Scripts used to process data for the first McCarroll lab BICAN manuscript
