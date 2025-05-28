@@ -4,7 +4,7 @@
 \alias{hello}
 \title{Hello, world!}
 \usage{
-hello()
+hello(mom = FALSE)
 }
 \description{
 Hello, world!
