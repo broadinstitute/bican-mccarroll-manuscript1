@@ -3,7 +3,8 @@
 \name{reverseComplementAlternateCase}
 \alias{reverseComplementAlternateCase}
 \title{Reverse Complement of a DNA Sequence with Alternating Case
-E.g.: "ATCG" -> "CgAt"}
+E.g.: "ATCG" -> "CgAt"
+Demonstrates the used of a dependency.}
 \usage{
 reverseComplementAlternateCase(s)
 }
@@ -16,4 +17,5 @@ A string representing the reverse complement of the input DNA sequence, with alt
 \description{
 Reverse Complement of a DNA Sequence with Alternating Case
 E.g.: "ATCG" -> "CgAt"
+Demonstrates the used of a dependency.
 }
