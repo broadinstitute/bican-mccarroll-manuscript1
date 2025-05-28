@@ -32,13 +32,13 @@ jobs:
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          working-directory: R/packages/bican.mccarroll.helloworld
+          working-directory: R/bican.mccarroll.helloworld
           extra-packages: any::roxygen2
           needs: pr-document
 
       - name: Document
         run: |
-          setwd("R/packages/bican.mccarroll.helloworld")
+          setwd("R/bican.mccarroll.helloworld")
           roxygen2::roxygenise()
         shell: Rscript {0}
 
