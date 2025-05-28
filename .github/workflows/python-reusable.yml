@@ -1,0 +1,30 @@
+name: Reusable python unit test workflow for package
+
+on:
+  workflow_call:
+    inputs:
+      package_name:
+        required: true
+        type: string
+
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 5
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: '3.8'
+    - name: Install package including dependencies
+      run: |
+        cd python
+        pip install ./${{ inputs.package_name }}
+    - name: Test with unittest
+      run: |
+        cd python/${{ inputs.package_name }}
+        PYTHONPATH=src python -m unittest discover -s tests
