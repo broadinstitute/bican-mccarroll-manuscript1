@@ -69,4 +69,5 @@ jobs:
           working-directory: R/bican.mccarroll.${{ inputs.package_name }}
           upload-snapshots: true
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+          # for some reason this needs to be quoted lest it gets passed as (error)
           error-on: ${{ format('"{0}"', inputs.error-on) }}

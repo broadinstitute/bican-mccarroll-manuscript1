@@ -21,6 +21,19 @@ Note that for now we are requiring review before PRs.  We can change if this is 
 Note also that the github actions are not active until they are merged into the main branch, so they won't run 
 until they have been merged.  Subsequent PRs will trigger the R cmd check action.
 
+## Handling less-than-perfect R CMD check results in continuous integration
+Ideally your package will pass R CMD check with no errors or warnings, but if that is not possible,
+you can set the `error_on` parameter of rcmdcheck in R-frob.yml like this:
+```yaml
+jobs:
+  call-R-reusable:
+    uses: ./.github/workflows/R-reusable.yml
+    with:
+      package_name: helloworld
+      error-on: 'error' # don't fail if warnings or notes are present
+    secrets: inherit
+```
+
 ## Generating documentation via github actions
 You can cause roxygen2 to run via github action by creating a PR, and then commenting on the PR
 with `/document.<package_name>`, e.g. `/document.frob`.  This will trigger the roxygen action, which will generate the 
