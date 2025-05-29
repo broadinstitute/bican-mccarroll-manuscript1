@@ -69,4 +69,4 @@ jobs:
           working-directory: R/bican.mccarroll.${{ inputs.package_name }}
           upload-snapshots: true
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          error-on: '"'${{ inputs.error-on }}'"'
+          error-on: ${{ format('"{0}"', inputs.error-on) }}
