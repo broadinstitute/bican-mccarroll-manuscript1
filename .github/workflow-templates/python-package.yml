@@ -1,0 +1,17 @@
+name: Python unit tests for a package
+
+on:
+  push:
+    branches: [ $default-branch ]
+  pull_request:
+    branches: [ $default-branch ]
+    paths:
+      - 'python/bican_mccarroll_<package_name>/**'
+
+
+jobs:
+  call-python-reusable:
+    uses: ./.github/workflows/python-reusable.yml
+    with:
+      package_name: <package_name>
+    secrets: inherit

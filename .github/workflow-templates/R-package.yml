@@ -1,0 +1,19 @@
+# Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
+# Need help debugging build failures? Start at https://github.com/r-lib/actions#where-to-find-help
+on:
+  push:
+    branches: [ $default-branch ]
+  pull_request:
+    branches: [ $default-branch ]
+    paths:
+      - 'R/bican.mccarroll.<package_name>/**'
+
+name: Build and check R package
+
+
+jobs:
+  call-R-reusable:
+    uses: ./.github/workflows/R-reusable.yml
+    with:
+      package_name: <package_name>
+    secrets: inherit
