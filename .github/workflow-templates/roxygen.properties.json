@@ -1,4 +1,8 @@
 {
     "name": "BICAN McCarroll Roxygen package Workflow",
     "description": "BICAN McCarroll R package documentation generation workflow template.",
+    "categories": [
+        "R",
+        "continuous-integration"
+    ]
 }
