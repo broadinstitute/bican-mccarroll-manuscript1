@@ -2,6 +2,7 @@
     "name": "BICAN McCarroll python package Workflow",
     "description": "BICAN McCarroll python package CI workflow template.",
     "categories": [
-        "Pip"
+        "Python",
+        "continuous-integration"
     ]
 }
