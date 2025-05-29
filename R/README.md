@@ -3,7 +3,7 @@ How to create an R package for the bican-mccarroll-manuscript1 repository.
 
 ## Creating a package using RStudio
 
-1. Get started with github cloning the broadinstitute/bican-mccarroll-manuscript1 repository and creating a branch using the [basic github workflow](https://docs.google.com/document/d/1A5T8ZVhNxP0GCQmmo1R8qaPPXah9cvSLI96U3TZdYos/edit?tab=t.0) 
+1. Get started with github by cloning the broadinstitute/bican-mccarroll-manuscript1 repository and creating a branch using the [basic github workflow](https://docs.google.com/document/d/1A5T8ZVhNxP0GCQmmo1R8qaPPXah9cvSLI96U3TZdYos/edit?tab=t.0) 
 1. In RStudio, go to `File` -> `New Project...`
 1. Pick `New Directory`
 1. Pick `R Package`
