@@ -6,6 +6,11 @@ on:
       package_name:
         required: true
         type: string
+      error-on:
+        required: false
+        type: string
+        default: "warning"
+        
 
 name: Build and check an R package
 
@@ -64,3 +69,4 @@ jobs:
           working-directory: R/bican.mccarroll.${{ inputs.package_name }}
           upload-snapshots: true
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+          error-on: ${{ inputs.error-on }}
