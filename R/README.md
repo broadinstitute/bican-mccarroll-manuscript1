@@ -9,9 +9,13 @@ How to create an R package for the bican-mccarroll-manuscript1 repository.
 1. Pick `R Package`
 1. Give your package a name that starts with `bican.mccarroll.` (e.g., `bican.mccarroll.frob`)
 1. Create the project as a subdirectory `<your-git-sandbox>/bican-mccarroll-manuscript1/R`
-1. Set up github actions for your package by copying two workflow files (replace `frob` with your package name):
-   - `cp .github/workflow-templates/R-package.yml .github/workflows/R-frob.yml`
-   - `cp .github/workflow-templates/roxygen.yml .github/workflows/roxygen-frob.yml`
+1. Set up two GitHub Actions workflows for your package, for continuous integration and documentation generation:
+   1. Go to Actions in your repository.
+   1. Click on "New workflow".
+   1. Find the `BICAN McCarroll R package Workflow` and press `Configure`.
+   1. Follow the instructions in the workflow template.
+   1. Find the `BICAN McCarroll Roxygen package Workflow` and press `Configure`.
+   1. Follow the instructions in the workflow template.
 1. Edit these two files and replace `<package_name>` with your package name
 1. Do your package development as usual, including adding documentation using roxygen2.
 1. Create a `README.md` file in the root of your package.  You can copy the one in R/bican.mccarroll.helloworld/ and modify it as appropriate.

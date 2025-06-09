@@ -16,4 +16,9 @@ How to create a Python package for the bican-mccarroll-manuscript1 repository.
 1. Develop your package as usual, including unit tests as appropriate.
 1. Put a `LICENSE` file in the root of your package, and a `README.md` file in the root of your package.  You can copy the ones in python/bican_mccarroll_helloworld/ and modify the README.md as appropriate.
 1. Create a `pyproject.toml` file in the root of your package.  You can copy the one in python/bican_mccarroll_helloworld/ and modify it as appropriate.
+1. Set up a GitHub Actions workflow for your package:
+    1. Go to Actions in your repository.
+    1. Click on "New workflow".
+    1. Find the `BICAN McCarroll python package Workflow` and press `Configure`.
+    1. Follow the instructions in the workflow template.
 1. When you are ready to commit your changes, use the [basic github workflow](https://docs.google.com/document/d/1A5T8ZVhNxP0GCQmmo1R8qaPPXah9cvSLI96U3TZdYos/edit?tab=t.0) to commit and push your changes.
