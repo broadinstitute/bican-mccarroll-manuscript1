@@ -1,0 +1,11 @@
+cell_type	hbma_name	hbma_label
+astrocyte	Astrocyte	CS20250428_SUBCL_0000
+cortex GABAergic	CN MGE GABA	CS20250428_CLASS_0005
+cortex glutamatergic	F M GABA	CS20250428_CLASS_0006
+ependymal	Ependymal	CS20250428_SUBCL_0012
+immune	Immune	CS20250428_CLASS_0008
+striatum MSN	CN LGE GABA	CS20250428_CLASS_0003
+striatum non-MSN	CN MGE GABA	CS20250428_CLASS_0005
+oligodendrocyte	Oligodendrocyte	CS20250428_SUBCL_0022
+OPC	OPC	CS20250428_SUBCL_0020
+vascular	Vascular	CS20250428_CLASS_0011
