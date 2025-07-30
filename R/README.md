@@ -50,3 +50,31 @@ when you try to push your changes.
 
 This doesn't work all that well, so it may be easier just to generate documentation and NAMESPACE
 locally, and then commit the changes to the branch.  
+
+# Installing an R package from github
+You can install the package locally from github using the `remotes` package.
+
+
+```r
+install.packages("remotes")
+
+# Install from the main branch
+remotes::install_github(
+  "broadinstitute/bican-mccarroll-manuscript1",
+  subdir = "R/bican.mccarroll.differentialexpression",
+  dependencies = TRUE
+)
+
+# Install from a specific branch
+remotes::install_github(
+  "broadinstitute/bican-mccarroll-manuscript1",
+  subdir = "R/bican.mccarroll.differentialexpression",
+  ref = "jn_differential_expression",
+  dependencies = TRUE
+)
+```
+
+
+
+
+
