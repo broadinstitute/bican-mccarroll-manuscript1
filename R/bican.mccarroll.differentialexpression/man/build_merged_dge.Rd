@@ -11,7 +11,8 @@ build_merged_dge(
   metadata_columns,
   has_village = T,
   outDir = NULL,
-  outName = NULL
+  outName = NULL,
+  validateRoundTrip = F
 )
 }
 \arguments{
@@ -29,6 +30,8 @@ program will automatically capture donor, cell type, region, and village (if app
 \item{outDir}{Optional; directory to save the merged \code{DGEList} object as two gzipped TSV files.}
 
 \item{outName}{Optional; prefix for the output files. If \code{NULL}, no files are saved.}
+
+\item{validateRoundTrip}{Logical; if \code{TRUE}, validates the saved DGEList by loading it back and comparing to the original.}
 }
 \value{
 A merged \code{DGEList} object containing all samples with donor, cell type, region,

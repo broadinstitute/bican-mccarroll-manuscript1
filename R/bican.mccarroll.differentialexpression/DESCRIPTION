@@ -1,8 +1,9 @@
 Package: bican.mccarroll.differentialexpression
 Type: Package
 Title: Differential expression analysis for BICAN
+Remotes: github::hasaru-k/GlimmaV2
 Version: 0.1.0
-Imports: data.table, edgeR
+Imports: data.table, edgeR, logger, ggplot2, htmlwidgets, Glimma, corrplot, vcd
 Authors@R: c(
     person(
       "James", "Nemesh",
