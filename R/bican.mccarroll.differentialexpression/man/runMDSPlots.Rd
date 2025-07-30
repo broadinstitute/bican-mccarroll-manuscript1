@@ -35,7 +35,7 @@ runMDSPlots(
 \value{
 Invisibly returns NULL. Side effects:
 - Writes HTML MDS plots to `outMDSPlotRoot`.
-- Writes a multi‑page PDF of QC plots to `outPDF`.
+- Writes a multi‑pagew PDF of QC plots to `outPDF`.
 }
 \description{
 Load a precomputed DGEList, validate sample variables, scale PCs,
