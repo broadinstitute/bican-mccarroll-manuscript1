@@ -6,12 +6,16 @@
 # metacell_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
 # manifest_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/DE_manifest.txt"
 # cell_metadata_file="/broad/bican_um1_mccarroll/RNAseq/analysis/cellarium_upload/CAP_freeze_2/CAP_cell_metadata.annotated.txt.gz"
+# cellTypeProportionsPCAFile=NULL
+# has_village=T; validateRoundTrip=T
 
 # this doesn't include donor, region or village, as those are
-# metadata_columns=c("biobank", "cohort", "age", "imputed_sex", "pmi_hr", "PC1", "PC2", "PC3", "PC4", "PC5", "toxicology_group", "single_cell_assay", "pct_intronic", "frac_contamination")
+# automatically added by the manifest processing.
+# metadata_columns=c("biobank", "cohort", "age", "imputed_sex", "pmi_hr", "PC1", "PC2", "PC3", "PC4", "PC5", "toxicology_group", "single_cell_assay", "pct_intronic", "frac_contamination", "hbcac_status")
 # outDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
 # outName="donor_rxn_DGEList"
 
+# z=build_merged_dge(manifest_file, metacell_dir, cell_metadata_file, metadata_columns,has_village, outDir, outName, validateRoundTrip=T)
 
 #' Build a Merged DGEList from Metacell Files and Metadata
 #'
@@ -29,19 +33,25 @@
 #' @param has_village Logical; if \code{TRUE}, the donor names in the metacell files are expected to be in the format \code{donor_village}.
 #' @param outDir Optional; directory to save the merged \code{DGEList} object as two gzipped TSV files.
 #' @param outName Optional; prefix for the output files. If \code{NULL}, no files are saved.
+#' @param validateRoundTrip Logical; if \code{TRUE}, validates the saved DGEList by loading it back and comparing to the original.
 #'
 #' @return A merged \code{DGEList} object containing all samples with donor, cell type, region,
 #'   and specified metadata columns in \code{dge$samples}.
 #'
 #' @export
-#' @import data.table, edgeR
+#' @import data.table edgeR
 build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, metadata_columns, has_village=T,
-                             outDir=NULL, outName=NULL) {
+                             outDir=NULL, outName=NULL, validateRoundTrip=F) {
     # Read cell metadata
     cell_metadata <- data.table::fread(cell_metadata_file, data.table=F)
 
     # handle mixed assay types
     cell_metadata<- addMixedAssayType(cell_metadata)
+
+    # Add cell type proportions PCA scores to the cell metadata
+    # if (!is.null(cellTypeProportionsPCAFile)) {
+    #     cell_metadata <- addCellTypeProportionsPCA(cellTypeProportionsPCAFile, cell_metadata, numPCs=4, scalePCs=TRUE)
+    # }
 
     # To enable the python->R filtering, we need to replace NA values in character/factor columns with "NA"
     cell_metadata <- replace_na_strings(cell_metadata)
@@ -68,9 +78,14 @@ build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, me
     # write to disk if the outDir and outName are provided
     if (!is.null(outDir) && !is.null(outName)) {
         saveDGEList(dge_merged, dir = outDir, prefix = outName)
-        #r=loadDGEList(dir = outDir, prefix = outName)
-        #compareDGEList(dge_merged, r)
+        if (validateRoundTrip) {
+            r=loadDGEList(dir = outDir, prefix = outName)
+            compareDGEList(dge_merged, r)
+        }
+
     }
+
+
 
     return(dge_merged)
 }
@@ -89,7 +104,7 @@ build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, me
 #' @param has_village Logical; if \code{TRUE}, split the column names in the metacell into donor_village.
 #'
 #' @return A \code{DGEList} object with renamed sample columns and additional metadata in \code{dge$samples}.
-#' @import data.table, edgeR
+#' @import data.table edgeR
 #' @keywords internal
 
 #manifest_row=manifest[1];
@@ -402,6 +417,52 @@ addMixedAssayType <- function(metricsDF) {
     return(metricsDF)
 }
 
+#' Parse the cell type proportions PCA file and add to the metrics DF.
+#'
+#' This function reads a PCA file containing cell type proportions,
+#' scales the PCA scores if requested, and adds them to the metrics data frame.
+#'
+#' @param cellTypeProportionsPCAFile Path to the PCA file containing cell type proportions.
+#' @param metricsDF A data frame containing cell-level metadata, which will be updated with PCA scores.
+#' @param numPCs The number of principal components to retain from the PCA file (default is 4).
+#' @param scalePCs Logical; if \code{TRUE}, scales the PCA scores to have mean 0 and standard deviation 1 (default is \code{FALSE}).
+#' @return A data frame identical to \code{metricsDF} but with additional columns for the PCA scores of cell type proportions.
+#' @import logger
+#' @export
+addCellTypeProportionsPCA<-function (cellTypeProportionsPCAFile, metricsDF, numPCs=4, scalePCs=FALSE) {
+    logger::log_info("Adding cell type proportions PCA scores to cell level metadata")
+    a=utils::read.table(cellTypeProportionsPCAFile, header=T, sep="\t")
+    #TODO REMOVE THIS HACK
+    #a=a[,c(1,2,4)]
+
+    idxPC=grep("PC", colnames(a))
+    idxNotPCs=setdiff(1:ncol(a), idxPC)
+    colnames(a)[idxPC]=paste("cell_proportion", colnames(a)[idxPC], sep="_")
+
+    if (scalePCs) {
+        a[,idxPC] <- scale(a[,idxPC], center = TRUE, scale = TRUE)
+    }
+
+    #select the first X PCs.
+    if (numPCs > length(idxPC)) {
+        stop(paste("Requested", numPCs, "PCs but only found", length(idxPC), "in the file."))
+    }
+
+    idxPC=idxPC[1:numPCs]
+    a=a[,c(idxNotPCs,idxPC), drop=FALSE]
+
+    #a compound key to match the rownames in a.
+    metricsDF$key=paste(metricsDF$donor_external_id, metricsDF$brain_region_abbreviation, sep="_")
+
+    idx=match(metricsDF$key, rownames(a))
+    if (any (is.na(idx))) {
+        logger::log_warn(paste("Missing cell type proportions PCA for donors [", paste(metricsDF$donor_external_id[is.na(idx)], collapse=","), "]"))
+    }
+    #add the PCA scores to the metricsDF
+    metricsDF=cbind(metricsDF, a[idx, idxPC, drop=FALSE])
+    return (metricsDF)
+}
+
 # Functions to serialize and deserialize edgeR::DGEList objects
 # using two human-readable TSV files (gzipped by default):
 # one for counts (with optional gene annotation) and one for sample metadata,
@@ -414,7 +475,7 @@ addMixedAssayType <- function(metricsDF) {
 #' @param prefix Character prefix for the filenames (default "dge").
 #'               Will produce files: prefix_counts.tsv.gz and prefix_samples.tsv.gz
 #' @export
-#' @importFrom("utils", "write.table")
+#' @importFrom utils write.table
 saveDGEList <- function(dge, dir, prefix = "dge") {
     if (!dir.exists(dir)) dir.create(dir, recursive = TRUE)
 
@@ -549,5 +610,7 @@ compareDGEList <- function(dge1, dge2, tol = 1e-8) {
             if (any(neq, na.rm = TRUE)) stop(paste("Sample column", col, "differs"))
         }
     }
+    # If we reach here, everything matches
+    logger::log_info("DGELists are equal within tolerance of ", tol)
     return(TRUE)
 }
