@@ -9,7 +9,8 @@ mdsPlot(
   required_vars,
   num_samples = NULL,
   outMDSPlotRoot,
-  data_name = "All nuclei"
+  data_name = "All nuclei",
+  outMDSCoordinatesDir = NULL
 )
 }
 \arguments{
@@ -19,9 +20,11 @@ mdsPlot(
 
 \item{num_samples}{Integer or NULL. Maximum number of samples to randomly select; if NULL, all samples are used.}
 
-\item{outMDSPlotRoot}{Character. Directory in which to save the resulting HTML MDS plots.}
+\item{outMDSPlotRoot}{Character. Directory in which to save the resulting HTML MDS plots. (Optional)}
 
 \item{data_name}{Character. Prefix for output filenames and titles (e.g., “All Nuclei”).}
+
+\item{outMDSCoordinatesDir}{Character. Directory to save MDS coordinates. (Optional)}
 }
 \value{
 Invisibly returns NULL. Side effects:

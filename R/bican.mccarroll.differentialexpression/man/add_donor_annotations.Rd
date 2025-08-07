@@ -18,7 +18,7 @@ add_donor_annotations(
 
 \item{metadata_columns}{Character vector of columns to extract and merge into the \code{samples} data frame.}
 
-\item{add_counts}{Logical; if \code{TRUE}, adds a column \code{n_cells} with the number of cells per donor.}
+\item{add_counts}{Logical; if \code{TRUE}, adds a column \code{n_cells} with the number of nuclei per donor (num_nuclei)}
 }
 \value{
 A \code{DGEList} object with additional donor-level columns in \code{dge$samples}.
