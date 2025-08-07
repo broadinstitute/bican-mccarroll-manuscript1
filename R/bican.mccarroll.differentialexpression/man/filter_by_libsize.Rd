@@ -9,7 +9,7 @@ filter_by_libsize(dge, threshold_sd = 1.96, bins = 50, strTitlePrefix = NULL)
 \arguments{
 \item{dge}{A DGEList object containing sample metadata with library sizes}
 
-\item{threshold_sd}{Numeric. Number of standard deviations below the mean to set as the filtering threshold (default 1.96)}
+\item{threshold_sd}{Numeric. Number of standard deviations below the mean to set as the filtering threshold (default 1.96). If set to NULL, skip filtering entirely.}
 
 \item{bins}{Integer. Number of bins for the histogram (default 50)}
 

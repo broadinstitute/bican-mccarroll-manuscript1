@@ -1,9 +1,9 @@
 Package: bican.mccarroll.differentialexpression
 Type: Package
 Title: Differential expression analysis for BICAN
-Remotes: github::hasaru-k/GlimmaV2, bioc::edgeR,   bioc::variancePartition
+Remotes: github::hasaru-k/GlimmaV2, bioc::edgeR, bioc::limma, bioc::variancePartition, bioc::BiocParallel
 Version: 0.1.0
-Imports: data.table, edgeR, logger, ggplot2, htmlwidgets, Glimma, corrplot, vcd
+Imports: data.table, edgeR, logger, ggplot2, htmlwidgets, Glimma, corrplot, vcd, variancePartition, BiocParallel, cowplot, limma, progress, lme4
 Authors@R: c(
     person(
       "James", "Nemesh",

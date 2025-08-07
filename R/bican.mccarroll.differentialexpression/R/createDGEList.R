@@ -3,19 +3,25 @@
 # library(data.table)
 
 
-# metacell_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
-# manifest_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/DE_manifest.txt"
-# cell_metadata_file="/broad/bican_um1_mccarroll/RNAseq/analysis/cellarium_upload/CAP_freeze_2/CAP_cell_metadata.annotated.txt.gz"
-# cellTypeProportionsPCAFile=NULL
-# has_village=T; validateRoundTrip=T
+metacell_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
+manifest_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/DE_manifest.txt"
+cell_metadata_file="/broad/bican_um1_mccarroll/RNAseq/analysis/cellarium_upload/CAP_freeze_2/CAP_cell_metadata.annotated.txt.gz"
+cellTypeProportionsPCAFile=NULL
+has_village=T;
 
 # this doesn't include donor, region or village, as those are
 # automatically added by the manifest processing.
-# metadata_columns=c("biobank", "cohort", "age", "imputed_sex", "pmi_hr", "PC1", "PC2", "PC3", "PC4", "PC5", "toxicology_group", "single_cell_assay", "pct_intronic", "frac_contamination", "hbcac_status")
-# outDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
-# outName="donor_rxn_DGEList"
+metadata_columns=c("biobank", "cohort", "age", "imputed_sex", "pmi_hr", "PC1", "PC2", "PC3", "PC4", "PC5", "toxicology_group", "single_cell_assay", "pct_intronic", "frac_contamination", "hbcac_status")
+outDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
+outName="donor_rxn_DGEList"
 
-# z=build_merged_dge(manifest_file, metacell_dir, cell_metadata_file, metadata_columns,has_village, outDir, outName, validateRoundTrip=T)
+# z=bican.mccarroll.differentialexpression::build_merged_dge(manifest_file, metacell_dir, cell_metadata_file, metadata_columns,has_village, outDir, outName, validate_round_trip=T)
+
+
+# NOTE: For limma/voom runs, there is some metacells groups that are essentially duplicates.
+# We'll want to filter those out for limma/voom runs.
+# column retain_for_differential_expression should be true for all limma voom or partition runs.
+
 
 #' Build a Merged DGEList from Metacell Files and Metadata
 #'
@@ -33,7 +39,7 @@
 #' @param has_village Logical; if \code{TRUE}, the donor names in the metacell files are expected to be in the format \code{donor_village}.
 #' @param outDir Optional; directory to save the merged \code{DGEList} object as two gzipped TSV files.
 #' @param outName Optional; prefix for the output files. If \code{NULL}, no files are saved.
-#' @param validateRoundTrip Logical; if \code{TRUE}, validates the saved DGEList by loading it back and comparing to the original.
+#' @param validate_round_trip Logical; if \code{TRUE}, validates the saved DGEList by loading it back and comparing to the original.
 #'
 #' @return A merged \code{DGEList} object containing all samples with donor, cell type, region,
 #'   and specified metadata columns in \code{dge$samples}.
@@ -41,7 +47,7 @@
 #' @export
 #' @import data.table edgeR
 build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, metadata_columns, has_village=T,
-                             outDir=NULL, outName=NULL, validateRoundTrip=F) {
+                             outDir=NULL, outName=NULL, validate_round_trip=F) {
     # Read cell metadata
     cell_metadata <- data.table::fread(cell_metadata_file, data.table=F)
 
@@ -78,7 +84,7 @@ build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, me
     # write to disk if the outDir and outName are provided
     if (!is.null(outDir) && !is.null(outName)) {
         saveDGEList(dge_merged, dir = outDir, prefix = outName)
-        if (validateRoundTrip) {
+        if (validate_round_trip) {
             r=loadDGEList(dir = outDir, prefix = outName)
             compareDGEList(dge_merged, r)
         }
@@ -89,6 +95,8 @@ build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, me
 
     return(dge_merged)
 }
+
+
 
 #' Process a Single Metacell Count Matrix
 #'
@@ -171,6 +179,16 @@ process_metacell_file <- function(manifest_row, metacell_dir, cell_metadata, met
     # Add donor annotations
     dge <- add_donor_annotations(dge, cell_metadata_this, metadata_columns)
 
+    #add the "use" columns.
+    useCols=c("MDS", "differential_expression", "eQTL_Analysis")
+    for (col in useCols) {
+        if (col %in% colnames(manifest_row)) {
+            dge$samples[[col]] <- manifest_row[[col]]
+        } else {
+            dge$samples[[col]] <- NA
+        }
+    }
+
     return(dge)
 }
 
@@ -182,7 +200,7 @@ process_metacell_file <- function(manifest_row, metacell_dir, cell_metadata, met
 #' @param dge_merged A \code{DGEList} object with a \code{donor} column in \code{dge$samples}.
 #' @param cell_metadata A data frame of per-cell metadata used to extract donor-level summaries.
 #' @param metadata_columns Character vector of columns to extract and merge into the \code{samples} data frame.
-#' @param add_counts Logical; if \code{TRUE}, adds a column \code{n_cells} with the number of cells per donor.
+#' @param add_counts Logical; if \code{TRUE}, adds a column \code{n_cells} with the number of nuclei per donor (num_nuclei)
 #'
 #' @return A \code{DGEList} object with additional donor-level columns in \code{dge$samples}.
 #'
@@ -190,6 +208,11 @@ process_metacell_file <- function(manifest_row, metacell_dir, cell_metadata, met
 add_donor_annotations<-function (dge_merged, cell_metadata, metadata_columns, add_counts=TRUE) {
     #aggregate donor-level metadata
     donor_metadata <- getAnnotations(cell_metadata, aggregationFeatures = "donor_external_id",  additionalColumns=metadata_columns, addCounts = add_counts)
+
+    #if add_counts is true, add that to the metadata_columns
+    if (add_counts && !("num_nuclei" %in% metadata_columns)) {
+        metadata_columns <- c(metadata_columns, "num_nuclei")
+    }
 
     # Merge with cell metadata
     idx=match(dge_merged$samples$donor, donor_metadata$donor_external_id)
@@ -285,7 +308,7 @@ getAnnotations <- function(metricsDF,
         }
 
         if (addCounts) {
-            row[["n_cells"]] <- nrow(df)
+            row[["num_nuclei"]] <- nrow(df)
         }
 
         return(row)

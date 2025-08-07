@@ -16,6 +16,7 @@
 # library(ggplot2)
 
 
+
 # data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
 # cellTypeGroupFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/cell_type_groups.txt"
 # cellTypeGroupFile=NULL
@@ -25,13 +26,17 @@
 # Variance Partition variables
 # randVars=c("donor", "imputed_sex", "biobank", "single_cell_assay", "region", "hbcac_status", "toxicology_group")
 # fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pmi_hr", "pct_intronic", "frac_contamination")
-# max_num_samples=4000
+# max_num_samples=5000
 #
 # outMDSPlotRoot="/Volumes/nemesh/private_html/BICAN/MDS"
 # outPDF= "/Volumes/nemesh/private_html/BICAN/MDS/mds_qc_plots.pdf"
+# outMDSCoordinatesDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/mds_coordinates"
 
+# run the library size filter MDS plots, emit the MDS plot HTML but not the MDS coordinates.
+# runMDSPlots(data_dir = data_dir, data_name = data_name, randVars = randVars, fixedVars = fixedVars, max_num_samples = 5000, filter_by_libsize_zscore=1.96, cellTypeGroupFile = cellTypeGroupFile, outMDSPlotRoot = outMDSPlotRoot, outPDF = outPDF, outMDSCoordinatesDir=NULL)
 
-# runMDSPlots(data_dir = data_dir, data_name = data_name, randVars = randVars, fixedVars = fixedVars, max_num_samples = max_num_samples, cellTypeGroupFile = cellTypeGroupFile, outMDSPlotRoot = outMDSPlotRoot, outPDF = outPDF)
+#run the MDS plots without library size filter, emit only the MDS coordinates.
+# runMDSPlots(data_dir = data_dir, data_name = data_name, randVars = randVars, fixedVars = fixedVars, max_num_samples = 100000, filter_by_libsize_zscore=NULL, cellTypeGroupFile = cellTypeGroupFile, outMDSPlotRoot = NULL, outPDF = NULL, outMDSCoordinatesDir=outMDSCoordinatesDir)
 
 
 #' Run MDS Plots and QC Report for a DGEList
@@ -45,9 +50,11 @@
 #' @param randVars               Character vector. Names of “random” metadata variables for MDS coloring.
 #' @param fixedVars              Character vector. Names of “fixed” metadata variables for MDS grouping.
 #' @param max_num_samples        Integer. Maximum number of samples to include in each MDS plot (default 2500).
+#' @param filter_by_libsize_zscore Numeric. Number of standard deviations below the mean to filter samples by library size (default 1.96).  Set to NULL to disable completely.
 #' @param cellTypeGroupFile      Character or NULL. Path to a two‑column TSV/CSV with columns `cell_type` and `group_label`; if NULL, no group plots are made.
 #' @param outMDSPlotRoot         Character. Directory in which to save the Glimma MDS HTML files.
 #' @param outPDF                 Character. File path for the output QC PDF report.
+#' @param outMDSCoordinatesDir   A directory to emit MDS outputs to, one file per experiment.
 #' @return
 #' Invisibly returns NULL. Side effects:
 #' - Writes HTML MDS plots to `outMDSPlotRoot`.
@@ -61,16 +68,21 @@
 #' @importFrom corrplot corrplot
 #' @importFrom edgeR DGEList
 #' @export
-runMDSPlots<-function (data_dir, data_name, randVars, fixedVars, max_num_samples=2500, cellTypeGroupFile=NULL, outMDSPlotRoot, outPDF) {
+runMDSPlots<-function (data_dir, data_name, randVars, fixedVars, max_num_samples=2500, filter_by_libsize_zscore=1.96, cellTypeGroupFile=NULL, outMDSPlotRoot, outPDF, outMDSCoordinatesDir=NULL) {
     # load the pre-computed DGEList object
+    logger::log_info(paste("Loading DGEList from:", data_dir, "with prefix:", data_name))
     dge=bican.mccarroll.differentialexpression::loadDGEList(data_dir, prefix = data_name)
+
+    #filter to the list of metacells that should be used for MDS
+    idx=which(dge$sample$MDS==T)
+    dge=dge[,idx,keep.lib.sizes=TRUE]
 
     #validate the variables are present in the data set.
     required_vars=c(randVars, fixedVars)
     validateSampleVars(dge, required_vars)
 
     #scale genetic PCs to unit variance.
-    dge$samples=scale_PC_cols(dge$samples)
+    dge$samples=bican.mccarroll.differentialexpression::scale_PC_cols(dge$samples)
 
     # I don't want to have repeated features.
     # Turns out you need norm.factors for logCPM / MDS plot, so can't drop it despite it always being 1.
@@ -78,7 +90,8 @@ runMDSPlots<-function (data_dir, data_name, randVars, fixedVars, max_num_samples
     dge$samples <- dge$samples[, !colnames(dge$samples) %in% dropFeatures, drop = FALSE]
 
     #add a log10 library size column
-    dge$samples$lib_log10 <- log10(dge$samples$lib.size)
+    #This did not look nice/useful.
+    #dge$samples$lib_log10 <- log10(dge$samples$lib.size)
 
     # MDS plots by cell type
     cell_type_list=unique(dge$samples$cell_type)
@@ -87,10 +100,10 @@ runMDSPlots<-function (data_dir, data_name, randVars, fixedVars, max_num_samples
         for (cellType in cell_type_list) {
             logger::log_info(paste("Creating MDS plot for cell type:", cellType))
             dge_cell <- dge[, dge$samples$cell_type == cellType, keep.lib.sizes = TRUE]
-            r<- filter_by_libsize(dge_cell, threshold_sd = 1.96, bins = 50, strTitlePrefix = cellType)
+            r<- filter_by_libsize(dge_cell, threshold_sd = filter_by_libsize_zscore, bins = 50, strTitlePrefix = cellType)
             dge_cell<- r$dge
             plotList[[cellType]]=r$plot
-            mdsPlot(dge_cell, required_vars, num_samples = max_num_samples, outMDSPlotRoot=outMDSPlotRoot, data_name= cellType)
+            mdsPlot(dge_cell, required_vars, num_samples = max_num_samples, outMDSPlotRoot=outMDSPlotRoot, data_name= cellType, outMDSCoordinatesDir)
         }
     } else {
         logger::log_info("No cell types found in the DGEList samples.")
@@ -107,22 +120,27 @@ runMDSPlots<-function (data_dir, data_name, randVars, fixedVars, max_num_samples
             cell_type_list= cellTypeGroups$cell_type[cellTypeGroups$group_label == cellTypeGroup]
             idx=which(dge$samples$cell_type %in% cell_type_list)
             dge_cell_group <- dge[, idx, keep.lib.sizes = TRUE]
-            r<- filter_by_libsize(dge_cell_group, threshold_sd = 1.96, bins = 50, strTitlePrefix = cellTypeGroup)
+            r<- filter_by_libsize(dge_cell_group, threshold_sd = filter_by_libsize_zscore, bins = 50, strTitlePrefix = cellTypeGroup)
             dge_cell_group<- r$dge
             plotList[[cellTypeGroup]]=r$plot
-            mdsPlot(dge_cell_group, required_vars, num_samples = max_num_samples, outMDSPlotRoot=outMDSPlotRoot, data_name= cellTypeGroup)
+            mdsPlot(dge_cell_group, required_vars, num_samples = max_num_samples, outMDSPlotRoot=outMDSPlotRoot, data_name= cellTypeGroup, outMDSCoordinatesDir=outMDSCoordinatesDir)
         }
     }
 
     # MDS plot for all nuclei
     data_name=paste("All Nuclei", max_num_samples, "samples")
     logger::log_info(paste("Creating MDS plot for:", data_name))
-    r<- filter_by_libsize(dge, threshold_sd = 1.96, bins = 50, strTitlePrefix="All Nuclei")
+    r<- filter_by_libsize(dge, threshold_sd = filter_by_libsize_zscore, bins = 50, strTitlePrefix="All Nuclei")
     dge_cell<- r$dge
     plotList[[data_name]]=r$plot
-    mdsPlot(dge, required_vars, num_samples = max_num_samples, outMDSPlotRoot=outMDSPlotRoot, data_name = data_name)
+    mdsPlot(dge, required_vars, num_samples = max_num_samples, outMDSPlotRoot=outMDSPlotRoot, data_name = data_name, outMDSCoordinatesDir=outMDSCoordinatesDir)
 
     #QC report plot
+    if (is.null(outPDF)) {
+        logger::log_info("No output PDF specified, skipping QC report generation.")
+        return(invisible(NULL))
+    }
+
     grDevices::pdf(outPDF)
 
     #correlation plot
@@ -145,8 +163,6 @@ runMDSPlots<-function (data_dir, data_name, randVars, fixedVars, max_num_samples
     }
 
     grDevices::dev.off()
-
-
 }
 
 #' @title Generate and Save Glimma MDS Plots
@@ -158,22 +174,22 @@ runMDSPlots<-function (data_dir, data_name, randVars, fixedVars, max_num_samples
 #' @param dge            DGEList. An edgeR DGEList object containing counts and sample metadata.
 #' @param required_vars  Character vector. Sample‑metadata columns to include in the MDS plot.
 #' @param num_samples    Integer or NULL. Maximum number of samples to randomly select; if NULL, all samples are used.
-#' @param outMDSPlotRoot Character. Directory in which to save the resulting HTML MDS plots.
+#' @param outMDSPlotRoot Character. Directory in which to save the resulting HTML MDS plots. (Optional)
 #' @param data_name      Character. Prefix for output filenames and titles (e.g., “All Nuclei”).
-#'
+#' @param outMDSCoordinatesDir Character. Directory to save MDS coordinates. (Optional)
 #' @return
 #' Invisibly returns NULL. Side effects:
 #' - Saves two HTML Glimma MDS plots (`<data_name>_continuous.html` and `<data_name>_discrete.html`) in `outMDSPlotRoot`.
 #' @import htmlwidgets Glimma logger
-mdsPlot<-function (dge, required_vars, num_samples=NULL, outMDSPlotRoot, data_name="All nuclei") {
-    #optionally limit the number of samples used in analysis - mostly to reduce compute costs for high N.
-    if (!is.null(num_samples)) {
-        s=min(num_samples, dim(dge)[2])
-        idx=sample(1:dim(dge)[2], size=s)
-        dgeThis=dge[,idx,keep.lib.sizes=TRUE]
-    } else {
-        dgeThis=dge
+mdsPlot<-function (dge, required_vars, num_samples=NULL, outMDSPlotRoot, data_name="All nuclei", outMDSCoordinatesDir=NULL) {
+    #why bother if you're not emitting results?
+    if (is.null(outMDSPlotRoot) && is.null(outMDSCoordinatesDir)) {
+        logger::log_info("No output directories specified, skipping MDS plot generation.")
+        return(invisible(NULL))
     }
+
+    #optionally limit the number of samples used in analysis - mostly to reduce compute costs for high N.
+    dgeThis=restrictDGEListToSamples(dge, num_samples)
 
     # format the sample metadata for glimma - this data is only for display purposes.
     dgeThis$samples=round_df_sig(dgeThis$samples, digits = 3L)
@@ -181,21 +197,54 @@ mdsPlot<-function (dge, required_vars, num_samples=NULL, outMDSPlotRoot, data_na
     # Version 2 of the framework.
     logger::log_info(paste("Creating glimma MDS plot - continuous colour with num samples [", num_samples_retained, "]"))
     r=Glimma::glimmaMDS(dgeThis, continuous.colour=TRUE, launch=F, main="TEST V2", width=1600, height=900, var.explained=TRUE, title="All Nuclei")
-    logger::log_info(paste("Creating glimma MDS plot - discrete colour with num samples [", num_samples_retained, "]"))
-    r2=Glimma::glimmaMDS(dgeThis, continuous.colour=FALSE, launch=F, main="TEST V2", width=1600, height=900, var.explained=TRUE, title="All Nuclei")
+
+    #the second plot is only created if the outMDSPlotRoot is specified.
+    r2=NULL
+    if (!is.null(outMDSPlotRoot)) {
+        logger::log_info(paste("Creating glimma MDS plot - discrete colour with num samples [", num_samples_retained, "]"))
+        r2=Glimma::glimmaMDS(dgeThis, continuous.colour=FALSE, launch=F, main="TEST V2", width=1600, height=900, var.explained=TRUE, title="All Nuclei")
+
+    }
     logger::log_info(paste("Finished creating glimma MDS plots"))
 
     # https://stackoverflow.com/questions/74379298/argument-selfcontained-deprecated-in-htmlwidgetssavewidget
     # work around for selfcontained not working?
-    myoriginalwd=getwd()
-    setwd(outMDSPlotRoot)
-    outFileC= paste0(data_name, "_continuous.html")
-    htmlwidgets::saveWidget(r, file=outFileC, selfcontained = TRUE, title=paste(data_name, "continuous"))
-    outFileD= paste0(data_name, "_discrete.html")
-    htmlwidgets::saveWidget(r2,outFileD, selfcontained = TRUE, title=paste(data_name, "discrete"))
-    setwd(myoriginalwd)
+    if (!is.null(outMDSPlotRoot)) {
+        myoriginalwd=getwd()
+        setwd(outMDSPlotRoot)
+        outFileC= paste0(data_name, "_continuous.html")
+        htmlwidgets::saveWidget(r, file=outFileC, selfcontained = TRUE, title=paste(data_name, "continuous"))
+        outFileD= paste0(data_name, "_discrete.html")
+        htmlwidgets::saveWidget(r2,outFileD, selfcontained = TRUE, title=paste(data_name, "discrete"))
+        setwd(myoriginalwd)
+    }
+
+    if (!is.null(outMDSCoordinatesDir)) {
+        # save the MDS coordinates to a file
+        z=r$x$data$mdsData
+        idx=c(which(colnames(z)=="labels"), grep("dim", colnames(z)))
+        mds_coords=z[,idx]
+        outFileCoords <- file.path(outMDSCoordinatesDir, paste0(data_name, "_mds_coordinates.tsv"))
+        write.table(mds_coords, file=outFileCoords, sep="\t", row.names=FALSE, quote=FALSE)
+        logger::log_info(paste("Saved MDS coordinates to:", outFileCoords))
+    }
 }
 
+#' Restrict a DGEList to a random subset of samples
+#' @param dge A DGEList object containing sample metadata
+#' @param num_samples Integer. Number of samples to randomly select; if NULL, all samples are retained.
+#' @return A DGEList object containing only the selected samples, with library sizes retained.
+#' @export
+restrictDGEListToSamples <- function(dge, num_samples) {
+    if (!is.null(num_samples)) {
+        s=min(num_samples, dim(dge)[2])
+        idx=sample(1:dim(dge)[2], size=s)
+        dgeThis=dge[,idx,keep.lib.sizes=TRUE]
+    } else {
+        dgeThis=dge
+    }
+    return (dgeThis)
+}
 
 
 #' Round numeric columns in a data.frame to a specified number of significant digits
@@ -312,6 +361,7 @@ validateSampleVars <- function(dge, required_vars) {
 #'
 #' @param df A data.frame containing PC columns (named "PC1", "PC2", etc.)
 #' @return The original data.frame with PC columns scaled to unit variance
+#' @export
 scale_PC_cols <- function(df) {
     # find columns starting with "PC"
     pc.cols <- grep("^PC", names(df))
@@ -328,7 +378,7 @@ scale_PC_cols <- function(df) {
 #' Filter a DGEList by library size, plotting the distribution and returning filtered DGEList
 #'
 #' @param dge A DGEList object containing sample metadata with library sizes
-#' @param threshold_sd Numeric. Number of standard deviations below the mean to set as the filtering threshold (default 1.96)
+#' @param threshold_sd Numeric. Number of standard deviations below the mean to set as the filtering threshold (default 1.96). If set to NULL, skip filtering entirely.
 #' @param bins Integer. Number of bins for the histogram (default 50)
 #' @param strTitlePrefix Character. Prefix for the plot title (default NULL)
 #' @return A list containing:
@@ -340,6 +390,11 @@ scale_PC_cols <- function(df) {
 filter_by_libsize <- function(dge, threshold_sd = 1.96, bins = 50, strTitlePrefix=NULL) {
     if (!inherits(dge, "DGEList")) {
         stop("`dge` must be a DGEList object", call. = FALSE)
+    }
+
+    if (is.null(threshold_sd)) {
+        logger::log_info("Skipping library size filtering as threshold_sd is NULL")
+        return(list(plot = NULL, dge = dge))
     }
 
     # compute log10 library sizes
@@ -365,8 +420,8 @@ filter_by_libsize <- function(dge, threshold_sd = 1.96, bins = 50, strTitlePrefi
     # make the ggplot
     df <- base::data.frame(lib_log = lib_log)
     p <- ggplot2::ggplot(df, ggplot2::aes(x = lib_log)) +
-        ggplot2::geom_histogram(bins = bins) +
-        ggplot2::geom_vline(xintercept = threshold, colour = "red", linewidth = 1) +
+        ggplot2::geom_histogram(bins = bins, fill = "lightblue") +
+        ggplot2::geom_vline(xintercept = threshold, colour = "red", linetype = "dashed", linewidth = 1.2) +
         ggplot2::labs(
             x     = "library size [log10]",
             title = title

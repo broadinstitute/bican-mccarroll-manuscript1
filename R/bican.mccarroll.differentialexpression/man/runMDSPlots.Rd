@@ -10,9 +10,11 @@ runMDSPlots(
   randVars,
   fixedVars,
   max_num_samples = 2500,
+  filter_by_libsize_zscore = 1.96,
   cellTypeGroupFile = NULL,
   outMDSPlotRoot,
-  outPDF
+  outPDF,
+  outMDSCoordinatesDir = NULL
 )
 }
 \arguments{
@@ -26,16 +28,20 @@ runMDSPlots(
 
 \item{max_num_samples}{Integer. Maximum number of samples to include in each MDS plot (default 2500).}
 
+\item{filter_by_libsize_zscore}{Numeric. Number of standard deviations below the mean to filter samples by library size (default 1.96).  Set to NULL to disable completely.}
+
 \item{cellTypeGroupFile}{Character or NULL. Path to a two‑column TSV/CSV with columns `cell_type` and `group_label`; if NULL, no group plots are made.}
 
 \item{outMDSPlotRoot}{Character. Directory in which to save the Glimma MDS HTML files.}
 
 \item{outPDF}{Character. File path for the output QC PDF report.}
+
+\item{outMDSCoordinatesDir}{A directory to emit MDS outputs to, one file per experiment.}
 }
 \value{
 Invisibly returns NULL. Side effects:
 - Writes HTML MDS plots to `outMDSPlotRoot`.
-- Writes a multi‑pagew PDF of QC plots to `outPDF`.
+- Writes a multi‑page PDF of QC plots to `outPDF`.
 }
 \description{
 Load a precomputed DGEList, validate sample variables, scale PCs,
