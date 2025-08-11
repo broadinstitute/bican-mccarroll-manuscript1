@@ -27,16 +27,17 @@
 # randVars=c("donor", "imputed_sex", "biobank", "single_cell_assay", "region", "hbcac_status", "toxicology_group")
 # fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pmi_hr", "pct_intronic", "frac_contamination")
 # max_num_samples=5000
-#
-# outMDSPlotRoot="/Volumes/nemesh/private_html/BICAN/MDS"
-# outPDF= "/Volumes/nemesh/private_html/BICAN/MDS/mds_qc_plots.pdf"
+
+# outMDSPlotRoot="/Volumes/nemesh/private_html/BICAN/MDS_NEW"
+# outPDF= "/Volumes/nemesh/private_html/BICAN/MDS_NEW/mds_qc_plots.pdf"
 # outMDSCoordinatesDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/mds_coordinates"
+# additionalDonorMetadata=c("/broad/bican_um1_mccarroll/RNAseq/analysis/cellarium_upload/CAP_freeze_2/donor_metadata_rejection.txt")
 
 # run the library size filter MDS plots, emit the MDS plot HTML but not the MDS coordinates.
-# runMDSPlots(data_dir = data_dir, data_name = data_name, randVars = randVars, fixedVars = fixedVars, max_num_samples = 5000, filter_by_libsize_zscore=1.96, cellTypeGroupFile = cellTypeGroupFile, outMDSPlotRoot = outMDSPlotRoot, outPDF = outPDF, outMDSCoordinatesDir=NULL)
+# bican.mccarroll.differentialexpression::runMDSPlots(data_dir = data_dir, data_name = data_name, additionalDonorMetadata=additionalDonorMetadata, randVars = randVars, fixedVars = fixedVars, max_num_samples = 5000, filter_by_libsize_zscore=1.96, cellTypeGroupFile = cellTypeGroupFile, outMDSPlotRoot = outMDSPlotRoot, outPDF = outPDF, outMDSCoordinatesDir=NULL)
 
 #run the MDS plots without library size filter, emit only the MDS coordinates.
-# runMDSPlots(data_dir = data_dir, data_name = data_name, randVars = randVars, fixedVars = fixedVars, max_num_samples = 100000, filter_by_libsize_zscore=NULL, cellTypeGroupFile = cellTypeGroupFile, outMDSPlotRoot = NULL, outPDF = NULL, outMDSCoordinatesDir=outMDSCoordinatesDir)
+# runMDSPlots(data_dir = data_dir, data_name = data_name, additionalDonorMetadata=NULL, randVars = randVars, fixedVars = fixedVars, max_num_samples = 100000, filter_by_libsize_zscore=NULL, cellTypeGroupFile = cellTypeGroupFile, outMDSPlotRoot = NULL, outPDF = NULL, outMDSCoordinatesDir=outMDSCoordinatesDir)
 
 
 #' Run MDS Plots and QC Report for a DGEList
@@ -47,6 +48,8 @@
 
 #' @param data_dir                Character. Directory containing the precomputed DGEList.
 #' @param data_name               Character. Prefix or name used to load the DGEList object.
+#' @param additionalDonorMetadata A file containing additional donor metadata to merge with the DGEList samples.
+#' The first column is donor, and the other columns will be merged with the DGEList samples.
 #' @param randVars               Character vector. Names of “random” metadata variables for MDS coloring.
 #' @param fixedVars              Character vector. Names of “fixed” metadata variables for MDS grouping.
 #' @param max_num_samples        Integer. Maximum number of samples to include in each MDS plot (default 2500).
@@ -68,10 +71,26 @@
 #' @importFrom corrplot corrplot
 #' @importFrom edgeR DGEList
 #' @export
-runMDSPlots<-function (data_dir, data_name, randVars, fixedVars, max_num_samples=2500, filter_by_libsize_zscore=1.96, cellTypeGroupFile=NULL, outMDSPlotRoot, outPDF, outMDSCoordinatesDir=NULL) {
+runMDSPlots<-function (data_dir, data_name, additionalDonorMetadata, randVars, fixedVars, max_num_samples=2500, filter_by_libsize_zscore=1.96, cellTypeGroupFile=NULL, outMDSPlotRoot, outPDF, outMDSCoordinatesDir=NULL) {
     # load the pre-computed DGEList object
     logger::log_info(paste("Loading DGEList from:", data_dir, "with prefix:", data_name))
     dge=bican.mccarroll.differentialexpression::loadDGEList(data_dir, prefix = data_name)
+
+    #merge in additional donor metadata
+    if (!is.null(additionalDonorMetadata)) {
+        logger::log_info(sprintf("Merging additional donor metadata from: %s", additionalDonorMetadata))
+
+        donor_metadata <- utils::read.table(additionalDonorMetadata, header = TRUE, sep = "\t")
+
+        if ("donor" %in% colnames(donor_metadata)) {
+            m <- match(dge$samples$donor, donor_metadata$donor)
+            for (cn in setdiff(names(donor_metadata), "donor")) {
+                dge$samples[[cn]] <- donor_metadata[[cn]][m]
+            }
+        } else {
+            logger::log_warn("No 'donor' column found in additional metadata; skipping merge.")
+        }
+    }
 
     #filter to the list of metacells that should be used for MDS
     idx=which(dge$sample$MDS==T)

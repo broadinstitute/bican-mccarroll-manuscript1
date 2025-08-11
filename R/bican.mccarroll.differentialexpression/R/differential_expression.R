@@ -1,24 +1,57 @@
 
+# library(bican.mccarroll.differentialexpression)
+# library(variancePartition)
+# library(Glimma)
+#
+# library(ggplot2)
+# library(ggrepel)
+
 
 # data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
 # data_name="donor_rxn_DGEList"
-# randVars=c("donor", "imputed_sex", "single_cell_assay", "region", "toxicology_group", "village", "biobank")
-# fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pmi_hr", "pct_intronic", "frac_contamination")
-# contrast_file
+# randVars=c("donor", "village")
+# #note: "imputed_sex" moves to a fixed effect!
+# fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pmi_hr", "pct_intronic", "frac_contamination", "imputed_sex", "toxicology_group", "single_cell_assay", "region", "biobank")
+# contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_all.txt"
+# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_results"
 
 
+#Dropping PMI, HBCAC, toxicology from model.  Not all donors have PMI, PMI does not contribute very much to variance explained.
+# Only running on sex and age to be more donor inclusive.
+data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
+data_name="donor_rxn_DGEList"
+randVars=c("donor", "village")
+fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "single_cell_assay", "region", "biobank")
+contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_sex_age.txt"
+result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_results_sex_age"
+outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
+
+# bican.mccarroll.differentialexpression::differential_expression(data_dir, data_name, randVars, fixedVars, contrast_file, outPDF, result_dir)
+
+#' Run differential expression analysis for each cell type in the DGEList.
+#'
+#' @param data_dir Directory containing the DGEList data.
+#' @param data_name Name of the DGEList data file (without extension).
+#' @param randVars Vector of random effect variables.
+#' @param fixedVars Vector of fixed effect variables.
+#' @param contrast_file Path to the file containing contrast definitions.
+#' @param outPDF Optional path to output PDF file for plots.
+#' @param result_dir Directory to save the differential expression results.
+#' @export
 differential_expression <- function(data_dir, data_name, randVars, fixedVars, contrast_file, outPDF, result_dir) {
     #load the DGEList and prepare the data
-    d=prepare_data_for_differential_expression(data_dir, data_name, randVars, fixedVars)
+    d=bican.mccarroll.differentialexpression::prepare_data_for_differential_expression(data_dir, data_name, randVars, fixedVars)
     dge=d$dge; fixedVars=d$fixedVars; randVars=d$randVars
 
     contrast_defs <- read.table(contrast_file, stringsAsFactors = FALSE, sep="\t", header=TRUE)
 
     # Variance Partition by cell type
     cell_type_list=unique(dge$samples$cell_type)
-    #cell_type_list=cell_type_list[2]
-    plotList=list()
+    #cell_type_list=cell_type_list[1]
+    cellType="astrocyte"
     line <- strrep("=", 80)
+
+    plot_list= list()
     if (length(cell_type_list) > 0) {
         for (cellType in cell_type_list) {
             logger::log_info(line)
@@ -36,16 +69,35 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
             r2=plot_logCPM_density_quantiles(dge_cell, cpm_cutoff = 1, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5)
             dge_cell=r2$filtered_dge
 
-            p1=r$plot
-            p1<-p1 + ggplot2::theme(plot.title = ggplot2::element_text(size = 10))
-
-            p2=r2$plot
-            p2<- p2 + ggplot2::theme(plot.title = ggplot2::element_text(size = 10))
-
-            filtering_qc_plots=cowplot::plot_grid(p1, p2, ncol=1, label_size = 12)
-
             #run differential expression
-            z<-differential_expression_one_cell_type(dge_cell, fixedVars, randVars, verbose = TRUE)
+            #this produces one list per contrast comparison.
+            z<-differential_expression_one_cell_type(dge_cell, fixedVars, randVars, contrast_defs,
+                                                     verbose = TRUE)
+            #str(z)
+
+            # flatten the results for summary and plotting
+            # keep only data frames, keep ONLY inner names, preserve order
+            z_flat <- do.call(c, lapply(unname(z), function(x) x[sapply(x, is.data.frame)]))
+
+            #save the results
+            for (contrast in names(z_flat)) {
+                out=z_flat[[contrast]]
+                n=paste(cellType, contrast, sep="_")
+                outFile <- file.path(result_dir, paste0(n, "_DE_results.txt"))
+                logger::log_info(paste("Saving results to:", outFile))
+                write.table(out, file = outFile, sep = "\t", quote = FALSE, row.names = TRUE, col.names = TRUE)
+            }
+
+            #make a volcano plot for each contrast
+            for (contrast in names(z_flat)) {
+                n=paste(cellType, contrast, sep="_")
+                df <- z_flat[[contrast]]
+                if (nrow(df) > 0) {
+                    p <- make_volcano(df, fdr_thresh = 0.05, lfc_thresh = 0,
+                                      top_n_each = 10, title = paste(cellType, contrast))
+                    plot_list[[n]] <- p
+                }
+            }
         }
     } else {
         logger::log_info("No cell types found in the DGEList samples.")
@@ -54,85 +106,573 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
     if (!is.null(outPDF)) {
         logger::log_info(paste("Saving all plots to PDF:", outPDF))
         grDevices::pdf(outPDF)
-        for (i in 1:length(plotList)) {
-            print(plotList[[i]])
+        pages=paginate_plots(plot_list, plots_per_page = 2)
+        for (i in 1:length(pages)) {
+            print(pages[[i]])
         }
         grDevices::dev.off()
     }
 
 }
 
-differential_expression_one_cell_type<-function (dge_subset, fixedVars, randVars, verbose = TRUE, n_cores = parallel::detectCores() - 2) {
 
-    # Drop random effects if they have insufficient replication
-    rv <- prune_random_effects_insufficient_replication(randVars, data=dge_subset$samples)
+#Use ~0 + group for a "means" model: If you want a column for each group
+#representing the mean expression for that group (and no intercept term),
+#you can use this formula. This can be useful for certain types of comparisons.
 
-    # Build formula string
-    rand_part <- paste0("(1|", rv, ")", collapse = " + ")
-    fixed_part <- paste(fixedVars, collapse = " + ")
-    formula_str <- paste(fixed_part, rand_part, sep = " + ")
-    form <- stats::as.formula(paste(" ~ ", formula_str))
+#design <- model.matrix(~0 + group, data=data)
 
-    #Can't I just build the fixed effect formula directly?
-    fixed_formula <- extract_fixed_effects_formula(form)
-    design_matrix <- model.matrix(fixed_formula, data = dge_cell$samples)
+differential_expression_one_cell_type<-function (dge_cell, fixedVars, randVars, contrast_defs, verbose = TRUE, n_cores = parallel::detectCores() - 2) {
+    #have to handle values that are not valid R column names.
+    dge_cell$samples<- sanitize_levels(dge_cell$samples)
+    #sanitize the contrast definitions to match the data
+    contrast_defs<- sanitize_contrast_levels(contrast_defs)
 
-    # 4. Generate contrast matrix from flat file & design
-    contrast_matrix <- generate_contrasts_from_file(contrast_file, design_matrix)
-
-    # 5. Run dream()
-    param <- BiocParallel::MulticoreParam(workers = n_cores)
-    fit <- variancePartition::dream(exprObj = dge_cell$counts, formula = form, data = dge_cell$samples, BPPARAM = param)
-
-    # 6. Extract topTable results per contrast
-    topTables_list <- list()
-    for (contrast_name in colnames(contrast_matrix)) {
-        topTables_list[[contrast_name]] <- limma::topTable(fit, coef = contrast_name, number = Inf)
+    contrast_groups<-unique (contrast_defs$variable)
+    topTables_all_list=list()
+    for (contrast_group in contrast_groups) {
+        logger::log_info(paste("Running differential expression for contrast group:", contrast_group))
+        topTables_list<-differential_expression_one_cell_type_contrast_group(dge_cell, fixedVars, randVars, contrast_defs, contrast_group=contrast_group, verbose = TRUE, n_cores = n_cores)
+        topTables_all_list[[contrast_group]]<-topTables_list
     }
-
+    return(topTables_all_list)
 
 }
 
-# Read contrast definitions
-# contrast_defs <- read.delim(contrast_file, stringsAsFactors = FALSE)
+differential_expression_one_cell_type_contrast_group<-function (dge_cell, fixedVars, randVars, contrast_defs,
+                                                                contrast_group="toxicology_group", verbose = TRUE,
+                                                                n_cores = parallel::detectCores() - 2) {
 
-generate_contrasts_from_file <- function(contrast_defs, design_matrix) {
+    contrast_defs_this= contrast_defs[contrast_defs$variable == contrast_group, ]
 
-    # Initialize list to hold contrast formulas
+    #drop levels in a consistent way.
+    #the sex encoding gets mangled somewhere internally in dream.
+    dge_cell_this=dge_cell
+    dge_cell_this$samples <- droplevels(dge_cell_this$samples)
+
+    # Drop random effects if they have insufficient replication
+    rv <- prune_random_effects_insufficient_replication(randVars, data=dge_cell_this$samples)
+
+    # Ensure the contrast grouping variable is at the front of the fixed effects list
+    fv=move_to_front(fixedVars, contrast_group)
+    #drop fixed effects if they have insufficient replication
+    fv <- drop_single_level_rand_effects(fv, metadata=dge_cell_this$samples, verbose = TRUE)
+
+    rand_part <- paste0("(1|", rv, ")", collapse = " + ")
+    fixed_part <- paste(fv, collapse = " + ")
+    # the fixed effects formula for the design matrix.
+    fixed_form <- stats::as.formula(paste(" ~ 0 +", fixed_part))
+    #the fixed + random effects formula for the dream model.
+    formula_str <- paste(fixed_part, rand_part, sep = " + ")
+    full_form <- stats::as.formula(paste(" ~ 0 +", formula_str))
+
+    design <- stats::model.matrix(fixed_form, data = dge_cell_this$samples)
+    if (qr(design)$rank < ncol(design)) {
+        stop("Design matrix is not full rank; consider dropping colinear variables.")
+    }
+
+    contrast_matrix <- generate_contrasts_from_defs(contrast_defs_this, design)
+    # variancePartition::plotContrasts(contrast_matrix)
+
+    param <- BiocParallel::MulticoreParam(workers = n_cores)
+    cell_type <- unique(dge_cell_this$samples$cell_type)
+
+    ###################
+    #After running voom, filter the extreme outlier genes and refit.
+    ####################
+    vobjDream <- variancePartition::voomWithDreamWeights(counts=dge_cell_this, formula=full_form, data=dge_cell_this$samples, BPPARAM = param)
+
+    # Identify good genes
+    genes_to_keep <- filter_high_weight_genes(vobjDream, dge_cell_this, quantile_threshold = 0.999)
+
+    # Subset DGE and refit
+    dge_cell_this <- dge_cell_this[genes_to_keep, ]
+    vobjDream <- variancePartition::voomWithDreamWeights(dge_cell_this, full_form, data = dge_cell_this$samples, BPPARAM = param, plot=FALSE)
+
+    #is this group a contrast group, or is it continuous (IE: age)
+    #This defines L as the contrast matrix of there are levels being compared, or NULL for categories like age.
+    has_contrasts_groups <- !all(is.na(contrast_defs_this$reference_level) & is.na(contrast_defs_this$comparison_level))
+    L <- if (has_contrasts_groups) contrast_matrix else NULL
+
+    fitmm <- capture_dream_warnings({
+        variancePartition::dream(exprObj=vobjDream, formula=full_form, data=dge_cell_this$samples, BPPARAM = param, L=L)
+    })
+
+    fitmm <- variancePartition::eBayes(fitmm, trend = TRUE, robust = TRUE)
+    #plotSA(fitmm, main=paste(cell_type, "mean-variance trend"))
+
+    log_decide_tests_summary(fitmm, L=contrast_matrix, label = paste("DREAM DE summary for", contrast_group))
+
+    topTables_list <- list()
+
+    if (has_contrasts_groups) {
+        for (contrast_name in colnames(contrast_matrix)) {
+            topTables_list[[contrast_name]] <- limma::topTable(fitmm, coef = contrast_name, number = Inf)
+        }
+    } else {
+        # If it's a continuous variable, we can just use the first coefficient
+        topTables_list[[contrast_group]] <- limma::topTable(fitmm, coef = contrast_group, number = Inf)
+    }
+
+    return(topTables_list)
+}
+
+generate_contrasts_from_defs <- function(contrast_defs, design_matrix) {
+    stopifnot(is.data.frame(contrast_defs))
+    stopifnot(is.matrix(design_matrix) || is.data.frame(design_matrix))
+
+    design_cols <- colnames(design_matrix)
     contrast_list <- list()
 
     for (i in seq_len(nrow(contrast_defs))) {
         row <- contrast_defs[i, ]
-
-        var <- row$variable
-        ref <- row$reference_level
-        comp <- row$comparison_level
         cname <- row$contrast_name
+        var <- row$variable
+        ref <- as.character(row$reference_level)
+        comp <- as.character(row$comparison_level)
 
-        if (row$type == "fixed") {
-            # Continuous variables (simple contrasts)
-            contrast_list[[cname]] <- var
+        # Simple numeric variable (e.g., "age")
+        if (is.na(ref) && is.na(comp)) {
+            if (var %in% design_cols) {
+                contrast_list[[cname]] <- var
+            } else {
+                logger::log_warn("Fixed effect '{var}' not found in design matrix columns.")
+            }
+            next
+        }
 
-        } else if (row$type == "random") {
-            # Categorical contrasts: compare levels
-            # This assumes model.matrix() uses factor level coding with level names embedded
-            contrast_vector <- paste0(var, comp, " - ", var, ref)
-            contrast_list[[cname]] <- contrast_vector
+        # Factor contrast: construct column names
+        target_comp_col <- paste0(var, comp)
+        target_ref_col  <- paste0(var, ref)
+
+        if (target_comp_col %in% design_cols && !(target_ref_col %in% design_cols)) {
+            # Reference absorbed into intercept
+            contrast_list[[cname]] <- target_comp_col
+        } else if (target_comp_col %in% design_cols && target_ref_col %in% design_cols) {
+            contrast_list[[cname]] <- paste0(target_comp_col, " - ", target_ref_col)
+        } else if (target_ref_col %in% design_cols && !(target_comp_col %in% design_cols)) {
+            contrast_list[[cname]] <- paste0("0 - ", target_ref_col)
+        } else {
+            logger::log_warn("Could not find expected contrast columns for {var}: '{comp}' vs '{ref}'")
         }
     }
 
-    # Build the contrast matrix
-    contrast_formula <- paste(unlist(contrast_list), collapse = ", ")
-    contrast_matrix <- limma::makeContrasts(contrasts = contrast_formula, levels = design_matrix)
+    colnames(design_matrix)[colnames(design_matrix) == "(Intercept)"] <- "Intercept"
+
+    # Make contrast matrix from *named* list of formulas
+    contrast_matrix <- do.call(
+        limma::makeContrasts,
+        args = c(contrast_list, list(levels = design_matrix))
+    )
 
     return(contrast_matrix)
 }
 
-generate_design_matrix <- function(dge_samples, formula_string) {
-    # Extract only fixed effects part from the formula string
-    # e.g., "~ age + PC1 + PC2 + imputed_sex + toxicology_group"
-    form <- as.formula(formula_string)
 
-    design_matrix <- model.matrix(form, data = dge_samples)
-    return(design_matrix)
+sanitize_levels <- function(df, exclude = character()) {
+    for (col in setdiff(names(df), exclude)) {
+        if (is.factor(df[[col]])) {
+            levels(df[[col]]) <- make.names(levels(df[[col]]))
+        } else if (is.character(df[[col]])) {
+            df[[col]] <- make.names(df[[col]])
+        }
+    }
+    df
+}
+
+sanitize_contrast_levels <- function(contrast_defs) {
+    contrast_defs$reference_level <- ifelse(
+        is.na(contrast_defs$reference_level),
+        NA,
+        make.names(contrast_defs$reference_level)
+    )
+    contrast_defs$comparison_level <- ifelse(
+        is.na(contrast_defs$comparison_level),
+        NA,
+        make.names(contrast_defs$comparison_level)
+    )
+    contrast_defs
+}
+
+move_to_front <- function(vec, name_to_move) {
+    if (!(name_to_move %in% vec)) {
+        stop(sprintf("'%s' not found in vector", name_to_move))
+    }
+    c(name_to_move, setdiff(vec, name_to_move))
+}
+
+log_decide_tests_summary <- function(fit, L, label = "DE summary") {
+    contrast_names <- colnames(L)
+    out <- summary(limma::decideTests(fit)[, contrast_names, drop = FALSE])
+    logger::log_info("{label}:\n{paste(capture.output(print(out)), collapse = '\n')}")
+}
+
+# Filter genes with extreme voom weights
+filter_high_weight_genes <- function(vobj, dge, quantile_threshold = 0.999, verbose = TRUE) {
+    stopifnot(!is.null(vobj), !is.null(dge))
+
+    weights <- vobj$weights
+    gene_names <- rownames(dge$counts)
+
+    if (nrow(weights) != length(gene_names)) {
+        stop("Number of genes in weights does not match gene names from DGEList.")
+    }
+
+    max_weights <- apply(weights, 1, max, na.rm = TRUE)
+    threshold <- stats::quantile(max_weights, quantile_threshold, na.rm = TRUE)
+
+    keep <- max_weights < threshold
+    n_dropped <- sum(!keep)
+    n_total <- length(keep)
+
+    if (verbose) {
+        message(sprintf(
+            "Filtering %d of %d genes (%.2f%%) with extreme weights (quantile threshold %.3f -> %.2e)",
+            n_dropped, n_total, 100 * n_dropped / n_total, quantile_threshold, threshold
+        ))
+    }
+
+    return(gene_names[keep])
+}
+
+capture_dream_warnings <- function(expr) {
+    warning_msgs <- character()
+
+    result <- withCallingHandlers(
+        expr,
+        warning = function(w) {
+            msg <- conditionMessage(w)
+            if (grepl("Model failed to converge with .*negative eigenvalue", msg)) {
+                warning_msgs <<- c(warning_msgs, msg)
+                invokeRestart("muffleWarning")  # Suppress the warning
+            }
+        }
+    )
+
+    failed_count <- length(warning_msgs)
+    if (failed_count > 0) {
+        message(sprintf("%d genes failed to converge", failed_count))
+    }
+
+    return(result)
+}
+
+summarize_top_tables_for_celltype <- function(topTables_list,
+                                              lfc_threshold = 0.5,
+                                              pval_threshold = 0.05) {
+    # Initialize result holder
+    summary_list <- list()
+
+    for (contrast_group in names(topTables_list)) {
+        group_results <- topTables_list[[contrast_group]]
+        for (contrast_name in names(group_results)) {
+            df <- group_results[[contrast_name]]
+
+            # Define status per gene
+            status <- rep("NotSig", nrow(df))
+            status[df$logFC >= lfc_threshold & df$adj.P.Val < pval_threshold] <- "Up"
+            status[df$logFC <= -lfc_threshold & df$adj.P.Val < pval_threshold] <- "Down"
+
+            # Tabulate and align
+            tab <- table(factor(status, levels = c("Down", "NotSig", "Up")))
+            summary_list[[contrast_name]] <- tab
+        }
+    }
+
+    # Combine to a matrix
+    summary_matrix <- do.call(cbind, summary_list)
+    return(summary_matrix)
+}
+
+
+# Returns a ggplot object. Uses limma/dream columns directly.
+# Labels the top |logFC| genes among FDR-significant hits (split up/down).
+# Minimal volcano with optional inset counts table (down/ns/up).
+# Expects limma/dream columns and gene symbols in rownames.
+# df=read.table("/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_results_sex_age/astrocyte_age_DE_results.txt", header=T, stringsAsFactors=F, sep="\t)
+# make_volcano_old <- function(df,
+#                          fdr_thresh = 0.05,
+#                          lfc_thresh = 0,
+#                          top_n_each = 10,
+#                          title = NULL,
+#                          point_alpha = 0.6,
+#                          add_counts_inset = TRUE) {
+#
+#     if (!all(c("logFC", "P.Value", "adj.P.Val") %in% names(df)))
+#         stop("df must contain: logFC, P.Value, adj.P.Val")
+#     if (is.null(rownames(df)))
+#         stop("Row names must contain gene symbols for labeling.")
+#
+#     d <- df
+#     d$neglog10FDR <- -log10(pmax(d$adj.P.Val, .Machine$double.xmin))
+#     d$sig <- d$adj.P.Val <= fdr_thresh & abs(d$logFC) >= lfc_thresh
+#
+#     d$dir <- ifelse(d$sig & d$logFC < 0, "down",
+#                     ifelse(d$sig & d$logFC > 0, "up", "ns"))
+#     # Fix display order to match your legend preference
+#     d$dir <- factor(d$dir, levels = c("down", "ns", "up"))
+#
+#     # labels: top |logFC| among FDR-significant hits, split by direction
+#     sig_up   <- d[d$dir == "up",   , drop = FALSE]
+#     sig_down <- d[d$dir == "down", , drop = FALSE]
+#     ord_up   <- if (nrow(sig_up))   order(-abs(sig_up$logFC), sig_up$adj.P.Val)   else integer(0)
+#     ord_down <- if (nrow(sig_down)) order(-abs(sig_down$logFC), sig_down$adj.P.Val) else integer(0)
+#     lab_up   <- if (length(ord_up))   head(sig_up[ord_up,   , drop = FALSE], top_n_each) else d[0,]
+#     lab_down <- if (length(ord_down)) head(sig_down[ord_down, , drop = FALSE], top_n_each) else d[0,]
+#     labs <- rbind(lab_up, lab_down)
+#     if (nrow(labs)) labs$label <- rownames(labs)
+#
+#     # counts (ordered down/ns/up)
+#     n_down <- sum(d$dir == "down", na.rm = TRUE)
+#     n_ns   <- sum(d$dir == "ns",   na.rm = TRUE)
+#     n_up   <- sum(d$dir == "up",   na.rm = TRUE)
+#
+#     col_map <- c("down" = "steelblue3", "ns" = "gray70", "up" = "firebrick2")
+#
+#     p <- ggplot2::ggplot(d, ggplot2::aes(x = logFC, y = neglog10FDR, color = dir)) +
+#         ggplot2::geom_point(alpha = point_alpha, size = 1.2) +
+#         ggplot2::scale_color_manual(values = col_map, breaks = c("down", "ns", "up"), drop = FALSE) +
+#         ggplot2::geom_hline(yintercept = -log10(fdr_thresh), linetype = "dashed", linewidth = 0.4) +
+#         ggplot2::labs(
+#             title = title,
+#             x = "log2 fold change",
+#             y = expression(-log[10]("FDR")),
+#             color = "Direction"
+#         ) +
+#         ggplot2::theme_classic(base_size = 12)
+#
+#     # Symmetric x-axis: ±(1.1 * max |logFC|), also respects lfc_thresh
+#     xmax <- max(abs(d$logFC), lfc_thresh, na.rm = TRUE)
+#     if (is.finite(xmax) && xmax > 0) {
+#         xlim <- c(-1, 1) * (1.1 * xmax)
+#         p <- p + ggplot2::scale_x_continuous(limits = xlim,
+#                                              expand = ggplot2::expansion(mult = 0))
+#     }
+#
+#
+#     if (lfc_thresh > 0) {
+#         p <- p + ggplot2::geom_vline(xintercept = c(-lfc_thresh, lfc_thresh),
+#                                      linetype = "dotted", linewidth = 0.4)
+#     }
+#
+#     if (nrow(labs) > 0) {
+#         p <- p + ggrepel::geom_text_repel(
+#             data = labs,
+#             ggplot2::aes(x = logFC, y = neglog10FDR, label = label),
+#             size = 3,
+#             color = "black",
+#             min.segment.length = 0,
+#             max.overlaps = 10000,
+#             box.padding = 0.3,
+#             point.padding = 0.2,
+#             show.legend = FALSE  # keep legend showing points
+#         )
+#     }
+#
+#     if (add_counts_inset) {
+#         counts_df <- data.frame(
+#             Direction = factor(c("down", "ns", "up"), levels = c("down", "ns", "up")),
+#             Count     = c(n_down, n_ns, n_up),
+#             stringsAsFactors = FALSE
+#         )
+#
+#         tbl <- gridExtra::tableGrob(
+#             counts_df, rows = NULL,
+#             theme = gridExtra::ttheme_minimal(
+#                 base_size = 9,
+#                 core   = list(fg_params = list(hjust = 0, x = 0.02)),
+#                 colhead = list(fg_params = list(hjust = 0, x = 0.02))
+#             )
+#         )
+#
+#         # White background for better visibility
+#         tbl_bg <- grid::grobTree(
+#             grid::rectGrob(gp = grid::gpar(fill = "white", col = NA, alpha = 0.9)),
+#             tbl
+#         )
+#
+#         # Center horizontally (x=0.5), slightly below top (y < 1)
+#         p <- cowplot::ggdraw(p) +
+#             cowplot::draw_grob(tbl_bg,
+#                                x = 0.5, y = 0.88,
+#                                hjust = 0.5, vjust = 1,
+#                                width = 0.22, height = 0.16
+#             )
+#     }
+#
+#     return (p)
+# }
+
+make_volcano <- function(df,
+                             fdr_thresh = 0.05,
+                             lfc_thresh = 0,
+                             top_n_each = 10,
+                             title = NULL,
+                             point_alpha = 0.6,
+                             add_counts_inset = TRUE) {
+
+    if (!all(c("logFC", "P.Value", "adj.P.Val") %in% names(df)))
+        stop("df must contain: logFC, P.Value, adj.P.Val")
+    if (is.null(rownames(df)))
+        stop("Row names must contain gene symbols for labeling.")
+
+    d <- df
+    d$neglog10FDR <- -log10(pmax(d$adj.P.Val, .Machine$double.xmin))
+    d$sig <- d$adj.P.Val <= fdr_thresh & abs(d$logFC) >= lfc_thresh
+
+    d$dir <- ifelse(d$sig & d$logFC < 0, "down",
+                    ifelse(d$sig & d$logFC > 0, "up", "ns"))
+    # Fix display order to match your legend preference
+    d$dir <- factor(d$dir, levels = c("down", "ns", "up"))
+
+    # labels: top |logFC| among FDR-significant hits, split by direction
+    sig_up   <- d[d$dir == "up",   , drop = FALSE]
+    sig_down <- d[d$dir == "down", , drop = FALSE]
+    ord_up   <- if (nrow(sig_up))   order(-abs(sig_up$logFC), sig_up$adj.P.Val)   else integer(0)
+    ord_down <- if (nrow(sig_down)) order(-abs(sig_down$logFC), sig_down$adj.P.Val) else integer(0)
+    lab_up   <- if (length(ord_up))   utils::head(sig_up[ord_up,   , drop = FALSE], top_n_each) else d[0,]
+    lab_down <- if (length(ord_down)) utils::head(sig_down[ord_down, , drop = FALSE], top_n_each) else d[0,]
+    labs <- rbind(lab_up, lab_down)
+    if (nrow(labs)) labs$label <- rownames(labs)
+
+    # counts (ordered down/ns/up)
+    n_down <- sum(d$dir == "down", na.rm = TRUE)
+    n_ns   <- sum(d$dir == "ns",   na.rm = TRUE)
+    n_up   <- sum(d$dir == "up",   na.rm = TRUE)
+
+    col_map <- c("down" = "steelblue3", "ns" = "gray70", "up" = "firebrick2")
+
+    legend_labels <- c(
+        down = sprintf("down (%s)", format(n_down, big.mark = ",")),
+        ns   = sprintf("ns (%s)",   format(n_ns,   big.mark = ",")),
+        up   = sprintf("up (%s)",   format(n_up,   big.mark = ","))
+    )
+
+    # Make R CMD HAPPY
+    logFC<- neglog10FDR <- label <- NULL
+
+    p <- ggplot2::ggplot(d, ggplot2::aes(x = logFC, y = neglog10FDR, color = dir)) +
+        ggplot2::geom_point(alpha = point_alpha, size = 1.2) +
+        ggplot2::scale_color_manual(
+            values = c("down" = "steelblue3", "ns" = "gray70", "up" = "firebrick2"),
+            breaks = c("down", "ns", "up"),
+            labels = legend_labels,
+            drop   = FALSE
+        ) +
+        ggplot2::geom_hline(yintercept = -log10(fdr_thresh), linetype = "dashed", linewidth = 0.4) +
+        ggplot2::labs(
+            title = title,
+            x = "log2 fold change",
+            y = expression(-log[10]("FDR")),
+            color = "Direction"
+        ) +
+        ggplot2::theme_classic(base_size = 12)
+
+    # Symmetric x-axis: ±(1.1 * max |logFC|), also respects lfc_thresh
+    xmax <- max(abs(d$logFC), lfc_thresh, na.rm = TRUE)
+    if (is.finite(xmax) && xmax > 0) {
+        xlim <- c(-1, 1) * (1.1 * xmax)
+        p <- p + ggplot2::scale_x_continuous(limits = xlim,
+                                             expand = ggplot2::expansion(mult = 0))
+    }
+
+
+    if (lfc_thresh > 0) {
+        p <- p + ggplot2::geom_vline(xintercept = c(-lfc_thresh, lfc_thresh),
+                                     linetype = "dotted", linewidth = 0.4)
+    }
+
+    if (nrow(labs) > 0) {
+        p <- p + ggrepel::geom_text_repel(
+            data = labs,
+            ggplot2::aes(x = logFC, y = neglog10FDR, label = label),
+            size = 3,
+            color = "black",
+            min.segment.length = 0,
+            max.overlaps = 10000,
+            box.padding = 0.3,
+            point.padding = 0.2,
+            show.legend = FALSE  # keep legend showing points
+        )
+    }
+
+
+    return (p)
+}
+
+paginate_plots <- function(plots, plots_per_page = 2) {
+    if (!length(plots)) return(invisible(list()))
+    ppp <- as.integer(plots_per_page)
+    if (is.na(ppp) || ppp < 1) stop("plots_per_page must be a positive integer.")
+
+    # pad with blanks so length is a multiple of ppp
+    n_pad <- (ppp - (length(plots) %% ppp)) %% ppp
+    if (n_pad > 0) plots <- c(plots, rep(list(cowplot::ggdraw()), n_pad))
+
+    idx <- split(seq_along(plots), ceiling(seq_along(plots) / ppp))
+
+    pages <- lapply(idx, function(ii) {
+        cowplot::plot_grid(
+            plotlist = plots[ii],
+            ncol = 1, nrow = ppp,
+            align = "v",
+            rel_heights = rep(1, ppp)
+        )
+    })
+
+    return (pages)
+}
+
+# test<-function () {
+#     df1=read.table("/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_results_sex_age/astrocyte_age_DE_results.txt", header=T, stringsAsFactors=F, sep="\t")
+#     df2=read.table("/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_results_sex_age/astrocyte_female_vs_male_DE_results.txt", header=T, stringsAsFactors=F, sep="\t")
+#
+#     l=list(df1=df1, df2=df2)
+#
+#     plot_list= list()
+#
+#     p <- make_volcano(df1, fdr_thresh = 0.05, lfc_thresh = 0,
+#                       top_n_each = 10, title = paste(cellType, contrast))
+#     plot_list[[1]] <- p
+#
+#     p <- make_volcano(df2, fdr_thresh = 0.05, lfc_thresh = 0,
+#                       top_n_each = 10, title = paste(cellType, contrast))
+#     plot_list[[2]] <- p
+#
+#     outPDF="/downloads/test.pdf"
+#     if (!is.null(outPDF)) {
+#         logger::log_info(paste("Saving all plots to PDF:", outPDF))
+#         grDevices::pdf(outPDF)
+#         pages=paginate_plots(plot_list, plots_per_page = 2)
+#         for (i in 1:length(pages)) {
+#             print(pages[[i]])
+#         }
+#         grDevices::dev.off()
+#     }
+#
+# }
+
+#quickly regenerate the PDF from the files in the result directory.
+generate_pdf_from_files<-function (result_dir, outPDF) {
+    files=list.files(result_dir, pattern="_DE_results.txt", full.names = TRUE, recursive = TRUE)
+    plot_list= list()
+    i=1
+    for (f in files) {
+        df=read.table(f, header=T, stringsAsFactors=F, sep="\t")
+        n=gsub("_DE_results.txt", "", basename(f))
+        p <- make_volcano(df, fdr_thresh = 0.05, lfc_thresh = 0,
+                          top_n_each = 10, title = n)
+        plot_list[[i]] <- p
+        i=i+1
+    }
+
+    if (!is.null(outPDF)) {
+        logger::log_info(paste("Saving all plots to PDF:", outPDF))
+        grDevices::pdf(outPDF)
+        pages=paginate_plots(plot_list, plots_per_page = 2)
+        for (i in 1:length(pages)) {
+            print(pages[[i]])
+        }
+        grDevices::dev.off()
+    }
 }

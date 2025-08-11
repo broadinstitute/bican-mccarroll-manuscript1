@@ -28,6 +28,14 @@
 # runTwoName="Without"
 # outPDF="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/variance_partition_results/microglia_variance_partition_no_hbcac_comparison.pdf"
 
+# data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
+# data_name="donor_rxn_DGEList"
+# cell_type="microglia"
+# runOneRDS="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/variance_partition_results/microglia_variance_partition.rds"
+# runTwoRDS="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/variance_partition_results_no_hbcac_no_pmi/microglia_variance_partition.rds"
+# runOneName="Default"
+# runTwoName="Without HBCAC and PMI"
+# outPDF="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/variance_partition_results/microglia_variance_partition_no_hbcac_pmi_comparison.pdf"
 
 #' Compare two variance partition runs where different sets of covariates were used.
 #'
