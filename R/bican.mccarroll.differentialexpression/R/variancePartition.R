@@ -14,7 +14,6 @@
 #library(lme4)
 
 # data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
-# cellTypeGroupFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/cell_type_groups.txt"
 # data_name="donor_rxn_DGEList"
 
 # randVars=c("donor", "imputed_sex", "biobank", "single_cell_assay", "region", "hbcac_status", "toxicology_group", "village")
@@ -37,6 +36,11 @@
 # fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pmi_hr", "pct_intronic", "frac_contamination")
 # variance_partition_result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/variance_partition_results_no_hbcac"
 # outPDF=paste(variance_partition_result_dir, "/variance_partition_plots-no_hbcac.pdf", sep="")
+
+# randVars=c("donor", "imputed_sex", "single_cell_assay", "region", "toxicology_group", "village", "biobank")
+# fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination")
+# variance_partition_result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/variance_partition_results_no_hbcac_no_pmi"
+# outPDF=paste(variance_partition_result_dir, "/variance_partition_plots-no_hbcac_no_pmi.pdf", sep="")
 
 # library (bican.mccarroll.differentialexpression)
 # bican.mccarroll.differentialexpression::runVariancePartition(data_dir = data_dir, data_name = data_name, randVars = randVars, fixedVars = fixedVars, outPDF = outPDF, variance_partition_result_dir = variance_partition_result_dir)
@@ -68,6 +72,10 @@
 #' @export
 runVariancePartition<-function (data_dir, data_name, randVars, fixedVars, outPDF, variance_partition_result_dir) {
 
+    if (!dir.exists(variance_partition_result_dir)) {
+        dir.create(variance_partition_result_dir, recursive = TRUE)
+    }
+
     #load the DGEList and prepare the data
     d=prepare_data_for_differential_expression(data_dir, data_name, randVars, fixedVars)
     dge=d$dge;fixedVars=d$fixedVars;randVars=d$randVars
@@ -77,7 +85,7 @@ runVariancePartition<-function (data_dir, data_name, randVars, fixedVars, outPDF
     #cell_type_list=cell_type_list[2]
     plotList=list()
     line <- strrep("=", 80)
-    #cellType="GABA_CGE"
+    #cellType="microglia"
     if (length(cell_type_list) > 0) {
         for (cellType in cell_type_list) {
             logger::log_info(line)
@@ -158,13 +166,15 @@ runVariancePartition<-function (data_dir, data_name, randVars, fixedVars, outPDF
 #' @param randVars               Character vector. Names of random metadata variables for MDS coloring.
 #' @param fixedVars              Character vector. Names of fixed metadata variables for MDS grouping.
 #' @return A list containing the DGEList object, fixed variables, and random variables.
+#'
+#' @export
 prepare_data_for_differential_expression<-function (data_dir, data_name, randVars, fixedVars) {
     # load the pre-computed DGEList object
     logger::log_info(paste("Loading DGEList from:", data_dir, "with prefix:", data_name))
     dge=bican.mccarroll.differentialexpression::loadDGEList(data_dir, prefix = data_name)
 
     #restrict to the groups that should be used for variance partition (which is the same as differential expression).
-    dge=dge[,dge$samples$differential_expression, keep.lib.sizes = TRUE]
+    dge=dge[,dge$samples$differential_expression==TRUE, keep.lib.sizes = TRUE]
 
     #if the num_nuclei variable is present, convert it to log10 for regressions
     if ("num_nuclei" %in% colnames(dge$samples)) {
@@ -193,7 +203,10 @@ prepare_data_for_differential_expression<-function (data_dir, data_name, randVar
     }
 
     #Subset to complete cases
+    old_metacell_count=dim(dge$samples)[1]
     dge=subset_dge_to_complete_cases(dge, required_vars)
+    new_metacell_count=dim(dge$samples)[1]
+    logger::log_info(paste("Subsetted DGEList from", old_metacell_count, "to", new_metacell_count, "metacells based on complete cases for variables:", paste(required_vars, collapse = ", ")))
 
     result<- list(
         dge = dge,

@@ -7,6 +7,7 @@
 runMDSPlots(
   data_dir,
   data_name,
+  additionalDonorMetadata,
   randVars,
   fixedVars,
   max_num_samples = 2500,
@@ -21,6 +22,9 @@ runMDSPlots(
 \item{data_dir}{Character. Directory containing the precomputed DGEList.}
 
 \item{data_name}{Character. Prefix or name used to load the DGEList object.}
+
+\item{additionalDonorMetadata}{A file containing additional donor metadata to merge with the DGEList samples.
+The first column is donor, and the other columns will be merged with the DGEList samples.}
 
 \item{randVars}{Character vector. Names of “random” metadata variables for MDS coloring.}
 
