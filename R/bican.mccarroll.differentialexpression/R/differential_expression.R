@@ -14,41 +14,58 @@
 # fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pmi_hr", "pct_intronic", "frac_contamination", "imputed_sex", "toxicology_group", "single_cell_assay", "region", "biobank")
 # contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_all.txt"
 # result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_results"
+# cellTypeListFile=NULL
 
-
-#Dropping PMI, HBCAC, toxicology from model.  Not all donors have PMI, PMI does not contribute very much to variance explained.
+# Dropping PMI, HBCAC, toxicology from model.  Not all donors have PMI, PMI does not contribute very much to variance explained.
 # Only running on sex and age to be more donor inclusive.
-data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
-data_name="donor_rxn_DGEList"
-randVars=c("donor", "village")
-fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "single_cell_assay", "region", "biobank")
-contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_sex_age.txt"
-result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_results_sex_age"
-outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
+# data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
+# data_name="donor_rxn_DGEList"
+# randVars=c("donor", "village")
+# fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "single_cell_assay", "region", "biobank")
+# contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_sex_age.txt"
+# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_results_sex_age"
+# outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
+# cellTypeListFile=NULL
 
-# bican.mccarroll.differentialexpression::differential_expression(data_dir, data_name, randVars, fixedVars, contrast_file, outPDF, result_dir)
+# region tests
+# data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
+# data_name="donor_rxn_DGEList"
+# randVars=c("donor", "village")
+# fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "single_cell_assay", "region", "biobank")
+# contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_region.txt"
+# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/region_comparisons"
+# outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
+# cellTypeListFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/cell_types_for_region_analysis.txt"
+
+
+# bican.mccarroll.differentialexpression::differential_expression(data_dir, data_name, randVars, fixedVars, contrast_file, cellTypeListFile, outPDF, result_dir)
 
 #' Run differential expression analysis for each cell type in the DGEList.
 #'
+#' This uses a means model (~0 + fixedVars) and a random effects model for the specified random variables.
+#' For each contrast group, the fixed effects are reordered so the contrast group is first, which
+#' makes all levels of the contrast available for comparison.
 #' @param data_dir Directory containing the DGEList data.
 #' @param data_name Name of the DGEList data file (without extension).
 #' @param randVars Vector of random effect variables.
 #' @param fixedVars Vector of fixed effect variables.
 #' @param contrast_file Path to the file containing contrast definitions.
+#' @param cellTypeListFile A file containing an explicit list of cell types to test.  If NULL, all cell types in the DGEList will be tested.
 #' @param outPDF Optional path to output PDF file for plots.
 #' @param result_dir Directory to save the differential expression results.
 #' @export
-differential_expression <- function(data_dir, data_name, randVars, fixedVars, contrast_file, outPDF, result_dir) {
+differential_expression <- function(data_dir, data_name, randVars, fixedVars, contrast_file, cellTypeListFile=NULL, outPDF=NULL, result_dir) {
     #load the DGEList and prepare the data
     d=bican.mccarroll.differentialexpression::prepare_data_for_differential_expression(data_dir, data_name, randVars, fixedVars)
     dge=d$dge; fixedVars=d$fixedVars; randVars=d$randVars
+
+    dge=filter_dgelist_by_celltype_list(dge, cellTypeListFile)
 
     contrast_defs <- read.table(contrast_file, stringsAsFactors = FALSE, sep="\t", header=TRUE)
 
     # Variance Partition by cell type
     cell_type_list=unique(dge$samples$cell_type)
-    #cell_type_list=cell_type_list[1]
-    cellType="astrocyte"
+    #cellType="MSN_D1_matrix"
     line <- strrep("=", 80)
 
     plot_list= list()
@@ -116,6 +133,7 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
 }
 
 
+
 #Use ~0 + group for a "means" model: If you want a column for each group
 #representing the mean expression for that group (and no intercept term),
 #you can use this formula. This can be useful for certain types of comparisons.
@@ -126,7 +144,8 @@ differential_expression_one_cell_type<-function (dge_cell, fixedVars, randVars, 
     #have to handle values that are not valid R column names.
     dge_cell$samples<- sanitize_levels(dge_cell$samples)
     #sanitize the contrast definitions to match the data
-    contrast_defs<- sanitize_contrast_levels(contrast_defs)
+    #this broke with more complex contrasts so need to do it later.
+    # contrast_defs<- sanitize_contrast_levels_old(contrast_defs)
 
     contrast_groups<-unique (contrast_defs$variable)
     topTables_all_list=list()
@@ -142,8 +161,6 @@ differential_expression_one_cell_type<-function (dge_cell, fixedVars, randVars, 
 differential_expression_one_cell_type_contrast_group<-function (dge_cell, fixedVars, randVars, contrast_defs,
                                                                 contrast_group="toxicology_group", verbose = TRUE,
                                                                 n_cores = parallel::detectCores() - 2) {
-
-    contrast_defs_this= contrast_defs[contrast_defs$variable == contrast_group, ]
 
     #drop levels in a consistent way.
     #the sex encoding gets mangled somewhere internally in dream.
@@ -170,6 +187,11 @@ differential_expression_one_cell_type_contrast_group<-function (dge_cell, fixedV
     if (qr(design)$rank < ncol(design)) {
         stop("Design matrix is not full rank; consider dropping colinear variables.")
     }
+
+    contrast_defs_this= contrast_defs[contrast_defs$variable == contrast_group, ]
+    #sanitize_contrast_levels_old(contrast_defs_this)
+
+    contrast_defs_this= sanitize_contrast_levels(contrast_defs_this, design, verbose=TRUE)
 
     contrast_matrix <- generate_contrasts_from_defs(contrast_defs_this, design)
     # variancePartition::plotContrasts(contrast_matrix)
@@ -217,56 +239,95 @@ differential_expression_one_cell_type_contrast_group<-function (dge_cell, fixedV
     return(topTables_list)
 }
 
+
+# Build limma contrasts from a data.frame that may include expressions like:
+#   comparison_level = "(CaH + Pu)/2"
+#   reference_level  = "NAC"
+# Works for simple cases too (e.g., comparison=opioid, reference=control).
+# For continuous tests, leave reference_level and comparison_level as NA.
 generate_contrasts_from_defs <- function(contrast_defs, design_matrix) {
     stopifnot(is.data.frame(contrast_defs))
     stopifnot(is.matrix(design_matrix) || is.data.frame(design_matrix))
 
     design_cols <- colnames(design_matrix)
+
+    # Translate a side ("expr") for a given factor "var" into a makeContrasts-friendly string
+    translate_side <- function(expr, var, design_cols) {
+        if (is.na(expr) || is.null(expr) || nchar(trimws(expr)) == 0) return("0")
+        s <- gsub("\\s+", "", as.character(expr))
+
+        var_pat  <- paste0("^", var)
+        var_cols <- grep(var_pat, design_cols, value = TRUE)
+        if (length(var_cols) == 0) stop("No design columns found for factor '", var, "'. Did you use '~ 0 + ", var, " + ...'?")
+        levels_available <- sub(var_pat, "", var_cols)
+
+        # First, rewrite numeric tokens to their sanitized level name (e.g. "1" -> "X1") iff that exists
+        m <- gregexpr("[A-Za-z0-9_.-]+", s, perl = TRUE)
+        toks <- regmatches(s, m)[[1]]
+        if (length(toks)) {
+            mapped <- vapply(toks, function(tok) {
+                if (grepl("^[0-9]+(\\.[0-9]+)?$", tok)) {
+                    sani <- make.names(tok)           # "1" -> "X1"
+                    if (sani %in% levels_available) sani else tok
+                } else tok
+            }, character(1))
+            regmatches(s, m)[[1]] <- mapped
+        }
+
+        # Now replace level names with full design column names (var + level)
+        levels_available <- levels_available[order(nchar(levels_available), decreasing = TRUE)]
+        for (lev in levels_available) {
+            s <- gsub(paste0("(?<![A-Za-z0-9_.])", lev, "(?![A-Za-z0-9_.])"),
+                      paste0(var, lev), s, perl = TRUE)
+        }
+        s
+    }
+
     contrast_list <- list()
 
     for (i in seq_len(nrow(contrast_defs))) {
         row <- contrast_defs[i, ]
-        cname <- row$contrast_name
-        var <- row$variable
-        ref <- as.character(row$reference_level)
-        comp <- as.character(row$comparison_level)
+        cname <- as.character(row$contrast_name)
+        var   <- as.character(row$variable)
+        ref   <- row$reference_level
+        comp  <- row$comparison_level
 
-        # Simple numeric variable (e.g., "age")
-        if (is.na(ref) && is.na(comp)) {
-            if (var %in% design_cols) {
-                contrast_list[[cname]] <- var
-            } else {
-                logger::log_warn("Fixed effect '{var}' not found in design matrix columns.")
+        # Continuous covariate: both NA
+        if ((is.na(ref) || length(ref) == 0) && (is.na(comp) || length(comp) == 0)) {
+            # expect a column exactly named <var> in the design (continuous term)
+            if (!(var %in% design_cols)) {
+                stop("Continuous term '", var, "' not found in design columns.")
             }
+            contrast_list[[cname]] <- var
             next
         }
 
-        # Factor contrast: construct column names
-        target_comp_col <- paste0(var, comp)
-        target_ref_col  <- paste0(var, ref)
+        # Factor/composite case: translate both sides
+        comp_str <- translate_side(comp, var, design_cols)
+        ref_str  <- translate_side(ref,  var, design_cols)
 
-        if (target_comp_col %in% design_cols && !(target_ref_col %in% design_cols)) {
-            # Reference absorbed into intercept
-            contrast_list[[cname]] <- target_comp_col
-        } else if (target_comp_col %in% design_cols && target_ref_col %in% design_cols) {
-            contrast_list[[cname]] <- paste0(target_comp_col, " - ", target_ref_col)
-        } else if (target_ref_col %in% design_cols && !(target_comp_col %in% design_cols)) {
-            contrast_list[[cname]] <- paste0("0 - ", target_ref_col)
+        # Build final contrast expression
+        # Handle zero on either side to keep expressions tidy
+        if (identical(ref_str, "0")) {
+            contrast_expr <- comp_str
+        } else if (identical(comp_str, "0")) {
+            contrast_expr <- paste0("0 - (", ref_str, ")")
         } else {
-            logger::log_warn("Could not find expected contrast columns for {var}: '{comp}' vs '{ref}'")
+            contrast_expr <- paste0("(", comp_str, ") - (", ref_str, ")")
         }
+
+        contrast_list[[cname]] <- contrast_expr
     }
 
-    colnames(design_matrix)[colnames(design_matrix) == "(Intercept)"] <- "Intercept"
-
-    # Make contrast matrix from *named* list of formulas
+    # Construct the contrast matrix
     contrast_matrix <- do.call(
         limma::makeContrasts,
         args = c(contrast_list, list(levels = design_matrix))
     )
 
-    return(contrast_matrix)
+    contrast_matrix
 }
+
 
 
 sanitize_levels <- function(df, exclude = character()) {
@@ -280,19 +341,89 @@ sanitize_levels <- function(df, exclude = character()) {
     df
 }
 
-sanitize_contrast_levels <- function(contrast_defs) {
-    contrast_defs$reference_level <- ifelse(
-        is.na(contrast_defs$reference_level),
-        NA,
-        make.names(contrast_defs$reference_level)
-    )
-    contrast_defs$comparison_level <- ifelse(
-        is.na(contrast_defs$comparison_level),
-        NA,
-        make.names(contrast_defs$comparison_level)
-    )
-    contrast_defs
+
+
+# Simple, design-aware sanitizer:
+# - Maps tokens to actual factor levels present in the design (~ 0 + variable).
+# - If any unknown token appears in an expression, that side becomes NA.
+# - After sanitizing both sides: drop rows where exactly one side is NA.
+# - Keep rows where both sides are NA (continuous) or both valid (factor contrast).
+sanitize_contrast_levels <- function(contrast_defs, design_matrix, verbose = TRUE) {
+    stopifnot(is.data.frame(contrast_defs))
+    stopifnot(is.matrix(design_matrix) || is.data.frame(design_matrix))
+
+    design_cols <- colnames(design_matrix)
+
+    sanitize_expr_for_var <- function(expr, var) {
+        # NA means "no expression" (allowed for continuous rows or 0-side)
+        if (length(expr) == 0 || is.na(expr)) return(NA_character_)
+        s <- as.character(expr)
+
+        # pull suffixes for this var from design (means coding: ~ 0 + var)
+        var_pat  <- paste0("^", var)
+        var_cols <- grep(var_pat, design_cols, value = TRUE)
+        if (!length(var_cols)) return(NA_character_)  # no columns → treat as invalid for this var
+        lvl_suffixes <- sub(var_pat, "", var_cols)
+
+        # tokenize: contiguous level-like chunks; leave operators/parens
+        m <- gregexpr("[A-Za-z0-9_.-]+", s, perl = TRUE)
+        toks <- regmatches(s, m)[[1]]
+        if (!length(toks)) return(NA_character_)  # nothing meaningful → invalid
+
+        had_unknown <- FALSE
+        mapped <- vapply(toks, function(tok) {
+            # numeric literal? could be a level like "1"/"2" *or* a true number (e.g., "/2")
+            if (grepl("^[0-9]+(\\.[0-9]+)?$", tok)) {
+                # prefer direct suffix match, else try make.names("1")->"X1"
+                if (tok %in% lvl_suffixes) return(tok)
+                tok_sani <- make.names(tok)
+                if (tok_sani %in% lvl_suffixes) return(tok_sani)
+                return(tok)  # true numeric constant
+            }
+            # text token already a suffix?
+            if (tok %in% lvl_suffixes) return(tok)
+            # try sanitized text
+            tok_sani <- make.names(tok)
+            if (tok_sani %in% lvl_suffixes) return(tok_sani)
+
+            had_unknown <<- TRUE
+            tok  # keep to reinsert (we’ll null out the whole side below)
+        }, character(1))
+
+        if (had_unknown) return(NA_character_)  # this side invalid → caller will drop the row
+
+        # put mapped tokens back (still suffixes, not full var+suffix)
+        regmatches(s, m)[[1]] <- mapped
+        s
+    }
+
+    out <- contrast_defs
+    # force character columns and sanitize per-row
+    out$reference_level  <- NA_character_
+    out$comparison_level <- NA_character_
+    for (i in seq_len(nrow(out))) {
+        var <- as.character(contrast_defs$variable[i])
+        out$reference_level[i]  <- sanitize_expr_for_var(contrast_defs$reference_level[i],  var)
+        out$comparison_level[i] <- sanitize_expr_for_var(contrast_defs$comparison_level[i], var)
+    }
+
+    # Decide which rows to keep:
+    # - keep if both sides NA (continuous)
+    # - keep if both sides non-NA (valid factor contrast)
+    # - drop if exactly one side is NA
+    both_na     <- is.na(out$reference_level) & is.na(out$comparison_level)
+    both_non_na <- !is.na(out$reference_level) & !is.na(out$comparison_level)
+    keep <- both_na | both_non_na
+
+    dropped <- out$contrast_name[!keep]
+    if (verbose && length(dropped)) {
+        message(sprintf("Dropping %d contrast(s) due to missing/unknown levels: %s",
+                        length(dropped), paste(dropped, collapse = ", ")))
+    }
+
+    out[keep, , drop = FALSE]
 }
+
 
 move_to_front <- function(vec, name_to_move) {
     if (!(name_to_move %in% vec)) {
@@ -385,123 +516,6 @@ summarize_top_tables_for_celltype <- function(topTables_list,
 }
 
 
-# Returns a ggplot object. Uses limma/dream columns directly.
-# Labels the top |logFC| genes among FDR-significant hits (split up/down).
-# Minimal volcano with optional inset counts table (down/ns/up).
-# Expects limma/dream columns and gene symbols in rownames.
-# df=read.table("/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_results_sex_age/astrocyte_age_DE_results.txt", header=T, stringsAsFactors=F, sep="\t)
-# make_volcano_old <- function(df,
-#                          fdr_thresh = 0.05,
-#                          lfc_thresh = 0,
-#                          top_n_each = 10,
-#                          title = NULL,
-#                          point_alpha = 0.6,
-#                          add_counts_inset = TRUE) {
-#
-#     if (!all(c("logFC", "P.Value", "adj.P.Val") %in% names(df)))
-#         stop("df must contain: logFC, P.Value, adj.P.Val")
-#     if (is.null(rownames(df)))
-#         stop("Row names must contain gene symbols for labeling.")
-#
-#     d <- df
-#     d$neglog10FDR <- -log10(pmax(d$adj.P.Val, .Machine$double.xmin))
-#     d$sig <- d$adj.P.Val <= fdr_thresh & abs(d$logFC) >= lfc_thresh
-#
-#     d$dir <- ifelse(d$sig & d$logFC < 0, "down",
-#                     ifelse(d$sig & d$logFC > 0, "up", "ns"))
-#     # Fix display order to match your legend preference
-#     d$dir <- factor(d$dir, levels = c("down", "ns", "up"))
-#
-#     # labels: top |logFC| among FDR-significant hits, split by direction
-#     sig_up   <- d[d$dir == "up",   , drop = FALSE]
-#     sig_down <- d[d$dir == "down", , drop = FALSE]
-#     ord_up   <- if (nrow(sig_up))   order(-abs(sig_up$logFC), sig_up$adj.P.Val)   else integer(0)
-#     ord_down <- if (nrow(sig_down)) order(-abs(sig_down$logFC), sig_down$adj.P.Val) else integer(0)
-#     lab_up   <- if (length(ord_up))   head(sig_up[ord_up,   , drop = FALSE], top_n_each) else d[0,]
-#     lab_down <- if (length(ord_down)) head(sig_down[ord_down, , drop = FALSE], top_n_each) else d[0,]
-#     labs <- rbind(lab_up, lab_down)
-#     if (nrow(labs)) labs$label <- rownames(labs)
-#
-#     # counts (ordered down/ns/up)
-#     n_down <- sum(d$dir == "down", na.rm = TRUE)
-#     n_ns   <- sum(d$dir == "ns",   na.rm = TRUE)
-#     n_up   <- sum(d$dir == "up",   na.rm = TRUE)
-#
-#     col_map <- c("down" = "steelblue3", "ns" = "gray70", "up" = "firebrick2")
-#
-#     p <- ggplot2::ggplot(d, ggplot2::aes(x = logFC, y = neglog10FDR, color = dir)) +
-#         ggplot2::geom_point(alpha = point_alpha, size = 1.2) +
-#         ggplot2::scale_color_manual(values = col_map, breaks = c("down", "ns", "up"), drop = FALSE) +
-#         ggplot2::geom_hline(yintercept = -log10(fdr_thresh), linetype = "dashed", linewidth = 0.4) +
-#         ggplot2::labs(
-#             title = title,
-#             x = "log2 fold change",
-#             y = expression(-log[10]("FDR")),
-#             color = "Direction"
-#         ) +
-#         ggplot2::theme_classic(base_size = 12)
-#
-#     # Symmetric x-axis: ±(1.1 * max |logFC|), also respects lfc_thresh
-#     xmax <- max(abs(d$logFC), lfc_thresh, na.rm = TRUE)
-#     if (is.finite(xmax) && xmax > 0) {
-#         xlim <- c(-1, 1) * (1.1 * xmax)
-#         p <- p + ggplot2::scale_x_continuous(limits = xlim,
-#                                              expand = ggplot2::expansion(mult = 0))
-#     }
-#
-#
-#     if (lfc_thresh > 0) {
-#         p <- p + ggplot2::geom_vline(xintercept = c(-lfc_thresh, lfc_thresh),
-#                                      linetype = "dotted", linewidth = 0.4)
-#     }
-#
-#     if (nrow(labs) > 0) {
-#         p <- p + ggrepel::geom_text_repel(
-#             data = labs,
-#             ggplot2::aes(x = logFC, y = neglog10FDR, label = label),
-#             size = 3,
-#             color = "black",
-#             min.segment.length = 0,
-#             max.overlaps = 10000,
-#             box.padding = 0.3,
-#             point.padding = 0.2,
-#             show.legend = FALSE  # keep legend showing points
-#         )
-#     }
-#
-#     if (add_counts_inset) {
-#         counts_df <- data.frame(
-#             Direction = factor(c("down", "ns", "up"), levels = c("down", "ns", "up")),
-#             Count     = c(n_down, n_ns, n_up),
-#             stringsAsFactors = FALSE
-#         )
-#
-#         tbl <- gridExtra::tableGrob(
-#             counts_df, rows = NULL,
-#             theme = gridExtra::ttheme_minimal(
-#                 base_size = 9,
-#                 core   = list(fg_params = list(hjust = 0, x = 0.02)),
-#                 colhead = list(fg_params = list(hjust = 0, x = 0.02))
-#             )
-#         )
-#
-#         # White background for better visibility
-#         tbl_bg <- grid::grobTree(
-#             grid::rectGrob(gp = grid::gpar(fill = "white", col = NA, alpha = 0.9)),
-#             tbl
-#         )
-#
-#         # Center horizontally (x=0.5), slightly below top (y < 1)
-#         p <- cowplot::ggdraw(p) +
-#             cowplot::draw_grob(tbl_bg,
-#                                x = 0.5, y = 0.88,
-#                                hjust = 0.5, vjust = 1,
-#                                width = 0.22, height = 0.16
-#             )
-#     }
-#
-#     return (p)
-# }
 
 make_volcano <- function(df,
                              fdr_thresh = 0.05,
@@ -675,4 +689,23 @@ generate_pdf_from_files<-function (result_dir, outPDF) {
         }
         grDevices::dev.off()
     }
+}
+
+filter_dgelist_by_celltype_list<-function (dge, cellTypeListFile=NULL) {
+    if (is.null(cellTypeListFile)) {
+        return(dge)
+    }
+
+    size_prefilter <- dim(dge)[2]
+
+    cell_type_list=read.table(cellTypeListFile, stringsAsFactors = FALSE, sep="\t", header=FALSE)$V1
+    idx=dge$samples$cell_type %in% cell_type_list
+    if (any(is.na(idx))) {
+        stop("Some cell types in the list are not present in the DGEList samples.")
+    }
+    dge_filtered <- dge[, idx, keep.lib.sizes = TRUE]
+    size_postfilter <- dim(dge_filtered)[2]
+    logger::log_info(paste("Filtered DGEList from", size_prefilter, "to", size_postfilter, "metacells based on cell type list."))
+    dge_filtered$samples$cell_type <- factor(dge_filtered$samples$cell_type, levels = cell_type_list)
+    return(dge_filtered)
 }
