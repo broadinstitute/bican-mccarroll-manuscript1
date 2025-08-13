@@ -10,7 +10,8 @@ differential_expression(
   randVars,
   fixedVars,
   contrast_file,
-  outPDF,
+  cellTypeListFile = NULL,
+  outPDF = NULL,
   result_dir
 )
 }
@@ -25,10 +26,14 @@ differential_expression(
 
 \item{contrast_file}{Path to the file containing contrast definitions.}
 
+\item{cellTypeListFile}{A file containing an explicit list of cell types to test.  If NULL, all cell types in the DGEList will be tested.}
+
 \item{outPDF}{Optional path to output PDF file for plots.}
 
 \item{result_dir}{Directory to save the differential expression results.}
 }
 \description{
-Run differential expression analysis for each cell type in the DGEList.
+This uses a means model (~0 + fixedVars) and a random effects model for the specified random variables.
+For each contrast group, the fixed effects are reordered so the contrast group is first, which
+makes all levels of the contrast available for comparison.
 }
