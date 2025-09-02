@@ -361,6 +361,33 @@ filter_df_auto_df_name <- function(df_expr, python_filter_string) {
     return (result)
 }
 
+#' Filter a Data Frame Using a Python-Style Expression, incl. .isin()
+filter_df_auto_df_name <- function(df_expr, python_filter_string) {
+    df_name <- as.character(substitute(df_expr))
+    df <- eval(substitute(df_expr), envir = parent.frame())
+
+    expr <- python_filter_string
+
+    # .isin(['A','B']) or .isin(('A','B')) -> %in% c('A','B')
+    expr <- gsub("\\.isin\\s*\\(\\s*\\[", " %in% c(", expr, perl = TRUE)
+    expr <- gsub("\\.isin\\s*\\(\\s*\\(", " %in% c(", expr, perl = TRUE)
+    expr <- gsub("\\]\\s*\\)", ")", expr, perl = TRUE)
+    expr <- gsub("\\)\\s*\\)", ")", expr, perl = TRUE)
+
+    # Optional: normalize Python literals
+    expr <- gsub("\\bNone\\b", "NA", expr, perl = TRUE)
+    expr <- gsub("\\bTrue\\b", "TRUE", expr, perl = TRUE)
+    expr <- gsub("\\bFalse\\b", "FALSE", expr, perl = TRUE)
+
+    # adata.obs["col"] -> df$col
+    expr <- gsub('adata\\.obs\\[\\s*["\']([^"\']+)["\']\\s*\\]',
+                 paste0(df_name, '$\\1'), expr, perl = TRUE)
+
+    idx <- eval(parse(text = expr), envir = parent.frame())
+    df[which(idx), , drop = FALSE]
+}
+
+
 #' Filter Cell Metadata by Brain Region Abbreviation
 #'
 #' Given a comma-separated list of region names (e.g., \code{"NAC,NACc,NACs"}), this function
