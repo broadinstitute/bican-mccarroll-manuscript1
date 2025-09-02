@@ -909,4 +909,46 @@ bindVarPartResults <- function(varPart_list) {
     return(combined)
 }
 
+####################
+# ADHOC PLOT
+####################
+
+#visualize variance partition results for a single cell type as a series of 1d density plots.
+
+#variance_partition_result_rds_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/variance_partition_results_no_hbcac_no_pmi/microglia_variance_partition.rds"
+densityPlot<-function (variance_partition_result_rds_file) {
+    stopifnot(file.exists(variance_partition_result_rds_file))
+    varPart=readRDS(variance_partition_result_rds_file)
+    stopifnot(inherits(varPart, "varPartResults"))
+
+    # Convert to long format for ggplot
+    varPart_long <- reshape2::melt(as.data.frame(varPart), varnames = c("Gene", "Variable"), value.name = "Variance")
+
+    # Make R CMD CHECK happy
+    Gene<-Variable<-Variance<-NULL
+
+    #use the variance partition color scheme
+    all_vars <- unique(varPart_long$variable)
+    palette_colors = c(variancePartition::ggColorHue(length(all_vars) - 1), "grey85")
+    names(palette_colors) <- c(all_vars)
+
+
+    # Plot density for each variable
+    p <- ggplot2::ggplot(varPart_long, ggplot2::aes(x = Variance, fill = variable)) +
+        ggplot2::geom_density(alpha = 0.6) +
+        ggplot2::facet_wrap(~ variable, scales = "free_y") +
+        ggplot2::labs(
+            title = "Variance Partitioning Density Plot",
+            x = "Proportion of Variance Explained",
+            y = "Density"
+        ) +
+        ggplot2::theme_minimal() +
+        ggplot2::theme(legend.position = "none") +
+        ggplot2::scale_fill_manual(values = palette_colors)
+
+    print(p)
+    return(p)
+
+
+}
 

@@ -6,15 +6,19 @@
 # library(ggplot2)
 # library(ggrepel)
 
+###################################
+# CELL TYPE TESTS ACROSS REGIONS
+###################################
 
 # data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
 # data_name="donor_rxn_DGEList"
 # randVars=c("donor", "village")
 # #note: "imputed_sex" moves to a fixed effect!
-# fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pmi_hr", "pct_intronic", "frac_contamination", "imputed_sex", "toxicology_group", "single_cell_assay", "region", "biobank")
+# fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "toxicology_group", "single_cell_assay", "region", "biobank")
 # contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_all.txt"
 # result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_results"
 # cellTypeListFile=NULL
+# outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
 
 # Dropping PMI, HBCAC, toxicology from model.  Not all donors have PMI, PMI does not contribute very much to variance explained.
 # Only running on sex and age to be more donor inclusive.
@@ -38,7 +42,26 @@
 # cellTypeListFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/cell_types_for_region_analysis.txt"
 
 
+# Example run
 # bican.mccarroll.differentialexpression::differential_expression(data_dir, data_name, randVars, fixedVars, contrast_file, cellTypeListFile, outPDF, result_dir)
+
+###################################
+# CELL TYPE PER REGION TESTS
+###################################
+
+data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
+data_name="donor_rxn_DGEList"
+randVars=c("donor", "village")
+#note: "imputed_sex" moves to a fixed effect!  region will be automatically removed.
+fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "toxicology_group", "single_cell_assay", "region", "biobank")
+contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_all.txt"
+result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_per_region_results"
+cellTypeListFile=NULL
+outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
+
+# Example run
+# bican.mccarroll.differentialexpression::differential_expression_region(data_dir, data_name, randVars, fixedVars, contrast_file, cellTypeListFile, outPDF, result_dir)
+
 
 #' Run differential expression analysis for each cell type in the DGEList.
 #'
@@ -90,7 +113,6 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
             #this produces one list per contrast comparison.
             z<-differential_expression_one_cell_type(dge_cell, fixedVars, randVars, contrast_defs,
                                                      verbose = TRUE)
-            #str(z)
 
             # flatten the results for summary and plotting
             # keep only data frames, keep ONLY inner names, preserve order
@@ -132,7 +154,111 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
 
 }
 
+#' Run differential expression analysis for each cell type and region in the DGEList.
+#'
+#' This uses a means model (~0 + fixedVars) and a random effects model for the specified random variables.
+#' For each contrast group, the fixed effects are reordered so the contrast group is first, which
+#' makes all levels of the contrast available for comparison.
+#' @param data_dir Directory containing the DGEList data.
+#' @param data_name Name of the DGEList data file (without extension).
+#' @param randVars Vector of random effect variables.
+#' @param fixedVars Vector of fixed effect variables.
+#' @param contrast_file Path to the file containing contrast definitions.
+#' @param cellTypeListFile A file containing an explicit list of cell types to test.  If NULL, all cell types in the DGEList will be tested.
+#' @param outPDF Optional path to output PDF file for plots.
+#' @param result_dir Directory to save the differential expression results.
+#' @export
+differential_expression_region <- function(data_dir, data_name, randVars, fixedVars, contrast_file, cellTypeListFile=NULL, outPDF=NULL, result_dir) {
+    #load the DGEList and prepare the data
+    d=bican.mccarroll.differentialexpression::prepare_data_for_differential_expression(data_dir, data_name, randVars, fixedVars)
+    dge=d$dge; fixedVars=d$fixedVars; randVars=d$randVars
 
+    dge=filter_dgelist_by_celltype_list(dge, cellTypeListFile)
+
+    #if region is listed in the fixedVars, remove it.
+    if ("region" %in% fixedVars) {
+        fixedVars=setdiff(fixedVars, "region")
+        logger::log_info("region found in fixedVars, removing it for region-specific differential expression analysis.")
+    }
+
+    contrast_defs <- read.table(contrast_file, stringsAsFactors = FALSE, sep="\t", header=TRUE)
+
+    # Variance Partition by cell type
+    cell_type_list=unique(dge$samples$cell_type)
+    #cellType="MSN_D1_matrix";
+    line <- strrep("=", 80)
+
+    plot_list= list()
+    if (length(cell_type_list) > 0) {
+        for (cellType in cell_type_list) {
+            logger::log_info(line)
+            logger::log_info(paste("Creating differential expression analysis for cell type:", cellType))
+            logger::log_info(line)
+
+            dge_cell <- dge[, dge$samples$cell_type == cellType, keep.lib.sizes = TRUE]
+
+            region_list<-unique(dge_cell$samples$region)
+
+            for (region in region_list) {
+
+                dge_cell_region <- dge_cell[, dge_cell$samples$region == region, keep.lib.sizes = TRUE]
+                logger::log_info(paste("  Analyzing region:", region, "with", dim(dge_cell_region$samples)[1], "samples."))
+
+                #filtering samples by library size
+                r<- filter_by_libsize(dge_cell_region, threshold_sd = 1.96, bins = 50, strTitlePrefix = cellType)
+                dge_cell_region<- r$dge
+
+                #filter to the top 75% of highly expressed genes as a first pass.
+                dge_cell_region<-filter_top_expressed_genes(dge_cell_region, gene_filter_frac = 0.75, verbose = TRUE)
+                #filter to cpm cutoff of 1.
+                r2=plot_logCPM_density_quantiles(dge_cell_region, cpm_cutoff = 1, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5)
+                dge_cell_region=r2$filtered_dge
+
+                #run differential expression
+                #this produces one list per contrast comparison.
+                z<-differential_expression_one_cell_type(dge_cell_region, fixedVars, randVars, contrast_defs,
+                                                         verbose = TRUE)
+
+                # flatten the results for summary and plotting
+                # keep only data frames, keep ONLY inner names, preserve order
+                z_flat <- do.call(c, lapply(unname(z), function(x) x[sapply(x, is.data.frame)]))
+
+                #save the results
+                for (contrast in names(z_flat)) {
+                    out=z_flat[[contrast]]
+                    n=paste(cellType, region, contrast, sep="_")
+                    outFile <- file.path(result_dir, paste0(n, "_DE_results.txt"))
+                    logger::log_info(paste("Saving results to:", outFile))
+                    write.table(out, file = outFile, sep = "\t", quote = FALSE, row.names = TRUE, col.names = TRUE)
+                }
+
+                #make a volcano plot for each contrast
+                for (contrast in names(z_flat)) {
+                    n=paste(cellType, region, contrast, sep="_")
+                    df <- z_flat[[contrast]]
+                    if (nrow(df) > 0) {
+                        p <- make_volcano(df, fdr_thresh = 0.05, lfc_thresh = 0,
+                                          top_n_each = 10, title = paste(cellType, contrast))
+                        plot_list[[n]] <- p
+                    }
+                }
+            }
+        }
+    } else {
+        logger::log_info("No cell types found in the DGEList samples.")
+    }
+
+    if (!is.null(outPDF)) {
+        logger::log_info(paste("Saving all plots to PDF:", outPDF))
+        grDevices::pdf(outPDF)
+        pages=paginate_plots(plot_list, plots_per_page = 2)
+        for (i in 1:length(pages)) {
+            print(pages[[i]])
+        }
+        grDevices::dev.off()
+    }
+
+}
 
 #Use ~0 + group for a "means" model: If you want a column for each group
 #representing the mean expression for that group (and no intercept term),

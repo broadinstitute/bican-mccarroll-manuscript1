@@ -28,7 +28,7 @@
 # fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pmi_hr", "pct_intronic", "frac_contamination")
 # max_num_samples=5000
 
-# outMDSPlotRoot="/Volumes/nemesh/private_html/BICAN/MDS_NEW"
+# outMDSPlotRoot="/Volumes/nemesh/private_html/BICAN/MDS"
 # outPDF= "/Volumes/nemesh/private_html/BICAN/MDS_NEW/mds_qc_plots.pdf"
 # outMDSCoordinatesDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/mds_coordinates"
 # additionalDonorMetadata=c("/broad/bican_um1_mccarroll/RNAseq/analysis/cellarium_upload/CAP_freeze_2/donor_metadata_rejection.txt")
@@ -36,7 +36,7 @@
 # run the library size filter MDS plots, emit the MDS plot HTML but not the MDS coordinates.
 # bican.mccarroll.differentialexpression::runMDSPlots(data_dir = data_dir, data_name = data_name, additionalDonorMetadata=additionalDonorMetadata, randVars = randVars, fixedVars = fixedVars, max_num_samples = 5000, filter_by_libsize_zscore=1.96, cellTypeGroupFile = cellTypeGroupFile, outMDSPlotRoot = outMDSPlotRoot, outPDF = outPDF, outMDSCoordinatesDir=NULL)
 
-#run the MDS plots without library size filter, emit only the MDS coordinates.
+# run the MDS plots without library size filter, emit only the MDS coordinates.
 # runMDSPlots(data_dir = data_dir, data_name = data_name, additionalDonorMetadata=NULL, randVars = randVars, fixedVars = fixedVars, max_num_samples = 100000, filter_by_libsize_zscore=NULL, cellTypeGroupFile = cellTypeGroupFile, outMDSPlotRoot = NULL, outPDF = NULL, outMDSCoordinatesDir=outMDSCoordinatesDir)
 
 
