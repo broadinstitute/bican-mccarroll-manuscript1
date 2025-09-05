@@ -10,6 +10,7 @@ differential_expression(
   randVars,
   fixedVars,
   contrast_file,
+  interaction_var = NULL,
   cellTypeListFile = NULL,
   outPDF = NULL,
   result_dir
@@ -25,6 +26,8 @@ differential_expression(
 \item{fixedVars}{Vector of fixed effect variables.}
 
 \item{contrast_file}{Path to the file containing contrast definitions.}
+
+\item{interaction_var}{Optional name of a variable to test for interactions with the contrast variable. If NULL, no interaction terms are added.}
 
 \item{cellTypeListFile}{A file containing an explicit list of cell types to test.  If NULL, all cell types in the DGEList will be tested.}
 

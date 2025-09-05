@@ -5,6 +5,8 @@
 \title{Filter a Data Frame Using a Python-Style Expression}
 \usage{
 filter_df_auto_df_name(df_expr, python_filter_string)
+
+filter_df_auto_df_name(df_expr, python_filter_string)
 }
 \arguments{
 \item{df_expr}{An unquoted R data frame symbol (e.g., `df` or `my_data`). This is
