@@ -2,7 +2,6 @@
 # library(bican.mccarroll.differentialexpression)
 # library(variancePartition)
 # library(Glimma)
-#
 # library(ggplot2)
 # library(ggrepel)
 
@@ -43,10 +42,27 @@
 
 
 # Example run
-# bican.mccarroll.differentialexpression::differential_expression(data_dir, data_name, randVars, fixedVars, contrast_file, cellTypeListFile, outPDF, result_dir)
+# bican.mccarroll.differentialexpression::differential_expression(data_dir, data_name, randVars, fixedVars, contrast_file, interaction_var=NULL, cellTypeListFile, outPDF, result_dir)
 
 ###################################
 # CELL TYPE PER REGION TESTS
+###################################
+
+# data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
+# data_name="donor_rxn_DGEList"
+# randVars=c("donor", "village")
+# #note: "imputed_sex" moves to a fixed effect!  region will be automatically removed.
+# fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "toxicology_group", "single_cell_assay", "region", "biobank")
+# contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_all.txt"
+# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_per_region_results"
+# cellTypeListFile=NULL
+# outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
+
+# Example run
+# bican.mccarroll.differentialexpression::differential_expression_region(data_dir, data_name, randVars, fixedVars, contrast_file, cellTypeListFile, outPDF, result_dir)
+
+###################################
+# CELL TYPE REGION INTERACTION TESTS
 ###################################
 
 data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
@@ -55,13 +71,13 @@ randVars=c("donor", "village")
 #note: "imputed_sex" moves to a fixed effect!  region will be automatically removed.
 fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "toxicology_group", "single_cell_assay", "region", "biobank")
 contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_all.txt"
-result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_per_region_results"
+result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_region_interaction_CaH_baseline_results"
 cellTypeListFile=NULL
 outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
+interaction_var="region" #set to null to not compute interactions.
 
-# Example run
-# bican.mccarroll.differentialexpression::differential_expression_region(data_dir, data_name, randVars, fixedVars, contrast_file, cellTypeListFile, outPDF, result_dir)
-
+# Example run with interactions.
+# bican.mccarroll.differentialexpression::differential_expression(data_dir, data_name, randVars, fixedVars, contrast_file, interaction_var, cellTypeListFile, outPDF, result_dir)
 
 #' Run differential expression analysis for each cell type in the DGEList.
 #'
@@ -73,11 +89,12 @@ outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
 #' @param randVars Vector of random effect variables.
 #' @param fixedVars Vector of fixed effect variables.
 #' @param contrast_file Path to the file containing contrast definitions.
+#' @param interaction_var Optional name of a variable to test for interactions with the contrast variable. If NULL, no interaction terms are added.
 #' @param cellTypeListFile A file containing an explicit list of cell types to test.  If NULL, all cell types in the DGEList will be tested.
 #' @param outPDF Optional path to output PDF file for plots.
 #' @param result_dir Directory to save the differential expression results.
 #' @export
-differential_expression <- function(data_dir, data_name, randVars, fixedVars, contrast_file, cellTypeListFile=NULL, outPDF=NULL, result_dir) {
+differential_expression <- function(data_dir, data_name, randVars, fixedVars, contrast_file, interaction_var=NULL, cellTypeListFile=NULL, outPDF=NULL, result_dir) {
     #load the DGEList and prepare the data
     d=bican.mccarroll.differentialexpression::prepare_data_for_differential_expression(data_dir, data_name, randVars, fixedVars)
     dge=d$dge; fixedVars=d$fixedVars; randVars=d$randVars
@@ -90,6 +107,15 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
     cell_type_list=unique(dge$samples$cell_type)
     #cellType="MSN_D1_matrix"
     line <- strrep("=", 80)
+
+    #if there is an interaction term, only continuous variables are currently supported (age)
+    #filter contrast_defs to the subset of continuous variables
+    if (!is.null(interaction_var)) {
+        idx_continuous=which(is.na(contrast_defs$reference_level) & is.na(contrast_defs$comparison_level))
+        contrast_defs=contrast_defs[idx_continuous,]
+        contrast_name_list_str=paste(unique(contrast_defs$contrast_name), collapse=",")
+        logger::log_info(paste("Interaction variable specified: ", interaction_var, ". Only continuous variables [", contrast_name_list_str, "] will be tested for interactions.", sep=""))
+    }
 
     plot_list= list()
     if (length(cell_type_list) > 0) {
@@ -111,7 +137,7 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
 
             #run differential expression
             #this produces one list per contrast comparison.
-            z<-differential_expression_one_cell_type(dge_cell, fixedVars, randVars, contrast_defs,
+            z<-differential_expression_one_cell_type(dge_cell, fixedVars, randVars, contrast_defs, interaction_var=interaction_var,
                                                      verbose = TRUE)
 
             # flatten the results for summary and plotting
@@ -121,7 +147,9 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
             #save the results
             for (contrast in names(z_flat)) {
                 out=z_flat[[contrast]]
-                n=paste(cellType, contrast, sep="_")
+                # replace ":" with "_" in contrast name for filenames
+                contrast_name_clean <- gsub(":", "_", contrast, fixed = TRUE)
+                n=paste(cellType, contrast_name_clean, sep="_")
                 outFile <- file.path(result_dir, paste0(n, "_DE_results.txt"))
                 logger::log_info(paste("Saving results to:", outFile))
                 write.table(out, file = outFile, sep = "\t", quote = FALSE, row.names = TRUE, col.names = TRUE)
@@ -129,11 +157,13 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
 
             #make a volcano plot for each contrast
             for (contrast in names(z_flat)) {
+                # replace ":" with "_" in contrast name for filenames
+                contrast_name_clean <- gsub(":", "_", contrast, fixed = TRUE)
                 n=paste(cellType, contrast, sep="_")
                 df <- z_flat[[contrast]]
                 if (nrow(df) > 0) {
                     p <- make_volcano(df, fdr_thresh = 0.05, lfc_thresh = 0,
-                                      top_n_each = 10, title = paste(cellType, contrast))
+                                      top_n_each = 10, title = paste(cellType, contrast_name_clean))
                     plot_list[[n]] <- p
                 }
             }
@@ -266,151 +296,378 @@ differential_expression_region <- function(data_dir, data_name, randVars, fixedV
 
 #design <- model.matrix(~0 + group, data=data)
 
-differential_expression_one_cell_type<-function (dge_cell, fixedVars, randVars, contrast_defs, verbose = TRUE, n_cores = parallel::detectCores() - 2) {
+differential_expression_one_cell_type<-function (dge_cell, fixedVars, randVars, contrast_defs, interaction_var = NULL, verbose = TRUE, n_cores = parallel::detectCores() - 2) {
     #have to handle values that are not valid R column names.
     dge_cell$samples<- sanitize_levels(dge_cell$samples)
-    #sanitize the contrast definitions to match the data
-    #this broke with more complex contrasts so need to do it later.
-    # contrast_defs<- sanitize_contrast_levels_old(contrast_defs)
 
     contrast_groups<-unique (contrast_defs$variable)
     topTables_all_list=list()
     for (contrast_group in contrast_groups) {
         logger::log_info(paste("Running differential expression for contrast group:", contrast_group))
-        topTables_list<-differential_expression_one_cell_type_contrast_group(dge_cell, fixedVars, randVars, contrast_defs, contrast_group=contrast_group, verbose = TRUE, n_cores = n_cores)
+        topTables_list<-differential_expression_one_cell_type_contrast_group(dge_cell, fixedVars, randVars, contrast_defs,
+            contrast_group=contrast_group, interaction_var=interaction_var, verbose = TRUE, n_cores = n_cores)
         topTables_all_list[[contrast_group]]<-topTables_list
     }
     return(topTables_all_list)
 
 }
 
-differential_expression_one_cell_type_contrast_group<-function (dge_cell, fixedVars, randVars, contrast_defs,
-                                                                contrast_group="toxicology_group", verbose = TRUE,
-                                                                n_cores = parallel::detectCores() - 2) {
 
-    #drop levels in a consistent way.
-    #the sex encoding gets mangled somewhere internally in dream.
-    dge_cell_this=dge_cell
-    dge_cell_this$samples <- droplevels(dge_cell_this$samples)
 
-    # Drop random effects if they have insufficient replication
-    rv <- prune_random_effects_insufficient_replication(randVars, data=dge_cell_this$samples)
+#####################################
+# CELL TYPE + Optional REGION INTERACTION
+#####################################
 
-    # Ensure the contrast grouping variable is at the front of the fixed effects list
-    fv=move_to_front(fixedVars, contrast_group)
-    #drop fixed effects if they have insufficient replication
-    fv <- drop_single_level_rand_effects(fv, metadata=dge_cell_this$samples, verbose = TRUE)
-
-    rand_part <- paste0("(1|", rv, ")", collapse = " + ")
-    fixed_part <- paste(fv, collapse = " + ")
-    # the fixed effects formula for the design matrix.
-    fixed_form <- stats::as.formula(paste(" ~ 0 +", fixed_part))
-    #the fixed + random effects formula for the dream model.
-    formula_str <- paste(fixed_part, rand_part, sep = " + ")
-    full_form <- stats::as.formula(paste(" ~ 0 +", formula_str))
-
-    design <- stats::model.matrix(fixed_form, data = dge_cell_this$samples)
-    if (qr(design)$rank < ncol(design)) {
-        stop("Design matrix is not full rank; consider dropping colinear variables.")
+#' Differential expression for one cell type with optional continuous-by-factor interactions
+#'
+#' Fit a `variancePartition::dream` model for one cell type, optionally adding an
+#' interaction between a **continuous** contrast variable (e.g., `age`) and a
+#' multi-level factor (default `region`). If an interaction is requested and a
+#' baseline level is provided in `contrast_defs`, the function:
+#' (1) enforces treatment coding for the interaction factor with that baseline,
+#' (2) adds the interaction term to the fixed effects,
+#' (3) returns topTables for the main continuous effect (renamed to
+#' `contrast_group:interaction_var<baseline>`), the per-level interaction
+#' differences (`contrast_group:interaction_var<level>`), and an additional
+#' data frame of absolute per-level effects (`contrast_group_absolute_effects`).
+#'
+#' @note In this version, interaction terms are supported **only for continuous
+#'   variables**. For categorical contrast variables (e.g., multi-level treatment),
+#'   interaction testing is not constructed here.
+#'
+#' @param dge_cell A `DGEList` with counts and sample metadata in
+#'   `dge_cell$samples`.
+#' @param fixedVars `character()`. Fixed effects to include. The function will
+#'   move `contrast_group` to the front and may append `contrast_group:interaction_var`.
+#' @param randVars `character()`. Random-effect grouping variables. Terms with
+#'   insufficient replication are pruned.
+#' @param contrast_defs `data.frame` describing contrasts. Must contain columns:
+#'   `contrast_name`, `variable`, `reference_level`, `comparison_level`, and
+#'   `baseline_region`. The `baseline_region` entry for `variable == contrast_group`
+#'   is used as the interaction baseline when `interaction_var` is not `NULL`.
+#' @param contrast_group `character(1)`. contrast_name to test (e.g., `"age"`).
+#' @param interaction_var `character(1)` or `NULL`. Factor to interact with
+#'   `contrast_group` (default `"region"`). If `NULL`, no interaction is added.
+#'   If non-`NULL`, a baseline level must be supplied via
+#'   `contrast_defs$baseline_region` where `variable == contrast_group`.
+#' @param verbose `logical(1)`. Verbose logging.
+#' @param n_cores `integer(1)`. Worker count for `BiocParallel::MulticoreParam`.
+#'
+#' @importFrom variancePartition voomWithDreamWeights dream eBayes
+#' @importFrom limma topTable
+#' @importFrom BiocParallel MulticoreParam
+#' @importFrom stats model.matrix as.formula relevel contr.treatment
+differential_expression_one_cell_type_contrast_group <- function(
+        dge_cell, fixedVars, randVars, contrast_defs,
+        contrast_group = "age",
+        interaction_var = "region",          # set NULL to disable interactions
+        verbose = TRUE,
+        n_cores = parallel::detectCores() - 2
+){
+    # ---- helpers -----------------------------------------------------------
+    .get_baseline <- function(df, var) {
+        x <- unique(na.omit(df$baseline_region[df$variable == var]))
+        if (length(x) == 1) x else NULL
     }
 
-    contrast_defs_this= contrast_defs[contrast_defs$variable == contrast_group, ]
-    #sanitize_contrast_levels_old(contrast_defs_this)
+    .ensure_treatment_coding <- function(df, var, baseline) {
+        # Make sure the column is a factor
+        if (!is.factor(df[[var]])) df[[var]] <- factor(df[[var]])
 
-    contrast_defs_this= sanitize_contrast_levels(contrast_defs_this, design, verbose=TRUE)
+        # Relevel so that 'baseline' is the reference level
+        df[[var]] <- stats::relevel(df[[var]], ref = baseline)
 
-    contrast_matrix <- generate_contrasts_from_defs(contrast_defs_this, design)
-    # variancePartition::plotContrasts(contrast_matrix)
+        # Apply treatment coding contrasts with that baseline
+        contrasts(df[[var]]) <- stats::contr.treatment(
+            nlevels(df[[var]]),
+            base = which(levels(df[[var]]) == baseline)
+        )
+        df
+    }
 
-    param <- BiocParallel::MulticoreParam(workers = n_cores)
-    cell_type <- unique(dge_cell_this$samples$cell_type)
+    #
+    .pick_int_name <- function(cols, a, b, lev) {
+        x <- paste0(a, ":", b, lev)
+        y <- paste0(b, lev, ":", a)
+        if (x %in% cols) x else if (y %in% cols) y else NA_character_
+    }
 
-    ###################
-    #After running voom, filter the extreme outlier genes and refit.
-    ####################
-    vobjDream <- variancePartition::voomWithDreamWeights(counts=dge_cell_this, formula=full_form, data=dge_cell_this$samples, BPPARAM = param)
+    # ---- data --------------------------------------------------------------
+    dge_cell_this <- dge_cell
+    dge_cell_this$samples <- droplevels(dge_cell_this$samples)
 
-    # Identify good genes
-    genes_to_keep <- filter_high_weight_genes(vobjDream, dge_cell_this, quantile_threshold = 0.999)
+    # random effects
+    rv <- prune_random_effects_insufficient_replication(randVars, data = dge_cell_this$samples)
 
-    # Subset DGE and refit
-    dge_cell_this <- dge_cell_this[genes_to_keep, ]
-    vobjDream <- variancePartition::voomWithDreamWeights(dge_cell_this, full_form, data = dge_cell_this$samples, BPPARAM = param, plot=FALSE)
+    # fixed effects
+    fv <- fixedVars
+    fv <- move_to_front(fv, contrast_group)
+    fv <- drop_single_level_rand_effects(fv, metadata = dge_cell_this$samples, verbose = verbose)
 
-    #is this group a contrast group, or is it continuous (IE: age)
-    #This defines L as the contrast matrix of there are levels being compared, or NULL for categories like age.
+    # interaction toggle + baseline
+    baseline <- NULL
+    add_interaction <- FALSE
+    if (!is.null(interaction_var)) {
+        baseline <- .get_baseline(contrast_defs, contrast_group)
+        add_interaction <- !is.null(baseline)
+    }
+
+    # if requested, enforce treatment coding for the interaction factor on DATA
+    if (add_interaction) {
+        stopifnot(interaction_var %in% names(dge_cell_this$samples))
+        dge_cell_this$samples <- .ensure_treatment_coding(dge_cell_this$samples, interaction_var, baseline)
+        inter_term <- paste0(contrast_group, ":", interaction_var)
+        if (!(inter_term %in% fv)) fv <- c(fv, inter_term)
+    }
+
+    # ---- formulas ----------------------------------------------------------
+    rand_part  <- if (length(rv)) paste0("(1|", rv, ")", collapse = " + ") else NULL
+    fixed_part <- paste(fv, collapse = " + ")
+    fixed_form <- stats::as.formula(paste("~ 0 +", fixed_part))
+    full_form  <- stats::as.formula(paste("~ 0 +", paste(c(fixed_part, rand_part), collapse = " + ")))
+
+    design <- stats::model.matrix(fixed_form, data = dge_cell_this$samples)
+    if (qr(design)$rank < ncol(design)) stop("Design matrix not full rank.")
+
+    # contrasts for factor main-effects of the contrast_group (if any)
+    contrast_defs_this <- contrast_defs[contrast_defs$variable == contrast_group, , drop = FALSE]
+    contrast_defs_this <- sanitize_contrast_levels(contrast_defs_this, design, verbose = verbose)
+    contrast_matrix    <- generate_contrasts_from_defs(contrast_defs_this, design)
     has_contrasts_groups <- !all(is.na(contrast_defs_this$reference_level) & is.na(contrast_defs_this$comparison_level))
     L <- if (has_contrasts_groups) contrast_matrix else NULL
 
-    fitmm <- capture_dream_warnings({
-        variancePartition::dream(exprObj=vobjDream, formula=full_form, data=dge_cell_this$samples, BPPARAM = param, L=L)
+
+    # ---- fit ---------------------------------------------------------------
+    param <- BiocParallel::MulticoreParam(workers = n_cores)
+
+    vobj <- variancePartition::voomWithDreamWeights(
+        counts = dge_cell_this, formula = full_form, data = dge_cell_this$samples, BPPARAM = param
+    )
+    keep <- filter_high_weight_genes(vobj, dge_cell_this, quantile_threshold = 0.999)
+    dge_cell_this <- dge_cell_this[keep, ]
+    vobj <- variancePartition::voomWithDreamWeights(
+        dge_cell_this, full_form, data = dge_cell_this$samples, BPPARAM = param, plot = FALSE
+    )
+
+    #keep the pre ebayes fit for absolute effects
+    fit <- capture_dream_warnings({
+        variancePartition::dream(exprObj = vobj, formula = full_form,
+                                 data = dge_cell_this$samples, BPPARAM = param, L = L)
     })
+    fitmm <- variancePartition::eBayes(fit, trend = TRUE, robust = TRUE)
 
-    fitmm <- variancePartition::eBayes(fitmm, trend = TRUE, robust = TRUE)
-    #plotSA(fitmm, main=paste(cell_type, "mean-variance trend"))
+    log_decide_tests_summary(fitmm, L = L, label = paste("DREAM DE summary for", contrast_group))
 
-    log_decide_tests_summary(fitmm, L=contrast_matrix, label = paste("DREAM DE summary for", contrast_group))
+    # ---- collect results ---------------------------------------------------
+    tt <- list()
 
-    topTables_list <- list()
-
-    if (has_contrasts_groups) {
-        for (contrast_name in colnames(contrast_matrix)) {
-            topTables_list[[contrast_name]] <- limma::topTable(fitmm, coef = contrast_name, number = Inf)
-        }
-    } else {
-        # If it's a continuous variable, we can just use the first coefficient
-        topTables_list[[contrast_group]] <- limma::topTable(fitmm, coef = contrast_group, number = Inf)
+    # 1) factor contrasts (if any)
+    if (!is.null(L)) {
+        have <- intersect(colnames(L), colnames(coef(fitmm)))
+        for (cn in have) tt[[cn]] <- limma::topTable(fitmm, coef = cn, number = Inf)
     }
 
-    return(topTables_list)
+    coef_names <- colnames(coef(fitmm))
+
+    # 2) main continuous effect always, but rename if interaction is active
+    if (contrast_group %in% coef_names) {
+        main_tbl <- limma::topTable(fitmm, coef = contrast_group, number = Inf)
+        main_name <- contrast_group
+        if (add_interaction) {
+            main_name <- paste0(contrast_group, ":", interaction_var, baseline)
+        }
+        tt[[main_name]] <- main_tbl
+    }
+
+    # 3) interaction terms, if requested
+    if (add_interaction) {
+        levs <- levels(dge_cell_this$samples[[interaction_var]])
+        # for each level including baseline, create a name contrast_group:interaction_var<lev>
+        # baseline uses the renamed main effect; others use explicit interaction coefs
+        for (lev in levs) {
+            nm <- paste0(contrast_group, ":", interaction_var, lev)
+            if (lev == baseline) {
+                # already stored as main_name
+                next
+            } else {
+                ic <- .pick_int_name(coef_names, contrast_group, paste0(interaction_var), lev)
+                if (is.na(ic)) next
+                tt[[nm]] <- limma::topTable(fitmm, coef = ic, number = Inf)
+            }
+        }
+
+        # optional: absolute effects matrix for convenience
+        C <- coef(fitmm)
+        abs_list <- list()
+
+        to_colmat <- function(x, nm) {
+            x <- as.matrix(x); colnames(x) <- nm; x
+        }
+
+        if (add_interaction && contrast_group %in% colnames(C)) {
+            for (lev in levels(dge_cell_this$samples[[interaction_var]])) {
+                nm <- paste0("abs_", contrast_group, ":", interaction_var, lev)
+                if (lev == baseline) {
+                    abs_list[[lev]] <- to_colmat(C[, contrast_group, drop = FALSE], nm)
+                } else {
+                    ic <- .pick_int_name(colnames(C), contrast_group, interaction_var, lev)
+                    if (!is.na(ic)) {
+                        abs_list[[lev]] <- to_colmat(C[, contrast_group, drop = FALSE] + C[, ic, drop = FALSE], nm)
+                    }
+                }
+            }
+        }
+
+        #If there are interactions, return the absolute effects as a data.frame with genes in rownames to be
+        #consistent with other DE results.
+        if (length(abs_list)) {
+            abs_mat <- do.call(cbind, abs_list)
+            abs_df  <- as.data.frame(abs_mat, stringsAsFactors = FALSE)
+
+            df_name <- paste0(contrast_group, "_absolute_effects")
+            tt[[df_name]] <- abs_df
+        } else {
+            df_name <- paste0(contrast_group, "_absolute_effects")
+            tt[[df_name]] <- NULL
+        }
+    }
+
+    tt
 }
 
+# differential_expression_one_cell_type_contrast_group<-function (dge_cell, fixedVars, randVars, contrast_defs,
+#                                                                 contrast_group="toxicology_group", verbose = TRUE,
+#                                                                 n_cores = parallel::detectCores() - 2) {
+#
+#     #drop levels in a consistent way.
+#     #the sex encoding gets mangled somewhere internally in dream.
+#     dge_cell_this=dge_cell
+#     dge_cell_this$samples <- droplevels(dge_cell_this$samples)
+#
+#     # Drop random effects if they have insufficient replication
+#     rv <- prune_random_effects_insufficient_replication(randVars, data=dge_cell_this$samples)
+#
+#     # Ensure the contrast grouping variable is at the front of the fixed effects list
+#     fv=move_to_front(fixedVars, contrast_group)
+#     #drop fixed effects if they have insufficient replication
+#     fv <- drop_single_level_rand_effects(fv, metadata=dge_cell_this$samples, verbose = TRUE)
+#
+#     rand_part <- paste0("(1|", rv, ")", collapse = " + ")
+#     fixed_part <- paste(fv, collapse = " + ")
+#     # the fixed effects formula for the design matrix.
+#     fixed_form <- stats::as.formula(paste(" ~ 0 +", fixed_part))
+#     #the fixed + random effects formula for the dream model.
+#     formula_str <- paste(fixed_part, rand_part, sep = " + ")
+#     full_form <- stats::as.formula(paste(" ~ 0 +", formula_str))
+#
+#     design <- stats::model.matrix(fixed_form, data = dge_cell_this$samples)
+#     if (qr(design)$rank < ncol(design)) {
+#         stop("Design matrix is not full rank; consider dropping colinear variables.")
+#     }
+#
+#     contrast_defs_this= contrast_defs[contrast_defs$variable == contrast_group, ]
+#     #sanitize_contrast_levels_old(contrast_defs_this)
+#
+#     contrast_defs_this= sanitize_contrast_levels(contrast_defs_this, design, verbose=TRUE)
+#
+#     contrast_matrix <- generate_contrasts_from_defs(contrast_defs_this, design)
+#     # variancePartition::plotContrasts(contrast_matrix)
+#
+#     param <- BiocParallel::MulticoreParam(workers = n_cores)
+#     cell_type <- unique(dge_cell_this$samples$cell_type)
+#
+#     ###################
+#     #After running voom, filter the extreme outlier genes and refit.
+#     ####################
+#     vobjDream <- variancePartition::voomWithDreamWeights(counts=dge_cell_this, formula=full_form, data=dge_cell_this$samples, BPPARAM = param)
+#
+#     # Identify good genes
+#     genes_to_keep <- filter_high_weight_genes(vobjDream, dge_cell_this, quantile_threshold = 0.999)
+#
+#     # Subset DGE and refit
+#     dge_cell_this <- dge_cell_this[genes_to_keep, ]
+#     vobjDream <- variancePartition::voomWithDreamWeights(dge_cell_this, full_form, data = dge_cell_this$samples, BPPARAM = param, plot=FALSE)
+#
+#     #is this group a contrast group, or is it continuous (IE: age)
+#     #This defines L as the contrast matrix of there are levels being compared, or NULL for categories like age.
+#     has_contrasts_groups <- !all(is.na(contrast_defs_this$reference_level) & is.na(contrast_defs_this$comparison_level))
+#     L <- if (has_contrasts_groups) contrast_matrix else NULL
+#
+#     fitmm <- capture_dream_warnings({
+#         variancePartition::dream(exprObj=vobjDream, formula=full_form, data=dge_cell_this$samples, BPPARAM = param, L=L)
+#     })
+#
+#     fitmm <- variancePartition::eBayes(fitmm, trend = TRUE, robust = TRUE)
+#     #plotSA(fitmm, main=paste(cell_type, "mean-variance trend"))
+#
+#     log_decide_tests_summary(fitmm, L=contrast_matrix, label = paste("DREAM DE summary for", contrast_group))
+#
+#     topTables_list <- list()
+#
+#     if (has_contrasts_groups) {
+#         for (contrast_name in colnames(contrast_matrix)) {
+#             topTables_list[[contrast_name]] <- limma::topTable(fitmm, coef = contrast_name, number = Inf)
+#         }
+#     } else {
+#         # If it's a continuous variable, we can just use the first coefficient
+#         topTables_list[[contrast_group]] <- limma::topTable(fitmm, coef = contrast_group, number = Inf)
+#     }
+#
+#     return(topTables_list)
+# }
 
-# Build limma contrasts from a data.frame that may include expressions like:
-#   comparison_level = "(CaH + Pu)/2"
-#   reference_level  = "NAC"
-# Works for simple cases too (e.g., comparison=opioid, reference=control).
-# For continuous tests, leave reference_level and comparison_level as NA.
+
 generate_contrasts_from_defs <- function(contrast_defs, design_matrix) {
+    # escape any regex metacharacters (incl. hyphen)
+    .rex_escape <- function(x) gsub("([][{}()+*^$|\\.?<>\\-])", "\\\\\\1", x)
+
     stopifnot(is.data.frame(contrast_defs))
     stopifnot(is.matrix(design_matrix) || is.data.frame(design_matrix))
 
-    design_cols <- colnames(design_matrix)
+    # Drop interaction columns entirely
+    design_cols_raw  <- colnames(design_matrix)
+    design_cols_raw  <- design_cols_raw[!grepl(":", design_cols_raw, fixed = TRUE)]
 
-    # Translate a side ("expr") for a given factor "var" into a makeContrasts-friendly string
+    # Safe names for limma::makeContrasts
+    design_cols_safe <- make.names(design_cols_raw, unique = TRUE)
+    raw2safe <- stats::setNames(design_cols_safe, design_cols_raw)
+    safe2raw <- stats::setNames(design_cols_raw,  design_cols_safe)
+
+    # --- translators work only on NON-interaction columns ---
     translate_side <- function(expr, var, design_cols) {
         if (is.na(expr) || is.null(expr) || nchar(trimws(expr)) == 0) return("0")
         s <- gsub("\\s+", "", as.character(expr))
 
-        var_pat  <- paste0("^", var)
+        var_pat  <- paste0("^", .rex_escape(var))
         var_cols <- grep(var_pat, design_cols, value = TRUE)
-        if (length(var_cols) == 0) stop("No design columns found for factor '", var, "'. Did you use '~ 0 + ", var, " + ...'?")
+        if (length(var_cols) == 0)
+            stop("No design columns found for factor '", var, "'. Did you use '~ 0 + ", var, " + ...'?")
+
         levels_available <- sub(var_pat, "", var_cols)
 
-        # First, rewrite numeric tokens to their sanitized level name (e.g. "1" -> "X1") iff that exists
+        # remap numeric tokens like "1" -> "X1" if present
         m <- gregexpr("[A-Za-z0-9_.-]+", s, perl = TRUE)
         toks <- regmatches(s, m)[[1]]
         if (length(toks)) {
             mapped <- vapply(toks, function(tok) {
                 if (grepl("^[0-9]+(\\.[0-9]+)?$", tok)) {
-                    sani <- make.names(tok)           # "1" -> "X1"
+                    sani <- make.names(tok)
                     if (sani %in% levels_available) sani else tok
                 } else tok
             }, character(1))
             regmatches(s, m)[[1]] <- mapped
         }
 
-        # Now replace level names with full design column names (var + level)
+        # replace level tokens with full column names (var + level)
         levels_available <- levels_available[order(nchar(levels_available), decreasing = TRUE)]
         for (lev in levels_available) {
-            s <- gsub(paste0("(?<![A-Za-z0-9_.])", lev, "(?![A-Za-z0-9_.])"),
+            s <- gsub(paste0("(?<![A-Za-z0-9_.])", .rex_escape(lev), "(?![A-Za-z0-9_.])"),
                       paste0(var, lev), s, perl = TRUE)
         }
         s
     }
 
     contrast_list <- list()
-
     for (i in seq_len(nrow(contrast_defs))) {
         row <- contrast_defs[i, ]
         cname <- as.character(row$contrast_name)
@@ -418,41 +675,42 @@ generate_contrasts_from_defs <- function(contrast_defs, design_matrix) {
         ref   <- row$reference_level
         comp  <- row$comparison_level
 
-        # Continuous covariate: both NA
+        # Continuous: expect a single column named exactly <var> (no interactions)
         if ((is.na(ref) || length(ref) == 0) && (is.na(comp) || length(comp) == 0)) {
-            # expect a column exactly named <var> in the design (continuous term)
-            if (!(var %in% design_cols)) {
-                stop("Continuous term '", var, "' not found in design columns.")
-            }
+            if (!(var %in% design_cols_raw)) stop("Continuous term '", var, "' not found in design.")
             contrast_list[[cname]] <- var
             next
         }
 
-        # Factor/composite case: translate both sides
-        comp_str <- translate_side(comp, var, design_cols)
-        ref_str  <- translate_side(ref,  var, design_cols)
+        comp_str <- translate_side(comp, var, design_cols_raw)
+        ref_str  <- translate_side(ref,  var, design_cols_raw)
 
-        # Build final contrast expression
-        # Handle zero on either side to keep expressions tidy
-        if (identical(ref_str, "0")) {
-            contrast_expr <- comp_str
-        } else if (identical(comp_str, "0")) {
-            contrast_expr <- paste0("0 - (", ref_str, ")")
-        } else {
-            contrast_expr <- paste0("(", comp_str, ") - (", ref_str, ")")
-        }
-
-        contrast_list[[cname]] <- contrast_expr
+        contrast_list[[cname]] <-
+            if (identical(ref_str, "0")) comp_str else
+                if (identical(comp_str, "0")) paste0("0 - (", ref_str, ")") else
+                    paste0("(", comp_str, ") - (", ref_str, ")")
     }
 
-    # Construct the contrast matrix
-    contrast_matrix <- do.call(
-        limma::makeContrasts,
-        args = c(contrast_list, list(levels = design_matrix))
-    )
+    # safeify expressions for limma
+    safeify_expr <- function(expr) {
+        s <- expr
+        raws <- names(raw2safe)[order(nchar(names(raw2safe)), decreasing = TRUE)]
+        for (r in raws) {
+            pat <- paste0("(?<![A-Za-z0-9_.])", .rex_escape(r), "(?![A-Za-z0-9_.])")
+            s <- gsub(pat, raw2safe[[r]], s, perl = TRUE)
+        }
+        s
+    }
+    contrast_list_safe <- lapply(contrast_list, safeify_expr)
 
-    contrast_matrix
+    CM_safe <- do.call(limma::makeContrasts,
+                       args = c(contrast_list_safe, list(levels = design_cols_safe)))
+
+    # map rows back so contrasts.fit aligns with the fit
+    rownames(CM_safe) <- unname(safe2raw[rownames(CM_safe)])
+    CM_safe
 }
+
 
 
 
