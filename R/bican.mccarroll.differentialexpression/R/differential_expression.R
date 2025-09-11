@@ -110,12 +110,12 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
 
     #if there is an interaction term, only continuous variables are currently supported (age)
     #filter contrast_defs to the subset of continuous variables
-    if (!is.null(interaction_var)) {
-        idx_continuous=which(is.na(contrast_defs$reference_level) & is.na(contrast_defs$comparison_level))
-        contrast_defs=contrast_defs[idx_continuous,]
-        contrast_name_list_str=paste(unique(contrast_defs$contrast_name), collapse=",")
-        logger::log_info(paste("Interaction variable specified: ", interaction_var, ". Only continuous variables [", contrast_name_list_str, "] will be tested for interactions.", sep=""))
-    }
+    # if (!is.null(interaction_var)) {
+    #     idx_continuous=which(is.na(contrast_defs$reference_level) & is.na(contrast_defs$comparison_level))
+    #     contrast_defs=contrast_defs[idx_continuous,]
+    #     contrast_name_list_str=paste(unique(contrast_defs$contrast_name), collapse=",")
+    #     logger::log_info(paste("Interaction variable specified: ", interaction_var, ". Only continuous variables [", contrast_name_list_str, "] will be tested for interactions.", sep=""))
+    # }
 
     plot_list= list()
     if (length(cell_type_list) > 0) {
@@ -312,10 +312,296 @@ differential_expression_one_cell_type<-function (dge_cell, fixedVars, randVars, 
 
 }
 
+#########################################
+# CELL TYPE + REGION ABSOLUTE EFFECS
+#########################################
+
+#' Fit region-specific slopes for a continuous variable using limma/voom + dream
+#'
+#' This function estimates absolute slopes of a continuous covariate
+#' (e.g. age) within each level of a categorical factor (e.g. brain region).
+#' It constructs explicit per-level slope terms (`continuous_var * I(interaction_var==level)`)
+#' in the design matrix, fits the model with `voomWithDreamWeights` and `dream`,
+#' and returns one `topTable` per level with statistics for the slope.
+#'
+#' @param dge_cell A DGEList-like object (counts with \code{samples} metadata).
+#' @param fixedVars Character vector of fixed effect variables to include
+#'   (do not include the continuous variable or its interaction term).
+#' @param randVars Character vector of random effect variables to include
+#'   (random intercepts).
+#' @param interaction_var Character string. The name of the categorical
+#'   factor variable in \code{dge_cell$samples} (e.g. "region").
+#' @param continuous_var Character string. The name of the continuous
+#'   covariate variable in \code{dge_cell$samples} (e.g. "age").
+#' @param verbose Logical. If \code{TRUE}, print progress messages.
+#' @param n_cores Integer. Number of cores for parallel processing.
+#'
+#' @return A named list of \code{data.frame}s (one per level of the factor).
+#'   Each element is the result of \code{limma::topTable} for the corresponding
+#'   per-level slope, with genes in rows and standard limma statistics.
+#'
+#' @details
+#' This strategy avoids contrast matrices by creating explicit regressors
+#' for each level of the factor multiplied by the continuous variable.
+#' For example, with \code{continuous_var="age"} and \code{interaction_var="region"}
+#' having levels \code{"CaH","NAC"}, the design will include columns
+#' \code{age_regionCaH} and \code{age_regionNAC}. Their coefficients are the
+#' estimated slopes of age in those regions.
+#'
+#' @import limma
+#' @import variancePartition
+#' @import BiocParallel
+#' @export
+continuous_by_factor_differential_expression <- function(
+        dge_cell,
+        fixedVars,                          # include interaction_var and covariates; do NOT include continuous_var or its interaction
+        randVars,
+        interaction_var = "region",         # factor
+        continuous_var = "age",             # numeric
+        verbose = TRUE,
+        n_cores = parallel::detectCores() - 2
+){
+    msg <- function(...) if (isTRUE(verbose)) message(sprintf(...))
+
+    # data
+    dge_this <- dge_cell
+    dge_this$samples <- droplevels(dge_this$samples)
+    samp <- dge_this$samples
+
+    if (!(interaction_var %in% names(samp))) stop("interaction_var '", interaction_var, "' not found.")
+    if (!(continuous_var %in% names(samp))) stop("continuous_var '", continuous_var, "' not found.")
+    if (!is.factor(samp[[interaction_var]])) samp[[interaction_var]] <- factor(samp[[interaction_var]])
+    if (!is.numeric(samp[[continuous_var]])) stop("continuous_var must be numeric.")
+
+    levs <- levels(samp[[interaction_var]])
+    if (length(levs) < 2) stop("Need >= 2 levels for ", interaction_var)
+
+    # explicit per-level slope columns
+    cont_cols <- paste0(continuous_var, "_", interaction_var, levs)
+    for (i in seq_along(levs)) {
+        lev <- levs[i]
+        col <- cont_cols[i]
+        samp[[col]] <- as.numeric(samp[[interaction_var]] == lev) * samp[[continuous_var]]
+    }
+
+    # fixed/random effects
+    fv <- unique(fixedVars)
+    if (!(interaction_var %in% fv)) fv <- c(interaction_var, fv)
+    fv <- setdiff(fv, c(continuous_var, paste0(continuous_var, ":", interaction_var)))  # ensure no global cont or interaction
+    fv <- unique(c(fv, cont_cols))                                                      # add explicit slope cols
+
+    rv <- prune_random_effects_insufficient_replication(randVars, data = samp)
+
+    # formulas
+    rhs_fixed <- paste(fv, collapse = " + ")
+    fixed_form <- stats::as.formula(paste("~ 0 +", rhs_fixed))
+    rand_part  <- if (length(rv)) paste0("(1|", rv, ")", collapse = " + ") else NULL
+    full_form  <- if (!is.null(rand_part)) stats::as.formula(paste("~ 0 +", rhs_fixed, "+", rand_part)) else fixed_form
+
+    # design checks
+    X <- stats::model.matrix(fixed_form, data = samp)
+    if (qr(X)$rank < ncol(X)) stop("Design not full rank. Check fixed effects.")
+    miss <- setdiff(cont_cols, colnames(X))
+    if (length(miss)) stop("Missing per-level slope columns in design: ", paste(miss, collapse = ", "))
+
+    # voom + dream + eBayes
+    param <- BiocParallel::MulticoreParam(workers = n_cores)
+    v1 <- variancePartition::voomWithDreamWeights(dge_this, full_form, data = samp, BPPARAM = param)
+    keep <- filter_high_weight_genes(v1, dge_this, quantile_threshold = 0.999)
+    dge_this  <- dge_this[keep, ]
+    v2   <- variancePartition::voomWithDreamWeights(dge_this, full_form, data = samp, BPPARAM = param, plot = FALSE)
+
+    fit <- capture_dream_warnings({
+        variancePartition::dream(v2, full_form, data = samp, BPPARAM = param)
+    })
+    fit <- variancePartition::eBayes(fit, trend = TRUE, robust = TRUE)
+
+    # outputs: one topTable per level’s slope
+    nice_names <- paste0(continuous_var, "Slope_", levs)
+    tabs <- setNames(
+        lapply(seq_along(cont_cols), function(i) limma::topTable(fit, coef = cont_cols[i], number = Inf)),
+        nice_names
+    )
+
+    tabs
+}
+
+#' Categorical × categorical DE via a combined factor (named by contrast_defs)
+#'
+#' Builds a combined factor \code{combo = interaction(factor_var, interaction_var)} so each
+#' coefficient is one cell of the grid. Fits \code{~ 0 + combo + other_fixed + (1|rand...)}
+#' with voom+dream, constructs within-\code{interaction_var} contrasts for the pairs listed
+#' in \code{contrast_defs} where \code{variable == factor_var}, and returns a named list of
+#' \code{topTable} results. Names are \code{<contrast_name>_<region>}, e.g. \code{female_vs_male_CaH}.
+#'
+#' @param dge_cell DGEList-like with counts and \code{samples}.
+#' @param fixedVars Character vector of extra fixed effects to include. Do NOT include
+#'   \code{factor_var}, \code{interaction_var}, or their interaction; this function
+#'   constructs the combined factor internally.
+#' @param randVars Character vector of random-effect grouping variables (random intercepts).
+#' @param contrast_defs data.frame with columns \code{contrast_name}, \code{variable},
+#'   \code{reference_level}, \code{comparison_level}. Rows for \code{variable == factor_var}
+#'   define which pairs to test, and provide human-friendly names.
+#' @param factor_var Character scalar. Primary categorical variable (e.g. "imputed_sex").
+#' @param interaction_var Character scalar. Stratifying categorical variable (e.g. "region").
+#' @param verbose Logical.
+#' @param n_cores Integer workers for \code{BiocParallel::MulticoreParam()}.
+#'
+#' @return Named list of \code{data.frame}s. Each is a \code{limma::topTable} for a contrast
+#'   \code{<contrast_name>_<region>} testing mean(comparison, region) − mean(reference, region) = 0.
+#'
+#' @import limma
+#' @import variancePartition
+#' @import BiocParallel
+#' @export
+categorical_by_categorical_differential_expression <- function(
+        dge_cell,
+        fixedVars,
+        randVars,
+        contrast_defs,
+        factor_var      = "imputed_sex",
+        interaction_var = "region",
+        verbose         = TRUE,
+        n_cores         = parallel::detectCores() - 2
+){
+    msg <- function(...) if (isTRUE(verbose)) message(sprintf(...))
+
+    # --- data prep ---
+    dge <- dge_cell
+    dge$samples <- droplevels(dge$samples)
+    samp <- dge$samples
+
+    if (!(factor_var %in% names(samp))) stop("factor_var '", factor_var, "' not found.")
+    if (!(interaction_var %in% names(samp))) stop("interaction_var '", interaction_var, "' not found.")
+    if (!is.factor(samp[[factor_var]]))      samp[[factor_var]]      <- factor(samp[[factor_var]])
+    if (!is.factor(samp[[interaction_var]])) samp[[interaction_var]] <- factor(samp[[interaction_var]])
+
+    levF <- levels(samp[[factor_var]])
+    levR <- levels(samp[[interaction_var]])
+    if (length(levF) < 2) stop("Need >= 2 levels for ", factor_var)
+    if (length(levR) < 2) stop("Need >= 2 levels for ", interaction_var)
+
+    # Pairs and names from contrast_defs
+    cd <- contrast_defs[contrast_defs$variable == factor_var, c("contrast_name","reference_level","comparison_level"), drop = FALSE]
+    if (!nrow(cd)) stop("contrast_defs has no rows for variable=='", factor_var, "'.")
+    if (any(is.na(cd$reference_level) | is.na(cd$comparison_level)))
+        stop("contrast_defs rows for ", factor_var, " must have reference_level and comparison_level.")
+
+    # map a token from contrast_defs to an actual level of factor_var
+    map_token_to_level <- function(tok, levels_vec){
+        tok <- as.character(tok)
+        if (tok %in% levels_vec) return(tok)
+        sani <- make.names(tok, allow_ = TRUE)
+        if (sani %in% levels_vec) return(sani)
+        # numeric like "1","2": levels might also be numeric-coded as characters
+        if (suppressWarnings(!is.na(as.numeric(tok))) && (tok %in% levels_vec)) return(tok)
+        stop("Token '", tok, "' not found among levels: ", paste(levels_vec, collapse = ", "))
+    }
+    cd$reference_level  <- vapply(cd$reference_level,  map_token_to_level, character(1), levels_vec = levF)
+    cd$comparison_level <- vapply(cd$comparison_level, map_token_to_level, character(1), levels_vec = levF)
+
+    # Combined factor with explicit labels
+    # we're going to use samp as the design matrix, and are just appending a single column
+    # that is the interaction of factor_var and interaction_var so we can
+    # construct contrasts within each level of interaction_var.
+    # for example, this might contain all combinations of sex and region that are tested as explicit levels.
+    samp$combo <- interaction(samp[[factor_var]], samp[[interaction_var]], sep="__", drop=TRUE)
+    levC <- levels(samp$combo)
+
+    # --- fixed/random effects ---
+    fv <- setdiff(unique(fixedVars), c(factor_var, interaction_var, paste0(factor_var, ":", interaction_var)))
+    fv <- c("combo", fv)
+
+    rv <- prune_random_effects_insufficient_replication(randVars, data = samp)
+
+    # --- formulas ---
+    rhs_fixed <- paste(fv, collapse = " + ")
+    fixed_form <- stats::as.formula(paste("~ 0 +", rhs_fixed))
+    rand_part  <- if (length(rv)) paste0("(1|", rv, ")", collapse = " + ") else NULL
+    full_form  <- if (!is.null(rand_part)) stats::as.formula(paste("~ 0 +", rhs_fixed, "+", rand_part)) else fixed_form
+
+    # --- design ---
+    X <- stats::model.matrix(fixed_form, data = samp)
+    if (qr(X)$rank < ncol(X)) stop("Design not full rank.")
+
+    # Map "A__R" labels to the actual design columns created by model.matrix
+    combocols <- grep("^combo", colnames(X), value = TRUE)
+    if (!length(combocols)) stop("No 'combo' columns found in design.")
+    find_combo_col <- function(level_label) {
+        cand <- c(
+            paste0("combo", level_label),
+            paste0("combo", make.names(level_label, allow_ = TRUE)),
+            paste0("combo", make.names(level_label, allow_ = FALSE))
+        )
+        hit <- cand[cand %in% combocols]
+        if (length(hit)) return(hit[1])
+        # fallback on suffix matching
+        suff <- sub("^combo", "", combocols)
+        m1 <- make.names(level_label, allow_ = TRUE)
+        m2 <- make.names(level_label, allow_ = FALSE)
+        if (level_label %in% suff) return(paste0("combo", level_label))
+        if (m1 %in% suff)         return(paste0("combo", m1))
+        if (m2 %in% suff)         return(paste0("combo", m2))
+        NA_character_
+    }
+    combo_map <- setNames(vapply(levC, find_combo_col, character(1)), levC)
+    if (anyNA(combo_map)) {
+        bad <- names(combo_map)[is.na(combo_map)]
+        stop("Could not map combo level(s) to design columns: ", paste(bad, collapse = ", "))
+    }
+
+    # --- build contrast matrix L (all specified pairs, in every region) ---
+    # columns named "<contrast_name>_<region>"
+    pairs <- do.call(rbind, lapply(levR, function(r) {
+        data.frame(region = r,
+                   contrast_name    = cd$contrast_name,
+                   reference_level  = cd$reference_level,
+                   comparison_level = cd$comparison_level,
+                   stringsAsFactors = FALSE)
+    }))
+
+    coef_names <- colnames(X)
+    L <- matrix(0, nrow = length(coef_names), ncol = nrow(pairs),
+                dimnames = list(coef_names, paste0(pairs$contrast_name, "_", pairs$region)))
+
+    for (i in seq_len(nrow(pairs))) {
+        A <- pairs$reference_level[i]
+        B <- pairs$comparison_level[i]
+        R <- pairs$region[i]
+        lvlB <- paste0(B, "__", R)
+        lvlA <- paste0(A, "__", R)
+        colB <- combo_map[[lvlB]]
+        colA <- combo_map[[lvlA]]
+        if (is.na(colB) || is.na(colA)) stop("Missing combo cell(s) for ", B, " or ", A, " at ", R)
+
+        L[colB, i] <-  1
+        L[colA, i] <- -1
+    }
+
+    # --- voom + dream with L ---
+    param <- BiocParallel::MulticoreParam(workers = n_cores)
+    v1 <- variancePartition::voomWithDreamWeights(dge, full_form, data = samp, BPPARAM = param)
+    keep <- filter_high_weight_genes(v1, dge, quantile_threshold = 0.999)
+    dge2 <- dge[keep, ]
+    v2 <- variancePartition::voomWithDreamWeights(dge2, full_form, data = samp, BPPARAM = param, plot = FALSE)
+
+    fit <- capture_dream_warnings({
+        variancePartition::dream(v2, full_form, data = samp, BPPARAM = param, L = L)
+    })
+    fit <- variancePartition::eBayes(fit, trend = TRUE, robust = TRUE)
+
+    # --- results ---
+    tabs <- setNames(
+        lapply(colnames(L), function(nm) limma::topTable(fit, coef = nm, number = Inf)),
+        colnames(L)
+    )
+
+    tabs
+}
 
 
 #####################################
-# CELL TYPE + Optional REGION INTERACTION
+# CELL TYPE + Optional INTERACTION
 #####################################
 
 #' Differential expression for one cell type with optional continuous-by-factor interactions
