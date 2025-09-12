@@ -65,19 +65,53 @@
 # CELL TYPE REGION INTERACTION TESTS
 ###################################
 
+# data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
+# data_name="donor_rxn_DGEList"
+# randVars=c("donor", "village")
+# #note: "imputed_sex" moves to a fixed effect!  region will be automatically removed.
+# fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "toxicology_group", "single_cell_assay", "region", "biobank")
+# contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_all.txt"
+# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_region_interaction_CaH_baseline_results"
+# cellTypeListFile=NULL
+# outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
+# interaction_var="region" #set to null to not compute interactions.
+# absolute_effects = FALSE #set to TRUE to compute absolute effects per region (only when interaction_var is not NULL)
+
+# Example run
+# bican.mccarroll.differentialexpression::differential_expression_region(data_dir, data_name, randVars, fixedVars, contrast_file, interaction_var, absolute_effects, cellTypeListFile, outPDF, result_dir)
+
+###################################
+# CELL TYPE REGION INTERACTION WITH ABSOLUTE EFFECTS
+###################################
+
 data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
 data_name="donor_rxn_DGEList"
 randVars=c("donor", "village")
 #note: "imputed_sex" moves to a fixed effect!  region will be automatically removed.
 fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "toxicology_group", "single_cell_assay", "region", "biobank")
 contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_all.txt"
-result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_region_interaction_CaH_baseline_results"
+result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_region_interaction_absolute_effects"
 cellTypeListFile=NULL
 outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
 interaction_var="region" #set to null to not compute interactions.
+absolute_effects = TRUE #set to TRUE to compute absolute effects per region (only when interaction_var is not NULL)
+
+data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
+data_name="donor_rxn_DGEList"
+randVars=c("donor", "village")
+#note: "imputed_sex" moves to a fixed effect!  region will be automatically removed.
+fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "single_cell_assay", "region", "biobank")
+contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_sex_age.txt"
+result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_results_sex_age_region_interaction_absolute_effects"
+cellTypeListFile=NULL
+outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
+interaction_var="region" #set to null to not compute interactions.
+absolute_effects = TRUE #set to TRUE to compute absolute effects per region (only when interaction_var is not NULL)
 
 # Example run with interactions.
-# bican.mccarroll.differentialexpression::differential_expression(data_dir, data_name, randVars, fixedVars, contrast_file, interaction_var, cellTypeListFile, outPDF, result_dir)
+# bican.mccarroll.differentialexpression::differential_expression(data_dir, data_name, randVars, fixedVars, contrast_file, interaction_var, absolute_effects, cellTypeListFile, outPDF, result_dir)
+
+
 
 #' Run differential expression analysis for each cell type in the DGEList.
 #'
@@ -90,11 +124,12 @@ interaction_var="region" #set to null to not compute interactions.
 #' @param fixedVars Vector of fixed effect variables.
 #' @param contrast_file Path to the file containing contrast definitions.
 #' @param interaction_var Optional name of a variable to test for interactions with the contrast variable. If NULL, no interaction terms are added.
+#' @param absolute_effects If TRUE, computes absolute effects per level for continuous-by-categorical interactions. Only used if interaction_var is not NULL.
 #' @param cellTypeListFile A file containing an explicit list of cell types to test.  If NULL, all cell types in the DGEList will be tested.
 #' @param outPDF Optional path to output PDF file for plots.
 #' @param result_dir Directory to save the differential expression results.
 #' @export
-differential_expression <- function(data_dir, data_name, randVars, fixedVars, contrast_file, interaction_var=NULL, cellTypeListFile=NULL, outPDF=NULL, result_dir) {
+differential_expression <- function(data_dir, data_name, randVars, fixedVars, contrast_file, interaction_var=NULL, absolute_effects=FALSE, cellTypeListFile=NULL, outPDF=NULL, result_dir) {
     #load the DGEList and prepare the data
     d=bican.mccarroll.differentialexpression::prepare_data_for_differential_expression(data_dir, data_name, randVars, fixedVars)
     dge=d$dge; fixedVars=d$fixedVars; randVars=d$randVars
@@ -107,15 +142,6 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
     cell_type_list=unique(dge$samples$cell_type)
     #cellType="MSN_D1_matrix"
     line <- strrep("=", 80)
-
-    #if there is an interaction term, only continuous variables are currently supported (age)
-    #filter contrast_defs to the subset of continuous variables
-    # if (!is.null(interaction_var)) {
-    #     idx_continuous=which(is.na(contrast_defs$reference_level) & is.na(contrast_defs$comparison_level))
-    #     contrast_defs=contrast_defs[idx_continuous,]
-    #     contrast_name_list_str=paste(unique(contrast_defs$contrast_name), collapse=",")
-    #     logger::log_info(paste("Interaction variable specified: ", interaction_var, ". Only continuous variables [", contrast_name_list_str, "] will be tested for interactions.", sep=""))
-    # }
 
     plot_list= list()
     if (length(cell_type_list) > 0) {
@@ -137,7 +163,8 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
 
             #run differential expression
             #this produces one list per contrast comparison.
-            z<-differential_expression_one_cell_type(dge_cell, fixedVars, randVars, contrast_defs, interaction_var=interaction_var,
+            z<-differential_expression_one_cell_type(dge_cell, fixedVars, randVars, contrast_defs,
+                                                     interaction_var=interaction_var, absolute_effects=absolute_effects,
                                                      verbose = TRUE)
 
             # flatten the results for summary and plotting
@@ -290,26 +317,105 @@ differential_expression_region <- function(data_dir, data_name, randVars, fixedV
 
 }
 
-#Use ~0 + group for a "means" model: If you want a column for each group
-#representing the mean expression for that group (and no intercept term),
-#you can use this formula. This can be useful for certain types of comparisons.
 
-#design <- model.matrix(~0 + group, data=data)
+########################
+# DELEGATION FUNCTION
+# Decides which of the 4 modes to use based on contrast_def, interaction_var and absolute_effects.
+########################
 
-differential_expression_one_cell_type<-function (dge_cell, fixedVars, randVars, contrast_defs, interaction_var = NULL, verbose = TRUE, n_cores = parallel::detectCores() - 2) {
-    #have to handle values that are not valid R column names.
-    dge_cell$samples<- sanitize_levels(dge_cell$samples)
+# Dispatcher: pooled DE modes per contrast_group with validation for interactions
+differential_expression_one_cell_type <- function(
+        dge_cell,
+        fixedVars,
+        randVars,
+        contrast_defs,
+        interaction_var = NULL,          # NULL or factor name
+        absolute_effects = FALSE,        # FALSE: use differential_expression_one_cell_type_contrast_group for Mode 1/2
+        verbose = TRUE,
+        n_cores = parallel::detectCores() - 2
+){
+    msg <- function(...) if (isTRUE(verbose)) message(sprintf(...))
 
-    contrast_groups<-unique (contrast_defs$variable)
-    topTables_all_list=list()
-    for (contrast_group in contrast_groups) {
-        logger::log_info(paste("Running differential expression for contrast group:", contrast_group))
-        topTables_list<-differential_expression_one_cell_type_contrast_group(dge_cell, fixedVars, randVars, contrast_defs,
-            contrast_group=contrast_group, interaction_var=interaction_var, verbose = TRUE, n_cores = n_cores)
-        topTables_all_list[[contrast_group]]<-topTables_list
+    stopifnot(is.list(dge_cell), is.data.frame(contrast_defs))
+    dge <- dge_cell
+    if (!is.null(dge$samples) && exists("sanitize_levels", mode = "function")) {
+        dge$samples <- sanitize_levels(dge$samples)
     }
-    return(topTables_all_list)
 
+    # Continuous iff contrast_defs rows for var have both levels NA; else fall back to sample type
+    is_continuous_var <- function(var, df, samples){
+        rows <- df[df$variable == var, , drop = FALSE]
+        if (nrow(rows)) {
+            all(is.na(rows$reference_level) & is.na(rows$comparison_level))
+        } else {
+            is.numeric(samples[[var]])
+        }
+    }
+
+    contrast_groups <- unique(as.character(contrast_defs$variable))
+    out <- vector("list", length(contrast_groups))
+    names(out) <- contrast_groups
+
+    for (cg in contrast_groups) {
+        cg_is_cont <- is_continuous_var(cg, contrast_defs, dge$samples)
+
+        msg("DE for contrast_group='%s' (interaction_var=%s, absolute_effects=%s, continuous=%s)",
+            cg, ifelse(is.null(interaction_var), "NULL", interaction_var),
+            absolute_effects, cg_is_cont)
+
+        if (!absolute_effects) {
+            # Validate: if an interaction_var is requested for relative interactions,
+            # the tested contrast must be continuous. Otherwise skip.
+            if (!is.null(interaction_var) && !cg_is_cont) {
+                msg("SKIP: '%s' has categorical contrasts in contrast_defs; relative interactions require continuous.", cg)
+                out[[cg]] <- NULL
+                next
+            }
+
+            # Unified path for Mode 1 (no interaction) and Mode 2 (relative interaction vs baseline)
+            out[[cg]] <- differential_expression_one_cell_type_contrast_group(
+                dge_cell       = dge,
+                fixedVars      = fixedVars,
+                randVars       = randVars,
+                contrast_defs  = contrast_defs,
+                contrast_group = cg,
+                interaction_var= interaction_var,   # NULL => average effect; factor name => relative interactions
+                verbose        = verbose,
+                n_cores        = n_cores
+            )
+            next
+        }
+
+        # absolute_effects = TRUE
+        if (cg_is_cont) {
+            # Mode 3: absolute per-level slopes for continuous covariate
+            if (is.null(interaction_var)) stop("interaction_var required for absolute_effects=TRUE with continuous '", cg, "'.")
+            out[[cg]] <- continuous_by_factor_differential_expression(
+                dge_cell       = dge,
+                fixedVars      = fixedVars,
+                randVars       = randVars,
+                interaction_var= interaction_var,
+                continuous_var = cg,
+                verbose        = verbose,
+                n_cores        = n_cores
+            )
+        } else {
+            # Mode 4: categorical-by-categorical within-stratum contrasts (names from contrast_defs)
+            if (is.null(interaction_var)) stop("interaction_var required for absolute_effects=TRUE with categorical '", cg, "'.")
+            out[[cg]] <- categorical_by_categorical_differential_expression(
+                dge_cell       = dge,
+                fixedVars      = fixedVars,
+                randVars       = randVars,
+                contrast_defs  = contrast_defs,
+                factor_var     = cg,
+                interaction_var= interaction_var,
+                verbose        = verbose,
+                n_cores        = n_cores
+            )
+        }
+    }
+
+    out
 }
 
 #########################################
@@ -337,7 +443,7 @@ differential_expression_one_cell_type<-function (dge_cell, fixedVars, randVars, 
 #' @param n_cores Integer. Number of cores for parallel processing.
 #'
 #' @return A named list of \code{data.frame}s (one per level of the factor).
-#'   Each element is the result of \code{limma::topTable} for the corresponding
+#'   Each element is the result of \code{variancePartition::topTable} for the corresponding
 #'   per-level slope, with genes in rows and standard limma statistics.
 #'
 #' @details
@@ -419,7 +525,7 @@ continuous_by_factor_differential_expression <- function(
     # outputs: one topTable per level’s slope
     nice_names <- paste0(continuous_var, "Slope_", levs)
     tabs <- setNames(
-        lapply(seq_along(cont_cols), function(i) limma::topTable(fit, coef = cont_cols[i], number = Inf)),
+        lapply(seq_along(cont_cols), function(i) variancePartition::topTable(fit, coef = cont_cols[i], number = Inf)),
         nice_names
     )
 
@@ -447,7 +553,7 @@ continuous_by_factor_differential_expression <- function(
 #' @param verbose Logical.
 #' @param n_cores Integer workers for \code{BiocParallel::MulticoreParam()}.
 #'
-#' @return Named list of \code{data.frame}s. Each is a \code{limma::topTable} for a contrast
+#' @return Named list of \code{data.frame}s. Each is a \code{variancePartition::topTable} for a contrast
 #'   \code{<contrast_name>_<region>} testing mean(comparison, region) − mean(reference, region) = 0.
 #'
 #' @import limma
@@ -592,7 +698,7 @@ categorical_by_categorical_differential_expression <- function(
 
     # --- results ---
     tabs <- setNames(
-        lapply(colnames(L), function(nm) limma::topTable(fit, coef = nm, number = Inf)),
+        lapply(colnames(L), function(nm) variancePartition::topTable(fit, coef = nm, number = Inf)),
         colnames(L)
     )
 
@@ -750,14 +856,14 @@ differential_expression_one_cell_type_contrast_group <- function(
     # 1) factor contrasts (if any)
     if (!is.null(L)) {
         have <- intersect(colnames(L), colnames(coef(fitmm)))
-        for (cn in have) tt[[cn]] <- limma::topTable(fitmm, coef = cn, number = Inf)
+        for (cn in have) tt[[cn]] <- variancePartition::topTable(fitmm, coef = cn, number = Inf)
     }
 
     coef_names <- colnames(coef(fitmm))
 
     # 2) main continuous effect always, but rename if interaction is active
     if (contrast_group %in% coef_names) {
-        main_tbl <- limma::topTable(fitmm, coef = contrast_group, number = Inf)
+        main_tbl <- variancePartition::topTable(fitmm, coef = contrast_group, number = Inf)
         main_name <- contrast_group
         if (add_interaction) {
             main_name <- paste0(contrast_group, ":", interaction_var, baseline)
@@ -778,130 +884,48 @@ differential_expression_one_cell_type_contrast_group <- function(
             } else {
                 ic <- .pick_int_name(coef_names, contrast_group, paste0(interaction_var), lev)
                 if (is.na(ic)) next
-                tt[[nm]] <- limma::topTable(fitmm, coef = ic, number = Inf)
+                tt[[nm]] <- variancePartition::topTable(fitmm, coef = ic, number = Inf)
             }
         }
 
         # optional: absolute effects matrix for convenience
-        C <- coef(fitmm)
-        abs_list <- list()
-
-        to_colmat <- function(x, nm) {
-            x <- as.matrix(x); colnames(x) <- nm; x
-        }
-
-        if (add_interaction && contrast_group %in% colnames(C)) {
-            for (lev in levels(dge_cell_this$samples[[interaction_var]])) {
-                nm <- paste0("abs_", contrast_group, ":", interaction_var, lev)
-                if (lev == baseline) {
-                    abs_list[[lev]] <- to_colmat(C[, contrast_group, drop = FALSE], nm)
-                } else {
-                    ic <- .pick_int_name(colnames(C), contrast_group, interaction_var, lev)
-                    if (!is.na(ic)) {
-                        abs_list[[lev]] <- to_colmat(C[, contrast_group, drop = FALSE] + C[, ic, drop = FALSE], nm)
-                    }
-                }
-            }
-        }
+        # No longer needed, absolute effects are modeled directly in categorical_by_categorical_differential_expression + continuous_by_factor_differential_expression
+        # abs_list <- list()
+        # C <- coef(fitmm)
+        # to_colmat <- function(x, nm) {
+        #     x <- as.matrix(x); colnames(x) <- nm; x
+        # }
+        #
+        # if (add_interaction && contrast_group %in% colnames(C)) {
+        #     for (lev in levels(dge_cell_this$samples[[interaction_var]])) {
+        #         nm <- paste0("abs_", contrast_group, ":", interaction_var, lev)
+        #         if (lev == baseline) {
+        #             abs_list[[lev]] <- to_colmat(C[, contrast_group, drop = FALSE], nm)
+        #         } else {
+        #             ic <- .pick_int_name(colnames(C), contrast_group, interaction_var, lev)
+        #             if (!is.na(ic)) {
+        #                 abs_list[[lev]] <- to_colmat(C[, contrast_group, drop = FALSE] + C[, ic, drop = FALSE], nm)
+        #             }
+        #         }
+        #     }
+        # }
 
         #If there are interactions, return the absolute effects as a data.frame with genes in rownames to be
         #consistent with other DE results.
-        if (length(abs_list)) {
-            abs_mat <- do.call(cbind, abs_list)
-            abs_df  <- as.data.frame(abs_mat, stringsAsFactors = FALSE)
-
-            df_name <- paste0(contrast_group, "_absolute_effects")
-            tt[[df_name]] <- abs_df
-        } else {
-            df_name <- paste0(contrast_group, "_absolute_effects")
-            tt[[df_name]] <- NULL
-        }
+        # if (length(abs_list)) {
+        #     abs_mat <- do.call(cbind, abs_list)
+        #     abs_df  <- as.data.frame(abs_mat, stringsAsFactors = FALSE)
+        #
+        #     df_name <- paste0(contrast_group, "_absolute_effects")
+        #     tt[[df_name]] <- abs_df
+        # } else {
+        #     df_name <- paste0(contrast_group, "_absolute_effects")
+        #     tt[[df_name]] <- NULL
+        # }
     }
 
     tt
 }
-
-# differential_expression_one_cell_type_contrast_group<-function (dge_cell, fixedVars, randVars, contrast_defs,
-#                                                                 contrast_group="toxicology_group", verbose = TRUE,
-#                                                                 n_cores = parallel::detectCores() - 2) {
-#
-#     #drop levels in a consistent way.
-#     #the sex encoding gets mangled somewhere internally in dream.
-#     dge_cell_this=dge_cell
-#     dge_cell_this$samples <- droplevels(dge_cell_this$samples)
-#
-#     # Drop random effects if they have insufficient replication
-#     rv <- prune_random_effects_insufficient_replication(randVars, data=dge_cell_this$samples)
-#
-#     # Ensure the contrast grouping variable is at the front of the fixed effects list
-#     fv=move_to_front(fixedVars, contrast_group)
-#     #drop fixed effects if they have insufficient replication
-#     fv <- drop_single_level_rand_effects(fv, metadata=dge_cell_this$samples, verbose = TRUE)
-#
-#     rand_part <- paste0("(1|", rv, ")", collapse = " + ")
-#     fixed_part <- paste(fv, collapse = " + ")
-#     # the fixed effects formula for the design matrix.
-#     fixed_form <- stats::as.formula(paste(" ~ 0 +", fixed_part))
-#     #the fixed + random effects formula for the dream model.
-#     formula_str <- paste(fixed_part, rand_part, sep = " + ")
-#     full_form <- stats::as.formula(paste(" ~ 0 +", formula_str))
-#
-#     design <- stats::model.matrix(fixed_form, data = dge_cell_this$samples)
-#     if (qr(design)$rank < ncol(design)) {
-#         stop("Design matrix is not full rank; consider dropping colinear variables.")
-#     }
-#
-#     contrast_defs_this= contrast_defs[contrast_defs$variable == contrast_group, ]
-#     #sanitize_contrast_levels_old(contrast_defs_this)
-#
-#     contrast_defs_this= sanitize_contrast_levels(contrast_defs_this, design, verbose=TRUE)
-#
-#     contrast_matrix <- generate_contrasts_from_defs(contrast_defs_this, design)
-#     # variancePartition::plotContrasts(contrast_matrix)
-#
-#     param <- BiocParallel::MulticoreParam(workers = n_cores)
-#     cell_type <- unique(dge_cell_this$samples$cell_type)
-#
-#     ###################
-#     #After running voom, filter the extreme outlier genes and refit.
-#     ####################
-#     vobjDream <- variancePartition::voomWithDreamWeights(counts=dge_cell_this, formula=full_form, data=dge_cell_this$samples, BPPARAM = param)
-#
-#     # Identify good genes
-#     genes_to_keep <- filter_high_weight_genes(vobjDream, dge_cell_this, quantile_threshold = 0.999)
-#
-#     # Subset DGE and refit
-#     dge_cell_this <- dge_cell_this[genes_to_keep, ]
-#     vobjDream <- variancePartition::voomWithDreamWeights(dge_cell_this, full_form, data = dge_cell_this$samples, BPPARAM = param, plot=FALSE)
-#
-#     #is this group a contrast group, or is it continuous (IE: age)
-#     #This defines L as the contrast matrix of there are levels being compared, or NULL for categories like age.
-#     has_contrasts_groups <- !all(is.na(contrast_defs_this$reference_level) & is.na(contrast_defs_this$comparison_level))
-#     L <- if (has_contrasts_groups) contrast_matrix else NULL
-#
-#     fitmm <- capture_dream_warnings({
-#         variancePartition::dream(exprObj=vobjDream, formula=full_form, data=dge_cell_this$samples, BPPARAM = param, L=L)
-#     })
-#
-#     fitmm <- variancePartition::eBayes(fitmm, trend = TRUE, robust = TRUE)
-#     #plotSA(fitmm, main=paste(cell_type, "mean-variance trend"))
-#
-#     log_decide_tests_summary(fitmm, L=contrast_matrix, label = paste("DREAM DE summary for", contrast_group))
-#
-#     topTables_list <- list()
-#
-#     if (has_contrasts_groups) {
-#         for (contrast_name in colnames(contrast_matrix)) {
-#             topTables_list[[contrast_name]] <- limma::topTable(fitmm, coef = contrast_name, number = Inf)
-#         }
-#     } else {
-#         # If it's a continuous variable, we can just use the first coefficient
-#         topTables_list[[contrast_group]] <- limma::topTable(fitmm, coef = contrast_group, number = Inf)
-#     }
-#
-#     return(topTables_list)
-# }
-
 
 generate_contrasts_from_defs <- function(contrast_defs, design_matrix) {
     # escape any regex metacharacters (incl. hyphen)
@@ -1307,34 +1331,6 @@ paginate_plots <- function(plots, plots_per_page = 2) {
     return (pages)
 }
 
-# test<-function () {
-#     df1=read.table("/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_results_sex_age/astrocyte_age_DE_results.txt", header=T, stringsAsFactors=F, sep="\t")
-#     df2=read.table("/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_results_sex_age/astrocyte_female_vs_male_DE_results.txt", header=T, stringsAsFactors=F, sep="\t")
-#
-#     l=list(df1=df1, df2=df2)
-#
-#     plot_list= list()
-#
-#     p <- make_volcano(df1, fdr_thresh = 0.05, lfc_thresh = 0,
-#                       top_n_each = 10, title = paste(cellType, contrast))
-#     plot_list[[1]] <- p
-#
-#     p <- make_volcano(df2, fdr_thresh = 0.05, lfc_thresh = 0,
-#                       top_n_each = 10, title = paste(cellType, contrast))
-#     plot_list[[2]] <- p
-#
-#     outPDF="/downloads/test.pdf"
-#     if (!is.null(outPDF)) {
-#         logger::log_info(paste("Saving all plots to PDF:", outPDF))
-#         grDevices::pdf(outPDF)
-#         pages=paginate_plots(plot_list, plots_per_page = 2)
-#         for (i in 1:length(pages)) {
-#             print(pages[[i]])
-#         }
-#         grDevices::dev.off()
-#     }
-#
-# }
 
 #quickly regenerate the PDF from the files in the result directory.
 generate_pdf_from_files<-function (result_dir, outPDF) {
@@ -1379,3 +1375,5 @@ filter_dgelist_by_celltype_list<-function (dge, cellTypeListFile=NULL) {
     dge_filtered$samples$cell_type <- factor(dge_filtered$samples$cell_type, levels = cell_type_list)
     return(dge_filtered)
 }
+
+`%||%` <- function(a, b) if (is.null(a)) b else a
