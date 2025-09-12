@@ -11,6 +11,7 @@ differential_expression(
   fixedVars,
   contrast_file,
   interaction_var = NULL,
+  absolute_effects = FALSE,
   cellTypeListFile = NULL,
   outPDF = NULL,
   result_dir
@@ -28,6 +29,8 @@ differential_expression(
 \item{contrast_file}{Path to the file containing contrast definitions.}
 
 \item{interaction_var}{Optional name of a variable to test for interactions with the contrast variable. If NULL, no interaction terms are added.}
+
+\item{absolute_effects}{If TRUE, computes absolute effects per level for continuous-by-categorical interactions. Only used if interaction_var is not NULL.}
 
 \item{cellTypeListFile}{A file containing an explicit list of cell types to test.  If NULL, all cell types in the DGEList will be tested.}
 
