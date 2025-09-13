@@ -37,7 +37,7 @@ define which pairs to test, and provide human-friendly names.}
 \item{n_cores}{Integer workers for \code{BiocParallel::MulticoreParam()}.}
 }
 \value{
-Named list of \code{data.frame}s. Each is a \code{limma::topTable} for a contrast
+Named list of \code{data.frame}s. Each is a \code{variancePartition::topTable} for a contrast
   \code{<contrast_name>_<region>} testing mean(comparison, region) − mean(reference, region) = 0.
 }
 \description{
