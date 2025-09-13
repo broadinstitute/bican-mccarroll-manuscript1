@@ -35,7 +35,7 @@ covariate variable in \code{dge_cell$samples} (e.g. "age").}
 }
 \value{
 A named list of \code{data.frame}s (one per level of the factor).
-  Each element is the result of \code{limma::topTable} for the corresponding
+  Each element is the result of \code{variancePartition::topTable} for the corresponding
   per-level slope, with genes in rows and standard limma statistics.
 }
 \description{

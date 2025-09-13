@@ -140,7 +140,7 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
 
     # Variance Partition by cell type
     cell_type_list=unique(dge$samples$cell_type)
-    #cellType="MSN_D1_matrix"
+    #cellType="GABA_MGE_DFC"
     line <- strrep("=", 80)
 
     plot_list= list()
@@ -454,7 +454,6 @@ differential_expression_one_cell_type <- function(
 #' \code{age_regionCaH} and \code{age_regionNAC}. Their coefficients are the
 #' estimated slopes of age in those regions.
 #'
-#' @import limma
 #' @import variancePartition
 #' @import BiocParallel
 #' @export
@@ -480,7 +479,6 @@ continuous_by_factor_differential_expression <- function(
     if (!is.numeric(samp[[continuous_var]])) stop("continuous_var must be numeric.")
 
     levs <- levels(samp[[interaction_var]])
-    if (length(levs) < 2) stop("Need >= 2 levels for ", interaction_var)
 
     # explicit per-level slope columns
     cont_cols <- paste0(continuous_var, "_", interaction_var, levs)
@@ -492,10 +490,15 @@ continuous_by_factor_differential_expression <- function(
 
     # fixed/random effects
     fv <- unique(fixedVars)
-    if (!(interaction_var %in% fv)) fv <- c(interaction_var, fv)
+    # if there's only one level for interaction_var, drop the baseline term,
+    # we'll still evaluate the cont_col for the level that remains - it should be the same as the global result.
+    if (length(levs) < 2) {
+        message("Only one level for ", interaction_var, "; dropping term [", interaction_var, "] from fixed effects.")
+        fv <- setdiff(fv, interaction_var)
+    }
+
     fv <- setdiff(fv, c(continuous_var, paste0(continuous_var, ":", interaction_var)))  # ensure no global cont or interaction
     fv <- unique(c(fv, cont_cols))                                                      # add explicit slope cols
-
     rv <- prune_random_effects_insufficient_replication(randVars, data = samp)
 
     # formulas
@@ -523,7 +526,7 @@ continuous_by_factor_differential_expression <- function(
     fit <- variancePartition::eBayes(fit, trend = TRUE, robust = TRUE)
 
     # outputs: one topTable per level’s slope
-    nice_names <- paste0(continuous_var, "Slope_", levs)
+    nice_names <- paste0(continuous_var, "_", levs)
     tabs <- setNames(
         lapply(seq_along(cont_cols), function(i) variancePartition::topTable(fit, coef = cont_cols[i], number = Inf)),
         nice_names
@@ -556,7 +559,6 @@ continuous_by_factor_differential_expression <- function(
 #' @return Named list of \code{data.frame}s. Each is a \code{variancePartition::topTable} for a contrast
 #'   \code{<contrast_name>_<region>} testing mean(comparison, region) − mean(reference, region) = 0.
 #'
-#' @import limma
 #' @import variancePartition
 #' @import BiocParallel
 #' @export
@@ -585,7 +587,6 @@ categorical_by_categorical_differential_expression <- function(
     levF <- levels(samp[[factor_var]])
     levR <- levels(samp[[interaction_var]])
     if (length(levF) < 2) stop("Need >= 2 levels for ", factor_var)
-    if (length(levR) < 2) stop("Need >= 2 levels for ", interaction_var)
 
     # Pairs and names from contrast_defs
     cd <- contrast_defs[contrast_defs$variable == factor_var, c("contrast_name","reference_level","comparison_level"), drop = FALSE]
@@ -745,8 +746,7 @@ categorical_by_categorical_differential_expression <- function(
 #' @param verbose `logical(1)`. Verbose logging.
 #' @param n_cores `integer(1)`. Worker count for `BiocParallel::MulticoreParam`.
 #'
-#' @importFrom variancePartition voomWithDreamWeights dream eBayes
-#' @importFrom limma topTable
+#' @importFrom variancePartition voomWithDreamWeights dream eBayes topTable
 #' @importFrom BiocParallel MulticoreParam
 #' @importFrom stats model.matrix as.formula relevel contr.treatment
 differential_expression_one_cell_type_contrast_group <- function(
@@ -938,7 +938,7 @@ generate_contrasts_from_defs <- function(contrast_defs, design_matrix) {
     design_cols_raw  <- colnames(design_matrix)
     design_cols_raw  <- design_cols_raw[!grepl(":", design_cols_raw, fixed = TRUE)]
 
-    # Safe names for limma::makeContrasts
+    # Safe names for makeContrasts
     design_cols_safe <- make.names(design_cols_raw, unique = TRUE)
     raw2safe <- stats::setNames(design_cols_safe, design_cols_raw)
     safe2raw <- stats::setNames(design_cols_raw,  design_cols_safe)
@@ -1013,8 +1013,11 @@ generate_contrasts_from_defs <- function(contrast_defs, design_matrix) {
     }
     contrast_list_safe <- lapply(contrast_list, safeify_expr)
 
-    CM_safe <- do.call(limma::makeContrasts,
-                       args = c(contrast_list_safe, list(levels = design_cols_safe)))
+    # CM_safe <- do.call(limma::makeContrasts,
+    #                    args = c(contrast_list_safe, list(levels = design_cols_safe)))
+
+    CM_safe <- do.call(variancePartition::makeContrastsDream,
+                        args = c(contrast_list_safe, list(levels = design_cols_safe)))
 
     # map rows back so contrasts.fit aligns with the fit
     rownames(CM_safe) <- unname(safe2raw[rownames(CM_safe)])
