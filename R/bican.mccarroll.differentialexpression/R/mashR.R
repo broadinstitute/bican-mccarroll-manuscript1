@@ -2,31 +2,69 @@
 # multiple cell types that have different levels of power?
 
 # packages
+#library (profmem) #if fit_mash_with_V add.mem.profile=TRUE
+
 # library(mashr)
 # library (data.table)
-# library (profmem) #if fit_mash_with_V add.mem.profile=TRUE
 # library(ComplexHeatmap)
 # library(circlize)
 # library(cluster)
 # library (ggplot2)
 #
-# in_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_results_sex_age"
+# in_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_results_sex_age_region_interaction_absolute_effects"
 # sample_metadata_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells/donor_rxn_DGEList_samples.tsv.gz"
 # file_pattern="age"
+# file_pattern="female_vs_male"
+# out_uncorrected_effect_size_matrix=paste(in_dir, "/aggregated_results/", file_pattern, "_DE_logFC_uncorrected_matrix.txt", sep="")
+# out_corrected_effect_size_matrix=paste(in_dir, "/aggregated_results/", file_pattern, "_DE_logFC_corrected_matrix.txt", sep="")
+# out_corrected_effect_size_filtered_matrix=paste(in_dir, "/aggregated_results/", file_pattern, "_DE_logFC_corrected_filtered_matrix.txt", sep="")
+# npc=5
 #
 # gene_cluster_file_raw="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/mash/metadata/age_DE_logFC_K16_gene_clusters.csv"
 # gene_cluster_file_post_mash="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/mash/metadata/age_DE_mash_corrected_effects_7539genes_K17_gene_clusters.csv"
 # gene_cluster_labels_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/mash/metadata/age_DE_logFC_K16_gene_clusters_labels.txt"
 
 
-run_mashr<-function (in_dir, file_pattern="age") {
-
+make_data_for_clustering<-function (in_dir, file_pattern="age", out_uncorrected_effect_size_matrix, fdrThreshold=0.01) {
     #get the list of files from a directory that match some pattern.
     f=list.files(in_dir, pattern = paste0(file_pattern), full.names = TRUE)
     d=lapply(f, read.table, sep="\t", header=TRUE,
              stringsAsFactors = FALSE, check.names = FALSE)
     #need to infer the names for each data.frame in the list
     names(d)=drop_common_suffix(basename(f))
+    #drop common substrings from the names
+    names(d)=remove_common_tokens(names(d))
+
+    #make mash inputs
+    mash_inputs_union<-make_mash_inputs(d, coef_col = "logFC", t_col = "t", fdr_col = "adj.P.Val", gene_mode="union")
+    #how many genes pass an FDR < 0.05 in any condition?
+    nGenesFDR=length(which(apply(mash_inputs_union$FDR, 1, function(x) any(x<0.05))))
+    logger::log_info("Number of genes with at least one condition that passes FDR [", nGenesFDR, "]")
+
+    #Filter results to genes that pass an FDR threshold in at least one condition
+
+    idxPassFDRAny<-which(apply(mash_inputs_union$FDR, 1, function (x) any(x<0.01)))
+    Bhat=mash_inputs_union$Bhat[idxPassFDRAny,]
+    genesPassFDR<-rownames(Bhat)
+    logger::log_info("Number of genes with at least one condition that passes FDR 0.01 [", length(genesPassFDR), "]")
+
+    write.table(Bhat, out_uncorrected_effect_size_matrix, row.names=T, col.names = T, quote=F, sep="\t")
+
+
+
+}
+
+run_mashr<-function (in_dir, file_pattern="age") {
+
+    #get the list of files from a directory that match some pattern.
+    f=list.files(in_dir, pattern = paste0(file_pattern), full.names = TRUE)
+
+    d=lapply(f, read.table, sep="\t", header=TRUE,
+             stringsAsFactors = FALSE, check.names = FALSE)
+    #need to infer the names for each data.frame in the list
+    names(d)=drop_common_suffix(basename(f))
+    #drop common substrings from the names
+    names(d)=remove_common_tokens(names(d))
 
     #make mash inputs
     mash_inputs_union<-make_mash_inputs(d, coef_col = "logFC", t_col = "t", fdr_col = "adj.P.Val", gene_mode="union")
@@ -36,12 +74,24 @@ run_mashr<-function (in_dir, file_pattern="age") {
 
     idxPassFDRAny<-which(apply(mash_inputs_union$FDR, 1, function (x) any(x<0.01)))
     genesPassFDR<-rownames(mash_inputs_union$Bhat[idxPassFDRAny,])
+    logger::log_info("Number of genes with at least one condition that passes FDR 0.01 [", length(genesPassFDR), "]")
 
     #TODO: Maybe what I want to do is fit the data-determined covariance matrixes to the intersection
     # data
 
+    # Alternative way to get strong signals to learn data-driven covariance matrices
+    # data <- mash_set_data(Bhat=mash_inputs_union$Bhat, Shat=mash_inputs_union$Shat)
+    # m1   <- mash_1by1(data)
+    # idx <- get_significant_results(m1, thresh=0.001)
+
+
     # Fit mash to the data.
-    mash_fit<-fit_mash(Bhat=mash_inputs_union$Bhat, Shat=mash_inputs_union$Shat, FDR=mash_inputs_union$FDR, missing_mask=mash_inputs_union$missing_mask, npc=5)
+    # the fdr threshold seems like it could use some per-data set tuning.
+    # age seems to pick tons of genes at 0.001 [6000+]
+    # sex only picks about 200 genes, and doesn't seem to work - it runs forever.
+    # At FDR 0.01 it picks 1000 genes and runs for an hour with exclude_truncated_pca_matrix=F
+    mash_fit<-fit_mash(Bhat=mash_inputs_union$Bhat, Shat=mash_inputs_union$Shat, FDR=mash_inputs_union$FDR,
+                       missing_mask=mash_inputs_union$missing_mask, npc=npc, exclude_truncated_pca_matrix=T, strong_gene_fdr_threshold=0.01)
     m<-mash_fit$mash
     covariance_matrix_list<-mash_fit$covariance_matrix_list
 
@@ -60,17 +110,29 @@ run_mashr<-function (in_dir, file_pattern="age") {
     }
 
 
-    ################
+    #################################################
     # RESULTS
-    ################
-    #local false sign rate - how confident mash is in the direction of effect for each celltype x gene.
-    #https://academic.oup.com/biostatistics/article-abstract/18/2/275/2557030?redirectedFrom=fulltext
-    lfsr<-get_lfsr(m)
-    pm<-get_pm(m)
-    sds<-get_psd(m)
+    # Write posterior effect size matrixes to disk
+    #################################################
 
     #Filter results to genes that pass an FDR threshold in at least one condition
     m_fdr=filter_mash_result_by_genes(m, genesPassFDR)
+
+    # write out the corrected effect size matrix and the lsfr filtered effect size matrix
+    lfsr <- ashr::get_lfsr(m_fdr)
+    pm <- ashr::get_pm(m_fdr)
+
+    write.table(pm, out_corrected_effect_size_matrix, row.names=T, col.names = T, quote=F, sep="\t")
+
+    # Zero-out non-significant effects
+    lfsr_threshold=0.01
+    pm_filtered=pm
+    pm_filtered[lfsr > lfsr_threshold] <- 0
+    write.table(pm, out_corrected_effect_size_filtered_matrix, row.names=T, col.names = T, quote=F, sep="\t")
+
+    ###################
+    # EXPLORE RESULTS
+    ###################
 
     result <- cluster_mash_effects(m_fdr, lfsr_threshold = 1, k = 16, method="kmeans", dist_metric = "euclidean", nstart=200, seed=2)
     plot_mash_heatmap(result$pm_filtered, result$clusters, column_title="distance [euclidean] clustering [kmeans] (lfsr=1)")
@@ -78,16 +140,6 @@ run_mashr<-function (in_dir, file_pattern="age") {
     result <- cluster_mash_effects(m_fdr, lfsr_threshold = 0.05, k = 16, method="kmeans", dist_metric = "euclidean", nstart=200, seed=2)
     plot_mash_heatmap(result$pm_filtered, result$clusters, column_title="distance [euclidean] clustering [kmeans] (lfsr<0.05")
     #plot_mash_heatmap(pm[rownames (result$pm_filtered),], result$clusters, column_title="distance [euclidean] clustering [kmeans] unfiltered data")
-
-
-
-
-
-
-
-
-
-
 
 
     #TODO: Plot the minimum local false sign rate per gene against the minimum FDR from DE.
@@ -99,15 +151,19 @@ run_mashr<-function (in_dir, file_pattern="age") {
 
     #ESTIMATE THE Directional FDR OF THE DATA SET
     # Called sets
-    pos_idx <- which(lfsr < 0.05 & pm > 0, arr.ind = TRUE)
-    neg_idx <- which(lfsr < 0.05 & pm < 0, arr.ind = TRUE)
-
-    # Expected errors and directional FDR among calls
-    exp_errors <- sum(lfsr[pos_idx], na.rm = TRUE) + sum(lfsr[neg_idx], na.rm = TRUE)
-    n_calls    <- nrow(pos_idx) + nrow(neg_idx)
-    dir_fdr    <- if (n_calls > 0) exp_errors / n_calls else NA_real_
+    # pos_idx <- which(lfsr < 0.05 & pm > 0, arr.ind = TRUE)
+    # neg_idx <- which(lfsr < 0.05 & pm < 0, arr.ind = TRUE)
+    #
+    # # Expected errors and directional FDR among calls
+    # exp_errors <- sum(lfsr[pos_idx], na.rm = TRUE) + sum(lfsr[neg_idx], na.rm = TRUE)
+    # n_calls    <- nrow(pos_idx) + nrow(neg_idx)
+    # dir_fdr    <- if (n_calls > 0) exp_errors / n_calls else NA_real_
 
     #write the outputs
+    #out_corrected_effect_size_matrix
+
+
+
     # idx=sort(unique(c(pos_idx,neg_idx)))
     # write.table(pm, "/broad/mccarroll/haley/BICAN/DE/age_DE_logFC_mash_corrected_effects_matrix.txt", row.names=T, col.names = T, quote=F, sep="\t")
     # write.table(pm[idx,], "/broad/mccarroll/haley/BICAN/DE/age_DE_logFC_mash_corrected_effects_filtered_matrix.txt", row.names=T, col.names = T, quote=F, sep="\t")
@@ -967,19 +1023,26 @@ plot_gene_effects <- function(Bhat, pm, gene) {
 #'   \code{get_pm}, \code{get_psd}, and \code{get_lfsr} for summaries).
 #'
 #' @export
-fit_mash<- function(Bhat, Shat, FDR, npc = 5L, n_null_est = 5000L, missing_mask=NULL, add.mem.profile=TRUE, only_cannonical_matrixes=F) {
+fit_mash<- function(Bhat, Shat, FDR, npc = 5L, n_null_est = 5000L, missing_mask=NULL, add.mem.profile=TRUE, only_cannonical_matrixes=F, exclude_truncated_pca_matrix=F, strong_gene_fdr_threshold=0.01) {
     data0 <- mash_set_data(Bhat, Shat)
 
     # pick "strong" rows to learn data-driven covariances
     Z <- Bhat / Shat
     zmax <- apply(abs(Z), 1, max)
-    strong_idx <- choose_strong_rows(Bhat, Shat)
+    #strong_idx <- choose_strong_rows(Bhat, Shat)
+    strong_idx <- choose_strong_rows_simple(Bhat, Shat, fdr_threshold = strong_gene_fdr_threshold)
     data_strong <- mash_set_data(Bhat[strong_idx, , drop = FALSE], Shat[strong_idx, , drop = FALSE])
 
     # canonical + data-driven covariances
     U.c  <- cov_canonical(data0)
     U.p  <- cov_pca(data_strong, npc = min(npc, ncol(Bhat)))
     U.ed <- cov_ed(data_strong, U.p)  # extreme deconvolution refines covariances
+
+    # drop the truncated matrix from the extreme deconvolution list upon request.
+    if (exclude_truncated_pca_matrix) {
+        logger::log_info("Dropping truncated PCA matrix from fitted components")
+        U.ed <- U.ed[!grepl("tPCA", names(U.ed), ignore.case = TRUE)]
+    }
 
     if (only_cannonical_matrixes) {
         covariance_matrix_list=c(U.c)
@@ -1001,10 +1064,7 @@ fit_mash<- function(Bhat, Shat, FDR, npc = 5L, n_null_est = 5000L, missing_mask=
     Vhat=diag(ncol(Bhat)) #this is the default for mashr
     data_all <- mash_set_data(Bhat, Shat, V = Vhat)
     m <- mash(data_all, covariance_matrix_list, usepointmass = TRUE, outputlevel = 2)
-
-
     #remask the raw data.
-
 
     #add the raw data directly to the mash object
     m$data<-data_all
@@ -1123,7 +1183,7 @@ mask_mash_inplace <- function(m, missing_mask) {
 choose_strong_rows <- function(Bhat, Shat,
                                target_n = 5000L,         # desired size of strong set
                                min_per_ct = 300L,        # ensure per-cell-type representation
-                               max_n = 20000L) {         # guardrail for very large sets
+                               max_n = 10000L) {         # guardrail for very large sets
     stopifnot(is.matrix(Bhat), is.matrix(Shat), all(dim(Bhat) == dim(Shat)))
     Z <- Bhat / Shat
     G <- nrow(Z); C <- ncol(Z)
@@ -1146,8 +1206,19 @@ choose_strong_rows <- function(Bhat, Shat,
     idx <- union(idx_global, idx_ct)
     if (length(idx) > max_n) idx <- idx[seq_len(max_n)]
 
+    logger::log_info(paste("Number of strong exemplar genes selected [", length(idx), "]"))
+
     sort(idx)
 }
+
+choose_strong_rows_simple<-function (Bhat, Shat, fdr_threshold=0.01) {
+    data <- mash_set_data(Bhat=mash_inputs_union$Bhat, Shat=mash_inputs_union$Shat)
+    m1   <- mash_1by1(data)
+    idx <- get_significant_results(m1, thresh=fdr_threshold)
+    logger::log_info(paste("Number of strong exemplar genes selected [", length(idx), "]"))
+    sort(idx)
+}
+
 
 
 #' Subset a mash fit by per-gene directional significance and effect size
@@ -1888,6 +1959,20 @@ plot_top_eigenvectors <- function(S, k = 3, condition_names = NULL, bar_colors =
                 plot.title  = element_text(face = "bold")
             )
 
+        p <- ggplot(df, aes(x = loading, y = condition)) +
+            geom_col(width = 0.8, aes(fill = condition), show.legend = FALSE) +
+            geom_vline(xintercept = 0) +
+            labs(
+                title = sprintf("%s eigenvector (PVE = %.1f%%)", .ordinal(j), 100 * pve_k[j]),
+                x = "Loading", y = NULL
+            ) +
+            theme_minimal(base_size = 13) +
+            theme(
+                axis.text.y = element_text(),  # no rotation
+                plot.title  = element_text(face = "bold")
+            )
+
+
         if (!is.null(bar_colors)) {
             p <- p + scale_fill_manual(values = setNames(bar_colors, condition_names))
         }
@@ -2051,8 +2136,8 @@ make_mash_inputs<- function(
         # Validate required columns
         required <- c(coef_col, t_col, fdr_col)
         if (!all(required %in% colnames(df))) {
-            stop("Missing required columns in lst[['", names(lst)[j], "']]: ",
-                 paste(setdiff(required, colnames(df)), collapse = ", "))
+            stop(paste("Missing required columns in lst[['", names(lst)[j], "']]: ",
+                 paste(setdiff(required, colnames(df)), collapse = ", ")))
         }
 
         # Which genes appear in this table (restricted to our gene set)
@@ -2110,4 +2195,21 @@ drop_common_suffix <- function(files) {
 
     # Drop suffix from each filename
     sub(paste0(common_suffix, "$"), "", files)
+}
+
+#' Remove common tokens from strings
+#'
+#' Useful to shorten condition names by removing shared prefixes/suffixes
+remove_common_tokens <- function(x, delim = "_") {
+    stopifnot(is.character(x))
+    toks <- strsplit(x, delim, fixed = TRUE)
+    common <- Reduce(intersect, lapply(toks, unique))
+    if (length(common) == 0L) return(x)
+    out <- vapply(
+        toks,
+        function(v) paste(v[!v %in% common], collapse = delim),
+        character(1)
+    )
+    attr(out, "common_tokens") <- common
+    out
 }

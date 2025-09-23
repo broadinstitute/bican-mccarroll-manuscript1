@@ -12,7 +12,9 @@ fit_mash(
   n_null_est = 5000L,
   missing_mask = NULL,
   add.mem.profile = TRUE,
-  only_cannonical_matrixes = F
+  only_cannonical_matrixes = F,
+  exclude_truncated_pca_matrix = F,
+  strong_gene_fdr_threshold = 0.01
 )
 }
 \arguments{

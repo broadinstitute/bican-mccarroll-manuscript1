@@ -37,6 +37,8 @@
 # variance_partition_result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/variance_partition_results_no_hbcac"
 # outPDF=paste(variance_partition_result_dir, "/variance_partition_plots-no_hbcac.pdf", sep="")
 
+
+# Final decision - drop both hbcac and pmi_hr
 # randVars=c("donor", "imputed_sex", "single_cell_assay", "region", "toxicology_group", "village", "biobank")
 # fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination")
 # variance_partition_result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/variance_partition_results_no_hbcac_no_pmi"
