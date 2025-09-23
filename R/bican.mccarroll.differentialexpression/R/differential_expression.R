@@ -6,46 +6,38 @@
 # library(ggrepel)
 
 ###################################
-# CELL TYPE TESTS ACROSS REGIONS
+# CELL TYPE TESTS MERGED REGIONS
 ###################################
 
+# Dropping PMI, HBCAC from model. Not all donors have PMI, PMI does not contribute very much to variance explained.
 # data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
 # data_name="donor_rxn_DGEList"
 # randVars=c("donor", "village")
 # #note: "imputed_sex" moves to a fixed effect!
 # fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "toxicology_group", "single_cell_assay", "region", "biobank")
 # contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_all.txt"
-# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_results"
+# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age_toxiciology/cell_type"
 # cellTypeListFile=NULL
 # outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
+# interaction_var=NULL; absolute_effects=FALSE
 
-# Dropping PMI, HBCAC, toxicology from model.  Not all donors have PMI, PMI does not contribute very much to variance explained.
+# Dropping toxicology from model to include additional donors
 # Only running on sex and age to be more donor inclusive.
 # data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
 # data_name="donor_rxn_DGEList"
 # randVars=c("donor", "village")
 # fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "single_cell_assay", "region", "biobank")
 # contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_sex_age.txt"
-# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_results_sex_age"
+# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type"
 # outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
 # cellTypeListFile=NULL
 
-# region tests
-# data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
-# data_name="donor_rxn_DGEList"
-# randVars=c("donor", "village")
-# fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "single_cell_assay", "region", "biobank")
-# contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_region.txt"
-# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/region_comparisons"
-# outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
-# cellTypeListFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/cell_types_for_region_analysis.txt"
 
-
-# Example run
-# bican.mccarroll.differentialexpression::differential_expression(data_dir, data_name, randVars, fixedVars, contrast_file, interaction_var=NULL, cellTypeListFile, outPDF, result_dir)
+# Example run - no interaction or absolute effects.
+# bican.mccarroll.differentialexpression::differential_expression(data_dir, data_name, randVars, fixedVars, contrast_file, interaction_var=NULL, absolute_effects=FALSE, cellTypeListFile, outPDF, result_dir)
 
 ###################################
-# CELL TYPE PER REGION TESTS
+# CELL TYPE PER REGION TESTS - data partitioned by region and fit.
 ###################################
 
 # data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
@@ -54,7 +46,8 @@
 # #note: "imputed_sex" moves to a fixed effect!  region will be automatically removed.
 # fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "toxicology_group", "single_cell_assay", "region", "biobank")
 # contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_all.txt"
-# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_per_region_results"
+# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age_toxiciology/cell_type_subset_region"
+# result_dir="/downloads/differential_expression/sex_age_toxiciology/cell_type_subset_region"
 # cellTypeListFile=NULL
 # outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
 
@@ -71,42 +64,45 @@
 # #note: "imputed_sex" moves to a fixed effect!  region will be automatically removed.
 # fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "toxicology_group", "single_cell_assay", "region", "biobank")
 # contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_all.txt"
-# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_region_interaction_CaH_baseline_results"
+# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_region_interaction_CaH_baseline"
+# result_dir="/downloads/differential_expression/sex_age_toxiciology/cell_type_region_interaction_CaH_baseline"
 # cellTypeListFile=NULL
 # outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
 # interaction_var="region" #set to null to not compute interactions.
 # absolute_effects = FALSE #set to TRUE to compute absolute effects per region (only when interaction_var is not NULL)
 
 # Example run
-# bican.mccarroll.differentialexpression::differential_expression_region(data_dir, data_name, randVars, fixedVars, contrast_file, interaction_var, absolute_effects, cellTypeListFile, outPDF, result_dir)
+# bican.mccarroll.differentialexpression::differential_expression(data_dir, data_name, randVars, fixedVars, contrast_file, interaction_var, absolute_effects, cellTypeListFile, outPDF, result_dir)
 
 ###################################
 # CELL TYPE REGION INTERACTION WITH ABSOLUTE EFFECTS
 ###################################
 
-data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
-data_name="donor_rxn_DGEList"
-randVars=c("donor", "village")
-#note: "imputed_sex" moves to a fixed effect!  region will be automatically removed.
-fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "toxicology_group", "single_cell_assay", "region", "biobank")
-contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_all.txt"
-result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_region_interaction_absolute_effects"
-cellTypeListFile=NULL
-outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
-interaction_var="region" #set to null to not compute interactions.
-absolute_effects = TRUE #set to TRUE to compute absolute effects per region (only when interaction_var is not NULL)
+# Toxicology
+# data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
+# data_name="donor_rxn_DGEList"
+# randVars=c("donor", "village")
+# #note: "imputed_sex" moves to a fixed effect!  region will be automatically removed.
+# fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "toxicology_group", "single_cell_assay", "region", "biobank")
+# contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_all.txt"
+# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_region_interaction_absolute_effects"
+# cellTypeListFile=NULL
+# outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
+# interaction_var="region" #set to null to not compute interactions.
+# absolute_effects = TRUE #set to TRUE to compute absolute effects per region (only when interaction_var is not NULL)
 
-data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
-data_name="donor_rxn_DGEList"
-randVars=c("donor", "village")
-#note: "imputed_sex" moves to a fixed effect!  region will be automatically removed.
-fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "single_cell_assay", "region", "biobank")
-contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_sex_age.txt"
-result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_results_sex_age_region_interaction_absolute_effects"
-cellTypeListFile=NULL
-outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
-interaction_var="region" #set to null to not compute interactions.
-absolute_effects = TRUE #set to TRUE to compute absolute effects per region (only when interaction_var is not NULL)
+# No toxicology
+# data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
+# data_name="donor_rxn_DGEList"
+# randVars=c("donor", "village")
+# #note: "imputed_sex" moves to a fixed effect!  region will be automatically removed.
+# fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "single_cell_assay", "region", "biobank")
+# contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_sex_age.txt"
+# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_results_sex_age_region_interaction_absolute_effects"
+# cellTypeListFile=NULL
+# outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
+# interaction_var="region" #set to null to not compute interactions.
+# absolute_effects = TRUE #set to TRUE to compute absolute effects per region (only when interaction_var is not NULL)
 
 # Example run with interactions.
 # bican.mccarroll.differentialexpression::differential_expression(data_dir, data_name, randVars, fixedVars, contrast_file, interaction_var, absolute_effects, cellTypeListFile, outPDF, result_dir)
@@ -130,6 +126,11 @@ absolute_effects = TRUE #set to TRUE to compute absolute effects per region (onl
 #' @param result_dir Directory to save the differential expression results.
 #' @export
 differential_expression <- function(data_dir, data_name, randVars, fixedVars, contrast_file, interaction_var=NULL, absolute_effects=FALSE, cellTypeListFile=NULL, outPDF=NULL, result_dir) {
+    #validate the output directory exists
+    if (!dir.exists(result_dir)) {
+        stop("Result directory does not exist: ", result_dir)
+    }
+
     #load the DGEList and prepare the data
     d=bican.mccarroll.differentialexpression::prepare_data_for_differential_expression(data_dir, data_name, randVars, fixedVars)
     dge=d$dge; fixedVars=d$fixedVars; randVars=d$randVars
@@ -140,7 +141,8 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
 
     # Variance Partition by cell type
     cell_type_list=unique(dge$samples$cell_type)
-    #cellType="GABA_MGE_DFC"
+    #cellType=cell_type_list[1]
+    #cellType="MSN_D2_matrix"
     line <- strrep("=", 80)
 
     plot_list= list()
@@ -273,7 +275,9 @@ differential_expression_region <- function(data_dir, data_name, randVars, fixedV
 
                 #run differential expression
                 #this produces one list per contrast comparison.
-                z<-differential_expression_one_cell_type(dge_cell_region, fixedVars, randVars, contrast_defs,
+                # no interaction or absolute effects for region-specific tests.
+                z<-differential_expression_one_cell_type(dge_cell, fixedVars, randVars, contrast_defs,
+                                                         interaction_var=NULL, absolute_effects=FALSE,
                                                          verbose = TRUE)
 
                 # flatten the results for summary and plotting
@@ -515,10 +519,10 @@ continuous_by_factor_differential_expression <- function(
 
     # voom + dream + eBayes
     param <- BiocParallel::MulticoreParam(workers = n_cores)
-    v1 <- variancePartition::voomWithDreamWeights(dge_this, full_form, data = samp, BPPARAM = param)
+    v1 <- variancePartition::voomWithDreamWeights(dge_this, full_form, data = samp, span=0.3, BPPARAM = param)
     keep <- filter_high_weight_genes(v1, dge_this, quantile_threshold = 0.999)
     dge_this  <- dge_this[keep, ]
-    v2   <- variancePartition::voomWithDreamWeights(dge_this, full_form, data = samp, BPPARAM = param, plot = FALSE)
+    v2   <- variancePartition::voomWithDreamWeights(dge_this, full_form, data = samp, span=0.3, BPPARAM = param, plot = FALSE)
 
     fit <- capture_dream_warnings({
         variancePartition::dream(v2, full_form, data = samp, BPPARAM = param)
@@ -687,10 +691,10 @@ categorical_by_categorical_differential_expression <- function(
 
     # --- voom + dream with L ---
     param <- BiocParallel::MulticoreParam(workers = n_cores)
-    v1 <- variancePartition::voomWithDreamWeights(dge, full_form, data = samp, BPPARAM = param)
+    v1 <- variancePartition::voomWithDreamWeights(dge, full_form, data = samp, span=0.3, BPPARAM = param)
     keep <- filter_high_weight_genes(v1, dge, quantile_threshold = 0.999)
     dge2 <- dge[keep, ]
-    v2 <- variancePartition::voomWithDreamWeights(dge2, full_form, data = samp, BPPARAM = param, plot = FALSE)
+    v2 <- variancePartition::voomWithDreamWeights(dge2, full_form, data = samp, span=0.3, BPPARAM = param, plot = FALSE)
 
     fit <- capture_dream_warnings({
         variancePartition::dream(v2, full_form, data = samp, BPPARAM = param, L = L)
@@ -833,12 +837,12 @@ differential_expression_one_cell_type_contrast_group <- function(
     param <- BiocParallel::MulticoreParam(workers = n_cores)
 
     vobj <- variancePartition::voomWithDreamWeights(
-        counts = dge_cell_this, formula = full_form, data = dge_cell_this$samples, BPPARAM = param
+        counts = dge_cell_this, formula = full_form, data = dge_cell_this$samples, span=0.3, BPPARAM = param
     )
     keep <- filter_high_weight_genes(vobj, dge_cell_this, quantile_threshold = 0.999)
     dge_cell_this <- dge_cell_this[keep, ]
     vobj <- variancePartition::voomWithDreamWeights(
-        dge_cell_this, full_form, data = dge_cell_this$samples, BPPARAM = param, plot = FALSE
+        dge_cell_this, full_form, data = dge_cell_this$samples, span=0.3, BPPARAM = param, plot = FALSE
     )
 
     #keep the pre ebayes fit for absolute effects
@@ -1013,11 +1017,12 @@ generate_contrasts_from_defs <- function(contrast_defs, design_matrix) {
     }
     contrast_list_safe <- lapply(contrast_list, safeify_expr)
 
-    # CM_safe <- do.call(limma::makeContrasts,
-    #                    args = c(contrast_list_safe, list(levels = design_cols_safe)))
+    CM_safe <- do.call(limma::makeContrasts,
+                       args = c(contrast_list_safe, list(levels = design_cols_safe)))
 
-    CM_safe <- do.call(variancePartition::makeContrastsDream,
-                        args = c(contrast_list_safe, list(levels = design_cols_safe)))
+    #TODO: I'd like to switch to variancePartition::makeContrastsDream for consistency, but I would need to pass in data.
+    # CM_safe <- do.call(variancePartition::makeContrastsDream,
+    #                     args = c(contrast_list_safe, list(levels = design_cols_safe)))
 
     # map rows back so contrasts.fit aligns with the fit
     rownames(CM_safe) <- unname(safe2raw[rownames(CM_safe)])
@@ -1136,32 +1141,74 @@ log_decide_tests_summary <- function(fit, L, label = "DE summary") {
 }
 
 # Filter genes with extreme voom weights
-filter_high_weight_genes <- function(vobj, dge, quantile_threshold = 0.999, verbose = TRUE) {
-    stopifnot(!is.null(vobj), !is.null(dge))
+# filter_high_weight_genes <- function(vobj, dge, quantile_threshold = 0.999, verbose = TRUE) {
+#     stopifnot(!is.null(vobj), !is.null(dge))
+#
+#     weights <- vobj$weights
+#     gene_names <- rownames(dge$counts)
+#
+#     if (nrow(weights) != length(gene_names)) {
+#         stop("Number of genes in weights does not match gene names from DGEList.")
+#     }
+#
+#     max_weights <- apply(weights, 1, max, na.rm = TRUE)
+#     threshold <- stats::quantile(max_weights, quantile_threshold, na.rm = TRUE)
+#
+#     keep <- max_weights < threshold
+#     n_dropped <- sum(!keep)
+#     n_total <- length(keep)
+#
+#     if (verbose) {
+#         message(sprintf(
+#             "Filtering %d of %d genes (%.2f%%) with extreme weights (quantile threshold %.3f -> %.2e)",
+#             n_dropped, n_total, 100 * n_dropped / n_total, quantile_threshold, threshold
+#         ))
+#     }
+#
+#     return(gene_names[keep])
+# }
 
+# Filter genes with extreme voom weights
+#TODO: remove dge argument, no longer needed.
+filter_high_weight_genes <- function(vobj, dge, quantile_threshold = 0.999, max_threshold=1e10, verbose = TRUE) {
+    stopifnot(!is.null(vobj), !is.null(vobj$E), !is.null(vobj$weights))
+
+    tested_genes <- rownames(vobj$E)
     weights <- vobj$weights
-    gene_names <- rownames(dge$counts)
 
-    if (nrow(weights) != length(gene_names)) {
-        stop("Number of genes in weights does not match gene names from DGEList.")
+    # If weights have rownames, enforce ordering to tested_genes
+    if (!is.null(rownames(weights))) {
+        weights <- weights[tested_genes, , drop = FALSE]
+    } else {
+        if (nrow(weights) != length(tested_genes)) {
+            stop("weights rows do not match tested genes and have no rownames to align.")
+        }
     }
 
-    max_weights <- apply(weights, 1, max, na.rm = TRUE)
-    threshold <- stats::quantile(max_weights, quantile_threshold, na.rm = TRUE)
+    # row-wise max, tolerate all-NA rows
+    max_w <- apply(weights, 1, function(x) if (all(is.na(x))) NA_real_ else max(x, na.rm = TRUE))
+    finite_idx <- is.finite(max_w)
+    if (!any(finite_idx)) stop("No finite weights to compute threshold.")
 
-    keep <- max_weights < threshold
-    n_dropped <- sum(!keep)
-    n_total <- length(keep)
+    thr <- stats::quantile(max_w[finite_idx], quantile_threshold, na.rm = TRUE)
+    #if the threshold is still above some very high threshold, reduce it.
+    if(thr > max_threshold)
+        thr <- max_threshold
+    keep_idx <- finite_idx & (max_w < thr)
 
     if (verbose) {
         message(sprintf(
-            "Filtering %d of %d genes (%.2f%%) with extreme weights (quantile threshold %.3f -> %.2e)",
-            n_dropped, n_total, 100 * n_dropped / n_total, quantile_threshold, threshold
+            "Filtering %d of %d genes (%.2f%%) with extreme weights (quantile %.3f -> %.2e)",
+            sum(!keep_idx), length(keep_idx), 100 * sum(!keep_idx) / length(keep_idx),
+            quantile_threshold, thr
         ))
     }
 
-    return(gene_names[keep])
+    tested_genes[keep_idx]
 }
+
+
+
 
 capture_dream_warnings <- function(expr) {
     warning_msgs <- character()

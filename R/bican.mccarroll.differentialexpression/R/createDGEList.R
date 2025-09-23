@@ -3,17 +3,17 @@
 # library(data.table)
 
 
-metacell_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
-manifest_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/DE_manifest.txt"
-cell_metadata_file="/broad/bican_um1_mccarroll/RNAseq/analysis/cellarium_upload/CAP_freeze_2/CAP_cell_metadata.annotated.txt.gz"
-cellTypeProportionsPCAFile=NULL
-has_village=T;
+# metacell_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
+# manifest_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/DE_manifest.txt"
+# cell_metadata_file="/broad/bican_um1_mccarroll/RNAseq/analysis/cellarium_upload/CAP_freeze_2/CAP_cell_metadata.annotated.txt.gz"
+# cellTypeProportionsPCAFile=NULL
+# has_village=T;
 
 # this doesn't include donor, region or village, as those are
 # automatically added by the manifest processing.
-metadata_columns=c("biobank", "cohort", "age", "imputed_sex", "pmi_hr", "PC1", "PC2", "PC3", "PC4", "PC5", "toxicology_group", "single_cell_assay", "pct_intronic", "frac_contamination", "hbcac_status")
-outDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
-outName="donor_rxn_DGEList"
+# metadata_columns=c("biobank", "cohort", "age", "imputed_sex", "pmi_hr", "PC1", "PC2", "PC3", "PC4", "PC5", "toxicology_group", "single_cell_assay", "pct_intronic", "frac_contamination", "hbcac_status")
+# outDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
+# outName="donor_rxn_DGEList"
 
 # z=bican.mccarroll.differentialexpression::build_merged_dge(manifest_file, metacell_dir, cell_metadata_file, metadata_columns,has_village, outDir, outName, validate_round_trip=T)
 

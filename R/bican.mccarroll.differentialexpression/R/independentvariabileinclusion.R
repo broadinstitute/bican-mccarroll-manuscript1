@@ -20,14 +20,14 @@
 # data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
 # cellTypeGroupFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/cell_type_groups.txt"
 # cellTypeGroupFile=NULL
-
+#
 # data_name="donor_rxn_DGEList"
-
-# Variance Partition variables
+#
+# # Variance Partition variables
 # randVars=c("donor", "imputed_sex", "biobank", "single_cell_assay", "region", "hbcac_status", "toxicology_group")
 # fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pmi_hr", "pct_intronic", "frac_contamination")
 # max_num_samples=5000
-
+#
 # outMDSPlotRoot="/Volumes/nemesh/private_html/BICAN/MDS"
 # outPDF= "/Volumes/nemesh/private_html/BICAN/MDS_NEW/mds_qc_plots.pdf"
 # outMDSCoordinatesDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/mds_coordinates"
