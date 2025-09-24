@@ -12,7 +12,8 @@ differential_expression_region(
   contrast_file,
   cellTypeListFile = NULL,
   outPDF = NULL,
-  result_dir
+  result_dir,
+  n_cores = parallel::detectCores() - 2
 )
 }
 \arguments{
