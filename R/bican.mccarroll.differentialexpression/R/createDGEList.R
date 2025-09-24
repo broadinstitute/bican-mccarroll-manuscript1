@@ -66,6 +66,7 @@ build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, me
 
     dge_list <- vector("list", length = nrow(manifest))
     for (i in seq_len(nrow(manifest))) {
+        logger::log_info(paste("Processing metacell file ", i, "of", nrow(manifest), ":", manifest[i,]$output_name))
         dge_list[[i]] <- process_metacell_file(manifest[i], metacell_dir, cell_metadata, metadata_columns, has_village=has_village)
     }
 

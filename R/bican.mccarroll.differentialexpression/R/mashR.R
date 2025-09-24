@@ -10,61 +10,56 @@
 # library(circlize)
 # library(cluster)
 # library (ggplot2)
-#
-# in_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_results_sex_age_region_interaction_absolute_effects"
+
+# in_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/old/sex_age/cell_type_region_interaction_absolute_effects"
 # sample_metadata_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells/donor_rxn_DGEList_samples.tsv.gz"
 # file_pattern="age"
-# file_pattern="female_vs_male"
-# out_uncorrected_effect_size_matrix=paste(in_dir, "/aggregated_results/", file_pattern, "_DE_logFC_uncorrected_matrix.txt", sep="")
-# out_corrected_effect_size_matrix=paste(in_dir, "/aggregated_results/", file_pattern, "_DE_logFC_corrected_matrix.txt", sep="")
-# out_corrected_effect_size_filtered_matrix=paste(in_dir, "/aggregated_results/", file_pattern, "_DE_logFC_corrected_filtered_matrix.txt", sep="")
+# #file_pattern="female_vs_male"
+# cellTypeListFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/mash_cell_type_list_simple.txt"
+# out_uncorrected_effect_size_matrix=paste(in_dir, "/aggregated_results/", file_pattern, "_DE_logFC_uncorrected_matrix_simple2.txt", sep="")
+# out_corrected_effect_size_matrix=paste(in_dir, "/aggregated_results/", file_pattern, "_DE_logFC_corrected_matrix_simple2.txt", sep="")
+# out_corrected_effect_size_filtered_matrix=paste(in_dir, "/aggregated_results/", file_pattern, "_DE_logFC_corrected_filtered_matrix_simple2.txt", sep="")
 # npc=5
+
 #
 # gene_cluster_file_raw="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/mash/metadata/age_DE_logFC_K16_gene_clusters.csv"
 # gene_cluster_file_post_mash="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/mash/metadata/age_DE_mash_corrected_effects_7539genes_K17_gene_clusters.csv"
 # gene_cluster_labels_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/mash/metadata/age_DE_logFC_K16_gene_clusters_labels.txt"
 
 
-make_data_for_clustering<-function (in_dir, file_pattern="age", out_uncorrected_effect_size_matrix, fdrThreshold=0.01) {
-    #get the list of files from a directory that match some pattern.
-    f=list.files(in_dir, pattern = paste0(file_pattern), full.names = TRUE)
-    d=lapply(f, read.table, sep="\t", header=TRUE,
-             stringsAsFactors = FALSE, check.names = FALSE)
-    #need to infer the names for each data.frame in the list
-    names(d)=drop_common_suffix(basename(f))
-    #drop common substrings from the names
-    names(d)=remove_common_tokens(names(d))
+make_data_for_clustering<-function (in_dir, file_pattern="age", cellTypeListFile=NULL, out_uncorrected_effect_size_matrix, fdrThreshold=0.01) {
+
+    d=parse_de_inputs(in_dir, file_pattern, cellTypeListFile)
+    #d=parse_de_inputs(in_dir, file_pattern, cellTypeListFile=NULL)
 
     #make mash inputs
     mash_inputs_union<-make_mash_inputs(d, coef_col = "logFC", t_col = "t", fdr_col = "adj.P.Val", gene_mode="union")
     #how many genes pass an FDR < 0.05 in any condition?
     nGenesFDR=length(which(apply(mash_inputs_union$FDR, 1, function(x) any(x<0.05))))
-    logger::log_info("Number of genes with at least one condition that passes FDR [", nGenesFDR, "]")
+    logger::log_info("Number of genes with at least one condition that passes 0.05 FDR [", nGenesFDR, "]")
 
     #Filter results to genes that pass an FDR threshold in at least one condition
-
-    idxPassFDRAny<-which(apply(mash_inputs_union$FDR, 1, function (x) any(x<0.01)))
+    idxPassFDRAny<-which(apply(mash_inputs_union$FDR, 1, function (x) any(x<fdrThreshold)))
     Bhat=mash_inputs_union$Bhat[idxPassFDRAny,]
     genesPassFDR<-rownames(Bhat)
     logger::log_info("Number of genes with at least one condition that passes FDR 0.01 [", length(genesPassFDR), "]")
 
+    #write out the uncorrected effect size matrix
+    dir=dirname(out_uncorrected_effect_size_matrix)
+    if (!dir.exists(dir))
+        dir.create(dir, recursive = TRUE)
     write.table(Bhat, out_uncorrected_effect_size_matrix, row.names=T, col.names = T, quote=F, sep="\t")
 
 
 
 }
 
-run_mashr<-function (in_dir, file_pattern="age") {
 
-    #get the list of files from a directory that match some pattern.
-    f=list.files(in_dir, pattern = paste0(file_pattern), full.names = TRUE)
 
-    d=lapply(f, read.table, sep="\t", header=TRUE,
-             stringsAsFactors = FALSE, check.names = FALSE)
-    #need to infer the names for each data.frame in the list
-    names(d)=drop_common_suffix(basename(f))
-    #drop common substrings from the names
-    names(d)=remove_common_tokens(names(d))
+run_mashr<-function (in_dir, file_pattern="age", cellTypeListFile=NULL) {
+
+    # parse the inputs
+    d=parse_de_inputs(in_dir, file_pattern, cellTypeListFile)
 
     #make mash inputs
     mash_inputs_union<-make_mash_inputs(d, coef_col = "logFC", t_col = "t", fdr_col = "adj.P.Val", gene_mode="union")
@@ -2213,3 +2208,37 @@ remove_common_tokens <- function(x, delim = "_") {
     attr(out, "common_tokens") <- common
     out
 }
+
+# parse in many DE inputs, optionally filter by a list of cell types
+parse_de_inputs<-function (in_dir, file_pattern="age", cellTypeListFile=NULL) {
+    logger::log_info("Reading DE files from {in_dir} matching pattern '{file_pattern}'")
+    #get the list of files from a directory that match some pattern.
+    f=list.files(in_dir, pattern = paste0(file_pattern), full.names = TRUE)
+    d=lapply(f, read.table, sep="\t", header=TRUE,
+             stringsAsFactors = FALSE, check.names = FALSE)
+    #need to infer the names for each data.frame in the list
+    names(d)=drop_common_suffix(basename(f))
+    #drop common substrings from the names
+    names(d)=remove_common_tokens(names(d))
+    if (!is.null(cellTypeListFile)) {
+        cellTypeList=read.table(cellTypeListFile, header=FALSE, stringsAsFactors = FALSE)$V1
+        r=find_prefix_matches(names(d), cellTypeList)
+        if (length(r$unmatched)>0) {
+            logger::log_warn("The following cell types in the cell type list had no matches in the data: {paste(r$unmatched, collapse=', ')}")
+        }
+        d=d[r$indexes]
+        logger::log_info("Filtered to {length(d)} cell types based on provided cell type list.")
+    }
+    return (d)
+}
+
+find_prefix_matches <- function(full_names, partial_names) {
+    # indexes in full_names that match any prefix in partial_names
+    idx <- which(sapply(full_names, function(x) any(startsWith(x, partial_names))))
+
+    # prefixes in partial_names that had no matches
+    unmatched <- partial_names[!sapply(partial_names, function(pn) any(startsWith(full_names, pn)))]
+
+    list(indexes = idx, unmatched = unmatched)
+}
+

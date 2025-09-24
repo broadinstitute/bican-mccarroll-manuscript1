@@ -86,6 +86,7 @@
 # fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "toxicology_group", "single_cell_assay", "region", "biobank")
 # contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_all.txt"
 # result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_region_interaction_absolute_effects"
+# result_dir="/downloads/differential_expression/sex_age_toxiciology/cell_type_region_interaction_absolute_effects"
 # cellTypeListFile=NULL
 # outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
 # interaction_var="region" #set to null to not compute interactions.
@@ -99,6 +100,7 @@
 # fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "single_cell_assay", "region", "biobank")
 # contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_sex_age.txt"
 # result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_results_sex_age_region_interaction_absolute_effects"
+# result_dir="/downloads/differential_expression/sex_age/cell_type_region_interaction_absolute_effects"
 # cellTypeListFile=NULL
 # outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
 # interaction_var="region" #set to null to not compute interactions.
@@ -124,8 +126,9 @@
 #' @param cellTypeListFile A file containing an explicit list of cell types to test.  If NULL, all cell types in the DGEList will be tested.
 #' @param outPDF Optional path to output PDF file for plots.
 #' @param result_dir Directory to save the differential expression results.
+#' @param n_cores Integer. Number of cores for parallel processing.
 #' @export
-differential_expression <- function(data_dir, data_name, randVars, fixedVars, contrast_file, interaction_var=NULL, absolute_effects=FALSE, cellTypeListFile=NULL, outPDF=NULL, result_dir) {
+differential_expression <- function(data_dir, data_name, randVars, fixedVars, contrast_file, interaction_var=NULL, absolute_effects=FALSE, cellTypeListFile=NULL, outPDF=NULL, result_dir, n_cores = parallel::detectCores() - 2) {
     #validate the output directory exists
     if (!dir.exists(result_dir)) {
         stop("Result directory does not exist: ", result_dir)
@@ -142,15 +145,15 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
     # Variance Partition by cell type
     cell_type_list=unique(dge$samples$cell_type)
     #cellType=cell_type_list[1]
-    #cellType="MSN_D2_matrix"
-    line <- strrep("=", 80)
+    #cellType="GABA_MGE_DFC"
+    lineStr <- strrep("=", 80)
 
     plot_list= list()
     if (length(cell_type_list) > 0) {
         for (cellType in cell_type_list) {
-            logger::log_info(line)
+            logger::log_info(lineStr)
             logger::log_info(paste("Creating differential expression analysis for cell type:", cellType))
-            logger::log_info(line)
+            logger::log_info(lineStr)
 
             dge_cell <- dge[, dge$samples$cell_type == cellType, keep.lib.sizes = TRUE]
             #filtering samples by library size
@@ -167,7 +170,7 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
             #this produces one list per contrast comparison.
             z<-differential_expression_one_cell_type(dge_cell, fixedVars, randVars, contrast_defs,
                                                      interaction_var=interaction_var, absolute_effects=absolute_effects,
-                                                     verbose = TRUE)
+                                                     verbose = TRUE, n_cores = n_cores)
 
             # flatten the results for summary and plotting
             # keep only data frames, keep ONLY inner names, preserve order
@@ -227,7 +230,7 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
 #' @param outPDF Optional path to output PDF file for plots.
 #' @param result_dir Directory to save the differential expression results.
 #' @export
-differential_expression_region <- function(data_dir, data_name, randVars, fixedVars, contrast_file, cellTypeListFile=NULL, outPDF=NULL, result_dir) {
+differential_expression_region <- function(data_dir, data_name, randVars, fixedVars, contrast_file, cellTypeListFile=NULL, outPDF=NULL, result_dir, n_cores = parallel::detectCores() - 2) {
     #load the DGEList and prepare the data
     d=bican.mccarroll.differentialexpression::prepare_data_for_differential_expression(data_dir, data_name, randVars, fixedVars)
     dge=d$dge; fixedVars=d$fixedVars; randVars=d$randVars
@@ -278,7 +281,7 @@ differential_expression_region <- function(data_dir, data_name, randVars, fixedV
                 # no interaction or absolute effects for region-specific tests.
                 z<-differential_expression_one_cell_type(dge_cell, fixedVars, randVars, contrast_defs,
                                                          interaction_var=NULL, absolute_effects=FALSE,
-                                                         verbose = TRUE)
+                                                         verbose = TRUE, n_cores = n_cores)
 
                 # flatten the results for summary and plotting
                 # keep only data frames, keep ONLY inner names, preserve order
@@ -374,6 +377,25 @@ differential_expression_one_cell_type <- function(
                 msg("SKIP: '%s' has categorical contrasts in contrast_defs; relative interactions require continuous.", cg)
                 out[[cg]] <- NULL
                 next
+            }
+
+            #Validate: if an interaction_var is requested, the baseline must be present in the data
+            #for some data sets they only have a single region, and the interaction is inappropriate.
+            if (!is.null(interaction_var)) {
+                baseline_level <- contrast_defs[contrast_defs$variable == cg & is.na(contrast_defs$comparison_level), "baseline_region"]
+                levs=unique(dge$samples[[interaction_var]])
+                if (!(baseline_level %in% unique(dge$samples[[interaction_var]]))) {
+                    msg("SKIP: baseline level '%s' for interaction_var '%s' not found in data for contrast_group '%s'.",
+                        baseline_level, interaction_var, cg)
+                    out[[cg]] <- NULL
+                    next
+                }
+                if (length(levs) < 2) {
+                    msg("SKIP: interaction_var '%s' has only one level in data for contrast_group '%s'.",
+                        interaction_var, cg)
+                    out[[cg]] <- NULL
+                    next
+                }
             }
 
             # Unified path for Mode 1 (no interaction) and Mode 2 (relative interaction vs baseline)
@@ -518,7 +540,8 @@ continuous_by_factor_differential_expression <- function(
     if (length(miss)) stop("Missing per-level slope columns in design: ", paste(miss, collapse = ", "))
 
     # voom + dream + eBayes
-    param <- BiocParallel::MulticoreParam(workers = n_cores)
+    #param <- BiocParallel::MulticoreParam(workers = n_cores)
+    param <- make_bpparam(n_cores=n_cores)
     v1 <- variancePartition::voomWithDreamWeights(dge_this, full_form, data = samp, span=0.3, BPPARAM = param)
     keep <- filter_high_weight_genes(v1, dge_this, quantile_threshold = 0.999)
     dge_this  <- dge_this[keep, ]
@@ -690,7 +713,8 @@ categorical_by_categorical_differential_expression <- function(
     }
 
     # --- voom + dream with L ---
-    param <- BiocParallel::MulticoreParam(workers = n_cores)
+    #param <- BiocParallel::MulticoreParam(workers = n_cores)
+    param <- make_bpparam(n_cores=n_cores)
     v1 <- variancePartition::voomWithDreamWeights(dge, full_form, data = samp, span=0.3, BPPARAM = param)
     keep <- filter_high_weight_genes(v1, dge, quantile_threshold = 0.999)
     dge2 <- dge[keep, ]
@@ -834,8 +858,8 @@ differential_expression_one_cell_type_contrast_group <- function(
 
 
     # ---- fit ---------------------------------------------------------------
-    param <- BiocParallel::MulticoreParam(workers = n_cores)
-
+    #param <- BiocParallel::MulticoreParam(workers = n_cores)
+    param <- make_bpparam(n_cores=n_cores)
     vobj <- variancePartition::voomWithDreamWeights(
         counts = dge_cell_this, formula = full_form, data = dge_cell_this$samples, span=0.3, BPPARAM = param
     )
@@ -1425,5 +1449,23 @@ filter_dgelist_by_celltype_list<-function (dge, cellTypeListFile=NULL) {
     dge_filtered$samples$cell_type <- factor(dge_filtered$samples$cell_type, levels = cell_type_list)
     return(dge_filtered)
 }
+
+# for parallel processing on macOS and UGER/Linux.
+make_bpparam <- function(n_cores) {
+    # If we only want one core, or running on UGER (SGE/UGE),
+    # fall back to SerialParam for safety.
+    if (n_cores <= 1) {
+        BiocParallel::SerialParam()
+        logger::log_info("Using SerialParam for single-core execution.")
+    } else {
+        BiocParallel::MulticoreParam(
+            workers       = n_cores,
+            stop.on.error = TRUE,
+            progressbar   = FALSE
+        )
+        logger::log_info(paste("Using MulticoreParam with", n_cores, "workers."))
+    }
+}
+
 
 `%||%` <- function(a, b) if (is.null(a)) b else a

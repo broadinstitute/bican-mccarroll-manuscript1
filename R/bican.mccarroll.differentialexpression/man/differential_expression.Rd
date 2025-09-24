@@ -14,7 +14,8 @@ differential_expression(
   absolute_effects = FALSE,
   cellTypeListFile = NULL,
   outPDF = NULL,
-  result_dir
+  result_dir,
+  n_cores = parallel::detectCores() - 2
 )
 }
 \arguments{
@@ -37,6 +38,8 @@ differential_expression(
 \item{outPDF}{Optional path to output PDF file for plots.}
 
 \item{result_dir}{Directory to save the differential expression results.}
+
+\item{n_cores}{Integer. Number of cores for parallel processing.}
 }
 \description{
 This uses a means model (~0 + fixedVars) and a random effects model for the specified random variables.
