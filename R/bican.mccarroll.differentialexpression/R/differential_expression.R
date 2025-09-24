@@ -1454,17 +1454,19 @@ filter_dgelist_by_celltype_list<-function (dge, cellTypeListFile=NULL) {
 make_bpparam <- function(n_cores) {
     # If we only want one core, or running on UGER (SGE/UGE),
     # fall back to SerialParam for safety.
+
     if (n_cores <= 1) {
-        BiocParallel::SerialParam()
+        param=BiocParallel::SerialParam()
         logger::log_info("Using SerialParam for single-core execution.")
     } else {
-        BiocParallel::MulticoreParam(
+        param=BiocParallel::MulticoreParam(
             workers       = n_cores,
             stop.on.error = TRUE,
             progressbar   = FALSE
         )
         logger::log_info(paste("Using MulticoreParam with", n_cores, "workers."))
     }
+    return (param)
 }
 
 
