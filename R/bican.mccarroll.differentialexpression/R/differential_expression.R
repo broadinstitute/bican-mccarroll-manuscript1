@@ -229,6 +229,7 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
 #' @param cellTypeListFile A file containing an explicit list of cell types to test.  If NULL, all cell types in the DGEList will be tested.
 #' @param outPDF Optional path to output PDF file for plots.
 #' @param result_dir Directory to save the differential expression results.
+#' @param n_cores Integer. Number of cores for parallel processing.
 #' @export
 differential_expression_region <- function(data_dir, data_name, randVars, fixedVars, contrast_file, cellTypeListFile=NULL, outPDF=NULL, result_dir, n_cores = parallel::detectCores() - 2) {
     #load the DGEList and prepare the data
