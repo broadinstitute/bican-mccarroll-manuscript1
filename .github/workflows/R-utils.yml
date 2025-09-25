@@ -20,5 +20,5 @@ jobs:
   call-R-reusable:
     uses: "./.github/workflows/R-reusable.yml"
     with:
-      package_name: "<package_name>"
+      package_name: "utils"
     secrets: "inherit"
