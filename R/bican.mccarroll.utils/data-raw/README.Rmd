@@ -1,0 +1,6 @@
+---
+title: "README"
+output: html_document
+---
+
+This directory contains raw data and code to process it into an Rdata file to be included in the package.
