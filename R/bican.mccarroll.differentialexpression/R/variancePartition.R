@@ -102,7 +102,7 @@ runVariancePartition<-function (data_dir, data_name, randVars, fixedVars, outPDF
             #filter to the top 75% of highly expressed genes as a first pass.
             dge_cell<-filter_top_expressed_genes(dge_cell, gene_filter_frac = 0.75, verbose = TRUE)
             #filter to cpm cutoff of 1.
-            r2=plot_logCPM_density_quantiles(dge_cell, cpm_cutoff = 1, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5)
+            r2=plot_logCPM_density_quantiles(dge_cell, cpm_cutoff = 15, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5)
             dge_cell=r2$filtered_dge
 
             p1=r$plot
@@ -677,9 +677,8 @@ plot_logCPM_density_quantiles <- function(dge, cpm_cutoff = 0.5, logCPM_xlim = c
     }
 
     # Add mean line and cutoff line
-    strTitle=paste0("Expression filtering by CPM (All Genes: ", orig_gene_count, " filtered to ", filtered_gene_count, ")")
-
-
+    strTitle=paste0("Expression filtering by CPM [", cpm_cutoff, "] (All Genes: ", orig_gene_count, " filtered to ", filtered_gene_count, ")")
+    logger::log_info(strTitle)
 
     p <- p +
         ggplot2::geom_line(
@@ -695,8 +694,6 @@ plot_logCPM_density_quantiles <- function(dge, cpm_cutoff = 0.5, logCPM_xlim = c
             y = "Density"
         ) +
         ggplot2::theme_minimal()
-
-
 
     return(list(filtered_dge = filtered_dge, plot = p))
 }

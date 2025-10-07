@@ -14,7 +14,8 @@ fit_mash(
   add.mem.profile = TRUE,
   only_cannonical_matrixes = F,
   exclude_truncated_pca_matrix = F,
-  strong_gene_fdr_threshold = 0.01
+  strong_gene_fdr_threshold = 0.01,
+  lfsr_null_threshold = 0.2
 )
 }
 \arguments{
@@ -28,8 +29,8 @@ must be finite and strictly positive.}
 \item{npc}{Integer. Number of principal components used to seed
 data-driven covariances (capped at \code{ncol(Bhat)}). Default: \code{5L}.}
 
-\item{n_null_est}{Integer. Number of rows randomly sampled to estimate the
-residual correlation \eqn{V} via EM. Default: \code{5000L}.}
+\item{lfsr_null_threshold}{Integer. lfsr threshold that all conditions must be above
+to include a gene in the null.}
 }
 \value{
 A fitted \code{mash} object (use \code{mashr} accessors such as

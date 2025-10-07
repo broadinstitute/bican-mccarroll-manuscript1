@@ -32,6 +32,8 @@ differential_expression_region(
 \item{outPDF}{Optional path to output PDF file for plots.}
 
 \item{result_dir}{Directory to save the differential expression results.}
+
+\item{n_cores}{Integer. Number of cores for parallel processing.}
 }
 \description{
 This uses a means model (~0 + fixedVars) and a random effects model for the specified random variables.

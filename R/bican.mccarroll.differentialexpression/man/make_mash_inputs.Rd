@@ -2,12 +2,13 @@
 % Please edit documentation in R/mashR.R
 \name{make_mash_inputs}
 \alias{make_mash_inputs}
-\title{Build Bhat/Shat/FDR matrices from per–cell-type DE tables}
+\title{Build Bhat/Shat/Tstat/FDR matrices from per–cell-type DE tables}
 \usage{
 make_mash_inputs(
   lst,
   coef_col = "logFC",
   t_col = "t",
+  p_col = "P.Value",
   fdr_col = "adj.P.Val",
   gene_mode = c("union", "intersect"),
   big_se = 1e+06,
@@ -46,8 +47,8 @@ A list with components:
 \itemize{
   \item `Bhat` — matrix [genes × cell types] of betas.
   \item `Shat` — matrix [genes × cell types] of standard errors (`|beta/t|`).
-  \item `FDR`  — matrix [genes × cell types] of FDR values (filled with
-        `fill_missing_fdr` where absent).
+  \item `Tstat` — matrix [genes × cell types] of moderated t-statistics.
+  \item `FDR`  — matrix [genes × cell types] of FDR values.
   \item `missing_mask` — logical matrix [genes × cell types] indicating where
         input was missing/invalid and got replaced by `beta=0, SE=big_se`.
 }

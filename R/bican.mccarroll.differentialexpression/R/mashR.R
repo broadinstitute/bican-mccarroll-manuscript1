@@ -11,10 +11,11 @@
 # library(cluster)
 # library (ggplot2)
 
-# in_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/old/sex_age/cell_type_region_interaction_absolute_effects"
+# in_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type/"
+# #in_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type_region_interaction_absolute_effects"
 # sample_metadata_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells/donor_rxn_DGEList_samples.tsv.gz"
 # file_pattern="age"
-# #file_pattern="female_vs_male"
+# # #file_pattern="female_vs_male"
 # cellTypeListFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/mash_cell_type_list_simple.txt"
 # out_uncorrected_effect_size_matrix=paste(in_dir, "/aggregated_results/", file_pattern, "_DE_logFC_uncorrected_matrix_simple2.txt", sep="")
 # out_corrected_effect_size_matrix=paste(in_dir, "/aggregated_results/", file_pattern, "_DE_logFC_corrected_matrix_simple2.txt", sep="")
@@ -30,8 +31,6 @@
 make_data_for_clustering<-function (in_dir, file_pattern="age", cellTypeListFile=NULL, out_uncorrected_effect_size_matrix, fdrThreshold=0.01) {
 
     d=parse_de_inputs(in_dir, file_pattern, cellTypeListFile)
-    #d=parse_de_inputs(in_dir, file_pattern, cellTypeListFile=NULL)
-
     #make mash inputs
     mash_inputs_union<-make_mash_inputs(d, coef_col = "logFC", t_col = "t", fdr_col = "adj.P.Val", gene_mode="union")
     #how many genes pass an FDR < 0.05 in any condition?
@@ -50,6 +49,11 @@ make_data_for_clustering<-function (in_dir, file_pattern="age", cellTypeListFile
         dir.create(dir, recursive = TRUE)
     write.table(Bhat, out_uncorrected_effect_size_matrix, row.names=T, col.names = T, quote=F, sep="\t")
 
+    outFDRMatrix=gsub("logFC", "FDR", out_uncorrected_effect_size_matrix)
+    write.table(mash_inputs_union$FDR[idxPassFDRAny,], outFDRMatrix, row.names=T, col.names = T, quote=F, sep="\t")
+
+    outTStatMatrix=gsub("logFC", "tstat", out_uncorrected_effect_size_matrix)
+    write.table(mash_inputs_union$Tstat[idxPassFDRAny,], outFDRMatrix, row.names=T, col.names = T, quote=F, sep="\t")
 
 
 }
@@ -71,29 +75,33 @@ run_mashr<-function (in_dir, file_pattern="age", cellTypeListFile=NULL) {
     genesPassFDR<-rownames(mash_inputs_union$Bhat[idxPassFDRAny,])
     logger::log_info("Number of genes with at least one condition that passes FDR 0.01 [", length(genesPassFDR), "]")
 
-    #TODO: Maybe what I want to do is fit the data-determined covariance matrixes to the intersection
-    # data
-
-    # Alternative way to get strong signals to learn data-driven covariance matrices
-    # data <- mash_set_data(Bhat=mash_inputs_union$Bhat, Shat=mash_inputs_union$Shat)
-    # m1   <- mash_1by1(data)
-    # idx <- get_significant_results(m1, thresh=0.001)
-
-
     # Fit mash to the data.
     # the fdr threshold seems like it could use some per-data set tuning.
     # age seems to pick tons of genes at 0.001 [6000+]
     # sex only picks about 200 genes, and doesn't seem to work - it runs forever.
     # At FDR 0.01 it picks 1000 genes and runs for an hour with exclude_truncated_pca_matrix=F
+
     mash_fit<-fit_mash(Bhat=mash_inputs_union$Bhat, Shat=mash_inputs_union$Shat, FDR=mash_inputs_union$FDR,
-                       missing_mask=mash_inputs_union$missing_mask, npc=npc, exclude_truncated_pca_matrix=T, strong_gene_fdr_threshold=0.01)
-    m<-mash_fit$mash
+                       missing_mask=mash_inputs_union$missing_mask, npc=npc, exclude_truncated_pca_matrix=F,
+                       strong_gene_fdr_threshold=0.001, lfsr_null_threshold=NULL)
+
+
+    mash_fit_Vhat<-fit_mash(Bhat=mash_inputs_union$Bhat, Shat=mash_inputs_union$Shat, FDR=mash_inputs_union$FDR,
+                       missing_mask=mash_inputs_union$missing_mask, npc=npc, exclude_truncated_pca_matrix=F,
+                       strong_gene_fdr_threshold=0.001, lfsr_null_threshold=0.2)
+
+
+    #check the likelihood of the model
+    logger::log_info("Mash likelihood without Vhat [", mash_fit$mash$loglik, "]")
+    logger::log_info("Mash likelihood with Vhat [", mash_fit_Vhat$mash$loglik, "]")
+
+    #look at the learned covariance structure, which is the same regardless of Vhat
     covariance_matrix_list<-mash_fit$covariance_matrix_list
 
     #the learned gene covariance matrixes are the interesting part.
     learned_matrix_names=names (covariance_matrix_list)[grep ("ED_", names (covariance_matrix_list))]
 
-    mixing_proportions=get_estimated_pi(m)
+    mixing_proportions=get_estimated_pi(mash_fit$mash)
     barplot(mixing_proportions, las=2, cex.names=0.7, main="Mixing proportions for mash components")
 
     for (component in learned_matrix_names) {
@@ -104,103 +112,87 @@ run_mashr<-function (in_dir, file_pattern="age", cellTypeListFile=NULL) {
             print (p)
     }
 
+    # Review Vhat
+    # test_mash_Vhat<-(mash_fit_Vhat)
 
     #################################################
     # RESULTS
     # Write posterior effect size matrixes to disk
     #################################################
 
+    ###################
+    #Unfiltered t-stats and effect sizes from raw DE and mash posteriors
+    ####################
+    outlogFCMatrixRaw=gsub("logFC", "logFC_allgenes", out_uncorrected_effect_size_matrix)
+    utils::write.table(mash_inputs_union$Bhat, file = outlogFCMatrixRaw, quote = FALSE, sep="\t")
+
+    outTStatMatrixRaw=gsub("logFC", "tstat_allgenes", out_uncorrected_effect_size_matrix)
+    utils::write.table(mash_inputs_union$Tstat, file = outTStatMatrixRaw, quote = FALSE, sep="\t")
+
+    outTStatMatrixRaw=gsub("logFC", "tstat_allgenes", out_uncorrected_effect_size_matrix)
+    utils::write.table(mash_inputs_union$Tstat, file = outTStatMatrixRaw, quote = FALSE, sep="\t")
+
+    outlogFCMatrixPosterior=gsub("logFC", "logFC_allgenes", out_corrected_effect_size_matrix)
+    utils::write.table(ashr::get_pm(mash_fit$mash), file = outlogFCMatrixPosterior, quote = FALSE, sep="\t")
+
+    outTStatMatrixPosterior=gsub("logFC", "tstat_allgenes", out_corrected_effect_size_matrix)
+    mash_export_tstats(mash_fit$mash, file = outTStatMatrixPosterior)
+
+    #####################
+    # Filtered to genes that pass FDR in at least one condition
+    #####################
+
     #Filter results to genes that pass an FDR threshold in at least one condition
-    m_fdr=filter_mash_result_by_genes(m, genesPassFDR)
+    m_fdr=filter_mash_result_by_genes(mash_result =mash_fit$mash , genesPassFDR)
+    m_fdr_vhat=filter_mash_result_by_genes(mash_fit_Vhat$mash, genesPassFDR)
 
     # write out the corrected effect size matrix and the lsfr filtered effect size matrix
-    lfsr <- ashr::get_lfsr(m_fdr)
-    pm <- ashr::get_pm(m_fdr)
+    write.table(ashr::get_pm(m_fdr), out_corrected_effect_size_matrix, row.names=T, col.names = T, quote=F, sep="\t")
+    out_fdr_matrix=gsub("logFC", "LFSR", out_corrected_effect_size_matrix)
+    write.table(ashr::get_lfsr(m_fdr), out_fdr_matrix, row.names=T, col.names = T, quote=F, sep="\t")
 
-    write.table(pm, out_corrected_effect_size_matrix, row.names=T, col.names = T, quote=F, sep="\t")
+    #write out the Vhat corrected effect size matrix and the lsfr filtered effect size matrix
+    out_vhat_corrected_effect_matrix=gsub("corrected_matrix", "corrected_Vhat_matrix", out_corrected_effect_size_matrix)
+    out_vhat_corrected_lfsr_matrix=gsub("logFC", "LFSR", out_vhat_corrected_effect_matrix)
+    write.table(ashr::get_pm(m_fdr_vhat), out_vhat_corrected_effect_matrix, row.names=T, col.names = T, quote=F, sep="\t")
+    write.table(ashr::get_lfsr(m_fdr_vhat), out_vhat_corrected_lfsr_matrix, row.names=T, col.names = T, quote=F, sep="\t")
+
 
     # Zero-out non-significant effects
     lfsr_threshold=0.01
+    pm=ashr::get_pm(m_fdr)
+    lfsr=ashr::get_lfsr(m_fdr)
     pm_filtered=pm
     pm_filtered[lfsr > lfsr_threshold] <- 0
-    write.table(pm, out_corrected_effect_size_filtered_matrix, row.names=T, col.names = T, quote=F, sep="\t")
-
-    ###################
-    # EXPLORE RESULTS
-    ###################
-
-    result <- cluster_mash_effects(m_fdr, lfsr_threshold = 1, k = 16, method="kmeans", dist_metric = "euclidean", nstart=200, seed=2)
-    plot_mash_heatmap(result$pm_filtered, result$clusters, column_title="distance [euclidean] clustering [kmeans] (lfsr=1)")
-
-    result <- cluster_mash_effects(m_fdr, lfsr_threshold = 0.05, k = 16, method="kmeans", dist_metric = "euclidean", nstart=200, seed=2)
-    plot_mash_heatmap(result$pm_filtered, result$clusters, column_title="distance [euclidean] clustering [kmeans] (lfsr<0.05")
-    #plot_mash_heatmap(pm[rownames (result$pm_filtered),], result$clusters, column_title="distance [euclidean] clustering [kmeans] unfiltered data")
-
-
-    #TODO: Plot the minimum local false sign rate per gene against the minimum FDR from DE.
-    # min_lfsr<-apply(lfsr, 1, min, na.rm=T)
-    # min_fdr<-apply(FDR, 1, min, na.rm=T)
-    # plot (-log10(min_fdr),-log10(min_lfsr))
-    # plot (-log10(min_fdr), -log10(min_q))
-
-
-    #ESTIMATE THE Directional FDR OF THE DATA SET
-    # Called sets
-    # pos_idx <- which(lfsr < 0.05 & pm > 0, arr.ind = TRUE)
-    # neg_idx <- which(lfsr < 0.05 & pm < 0, arr.ind = TRUE)
-    #
-    # # Expected errors and directional FDR among calls
-    # exp_errors <- sum(lfsr[pos_idx], na.rm = TRUE) + sum(lfsr[neg_idx], na.rm = TRUE)
-    # n_calls    <- nrow(pos_idx) + nrow(neg_idx)
-    # dir_fdr    <- if (n_calls > 0) exp_errors / n_calls else NA_real_
-
-    #write the outputs
-    #out_corrected_effect_size_matrix
-
-
-
-    # idx=sort(unique(c(pos_idx,neg_idx)))
-    # write.table(pm, "/broad/mccarroll/haley/BICAN/DE/age_DE_logFC_mash_corrected_effects_matrix.txt", row.names=T, col.names = T, quote=F, sep="\t")
-    # write.table(pm[idx,], "/broad/mccarroll/haley/BICAN/DE/age_DE_logFC_mash_corrected_effects_filtered_matrix.txt", row.names=T, col.names = T, quote=F, sep="\t")
-    #
-    # pos_idx <- which(lfsr < 0.01 & pm > 0, arr.ind = TRUE)
-    # neg_idx <- which(lfsr < 0.01 & pm < 0, arr.ind = TRUE)
-    # idx=sort(unique(c(pos_idx,neg_idx)))
-    # write.table(pm[idx,], "/broad/mccarroll/haley/BICAN/DE/age_DE_logFC_mash_corrected_effects_filtered_strict_matrix.txt", row.names=T, col.names = T, quote=F, sep="\t")
-    # write.table(pm[clusters$gene,], "/broad/mccarroll/haley/BICAN/DE/age_DE_logFC_mash_corrected_effects_filtered_Haley_matrix.txt", row.names=T, col.names = T, quote=F, sep="\t")
+    write.table(pm_filtered, out_corrected_effect_size_filtered_matrix, row.names=T, col.names = T, quote=F, sep="\t")
 
     #How much sharing is there between cell types?
     #the factor is how close the results are , where factor=0 indicates they share the same direction of effect.
     #This is a fast way to get an estimate of how much sharing there is by cell type to see structure
-    sharing=get_pairwise_sharing(m, factor=0.5)
+    sharing=get_pairwise_sharing(m_fdr, factor=0.5)
     plot_sharing (sharing, strTitle=paste("Pairwise sharing by magnitude (factor=0.5) for", file_pattern, "effects"))
 
-    #TODO: can I look at the eigenvectors of each covariance matrix
+    sharing=get_pairwise_sharing(m_fdr_vhat, factor=0.5)
+    plot_sharing (sharing, strTitle=paste("Pairwise sharing by magnitude (factor=0.5) for", file_pattern, "effects"))
 
-
-    #What covariance structures are being used?
-    #This is the proportions of each covariance structure that are learned BEFORE the individual gene
-    #posterior means/variances are computed.  These are the priors used during that fitting stage.
-    mixing_proportions=get_estimated_pi(m)
-    barplot(mixing_proportions, las=2, cex.names=0.7, main="Mixing proportions for mash components")
-    heatmap(covariance_matrix_list[["ED_PCA_1"]])
-    #plot_cov_image(covariance_matrix_list[["ED_PCA_1"]])
-    plot_mash_component(component = "ED_PCA_1", covariance_matrix_list, mixing_proportions=mixing_proportions)
-
-    #lapply(names(covariance_matrix_list), function (x) plot_mash_component(x, covariance_matrix_list, mixing_proportions=mixing_proportions))
     # Partition mash calls by component.
     # only keep genes significant in at least one condition
-    res <- partition_mash_calls_by_component(m, thresh = 0.05, keep_null = T)
+    res <- partition_mash_calls_by_component(m_fdr, thresh = 0.05, keep_null = T)
     heatmap(t(res$weights_collapsed), scale="column")
 
     z=table (res$assignment$label)
     z=z/sum(z)
     barplot(z, las=2, cex.names=0.7, main="Fraction of significant genes by mash component")
 
+    #there are genes that have non-zero (strong even) effect sizes before mash, but are not significant after mash
+    # Steve B finds genes that are significant in at least one microglia condition.
+
+
+
     #are there any genes that are shared?  Look for a lower max weight for a gene
     gene_weight_max= apply(res$weights_collapsed, 1, max, na.rm = TRUE)
     which.min(gene_weight_max)
-    mash_forest_with_labels(m,  gene="ENSG00000254733", order_by = "effect", call_rule="both")
+    mash_forest_with_labels(mash_fit$mash,  gene="ENSG00000254733", order_by = "effect", call_rule="both")
     mash_forest_with_labels(m,  gene="A2M", order_by = "effect", call_rule="metric", plot_raw=T)
     mash_forest_with_labels(m,  gene="MYRIP", order_by = "effect", call_rule="metric", plot_raw=T)
 
@@ -327,6 +319,97 @@ run_mashr<-function (in_dir, file_pattern="age", cellTypeListFile=NULL) {
     # maybe a confusion matrix of haley cluster vs mash component?
 }
 
+# ADHOC TESTS of Vhat correction.
+test_mash_Vhat<-function(mash_fit_Vhat) {
+
+    Vhat=mash_fit_Vhat$mash$data$V
+    Bhat=mash_fit_Vhat$mash$data$Bhat
+    Shat=mash_fit_Vhat$mash$data$Shat
+
+    strong_genes=mash_fit_Vhat$mash$data$strong_genes
+    weak_genes=mash_fit_Vhat$mash$data$weak_genes
+
+    heatmap(Vhat, margins=c(10,10), main="Sharing of effect sizes in weak genes")
+
+    # raw Z
+    Z <- Bhat / Shat
+    Z[!is.finite(Z)] <- 0
+
+    # MSN pair (raw)
+    dfStrong <- Z[strong_genes, c("MSN_D1","MSN_D2"), drop=FALSE]
+    dfWeak   <- Z[weak_genes,   c("MSN_D1","MSN_D2"), drop=FALSE]
+    plot(dfStrong, main=paste("Z strong (raw)\ncor [", round(cor(dfStrong[,1], dfStrong[,2]),3), "]"))
+    plot(dfWeak,   main=paste("Z weak (raw)\ncor [",   round(cor(dfWeak[,1],   dfWeak[,2]),  3), "]"))
+
+    # GABA pair (raw)
+    dfStrong <- Z[strong_genes, c("GABA_CGE_DFC","GABA_MGE_DFC"), drop=FALSE]
+    dfWeak   <- Z[weak_genes,   c("GABA_CGE_DFC","GABA_MGE_DFC"), drop=FALSE]
+    plot(dfStrong, main=paste("Z strong (raw)\ncor [", round(cor(dfStrong[,1], dfStrong[,2]),3), "]"))
+    plot(dfWeak,   main=paste("Z weak (raw)\ncor [",   round(cor(dfWeak[,1],   dfWeak[,2]),  3), "]"))
+
+    # whitener
+    whitener <- function(V, eps=1e-10){
+        e <- eigen((V + t(V))/2, symmetric=TRUE)
+        d <- pmax(e$values, eps)
+        e$vectors %*% diag(1/sqrt(d), length(d)) %*% t(e$vectors)
+    }
+    W <- whitener(Vhat)
+
+    # whiten B, S -> Z_w; restore names
+    B_w <- Bhat %*% W
+    S_w <- Shat %*% abs(W)
+    colnames(B_w) <- colnames(Bhat); rownames(B_w) <- rownames(Bhat)
+    colnames(S_w) <- colnames(Shat); rownames(S_w) <- rownames(Shat)
+
+    Z_w <- B_w / S_w
+    Z_w[!is.finite(Z_w)] <- 0
+    colnames(Z_w) <- colnames(Bhat); rownames(Z_w) <- rownames(Bhat)
+
+    # MSN pair (whitened)
+    dfStrong <- Z_w[strong_genes, c("MSN_D1","MSN_D2"), drop=FALSE]
+    dfWeak   <- Z_w[weak_genes,   c("MSN_D1","MSN_D2"), drop=FALSE]
+    plot(dfStrong, main=paste("Z strong (whitened)\ncor [", round(cor(dfStrong[,1], dfStrong[,2]),3), "]"))
+    plot(dfWeak,   main=paste("Z weak (whitened)\ncor [",   round(cor(dfWeak[,1],   dfWeak[,2]),  3), "]"))
+
+    # GABA pair (whitened)
+    dfStrong <- Z_w[strong_genes, c("GABA_CGE_DFC","GABA_MGE_DFC"), drop=FALSE]
+    dfWeak   <- Z_w[weak_genes,   c("GABA_CGE_DFC","GABA_MGE_DFC"), drop=FALSE]
+    plot(dfStrong, main=paste("Z strong (whitened)\ncor [", round(cor(dfStrong[,1], dfStrong[,2]),3), "]"))
+    plot(dfWeak,   main=paste("Z weak (whitened)\ncor [",   round(cor(dfWeak[,1],   dfWeak[,2]),  3), "]"))
+
+    # weak-row correlation heatmaps before/after
+    mabs <- function(M) mean(abs(M[lower.tri(M)]))
+    cor_raw_weak <- cor(Z[weak_genes, , drop=FALSE], use="pairwise.complete.obs")
+    cor_wht_weak <- cor(Z_w[weak_genes, , drop=FALSE], use="pairwise.complete.obs")
+    message(sprintf("mean |offdiag| cor (weak) raw=%.3f, whitened=%.3f",
+                    mabs(cor_raw_weak), mabs(cor_wht_weak)))
+    heatmap(cor_raw_weak, margins=c(10,10), main="Weak Z correlation (raw)")
+    heatmap(cor_wht_weak, margins=c(10,10), main="Weak Z correlation (whitened)")
+
+    cor_raw_strong <- cor(Z[strong_genes, , drop=FALSE], use="pairwise.complete.obs")
+    cor_wht_strong <- cor(Z_w[strong_genes, , drop=FALSE], use="pairwise.complete.obs")
+    heatmap(cor_raw_strong, margins=c(10,10), main="Strong Z correlation (raw)")
+    heatmap(cor_wht_strong, margins=c(10,10), main="Strong Z correlation (whitened)")
+
+
+}
+
+# Export the t-stats for all genes / conditions
+mash_export_tstats <- function(mash_fit, file = "mash_post_tstat.csv") {
+    # posterior mean and posterior SD
+    pm  <- ashr::get_pm(mash_fit)    # genes × conditions
+    pse <- ashr::get_psd(mash_fit)   # genes × conditions
+
+    # compute posterior t-statistics
+    ptstat <- pm / pse
+
+    # keep dimension names
+    rownames(ptstat) <- rownames(pm)
+    colnames(ptstat) <- colnames(pm)
+
+    # export
+    utils::write.table(ptstat, file = file, quote = FALSE, sep="\t")
+}
 
 
 
@@ -335,362 +418,362 @@ run_mashr<-function (in_dir, file_pattern="age", cellTypeListFile=NULL) {
 ##########################
 
 
-cluster_mash_effects <- function(m,
-                                 lfsr_threshold = 0.05,
-                                 method = c("kmeans", "hclust"),
-                                 dist_metric = c("euclidean", "correlation"),
-                                 k = 10,
-                                 n_pcs_plot = 4,
-                                 plot = TRUE,
-                                 nstart = 100,
-                                 seed = 1,
-                                 test_signs_only = FALSE,
-                                 use_raw_values = FALSE) {
+# cluster_mash_effects <- function(m,
+#                                  lfsr_threshold = 0.05,
+#                                  method = c("kmeans", "hclust"),
+#                                  dist_metric = c("euclidean", "correlation"),
+#                                  k = 10,
+#                                  n_pcs_plot = 4,
+#                                  plot = TRUE,
+#                                  nstart = 100,
+#                                  seed = 1,
+#                                  test_signs_only = FALSE,
+#                                  use_raw_values = FALSE) {
+#
+#     # Reproducibility
+#     set.seed(seed)
+#
+#     method <- match.arg(method)
+#     dist_metric <- match.arg(dist_metric)
+#
+#     if (use_raw_values==FALSE) {
+#         lfsr <- ashr::get_lfsr(m)
+#         pm <- ashr::get_pm(m)
+#
+#         # Zero-out non-significant effects
+#         pm[lfsr > lfsr_threshold] <- 0
+#
+#         # Drop genes with no effects
+#         keep <- rowSums(pm != 0) > 0
+#         pm_filtered <- pm[keep, , drop = FALSE]
+#         logger::log_info("Filtered to {nrow(pm_filtered)} genes out of {nrow(pm)} with lfsr < {lfsr_threshold} in at least one condition.")
+#     } else {
+#         pm_filtered=m$data$Bhat
+#         logger::log_info("Using raw effect estimates {nrow(pm_filtered)} genes without any filtering.")
+#     }
+#
+#     gene_names <- rownames(pm_filtered)
+#
+#
+#
+#     if (nrow(pm_filtered) < k) {
+#         stop("Fewer genes remaining after filtering than number of clusters requested.")
+#     }
+#
+#     # Optionally trinarize the data
+#     if (test_signs_only) {
+#         tri_mat <- matrix(0, nrow = nrow(pm_filtered), ncol = ncol(pm_filtered),
+#                           dimnames = dimnames(pm_filtered))
+#         tri_mat[pm_filtered > 0] <- 1
+#         tri_mat[pm_filtered < 0] <- -1
+#         data_for_clustering <- tri_mat
+#     } else {
+#         data_for_clustering <- pm_filtered
+#     }
+#
+#     # Distance matrix
+#     if (dist_metric == "euclidean") {
+#         d <- dist(data_for_clustering)
+#     } else {
+#         cor_matrix <- cor(t(data_for_clustering), use = "pairwise.complete.obs")
+#         d <- as.dist(1 - cor_matrix)
+#     }
+#
+#     # Clustering
+#     if (method == "kmeans") {
+#         km <- kmeans(data_for_clustering, centers = k, nstart = nstart, iter.max = 100)
+#         clusters <- km$cluster
+#     } else {
+#         hc <- hclust(d)
+#         clusters <- cutree(hc, k = k)
+#     }
+#
+#     # PCA (always on the real values, not trinarized matrix)
+#     pca <- prcomp(pm_filtered, scale. = TRUE)
+#     pca_df <- as.data.frame(pca$x)
+#     pca_df$cluster <- factor(clusters)
+#     pca_df$gene <- gene_names
+#
+#     # Optional PCA plots
+#     plots <- NULL
+#     if (plot) {
+#         if (!requireNamespace("ggplot2", quietly = TRUE)) {
+#             warning("ggplot2 not available for plotting.")
+#         } else {
+#             plots <- list()
+#             np <- min(n_pcs_plot, ncol(pca$x) %/% 2 * 2)
+#             for (i in seq(1, np, by = 2)) {
+#                 x <- paste0("PC", i)
+#                 y <- paste0("PC", i + 1)
+#                 p <- ggplot2::ggplot(pca_df, ggplot2::aes_string(x = x, y = y, color = "cluster")) +
+#                     ggplot2::geom_point(alpha = 0.8, size = 2) +
+#                     ggplot2::labs(title = paste("PCA:", x, "vs", y)) +
+#                     ggplot2::theme_classic()
+#                 plots[[paste0(x, "_vs_", y)]] <- p
+#             }
+#         }
+#     }
+#
+#     return(list(
+#         clusters = structure(clusters, names = gene_names),
+#         pca = pca,
+#         pca_df = pca_df,
+#         plots = plots,
+#         pm_filtered = pm_filtered,
+#         dist = d
+#     ))
+# }
+#
+#
+# find_optimal_k_for_mash_effects <- function(m,
+#                                             start_num_clusters = 2,
+#                                             end_num_clusters = 20,
+#                                             lfsr_threshold = 0.05,
+#                                             dist_metric = c("euclidean", "correlation"),
+#                                             method = "kmeans",
+#                                             nstart = 100,
+#                                             seed = 1,
+#                                             verbose = TRUE) {
+#     if (!requireNamespace("cluster", quietly = TRUE)) {
+#         stop("Install the 'cluster' package to compute silhouette scores.")
+#     }
+#
+#     dist_metric <- match.arg(dist_metric)
+#
+#     results <- list()
+#
+#     for (k in start_num_clusters:end_num_clusters) {
+#         res <- tryCatch({
+#             cluster_result <- cluster_mash_effects(
+#                 m = m,
+#                 lfsr_threshold = lfsr_threshold,
+#                 method = method,
+#                 dist_metric = dist_metric,
+#                 k = k,
+#                 plot = FALSE,
+#                 nstart = nstart,
+#                 seed = seed
+#             )
+#
+#             # Validate distance matrix exists
+#             if (is.null(cluster_result$dist)) {
+#                 stop("Distance matrix not returned by cluster_mash_effects().")
+#             }
+#
+#             sil <- cluster::silhouette(cluster_result$clusters, cluster_result$dist)
+#             mean_sil <- mean(sil[, "sil_width"])
+#
+#             if (verbose) {
+#                 message("k = ", k, ", silhouette = ", round(mean_sil, 4))
+#             }
+#
+#             list(k = k, silhouette = mean_sil, result = cluster_result)
+#
+#         }, error = function(e) {
+#             if (verbose) message("k = ", k, " failed: ", e$message)
+#             NULL
+#         })
+#
+#         if (!is.null(res)) {
+#             results[[as.character(k)]] <- res
+#         }
+#     }
+#
+#     if (length(results) == 0) {
+#         stop("No clustering results succeeded for the specified k range.")
+#     }
+#
+#     # Select best based on silhouette score
+#     best_k <- names(which.max(sapply(results, function(x) x$silhouette)))
+#     best_result <- results[[best_k]]
+#
+#     if (verbose) {
+#         message("Best k = ", best_result$k, " with silhouette = ", round(best_result$silhouette, 4))
+#     }
+#
+#     return(list(
+#         best_k = best_result$k,
+#         best_silhouette = best_result$silhouette,
+#         best_result = best_result$result,
+#         all_results = results
+#     ))
+# }
+#
+#
+# plot_mash_heatmap <- function(pm_filtered,
+#                               clusters,
+#                               column_title = NULL) {
+#
+#     #to get rid of annoying warning message about rasterization
+#     ht_opt$message = FALSE
+#
+#     # Transpose to: cell types = rows, genes = columns
+#     mat <- t(pm_filtered)
+#
+#     # Step 1: Cluster the cluster labels
+#     cluster_ids <- unique(clusters)
+#     cluster_centroids <- sapply(cluster_ids, function(cid) {
+#         genes_in_cluster <- names(clusters)[clusters == cid]
+#         if (length(genes_in_cluster) == 1) {
+#             pm_filtered[genes_in_cluster, ]
+#         } else {
+#             colMeans(pm_filtered[genes_in_cluster, , drop = FALSE])
+#         }
+#     })
+#     cluster_centroids <- t(cluster_centroids)
+#
+#     # Cluster cluster centroids
+#     dist_mat <- dist(cluster_centroids)
+#     cluster_order <- hclust(dist_mat)$order
+#     reordered_cluster_ids <- cluster_ids[cluster_order]
+#
+#     # Set col_split with reordered levels
+#     col_split <- factor(clusters[colnames(mat)], levels = reordered_cluster_ids)
+#
+#     # Colors for each cluster
+#     n_clusters <- length(reordered_cluster_ids)
+#     cluster_colors <- setNames(
+#         colorRampPalette(RColorBrewer::brewer.pal(12, "Set3"))(n_clusters),
+#         reordered_cluster_ids
+#     )
+#
+#     # Annotation bar at bottom with cluster labels
+#     bottom_anno <- ComplexHeatmap::HeatmapAnnotation(
+#         gene_cluster = col_split,
+#         cluster_label = ComplexHeatmap::anno_block(
+#             gp = grid::gpar(fill = NA, col = NA),
+#             labels = reordered_cluster_ids,
+#             labels_gp = grid::gpar(fontsize = 10)
+#         ),
+#         col = list(gene_cluster = cluster_colors),
+#         show_annotation_name = FALSE,
+#         show_legend = FALSE,
+#         which = "column"
+#     )
+#
+#     # colors and mapping (as you have)
+#     seismic_colors <- c(
+#         "#00008B", "#4040FF", "#8080FF", "#C0C0FF",
+#         "#FFFFFF",
+#         "#FFC0C0", "#FF8080", "#FF4040", "#8B0000"
+#     )
+#
+#     rng <- range(mat, na.rm = TRUE)
+#     vmin <- rng[1]; vmax <- rng[2]
+#
+#     neg_breaks <- seq(vmin, 0, length.out = 5)
+#     pos_breaks <- seq(0, vmax, length.out = 5)
+#     brks <- c(neg_breaks, pos_breaks[-1])
+#
+#     col_fun <- circlize::colorRamp2(brks, seismic_colors, space = "RGB")
+#
+#     # legend ticks: exact ends plus neat 0.1 steps inside
+#     inner <- seq(ceiling(vmin*2)/2, floor(vmax*2)/2, by = 0.25)
+#     ats <- unique(c(vmin, inner[inner > vmin & inner < vmax], vmax))
+#     labs <- sprintf("%.2f", ats)
+#
+#     ht <- ComplexHeatmap::Heatmap(
+#         mat,
+#         name = "Effect",
+#         column_split = col_split,
+#         cluster_columns = FALSE,
+#         cluster_rows = TRUE,
+#         show_column_dend = FALSE,
+#         show_column_names = FALSE,
+#         bottom_annotation = bottom_anno,
+#         column_title = column_title,
+#         column_title_gp = grid::gpar(fontsize = 20, fontface = "bold"),
+#         row_title = "Cell types",
+#         col = col_fun,
+#         column_names_gp = grid::gpar(fontsize = 6),
+#         row_names_gp = grid::gpar(fontsize = 10),
+#         gap = grid::unit(1.5, "mm"),
+#         use_raster = TRUE,
+#         heatmap_legend_param = list(
+#             color_bar = "continuous",
+#             legend_height = grid::unit(5, "cm")
+#         )
+#     )
+#
+#     ComplexHeatmap::draw(ht)
+# }
 
-    # Reproducibility
-    set.seed(seed)
 
-    method <- match.arg(method)
-    dist_metric <- match.arg(dist_metric)
-
-    if (use_raw_values==FALSE) {
-        lfsr <- ashr::get_lfsr(m)
-        pm <- ashr::get_pm(m)
-
-        # Zero-out non-significant effects
-        pm[lfsr > lfsr_threshold] <- 0
-
-        # Drop genes with no effects
-        keep <- rowSums(pm != 0) > 0
-        pm_filtered <- pm[keep, , drop = FALSE]
-        logger::log_info("Filtered to {nrow(pm_filtered)} genes out of {nrow(pm)} with lfsr < {lfsr_threshold} in at least one condition.")
-    } else {
-        pm_filtered=m$data$Bhat
-        logger::log_info("Using raw effect estimates {nrow(pm_filtered)} genes without any filtering.")
-    }
-
-    gene_names <- rownames(pm_filtered)
-
-
-
-    if (nrow(pm_filtered) < k) {
-        stop("Fewer genes remaining after filtering than number of clusters requested.")
-    }
-
-    # Optionally trinarize the data
-    if (test_signs_only) {
-        tri_mat <- matrix(0, nrow = nrow(pm_filtered), ncol = ncol(pm_filtered),
-                          dimnames = dimnames(pm_filtered))
-        tri_mat[pm_filtered > 0] <- 1
-        tri_mat[pm_filtered < 0] <- -1
-        data_for_clustering <- tri_mat
-    } else {
-        data_for_clustering <- pm_filtered
-    }
-
-    # Distance matrix
-    if (dist_metric == "euclidean") {
-        d <- dist(data_for_clustering)
-    } else {
-        cor_matrix <- cor(t(data_for_clustering), use = "pairwise.complete.obs")
-        d <- as.dist(1 - cor_matrix)
-    }
-
-    # Clustering
-    if (method == "kmeans") {
-        km <- kmeans(data_for_clustering, centers = k, nstart = nstart, iter.max = 100)
-        clusters <- km$cluster
-    } else {
-        hc <- hclust(d)
-        clusters <- cutree(hc, k = k)
-    }
-
-    # PCA (always on the real values, not trinarized matrix)
-    pca <- prcomp(pm_filtered, scale. = TRUE)
-    pca_df <- as.data.frame(pca$x)
-    pca_df$cluster <- factor(clusters)
-    pca_df$gene <- gene_names
-
-    # Optional PCA plots
-    plots <- NULL
-    if (plot) {
-        if (!requireNamespace("ggplot2", quietly = TRUE)) {
-            warning("ggplot2 not available for plotting.")
-        } else {
-            plots <- list()
-            np <- min(n_pcs_plot, ncol(pca$x) %/% 2 * 2)
-            for (i in seq(1, np, by = 2)) {
-                x <- paste0("PC", i)
-                y <- paste0("PC", i + 1)
-                p <- ggplot2::ggplot(pca_df, ggplot2::aes_string(x = x, y = y, color = "cluster")) +
-                    ggplot2::geom_point(alpha = 0.8, size = 2) +
-                    ggplot2::labs(title = paste("PCA:", x, "vs", y)) +
-                    ggplot2::theme_classic()
-                plots[[paste0(x, "_vs_", y)]] <- p
-            }
-        }
-    }
-
-    return(list(
-        clusters = structure(clusters, names = gene_names),
-        pca = pca,
-        pca_df = pca_df,
-        plots = plots,
-        pm_filtered = pm_filtered,
-        dist = d
-    ))
-}
-
-
-find_optimal_k_for_mash_effects <- function(m,
-                                            start_num_clusters = 2,
-                                            end_num_clusters = 20,
-                                            lfsr_threshold = 0.05,
-                                            dist_metric = c("euclidean", "correlation"),
-                                            method = "kmeans",
-                                            nstart = 100,
-                                            seed = 1,
-                                            verbose = TRUE) {
-    if (!requireNamespace("cluster", quietly = TRUE)) {
-        stop("Install the 'cluster' package to compute silhouette scores.")
-    }
-
-    dist_metric <- match.arg(dist_metric)
-
-    results <- list()
-
-    for (k in start_num_clusters:end_num_clusters) {
-        res <- tryCatch({
-            cluster_result <- cluster_mash_effects(
-                m = m,
-                lfsr_threshold = lfsr_threshold,
-                method = method,
-                dist_metric = dist_metric,
-                k = k,
-                plot = FALSE,
-                nstart = nstart,
-                seed = seed
-            )
-
-            # Validate distance matrix exists
-            if (is.null(cluster_result$dist)) {
-                stop("Distance matrix not returned by cluster_mash_effects().")
-            }
-
-            sil <- cluster::silhouette(cluster_result$clusters, cluster_result$dist)
-            mean_sil <- mean(sil[, "sil_width"])
-
-            if (verbose) {
-                message("k = ", k, ", silhouette = ", round(mean_sil, 4))
-            }
-
-            list(k = k, silhouette = mean_sil, result = cluster_result)
-
-        }, error = function(e) {
-            if (verbose) message("k = ", k, " failed: ", e$message)
-            NULL
-        })
-
-        if (!is.null(res)) {
-            results[[as.character(k)]] <- res
-        }
-    }
-
-    if (length(results) == 0) {
-        stop("No clustering results succeeded for the specified k range.")
-    }
-
-    # Select best based on silhouette score
-    best_k <- names(which.max(sapply(results, function(x) x$silhouette)))
-    best_result <- results[[best_k]]
-
-    if (verbose) {
-        message("Best k = ", best_result$k, " with silhouette = ", round(best_result$silhouette, 4))
-    }
-
-    return(list(
-        best_k = best_result$k,
-        best_silhouette = best_result$silhouette,
-        best_result = best_result$result,
-        all_results = results
-    ))
-}
-
-
-plot_mash_heatmap <- function(pm_filtered,
-                              clusters,
-                              column_title = NULL) {
-
-    #to get rid of annoying warning message about rasterization
-    ht_opt$message = FALSE
-
-    # Transpose to: cell types = rows, genes = columns
-    mat <- t(pm_filtered)
-
-    # Step 1: Cluster the cluster labels
-    cluster_ids <- unique(clusters)
-    cluster_centroids <- sapply(cluster_ids, function(cid) {
-        genes_in_cluster <- names(clusters)[clusters == cid]
-        if (length(genes_in_cluster) == 1) {
-            pm_filtered[genes_in_cluster, ]
-        } else {
-            colMeans(pm_filtered[genes_in_cluster, , drop = FALSE])
-        }
-    })
-    cluster_centroids <- t(cluster_centroids)
-
-    # Cluster cluster centroids
-    dist_mat <- dist(cluster_centroids)
-    cluster_order <- hclust(dist_mat)$order
-    reordered_cluster_ids <- cluster_ids[cluster_order]
-
-    # Set col_split with reordered levels
-    col_split <- factor(clusters[colnames(mat)], levels = reordered_cluster_ids)
-
-    # Colors for each cluster
-    n_clusters <- length(reordered_cluster_ids)
-    cluster_colors <- setNames(
-        colorRampPalette(RColorBrewer::brewer.pal(12, "Set3"))(n_clusters),
-        reordered_cluster_ids
-    )
-
-    # Annotation bar at bottom with cluster labels
-    bottom_anno <- ComplexHeatmap::HeatmapAnnotation(
-        gene_cluster = col_split,
-        cluster_label = ComplexHeatmap::anno_block(
-            gp = grid::gpar(fill = NA, col = NA),
-            labels = reordered_cluster_ids,
-            labels_gp = grid::gpar(fontsize = 10)
-        ),
-        col = list(gene_cluster = cluster_colors),
-        show_annotation_name = FALSE,
-        show_legend = FALSE,
-        which = "column"
-    )
-
-    # colors and mapping (as you have)
-    seismic_colors <- c(
-        "#00008B", "#4040FF", "#8080FF", "#C0C0FF",
-        "#FFFFFF",
-        "#FFC0C0", "#FF8080", "#FF4040", "#8B0000"
-    )
-
-    rng <- range(mat, na.rm = TRUE)
-    vmin <- rng[1]; vmax <- rng[2]
-
-    neg_breaks <- seq(vmin, 0, length.out = 5)
-    pos_breaks <- seq(0, vmax, length.out = 5)
-    brks <- c(neg_breaks, pos_breaks[-1])
-
-    col_fun <- circlize::colorRamp2(brks, seismic_colors, space = "RGB")
-
-    # legend ticks: exact ends plus neat 0.1 steps inside
-    inner <- seq(ceiling(vmin*2)/2, floor(vmax*2)/2, by = 0.25)
-    ats <- unique(c(vmin, inner[inner > vmin & inner < vmax], vmax))
-    labs <- sprintf("%.2f", ats)
-
-    ht <- ComplexHeatmap::Heatmap(
-        mat,
-        name = "Effect",
-        column_split = col_split,
-        cluster_columns = FALSE,
-        cluster_rows = TRUE,
-        show_column_dend = FALSE,
-        show_column_names = FALSE,
-        bottom_annotation = bottom_anno,
-        column_title = column_title,
-        column_title_gp = grid::gpar(fontsize = 20, fontface = "bold"),
-        row_title = "Cell types",
-        col = col_fun,
-        column_names_gp = grid::gpar(fontsize = 6),
-        row_names_gp = grid::gpar(fontsize = 10),
-        gap = grid::unit(1.5, "mm"),
-        use_raster = TRUE,
-        heatmap_legend_param = list(
-            color_bar = "continuous",
-            legend_height = grid::unit(5, "cm")
-        )
-    )
-
-    ComplexHeatmap::draw(ht)
-}
-
-
-map_clusters_by_gene_overlap <- function(clusters1, clusters2) {
-    # Check inputs are named vectors
-    if (is.null(names(clusters1)) || is.null(names(clusters2))) {
-        stop("Both vectors must be named with gene symbols.")
-    }
-
-    # Find genes in common
-    shared_genes <- intersect(names(clusters1), names(clusters2))
-    if (length(shared_genes) == 0) {
-        stop("No overlapping genes found.")
-    }
-
-    # Subset to shared genes
-    clusters1 <- clusters1[shared_genes]
-    clusters2 <- clusters2[shared_genes]
-
-    # Create cluster → gene sets
-    cluster_genes_1 <- split(names(clusters1), clusters1)
-    cluster_genes_2 <- split(names(clusters2), clusters2)
-
-    labels1 <- names(cluster_genes_1)
-    labels2 <- names(cluster_genes_2)
-
-    # Initialize similarity matrix
-    sim_mat <- matrix(0, nrow = length(labels1), ncol = length(labels2),
-                      dimnames = list(labels1, labels2))
-
-    # Compute Jaccard index for each cluster pair
-    for (i in labels1) {
-        for (j in labels2) {
-            g1 <- cluster_genes_1[[i]]
-            g2 <- cluster_genes_2[[j]]
-            sim_mat[i, j] <- length(intersect(g1, g2)) / length(union(g1, g2))
-        }
-    }
-
-    # Solve assignment
-    optimal_mapping=get_optimal_factor_mapping(sim_mat)
-    return (list(similarity_matrix=sim_mat, optimal_mapping=optimal_mapping))
-}
-
-get_optimal_factor_mapping <- function(cor_mat) {
-    if (!requireNamespace("clue", quietly = TRUE)) {
-        stop("Install 'clue' with install.packages('clue')")
-    }
-
-    row_names <- rownames(cor_mat)
-    col_names <- colnames(cor_mat)
-    n_rows <- length(row_names)
-    n_cols <- length(col_names)
-    n <- max(n_rows, n_cols)
-
-    # Convert correlation to cost
-    max_corr <- max(cor_mat, na.rm = TRUE)
-    cost_mat <- max_corr - cor_mat
-
-    # Pad to square matrix
-    padded <- matrix(max(cost_mat, na.rm = TRUE) + 1, n, n)
-    padded[1:n_rows, 1:n_cols] <- cost_mat
-
-    # Solve
-    assignment <- clue::solve_LSAP(padded)
-
-    # Filter: only real assignments
-    valid_rows <- seq_len(n_rows)
-    valid_cols <- assignment[valid_rows]
-    valid <- valid_cols <= n_cols
-
-    data.frame(
-        row_factor = row_names[valid],
-        best_match = col_names[valid_cols[valid]],
-        correlation = mapply(function(i, j) cor_mat[i, j], row_names[valid], col_names[valid_cols[valid]]),
-        stringsAsFactors = FALSE
-    )
-}
+# map_clusters_by_gene_overlap <- function(clusters1, clusters2) {
+#     # Check inputs are named vectors
+#     if (is.null(names(clusters1)) || is.null(names(clusters2))) {
+#         stop("Both vectors must be named with gene symbols.")
+#     }
+#
+#     # Find genes in common
+#     shared_genes <- intersect(names(clusters1), names(clusters2))
+#     if (length(shared_genes) == 0) {
+#         stop("No overlapping genes found.")
+#     }
+#
+#     # Subset to shared genes
+#     clusters1 <- clusters1[shared_genes]
+#     clusters2 <- clusters2[shared_genes]
+#
+#     # Create cluster → gene sets
+#     cluster_genes_1 <- split(names(clusters1), clusters1)
+#     cluster_genes_2 <- split(names(clusters2), clusters2)
+#
+#     labels1 <- names(cluster_genes_1)
+#     labels2 <- names(cluster_genes_2)
+#
+#     # Initialize similarity matrix
+#     sim_mat <- matrix(0, nrow = length(labels1), ncol = length(labels2),
+#                       dimnames = list(labels1, labels2))
+#
+#     # Compute Jaccard index for each cluster pair
+#     for (i in labels1) {
+#         for (j in labels2) {
+#             g1 <- cluster_genes_1[[i]]
+#             g2 <- cluster_genes_2[[j]]
+#             sim_mat[i, j] <- length(intersect(g1, g2)) / length(union(g1, g2))
+#         }
+#     }
+#
+#     # Solve assignment
+#     optimal_mapping=get_optimal_factor_mapping(sim_mat)
+#     return (list(similarity_matrix=sim_mat, optimal_mapping=optimal_mapping))
+# }
+#
+# get_optimal_factor_mapping <- function(cor_mat) {
+#     if (!requireNamespace("clue", quietly = TRUE)) {
+#         stop("Install 'clue' with install.packages('clue')")
+#     }
+#
+#     row_names <- rownames(cor_mat)
+#     col_names <- colnames(cor_mat)
+#     n_rows <- length(row_names)
+#     n_cols <- length(col_names)
+#     n <- max(n_rows, n_cols)
+#
+#     # Convert correlation to cost
+#     max_corr <- max(cor_mat, na.rm = TRUE)
+#     cost_mat <- max_corr - cor_mat
+#
+#     # Pad to square matrix
+#     padded <- matrix(max(cost_mat, na.rm = TRUE) + 1, n, n)
+#     padded[1:n_rows, 1:n_cols] <- cost_mat
+#
+#     # Solve
+#     assignment <- clue::solve_LSAP(padded)
+#
+#     # Filter: only real assignments
+#     valid_rows <- seq_len(n_rows)
+#     valid_cols <- assignment[valid_rows]
+#     valid <- valid_cols <= n_cols
+#
+#     data.frame(
+#         row_factor = row_names[valid],
+#         best_match = col_names[valid_cols[valid]],
+#         correlation = mapply(function(i, j) cor_mat[i, j], row_names[valid], col_names[valid_cols[valid]]),
+#         stringsAsFactors = FALSE
+#     )
+# }
 
 
 
@@ -1011,14 +1094,15 @@ plot_gene_effects <- function(Bhat, pm, gene) {
 #' @param FDR Numeric matrix of FDR estimates (genes x cell types)
 #' @param npc Integer. Number of principal components used to seed
 #'   data-driven covariances (capped at \code{ncol(Bhat)}). Default: \code{5L}.
-#' @param n_null_est Integer. Number of rows randomly sampled to estimate the
-#'   residual correlation \eqn{V} via EM. Default: \code{5000L}.
+#' @param lfsr_null_threshold Integer. lfsr threshold that all conditions must be above
+#' to include a gene in the null.
 #'
 #' @return A fitted \code{mash} object (use \code{mashr} accessors such as
 #'   \code{get_pm}, \code{get_psd}, and \code{get_lfsr} for summaries).
 #'
 #' @export
-fit_mash<- function(Bhat, Shat, FDR, npc = 5L, n_null_est = 5000L, missing_mask=NULL, add.mem.profile=TRUE, only_cannonical_matrixes=F, exclude_truncated_pca_matrix=F, strong_gene_fdr_threshold=0.01) {
+fit_mash<- function(Bhat, Shat, FDR, npc = 5L, n_null_est = 5000L, missing_mask=NULL, add.mem.profile=TRUE, only_cannonical_matrixes=F,
+                    exclude_truncated_pca_matrix=F, strong_gene_fdr_threshold=0.01, lfsr_null_threshold=0.2) {
     data0 <- mash_set_data(Bhat, Shat)
 
     # pick "strong" rows to learn data-driven covariances
@@ -1049,100 +1133,50 @@ fit_mash<- function(Bhat, Shat, FDR, npc = 5L, n_null_est = 5000L, missing_mask=
     # estimate V with EM on a random subset (accounts for donor overlap)
     # Many attempts to construct V capture biological signal of known related cell subtypes
     # so we're going to skip V.
-    #set.seed(1)
-    #idx <- sample.int(nrow(Bhat), size = min(n_null_est, nrow(Bhat)))
-    #data_tmp <- mash_set_data(Bhat[idx, , drop = FALSE], Shat[idx, , drop = FALSE])
-    #Vhat_out <- mash_estimate_corr_em(data_tmp, U.ed)   # returns list with $V and $mash.model
-    #Vhat <- Vhat_out$V
+    r=get_mash_vhat(Bhat, Shat, U.ed, lfsr_null_threshold)
+    Vhat=r$Vhat
+    weak_genes=r$weak_genes
+
 
     # fit on all genes using V
-    Vhat=diag(ncol(Bhat)) #this is the default for mashr
     data_all <- mash_set_data(Bhat, Shat, V = Vhat)
     m <- mash(data_all, covariance_matrix_list, usepointmass = TRUE, outputlevel = 2)
     #remask the raw data.
 
     #add the raw data directly to the mash object
     m$data<-data_all
+    m$data$weak_genes=weak_genes
+    m$data$strong_genes=rownames(Bhat[strong_idx,])
     result=list(mash=m, covariance_matrix_list=covariance_matrix_list, missing_mask=missing_mask)
     return (result)
 
 }
 
-#' Two-stage mash fit: learn covariances on informative rows, then apply to all genes
-#'
-#' @param Bhat  numeric matrix (genes x conditions) of effect estimates
-#' @param Shat  numeric matrix (genes x conditions) of standard errors
-#' @param npc   integer; number of PCs to pass to cov_pca (capped at ncol(Bhat))
-#' @param only_cannonical_matrixes logical; if TRUE use only canonical covariances (no ED_tPCA)
-#' @param huge  numeric; SE threshold used to define "well-measured" rows (exclude rows with any SE >= huge)
-#' @param grid  numeric vector; scale grid passed to \code{mash} (set to \code{NULL} to use mash defaults)
-#' @param autoselect.grid logical; passed to \code{mash}; default FALSE to enforce the provided grid
-#' @param usepointmass logical; include a point-mass-at-0 component
-#'
-#' @return list with elements:
-#'   \item{m_learn}{mash fit on informative rows (learned prior)}
-#'   \item{m}{final mash fit on all rows using the learned prior}
-#'   \item{learn_rows}{integer indices of rows used for learning}
-#'   \item{well_measured}{logical vector marking rows with all SE < huge}
-#'   \item{strong_idx_w}{logical vector (within well_measured subset) chosen by choose_strong_rows}
-#'   \item{Ulist}{covariance library used}
-#'   \item{grid}{scale grid actually used}
-#'
-#' @details
-#' Stage 1 learns the mixture on rows that are both well-measured and strong.
-#' Stage 2 applies the learned prior to all genes, preventing missing/huge-SE rows
-#' from steering the covariance learning. A floor on the scale grid helps avoid
-#' soaking up tiny correlated drift with a structured component.
-fit_mash_two_stage <- function(Bhat, Shat,
-                               npc = 5,
-                               only_cannonical_matrixes = FALSE,
-                               huge = 1e5,
-                               usepointmass = TRUE) {
-    # basic checks
-    if (!is.matrix(Bhat) || !is.matrix(Shat)) stop("Bhat and Shat must be matrices")
-    if (!all(dim(Bhat) == dim(Shat))) stop("Bhat and Shat must have identical dimensions")
-    if (ncol(Bhat) < 2L) stop("Need at least 2 conditions (columns)")
-    if (npc < 1L) stop("npc must be >= 1")
+# get weak rows for mash and use to create a null V.
+get_mash_vhat<-function (Bhat, Shat, U.ed, lfsr_null_threshold=0.2) {
+    if (is.null(lfsr_null_threshold)) {
+        Vhat=diag(ncol(Bhat)) #this is the default for mashr
+        result=list(Vhat=Vhat, weak_genes=NULL)
+        return (result)
+    }
 
-    # 1) define well-measured rows (exclude any with huge/non-finite SE)
-    well_measured <- apply(Shat < huge & is.finite(Shat), 1L, all)
+    data <- mash_set_data(Bhat=Bhat, Shat=Shat)
+    m1   <- mash_1by1(data) # if this step gets expensive, then I could share with the get strong rows function.
+    lfsr=m1$result$lfsr
+    z=apply (lfsr, 1, min, na.rm=T)
+    zz=z[z>=lfsr_null_threshold]
+    logger::log_info("Selected [", length(zz), "] genes for null result (Vhat correlation matrix)")
+    #no need to sample unless I want to do something very fancy.
+    #if (length(zz)<target_null_size)
+    #    stop ("Not enough genes in null to sample to target size.  Set threshold closer to 0.")
+    #zz=sample(zz, targetNullSize)
+    idx=match(names(zz), rownames(Bhat))
+    data_tmp <- mash_set_data(Bhat[idx, , drop = FALSE], Shat[idx, , drop = FALSE])
+    Vhat_out <- mash_estimate_corr_em(data_tmp, U.ed)   # returns list with $V and $mash.model
+    Vhat <- Vhat_out$V
+    result=list(Vhat=Vhat, weak_genes=rownames(Bhat[idx,]))
+    return (result)
 
-    # 2) among well-measured, pick "strong" rows for learning
-    Bhat_w <- Bhat[well_measured, , drop = FALSE]
-    Shat_w <- Shat[well_measured, , drop = FALSE]
-    if (nrow(Bhat_w) == 0L) stop("No well-measured rows under the given 'huge' threshold")
-    strong_idx_w <- choose_strong_rows(Bhat_w, Shat_w)
-
-    if (!any(strong_idx_w)) stop("No strong rows found within the well-measured set")
-    learn_rows <- which(well_measured)[strong_idx_w]
-
-    # 3) build mash data objects
-    data_all   <- mash_set_data(Bhat, Shat)  # V = I by default
-    data_learn <- mash_set_data(Bhat[learn_rows, , drop = FALSE],
-                                Shat[learn_rows, , drop = FALSE])
-
-    # 4) covariance library (canonical + ED_tPCA learned on informative rows)
-    U.c  <- cov_canonical(data_all)
-    U.p  <- cov_pca(data_learn, npc = min(npc, ncol(Bhat)))
-    U.ed <- cov_ed(data_learn, U.p)
-    Ulist <- if (isTRUE(only_cannonical_matrixes)) U.c else c(U.c, U.ed)
-
-    # 5) stage 1: learn prior on informative rows
-    m_learn <- mash(data_learn,
-                    Ulist = Ulist,
-                    usepointmass = usepointmass,
-                    outputlevel = 2)
-
-    # 6) stage 2: apply learned prior to all rows
-    m <- mash(data_all, g = get_fitted_g(m_learn), outputlevel = 2)
-
-    list(m_learn = m_learn,
-         m = m,
-         learn_rows = learn_rows,
-         well_measured = well_measured,
-         strong_idx_w = strong_idx_w,
-         Ulist = Ulist,
-         grid = grid)
 }
 
 
@@ -1213,6 +1247,8 @@ choose_strong_rows_simple<-function (Bhat, Shat, fdr_threshold=0.01) {
     logger::log_info(paste("Number of strong exemplar genes selected [", length(idx), "]"))
     sort(idx)
 }
+
+
 
 
 
@@ -2038,8 +2074,7 @@ plot_sharing<-function (sharing, strTitle="") {
 # READING INPUT DATA
 #######################
 
-
-#' Build Bhat/Shat/FDR matrices from per–cell-type DE tables
+#' Build Bhat/Shat/Tstat/FDR matrices from per–cell-type DE tables
 #'
 #' @description
 #' Construct matrices for `mashr` from a list of differential expression tables
@@ -2076,8 +2111,8 @@ plot_sharing<-function (sharing, strTitle="") {
 #' \itemize{
 #'   \item `Bhat` — matrix [genes × cell types] of betas.
 #'   \item `Shat` — matrix [genes × cell types] of standard errors (`|beta/t|`).
-#'   \item `FDR`  — matrix [genes × cell types] of FDR values (filled with
-#'         `fill_missing_fdr` where absent).
+#'   \item `Tstat` — matrix [genes × cell types] of moderated t-statistics.
+#'   \item `FDR`  — matrix [genes × cell types] of FDR values.
 #'   \item `missing_mask` — logical matrix [genes × cell types] indicating where
 #'         input was missing/invalid and got replaced by `beta=0, SE=big_se`.
 #' }
@@ -2091,10 +2126,11 @@ plot_sharing<-function (sharing, strTitle="") {
 #'   and assigned `SE=big_se`).
 #'
 #' @export
-make_mash_inputs<- function(
+make_mash_inputs <- function(
         lst,
         coef_col = "logFC",
         t_col    = "t",
+        p_col = "P.Value",
         fdr_col  = "adj.P.Val",
         gene_mode = c("union", "intersect"),
         big_se   = 1e6,
@@ -2103,69 +2139,69 @@ make_mash_inputs<- function(
     gene_mode <- match.arg(gene_mode)
 
     stopifnot(is.list(lst), length(lst) >= 2L)
-    # Give unnamed list elements sensible names
     if (is.null(names(lst)) || any(names(lst) == "")) {
         names(lst) <- paste0("CT", seq_along(lst))
     }
 
-    # ---- determine the gene set (union or intersection) ----
+    # determine gene set
     gene_lists <- lapply(lst, rownames)
     if (gene_mode == "union") {
         genes <- sort(unique(unlist(gene_lists, use.names = FALSE)))
-    } else { # "intersect"
+    } else {
         genes <- Reduce(intersect, gene_lists)
         genes <- sort(unique(genes))
     }
     G <- length(genes); C <- length(lst)
     if (G == 0L) stop("No gene names found after applying gene_mode = '", gene_mode, "'.")
 
-    # Preallocate outputs
+    # preallocate outputs
     Bhat <- matrix(NA_real_, G, C, dimnames = list(genes, names(lst)))
     Shat <- matrix(NA_real_, G, C, dimnames = list(genes, names(lst)))
+    Tstat<- matrix(NA_real_, G, C, dimnames = list(genes, names(lst)))
     FDR  <- matrix(NA_real_, G, C, dimnames = list(genes, names(lst)))
+    P_val<- matrix(NA_real_, G, C, dimnames = list(genes, names(lst)))
 
-    # ---- fill matrices column by column ----
+    # fill matrices column by column
     for (j in seq_along(lst)) {
         df <- lst[[j]]
-
-        # Validate required columns
         required <- c(coef_col, t_col, fdr_col)
         if (!all(required %in% colnames(df))) {
             stop(paste("Missing required columns in lst[['", names(lst)[j], "']]: ",
-                 paste(setdiff(required, colnames(df)), collapse = ", ")))
+                       paste(setdiff(required, colnames(df)), collapse = ", ")))
         }
 
-        # Which genes appear in this table (restricted to our gene set)
         g <- intersect(genes, rownames(df))
         if (!length(g)) next
 
         beta <- as.numeric(df[g, coef_col])
         tt   <- as.numeric(df[g, t_col])
         fdr  <- as.numeric(df[g, fdr_col])
+        pval <- as.numeric (df[g, p_col])
+        se <- abs(beta / tt)  # SE from beta/t
 
-        # Convert t-stat to SE (limma: t = beta / se)
-        se <- abs(beta / tt)  # Inf/NA handled below
-
-        # Place into the right rows for this column
-        Bhat[g, j] <- beta
-        Shat[g, j] <- se
-        FDR [g, j] <- fdr
+        Bhat[g, j]  <- beta
+        Shat[g, j]  <- se
+        P_val[g,j] <- pval
+        Tstat[g, j] <- tt
+        FDR [g, j]  <- fdr
     }
 
-    # ---- handle missing/invalid entries ----
-    # Missing beta/SE, non-finite SE, or non-positive SE -> neutral placeholders
+    # handle missing/invalid
     missing_mask <- !is.finite(Bhat) | !is.finite(Shat) | (Shat <= 0)
     if (any(missing_mask)) {
-        Bhat[missing_mask] <- 0
-        Shat[missing_mask] <- big_se
+        Bhat[missing_mask]  <- 0
+        Shat[missing_mask]  <- big_se
+        Tstat[missing_mask] <- 0
     }
 
-    # Missing FDR gets a chosen fill (for plotting; mash doesn't use FDR)
     nas_fdr <- !is.finite(FDR)
     if (any(nas_fdr)) FDR[nas_fdr] <- fill_missing_fdr
 
-    list(Bhat = Bhat, Shat = Shat, FDR = FDR, missing_mask = missing_mask)
+    list(Bhat = Bhat, Shat = Shat, Tstat = Tstat, P_val=P_val,
+         FDR = FDR, missing_mask = missing_mask)
 }
+
+
 
 #' Drop common suffix from file names
 #' Useful to infer the data set names from differential expression files
@@ -2210,18 +2246,23 @@ remove_common_tokens <- function(x, delim = "_") {
 }
 
 # parse in many DE inputs, optionally filter by a list of cell types
+# File names are cell type, age, region, DE_results.txt
 parse_de_inputs<-function (in_dir, file_pattern="age", cellTypeListFile=NULL) {
     logger::log_info("Reading DE files from {in_dir} matching pattern '{file_pattern}'")
     #get the list of files from a directory that match some pattern.
     f=list.files(in_dir, pattern = paste0(file_pattern), full.names = TRUE)
     d=lapply(f, read.table, sep="\t", header=TRUE,
              stringsAsFactors = FALSE, check.names = FALSE)
-    #need to infer the names for each data.frame in the list
-    names(d)=drop_common_suffix(basename(f))
-    #drop common substrings from the names
-    names(d)=remove_common_tokens(names(d))
+
+    #Set the file names (without directories) for each list element
+    names(d)=basename(f)
+
+    # look for the cell type in the names of the files
     if (!is.null(cellTypeListFile)) {
         cellTypeList=read.table(cellTypeListFile, header=FALSE, stringsAsFactors = FALSE)$V1
+        #add the variable tested to make this more specific.
+        #this differentiates MSN_D1_age from MSN_D1_striosome_age.
+        cellTypeList=paste0(cellTypeList, "_", file_pattern)
         r=find_prefix_matches(names(d), cellTypeList)
         if (length(r$unmatched)>0) {
             logger::log_warn("The following cell types in the cell type list had no matches in the data: {paste(r$unmatched, collapse=', ')}")
@@ -2229,6 +2270,12 @@ parse_de_inputs<-function (in_dir, file_pattern="age", cellTypeListFile=NULL) {
         d=d[r$indexes]
         logger::log_info("Filtered to {length(d)} cell types based on provided cell type list.")
     }
+
+    #simplifiy names
+    names(d)=drop_common_suffix(names(d))
+    #drop common substrings from the names
+    names(d)=remove_common_tokens(names(d))
+
     return (d)
 }
 

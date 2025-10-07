@@ -248,7 +248,7 @@ differential_expression_region <- function(data_dir, data_name, randVars, fixedV
 
     # Variance Partition by cell type
     cell_type_list=unique(dge$samples$cell_type)
-    #cellType="MSN_D1_matrix";
+    #cellType="astrocyte";
     line <- strrep("=", 80)
 
     plot_list= list()
@@ -280,7 +280,7 @@ differential_expression_region <- function(data_dir, data_name, randVars, fixedV
                 #run differential expression
                 #this produces one list per contrast comparison.
                 # no interaction or absolute effects for region-specific tests.
-                z<-differential_expression_one_cell_type(dge_cell, fixedVars, randVars, contrast_defs,
+                z<-differential_expression_one_cell_type(dge_cell_region, fixedVars, randVars, contrast_defs,
                                                          interaction_var=NULL, absolute_effects=FALSE,
                                                          verbose = TRUE, n_cores = n_cores)
 
