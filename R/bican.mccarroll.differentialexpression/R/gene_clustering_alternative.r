@@ -9,11 +9,11 @@
 # - Euclidean on PCs approximates correlation after row z-scoring.
 
 
-library(Seurat)
+#library(Seurat)
 
-in_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/old/sex_age/cell_type_region_interaction_absolute_effects"
-file_pattern="age"
-cellTypeListFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/mash_cell_type_list_simple.txt"
+# in_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/old/sex_age/cell_type_region_interaction_absolute_effects"
+# file_pattern="age"
+# cellTypeListFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/mash_cell_type_list_simple.txt"
 
 run_me<-function (in_dir, file_pattern="age", cellTypeListFile=NULL) {
     d=parse_de_inputs(in_dir, file_pattern, cellTypeListFile)
