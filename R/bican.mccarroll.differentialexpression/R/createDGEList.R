@@ -37,6 +37,7 @@
 #' @param metadata_columns Character vector of metadata column names to include from \code{cell_metadata_file}.  The
 #' program will automatically capture donor, cell type, region, and village (if applicable).
 #' @param has_village Logical; if \code{TRUE}, the donor names in the metacell files are expected to be in the format \code{donor_village}.
+#' @param single_cell_assay Optional; if provided, restricts data to a specific assay type (e.g., "10X-GEMX-3P").
 #' @param outDir Optional; directory to save the merged \code{DGEList} object as two gzipped TSV files.
 #' @param outName Optional; prefix for the output files. If \code{NULL}, no files are saved.
 #' @param validate_round_trip Logical; if \code{TRUE}, validates the saved DGEList by loading it back and comparing to the original.
@@ -47,9 +48,16 @@
 #' @export
 #' @import data.table edgeR
 build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, metadata_columns, has_village=T,
-                             outDir=NULL, outName=NULL, validate_round_trip=F) {
+                             single_cell_assay=NULL, outDir=NULL, outName=NULL, validate_round_trip=F) {
     # Read cell metadata
     cell_metadata <- data.table::fread(cell_metadata_file, data.table=F)
+
+    #Filter to assay if required
+    if (!is.null(single_cell_assay)) {
+        rows_original=nrow(cell_metadata)
+        cell_metadata <- cell_metadata[cell_metadata$single_cell_assay == single_cell_assay, , drop = FALSE]
+        logger::log_info(paste("Filtered cell metadata to assay", single_cell_assay, ":", nrow(cell_metadata), "of", rows_original, "rows retained."))
+    }
 
     # handle mixed assay types
     cell_metadata<- addMixedAssayType(cell_metadata)
@@ -438,13 +446,18 @@ replace_na_strings <- function(df) {
 #' @param metricsDF A data frame containing at least the columns
 #'   `single_cell_assay`, `donor_external_id`, and `brain_region_abbreviation`.
 #'  Each row represents a nuclei for a donor with a corresponding assay type / region
-#'
+#' @param has_village Logical; if \code{TRUE}, the metricsDF contains a metadata column
+#' that can be used to distinguish a donor run in two different villages from each other.
 #' @return A data frame identical to `metricsDF` except that for donors associated
 #'   with more than one distinct `single_cell_assay` in a region, the `single_cell_assay`
 #'   value is set to `"mixed"` in all rows for that donor-region combination.
-addMixedAssayType <- function(metricsDF) {
+addMixedAssayType <- function(metricsDF, has_village=TRUE) {
     # Get unique combinations of assay, donor, and region
-    distinct_rows <- unique(metricsDF[, c("single_cell_assay", "donor_external_id", "brain_region_abbreviation")])
+    columns=c("single_cell_assay", "donor_external_id", "brain_region_abbreviation")
+    if (has_village & ("village" %in% colnames(metricsDF)))
+        columns=c(columns, "village")
+
+    distinct_rows <- unique(metricsDF[, columns])
 
     # Create a composite label for donor-region
     distinct_rows$donor_region <- paste(distinct_rows$donor_external_id,

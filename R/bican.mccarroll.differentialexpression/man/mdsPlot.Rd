@@ -16,13 +16,13 @@ mdsPlot(
 \arguments{
 \item{dge}{DGEList. An edgeR DGEList object containing counts and sample metadata.}
 
-\item{required_vars}{Character vector. Sample‑metadata columns to include in the MDS plot.}
+\item{required_vars}{Character vector. Sample-metadata columns to include in the MDS plot.}
 
 \item{num_samples}{Integer or NULL. Maximum number of samples to randomly select; if NULL, all samples are used.}
 
 \item{outMDSPlotRoot}{Character. Directory in which to save the resulting HTML MDS plots. (Optional)}
 
-\item{data_name}{Character. Prefix for output filenames and titles (e.g., “All Nuclei”).}
+\item{data_name}{Character. Prefix for output filenames and titles (for example, "All Nuclei").}
 
 \item{outMDSCoordinatesDir}{Character. Directory to save MDS coordinates. (Optional)}
 }
@@ -32,6 +32,6 @@ Invisibly returns NULL. Side effects:
 }
 \description{
 Optionally subsample a DGEList to a fixed number of libraries, round metadata,
-and produce continuous‑ and discrete‑colour MDS plots via Glimma. The HTML widgets
+and produce continuous and discrete-color MDS plots via Glimma. The HTML widgets
 are saved to disk with titles indicating the data subset.
 }

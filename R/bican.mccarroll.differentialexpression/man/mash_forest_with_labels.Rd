@@ -41,36 +41,36 @@ mash_forest_with_labels(
 
 \item{level}{Two-sided posterior CI level (default `0.95`).}
 
-\item{metric}{One of `c("lfsr","custom")`. If `"lfsr"`, uses
-`ashr::get_lfsr(m)`; if `"custom"`, supply `metric_matrix` with same
+\item{metric}{One of `c("lfsr", "custom")`. If `"lfsr"`, uses
+`ashr::get_lfsr(m)`; if `"custom"`, supply `metric_matrix` with the same
 dimensions as `ashr::get_pm(m)`.}
 
-\item{metric_matrix}{Numeric matrix used when `metric="custom"`.}
+\item{metric_matrix}{Numeric matrix used when `metric = "custom"`.}
 
-\item{thresh}{Threshold for `metric` (e.g., `0.05` for lfsr).}
+\item{thresh}{Threshold for `metric` (for example, `0.05` for lfsr).}
 
-\item{call_rule}{One of `c("metric","ci","both","either")` determining how
-per-condition “significant” is defined.}
+\item{call_rule}{One of `c("metric", "ci", "both", "either")` determining how
+per-condition "significant" is defined.}
 
-\item{col_sig, col_ns}{Colors for significant / not significant **points**.}
+\item{col_sig, col_ns}{Colors for significant and not significant **points**.}
 
-\item{ci_sig, ci_ns}{Colors for significant / not significant **CIs**.}
+\item{ci_sig, ci_ns}{Colors for significant and not significant **CIs**.}
 
-\item{lwd_sig, lwd_ns}{Line widths for significant / not significant CIs.}
+\item{lwd_sig, lwd_ns}{Line widths for significant and not significant CIs.}
 
 \item{pch_pts}{Point shape for posterior means.}
 
 \item{cex_names}{Size of condition labels on the y-axis.}
 
-\item{order_by}{One of `c("effect","abs_effect","none")` for row order.}
+\item{order_by}{One of `c("effect", "abs_effect", "none")` for row order.}
 
-\item{top_largest}{Logical. If `TRUE` (default), largest effects appear at top.}
+\item{top_largest}{Logical. If `TRUE` (default), largest effects appear at the top.}
 
-\item{colors}{Optional list like `meta.colors()` to control bg/axes/text.}
+\item{colors}{Optional list like `meta.colors()` to control background, axes, and text.}
 
 \item{zero_col}{Color of the vertical zero line.}
 
-\item{plot_raw}{Logical. If `TRUE`, overlay raw (input) mean ± CI using
+\item{plot_raw}{Logical. If `TRUE`, overlay raw (input) mean +/- CI using
 `m$data$Bhat` and `m$data$Shat`. Requires that those matrices are present
 in `m$data`. Default `FALSE`.}
 
@@ -81,10 +81,14 @@ in `m$data`. Default `FALSE`.}
 \item{lwd_raw}{Line width for raw CIs (default `1`).}
 
 \item{pch_raw}{Point shape for raw means (default `16`).}
+
+\item{raw_y_offset}{Vertical offset for raw overlay points/CIs relative to posterior points (default `0.18`).}
+
+\item{raw_side}{One of `c("below","above")` setting where the raw overlay is placed relative to posterior points.}
 }
 \value{
 (Invisibly) a list with the vectors used for plotting:
-  `sig`, `order`, `lo`, `hi`, `pm`, and if `plot_raw=TRUE`,
+  `sig`, `order`, `lo`, `hi`, `pm`, and if `plot_raw = TRUE`,
   `raw_lo`, `raw_hi`, `raw_pm`.
 }
 \description{

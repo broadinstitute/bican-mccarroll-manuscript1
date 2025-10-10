@@ -28,16 +28,16 @@ from the output columns; if `TRUE`, keep it.}
   private components).
 - `"requested"`: friendlier relabeling: keep raw cell-type names for
   private components, preserve each `ED_*` family as-is, map
-  `"equal_effects"`/`"EE"` → `"shared"`, and `"identity"` → `"independent"`.}
+  `"equal_effects"`/`"EE"` -> `"shared"`, and `"identity"` -> `"independent"`.}
 }
 \value{
 A list with:
 \describe{
-  \item{assignment}{`data.frame(gene, label, post_weight)` — per-gene hard
+  \item{assignment}{`data.frame(gene, label, post_weight)` - per-gene hard
   label (argmax family) and its collapsed posterior weight.}
   \item{counts}{`table` of hard-label counts (descending).}
   \item{fractions}{Named numeric vector: percentage for each label.}
-  \item{weights_collapsed}{Matrix [genes × families] of **soft** weights,
+  \item{weights_collapsed}{Matrix [genes x families] of **soft** weights,
   obtained by summing posterior weights across all scales/variants that
   belong to the same family. Row names are gene IDs.}
   \item{labels}{Character vector of family labels (column order of

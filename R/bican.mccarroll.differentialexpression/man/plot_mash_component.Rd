@@ -35,9 +35,6 @@ component name and mode.}
 \item{cex}{Axis label size.}
 
 \item{palette}{Color vector for `image()`.}
-
-\item{annotate_pi}{Logical; if `TRUE` and `mixing_proportions` is given,
-append π for this component to the title. Default `FALSE`.}
 }
 \value{
 Invisibly returns the matrix that was plotted (after any transform).

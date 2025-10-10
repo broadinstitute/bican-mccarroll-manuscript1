@@ -89,7 +89,7 @@
 #     covariate_cols <- covariate_cols[usable_global]
 #
 #     # (D) Optional: tighten further by checking *per assay* variability among samples with nonzero counts
-#     # If this eliminates everything, we’ll fall back to ~1 automatically.
+#     # If this eliminates everything, we'll fall back to ~1 automatically.
 #     assays <- SummarizedExperiment::assayNames(pb)
 #     cols_with_signal <- function(v) {
 #         for (a in assays) {
@@ -118,7 +118,7 @@
 #     # (E) Build a safe formula; fallback to ~1 if nothing remains
 #     form <- if (length(covariate_cols)) stats::reformulate(covariate_cols) else ~ 1
 #
-#     # (F) (Optional) Quick per-assay diagnostics so you can see what’s happening
+#     # (F) (Optional) Quick per-assay diagnostics so you can see what's happening
 #     diag <- lapply(assays, function(a) {
 #         M <- SummarizedExperiment::assay(pb, a)
 #         libsz <- colSums(M)
@@ -180,7 +180,7 @@
 #
 #     # Aggregate to one column per sample (if multiple columns exist)
 #     lab <- as.character(samp_sub[[id_col]])
-#     M_by_sample <- t(rowsum(t(M), group = lab, reorder = FALSE))  # genes × unique(sample)
+#     M_by_sample <- t(rowsum(t(M), group = lab, reorder = FALSE))  # genes x unique(sample)
 #
 #     # Build colData: one row per sample, using the first row per sample
 #     uS <- colnames(M_by_sample)

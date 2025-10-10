@@ -483,6 +483,7 @@ differential_expression_one_cell_type <- function(
 #'
 #' @import variancePartition
 #' @import BiocParallel
+#' @import stats
 #' @export
 continuous_by_factor_differential_expression <- function(
         dge_cell,
@@ -553,9 +554,9 @@ continuous_by_factor_differential_expression <- function(
     })
     fit <- variancePartition::eBayes(fit, trend = TRUE, robust = TRUE)
 
-    # outputs: one topTable per level’s slope
+    # outputs: one topTable per level's slope
     nice_names <- paste0(continuous_var, "_", levs)
-    tabs <- setNames(
+    tabs <- stats::setNames(
         lapply(seq_along(cont_cols), function(i) variancePartition::topTable(fit, coef = cont_cols[i], number = Inf)),
         nice_names
     )
@@ -563,7 +564,7 @@ continuous_by_factor_differential_expression <- function(
     tabs
 }
 
-#' Categorical × categorical DE via a combined factor (named by contrast_defs)
+#' Categorical x categorical DE via a combined factor (named by contrast_defs)
 #'
 #' Builds a combined factor \code{combo = interaction(factor_var, interaction_var)} so each
 #' coefficient is one cell of the grid. Fits \code{~ 0 + combo + other_fixed + (1|rand...)}
@@ -585,7 +586,7 @@ continuous_by_factor_differential_expression <- function(
 #' @param n_cores Integer workers for \code{BiocParallel::MulticoreParam()}.
 #'
 #' @return Named list of \code{data.frame}s. Each is a \code{variancePartition::topTable} for a contrast
-#'   \code{<contrast_name>_<region>} testing mean(comparison, region) − mean(reference, region) = 0.
+#'   \code{<contrast_name>_<region>} testing mean(comparison, region) - mean(reference, region) = 0.
 #'
 #' @import variancePartition
 #' @import BiocParallel
@@ -679,7 +680,7 @@ categorical_by_categorical_differential_expression <- function(
         if (m2 %in% suff)         return(paste0("combo", m2))
         NA_character_
     }
-    combo_map <- setNames(vapply(levC, find_combo_col, character(1)), levC)
+    combo_map <- stats::setNames(vapply(levC, find_combo_col, character(1)), levC)
     if (anyNA(combo_map)) {
         bad <- names(combo_map)[is.na(combo_map)]
         stop("Could not map combo level(s) to design columns: ", paste(bad, collapse = ", "))
@@ -727,7 +728,7 @@ categorical_by_categorical_differential_expression <- function(
     fit <- variancePartition::eBayes(fit, trend = TRUE, robust = TRUE)
 
     # --- results ---
-    tabs <- setNames(
+    tabs <- stats::setNames(
         lapply(colnames(L), function(nm) variancePartition::topTable(fit, coef = nm, number = Inf)),
         colnames(L)
     )
@@ -1089,13 +1090,13 @@ sanitize_contrast_levels <- function(contrast_defs, design_matrix, verbose = TRU
         # pull suffixes for this var from design (means coding: ~ 0 + var)
         var_pat  <- paste0("^", var)
         var_cols <- grep(var_pat, design_cols, value = TRUE)
-        if (!length(var_cols)) return(NA_character_)  # no columns → treat as invalid for this var
+        if (!length(var_cols)) return(NA_character_)  # no columns -> treat as invalid for this var
         lvl_suffixes <- sub(var_pat, "", var_cols)
 
         # tokenize: contiguous level-like chunks; leave operators/parens
         m <- gregexpr("[A-Za-z0-9_.-]+", s, perl = TRUE)
         toks <- regmatches(s, m)[[1]]
-        if (!length(toks)) return(NA_character_)  # nothing meaningful → invalid
+        if (!length(toks)) return(NA_character_)  # nothing meaningful -> invalid
 
         had_unknown <- FALSE
         mapped <- vapply(toks, function(tok) {
@@ -1114,10 +1115,10 @@ sanitize_contrast_levels <- function(contrast_defs, design_matrix, verbose = TRU
             if (tok_sani %in% lvl_suffixes) return(tok_sani)
 
             had_unknown <<- TRUE
-            tok  # keep to reinsert (we’ll null out the whole side below)
+            tok  # keep to reinsert (we'll null out the whole side below)
         }, character(1))
 
-        if (had_unknown) return(NA_character_)  # this side invalid → caller will drop the row
+        if (had_unknown) return(NA_character_)  # this side invalid -> caller will drop the row
 
         # put mapped tokens back (still suffixes, not full var+suffix)
         regmatches(s, m)[[1]] <- mapped
@@ -1351,7 +1352,7 @@ make_volcano <- function(df,
         ) +
         ggplot2::theme_classic(base_size = 12)
 
-    # Symmetric x-axis: ±(1.1 * max |logFC|), also respects lfc_thresh
+    # Symmetric x-axis
     xmax <- max(abs(d$logFC), lfc_thresh, na.rm = TRUE)
     if (is.finite(xmax) && xmax > 0) {
         xlim <- c(-1, 1) * (1.1 * xmax)

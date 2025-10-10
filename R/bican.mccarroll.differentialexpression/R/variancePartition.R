@@ -924,7 +924,7 @@ densityPlot<-function (variance_partition_result_rds_file) {
     varPart_long <- reshape2::melt(as.data.frame(varPart), varnames = c("Gene", "Variable"), value.name = "Variance")
 
     # Make R CMD CHECK happy
-    Gene<-Variable<-Variance<-NULL
+    variable<-Variance<-NULL
 
     #use the variance partition color scheme
     all_vars <- unique(varPart_long$variable)

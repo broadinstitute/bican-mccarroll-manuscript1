@@ -2,7 +2,7 @@
 % Please edit documentation in R/differential_expression.R
 \name{categorical_by_categorical_differential_expression}
 \alias{categorical_by_categorical_differential_expression}
-\title{Categorical × categorical DE via a combined factor (named by contrast_defs)}
+\title{Categorical x categorical DE via a combined factor (named by contrast_defs)}
 \usage{
 categorical_by_categorical_differential_expression(
   dge_cell,
@@ -38,7 +38,7 @@ define which pairs to test, and provide human-friendly names.}
 }
 \value{
 Named list of \code{data.frame}s. Each is a \code{variancePartition::topTable} for a contrast
-  \code{<contrast_name>_<region>} testing mean(comparison, region) − mean(reference, region) = 0.
+  \code{<contrast_name>_<region>} testing mean(comparison, region) - mean(reference, region) = 0.
 }
 \description{
 Builds a combined factor \code{combo = interaction(factor_var, interaction_var)} so each

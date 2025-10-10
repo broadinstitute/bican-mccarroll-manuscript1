@@ -4,32 +4,32 @@
 # estimates were noisy versions of the merged estimates - but it's possible there are region specific
 # effects that are masked by merging.
 
-library (data.table)
-library(ComplexHeatmap)
-library (ggplot2)
-library(circlize)
-#library (pals)
-library(Polychrome)
+# library (data.table)
+# library(ComplexHeatmap)
+# library (ggplot2)
+# library(circlize)
+# library (pals)
+# library(Polychrome)
 
 
 
-merged_input_DE="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type/aggregated_results/age_DE_logFC_uncorrected_matrix_simple2.txt"
-merged_input_clusters="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type/aggregated_results/age_DE_logFC_uncorrected_matrix_simple2.gene_clusters.txt"
-
-region_input_DE="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type_region_interaction_absolute_effects/aggregated_results/age_DE_logFC_uncorrected_matrix_simple2.txt"
-region_input_clusters="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type_region_interaction_absolute_effects/aggregated_results/age_DE_logFC_uncorrected_matrix_simple2.gene_clusters.txt"
-k=14 #the number of clusters we used in the original analysis.
+# merged_input_DE="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type/aggregated_results/age_DE_logFC_uncorrected_matrix_simple2.txt"
+# merged_input_clusters="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type/aggregated_results/age_DE_logFC_uncorrected_matrix_simple2.gene_clusters.txt"
+#
+# region_input_DE="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type_region_interaction_absolute_effects/aggregated_results/age_DE_logFC_uncorrected_matrix_simple2.txt"
+# region_input_clusters="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type_region_interaction_absolute_effects/aggregated_results/age_DE_logFC_uncorrected_matrix_simple2.gene_clusters.txt"
+# k=14 #the number of clusters we used in the original analysis.
 
 
 # Raw vs Mash
-experiment_1_name="Raw"
-input_1_DE="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type/aggregated_results/age_DE_logFC_uncorrected_matrix_simple2.txt"
-input_1_clusters="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type/aggregated_results/age_DE_logFC_uncorrected_matrix_simple2.gene_clusters.txt"
-
-experiment_2_name="mash-corrected"
-input_2_DE="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type/aggregated_results/age_DE_logFC_corrected_matrix_simple2.txt"
-input_2_clusters="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type/aggregated_results/age_DE_logFC_corrected_matrix_simple2.gene_clusters.txt"
-k=16
+# experiment_1_name="Raw"
+# input_1_DE="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type/aggregated_results/age_DE_logFC_uncorrected_matrix_simple2.txt"
+# input_1_clusters="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type/aggregated_results/age_DE_logFC_uncorrected_matrix_simple2.gene_clusters.txt"
+#
+# experiment_2_name="mash-corrected"
+# input_2_DE="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type/aggregated_results/age_DE_logFC_corrected_matrix_simple2.txt"
+# input_2_clusters="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type/aggregated_results/age_DE_logFC_corrected_matrix_simple2.gene_clusters.txt"
+# k=16
 
 
 # experiment_1_name="mash-corrected"
@@ -41,14 +41,14 @@ k=16
 # input_2_clusters="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type/aggregated_results/age_DE_logFC_corrected_Vhat_matrix_simple2.gene_clusters.txt"
 # k=16
 
-logFCRaw="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type/aggregated_results/age_DE_logFC_allgenes_uncorrected_matrix_simple2.txt"
-tstatRaw="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type/aggregated_results/age_DE_tstat_allgenes_uncorrected_matrix_simple2.txt"
-logFCMash="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type/aggregated_results/age_DE_logFC_allgenes_corrected_matrix_simple2.txt"
-tstatMash="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type/aggregated_results/age_DE_tstat_allgenes_corrected_matrix_simple2.txt"
+# logFCRaw="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type/aggregated_results/age_DE_logFC_allgenes_uncorrected_matrix_simple2.txt"
+# tstatRaw="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type/aggregated_results/age_DE_tstat_allgenes_uncorrected_matrix_simple2.txt"
+# logFCMash="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type/aggregated_results/age_DE_logFC_allgenes_corrected_matrix_simple2.txt"
+# tstatMash="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type/aggregated_results/age_DE_tstat_allgenes_corrected_matrix_simple2.txt"
 
 
 
-compare_merged_vs_region_de<-function (merged_input_clusters, region_input_clusters, k=14) {
+compare_merged_vs_region_de<-function (merged_input_clusters, region_input_clusters, merged_input_DE, region_input_DE, k=14) {
     m=read.table(merged_input_clusters, header=TRUE, row.names=1, sep="\t", stringsAsFactors=FALSE)
     r=read.table(region_input_clusters, header=TRUE, row.names=1, sep="\t", stringsAsFactors=FALSE)
 
@@ -109,7 +109,32 @@ compare_two_de_clustering_results<-function (experiment_1_name, input_1_DE, inpu
 }
 
 
-#explore how genes shift from one cluster to another after mash is applied.
+#' @title kMeansclusterShifts
+#' @description
+#' Compare gene cluster memberships and effect sizes between two experiments.
+#'
+#' @details
+#' This function reads paired cluster and differential expression (DE) data
+#' for two experiments, identifies genes in a given source cluster, and
+#' visualizes how those genes redistribute in the second experiment.
+#' It produces both a barplot of destination cluster membership and
+#' a scatterplot comparing raw and mash effect sizes.
+#'
+#' @param experiment_1_name Name of the first experiment.
+#' @param input_1_DE Path to DE results for the first experiment.
+#' @param input_1_clusters Path to cluster assignments for the first experiment.
+#' @param experiment_2_name Name of the second experiment.
+#' @param input_2_DE Path to DE results for the second experiment.
+#' @param input_2_clusters Path to cluster assignments for the second experiment.
+#' @param k Number of clusters to use. Default is 14.
+#'
+#' @return
+#' Invisibly returns a `ggplot` object displaying raw vs mash effect sizes.
+#'
+#' @import ggplot2
+#' @importFrom stats cor
+#' @importFrom graphics barplot
+#' @noRd
 kMeansclusterShifts<-function (experiment_1_name, input_1_DE, input_1_clusters,
                  experiment_2_name, input_2_DE, input_2_clusters,
                  k=14) {
@@ -144,6 +169,9 @@ kMeansclusterShifts<-function (experiment_1_name, input_1_DE, input_1_clusters,
     clusterLabels=cluster_mapping$optimal_mapping$best_match
     cols=category_palette(clusterLabels)
 
+    #Make R CMD CHECK HAPPY
+    rawLogFC<-mashLogFC<-destination<-NULL
+
     ggplot(df, aes(x = rawLogFC, y = mashLogFC, color = destination)) +
         geom_point(alpha = 1, size = 2.5) +
         scale_color_manual(values = cols) +
@@ -162,12 +190,9 @@ kMeansclusterShifts<-function (experiment_1_name, input_1_DE, input_1_clusters,
         ) +
         xlim(limx) + ylim(limx)
 
-
-
-
 }
 
-adhocGeneOrder<-function () {
+adhocGeneOrder<-function (tstatRaw, tstatMash, logFCRaw, logFCMash) {
     rtstat=read.table(tstatRaw, header=TRUE, row.names=1, sep="\t", stringsAsFactors=FALSE, check.names = FALSE)
     mtstat=read.table(tstatMash, header=TRUE, row.names=1, sep="\t", stringsAsFactors=FALSE, check.names = FALSE)
 
@@ -188,8 +213,11 @@ adhocGeneOrder<-function () {
     df$rawSe=abs(df$rawLogFC  / df$rawTstat)
     df$mashSe=abs(df$mashLogFC / df$mashTstat)
 
+    corVal=stats::cor(df$rawLogFC, df$mashLogFC, use="complete.obs")
 
-    corVal=cor(df$rawLogFC, df$mashLogFC, use="complete.obs")
+    #To make R CMD CHECK HAPPY
+    rawLogFC<-mashLogFC<-rawTstat<-mashTstat<-NULL
+
     ggplot(df, aes(x = rawLogFC, y = mashLogFC)) +
         geom_point(alpha = 0.4, size = 1.2) +
         geom_abline(slope = 1, intercept = 0, color = "gray50", linetype = "dotted") +
@@ -205,7 +233,7 @@ adhocGeneOrder<-function () {
             panel.grid.minor = element_blank()
         )
 
-    corVal=cor(df$rawTstat, df$mashTstat, use="complete.obs")
+    corVal=stats::cor(df$rawTstat, df$mashTstat, use="complete.obs")
     ggplot(df, aes(x = rawTstat, y = mashTstat)) +
         geom_point(alpha = 0.4, size = 1.2) +
         geom_abline(slope = 1, intercept = 0, color = "gray50", linetype = "dotted") +
@@ -228,7 +256,20 @@ adhocGeneOrder<-function () {
 
 }
 
-
+#' @title plot_es_compare
+#' @description
+#' Scatter plot comparing raw vs mash effect sizes, with color encoding log2 SE ratio and point size encoding |Δt| (capped).
+#'
+#' @param df Data frame with columns: rawLogFC, rawTstat, mashLogFC, mashTstat.
+#' @param condition Condition label used in the title.
+#' @param corVal Numeric correlation shown in the title.
+#' @param cap_dt Cap for |Δt| used to scale point sizes (default 6).
+#'
+#' @return A ggplot object.
+#'
+#' @import ggplot2
+#' @importFrom scales squish
+#' @noRd
 plot_es_compare <- function(df, condition, corVal, cap_dt = 6) {
     # ---- derived quantities ----
     df$se_raw  <- abs(df$rawLogFC  / df$rawTstat)
@@ -238,6 +279,9 @@ plot_es_compare <- function(df, condition, corVal, cap_dt = 6) {
     df$size_dt <- pmin(abs(df$d_t), cap_dt)
 
     # ---- plot ----
+    # Make R CMD CHECK HAPPY
+    rawLogFC<-mashLogFC<-d_se_l2<-size_dt<-NULL
+
     ggplot(df, aes(x = rawLogFC, y = mashLogFC)) +
         geom_point(
             aes(color = d_se_l2,
@@ -255,7 +299,7 @@ plot_es_compare <- function(df, condition, corVal, cap_dt = 6) {
             midpoint = 0, name = "log2(SE_mash/SE_raw)",
             oob = squish
         ) +
-        scale_size(range = c(0.6, 2.2), name = "|Δt| (capped)") +
+        scale_size(range = c(0.6, 2.2)) +
         labs(
             x = "Raw effect size",
             y = "Mash posterior effect size",
@@ -299,6 +343,31 @@ read_paired_cluster_data<-function (input_1_DE, input_1_clusters,
 
 }
 
+
+#' @title plot_mash_heatmap
+#' @description
+#' Plot a clustered heatmap of mash effect sizes across genes and cell types.
+#'
+#' @details
+#' Transposes an effect size matrix (genes × cell types), assigns each gene to a
+#' cluster, and visualizes effect sizes as a heatmap split by cluster. Cluster
+#' order and optional within-cluster sorting are supported. Color scale spans
+#' blue–white–red to represent negative to positive effects.
+#'
+#' @param effect_size_matrix Numeric matrix of effect sizes with genes as rows
+#'   and cell types as columns.
+#' @param clusters Named vector assigning each gene to a cluster.
+#' @param cluster_order Character vector defining the display order of clusters.
+#' @param column_title Optional title for the heatmap.
+#' @param sort_within_cluster Logical; if `TRUE`, columns are sorted by mean
+#'   absolute effect size within each cluster.
+#'
+#' @return Invisibly draws the heatmap and returns the Heatmap object.
+#'
+#' @importFrom ComplexHeatmap Heatmap HeatmapAnnotation draw anno_block
+#' @importFrom circlize colorRamp2
+#' @importFrom grid gpar unit
+#' @noRd
 #effect_size_matrix=mDE; clusters=geneClustersMerged[commonGenes]; column_title="Merged DE: Age Effects"
 plot_mash_heatmap <- function(effect_size_matrix,
                               clusters,
@@ -349,7 +418,7 @@ plot_mash_heatmap <- function(effect_size_matrix,
         which = "column"
     )
 
-    # blue–white–red scale
+    # blue-white-red scale
     rng <- range(mat, na.rm = TRUE)
     brks <- c(seq(rng[1], 0, length.out = 5), seq(0, rng[2], length.out = 5)[-1])
     col_fun <- circlize::colorRamp2(
@@ -382,7 +451,7 @@ plot_mash_heatmap <- function(effect_size_matrix,
 # ---- helper: default categorical palette (edit here if you want different defaults) ----
 category_palette <- function(levels_vec) {
     # load curated Polychrome Glasbey
-    data("glasbey", package = "Polychrome", envir = environment())
+    utils::data("glasbey", package = "Polychrome", envir = environment())
     base_cols <- get("glasbey", envir = environment())
 
     # drop unreadable colors (whites / pale yellows / very light pastels)
@@ -399,6 +468,27 @@ category_palette <- function(levels_vec) {
 }
 
 #sim=cluster_mapping$similarity_matrix; mapping=cluster_mapping$optimal_mapping
+#' @title plot_clustter_overlap
+#' @description
+#' Plot a heatmap showing overlap or similarity between clusters
+#' from two experiments based on a provided similarity matrix and mapping.
+#'
+#' @details
+#' The function reorders rows and columns of a similarity matrix according to
+#' a mapping of best-matching clusters between experiments, then visualizes
+#' the reordered matrix as a heatmap using `ComplexHeatmap`.
+#'
+#' @param sim Square numeric similarity matrix with row and column names.
+#' @param mapping Data frame with columns `row_factor` and `best_match`
+#'   describing correspondence between cluster labels.
+#' @param experiment_1_name Label for the first experiment (rows).
+#' @param experiment_2_name Label for the second experiment (columns).
+#'
+#' @return A `Heatmap` object.
+#'
+#' @importFrom circlize colorRamp2
+#' @importFrom ComplexHeatmap Heatmap
+#' @noRd
 plot_clustter_overlap<- function(sim, mapping, experiment_1_name="Merged", experiment_2_name="Region-Specific") {
 
     # sim: square similarity matrix with row/colnames as string cluster labels
@@ -446,6 +536,9 @@ plot_gene_set_overlaps<-function (genesOne, genesTwo, title="Gene Set Overlaps",
         category=c(paste("Only", experiment_1_name), paste("Only", experiment_2_name), "Both"),
         count=c(length(g1), length(g2), length(gboth))
     )
+    # Make R CMD CHECK HAPPY
+    category<-count<-NULL
+
     p<-ggplot2::ggplot(df, ggplot2::aes(x=category, y=count, fill=category)) +
         ggplot2::geom_bar(stat="identity") +
         ggplot2::theme_minimal() +
@@ -471,7 +564,7 @@ map_clusters_by_gene_overlap <- function(clusters1, clusters2) {
     clusters1 <- clusters1[shared_genes]
     clusters2 <- clusters2[shared_genes]
 
-    # Create cluster → gene sets
+    # Create cluster -> gene sets
     cluster_genes_1 <- split(names(clusters1), clusters1)
     cluster_genes_2 <- split(names(clusters2), clusters2)
 

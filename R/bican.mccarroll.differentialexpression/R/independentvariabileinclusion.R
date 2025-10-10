@@ -43,31 +43,32 @@
 #' Run MDS Plots and QC Report for a DGEList
 #'
 #' Load a precomputed DGEList, validate sample variables, scale PCs,
-#' filter samples by library size, generate per–cell‑type and group MDS plots,
+#' filter samples by library size, generate per-cell-type and group MDS plots,
 #' and compile a QC PDF report including histograms and variable correlations.
-
-#' @param data_dir                Character. Directory containing the precomputed DGEList.
-#' @param data_name               Character. Prefix or name used to load the DGEList object.
+#'
+#' @param data_dir Character. Directory containing the precomputed DGEList.
+#' @param data_name Character. Prefix or name used to load the DGEList object.
 #' @param additionalDonorMetadata A file containing additional donor metadata to merge with the DGEList samples.
 #' The first column is donor, and the other columns will be merged with the DGEList samples.
-#' @param randVars               Character vector. Names of “random” metadata variables for MDS coloring.
-#' @param fixedVars              Character vector. Names of “fixed” metadata variables for MDS grouping.
-#' @param max_num_samples        Integer. Maximum number of samples to include in each MDS plot (default 2500).
-#' @param filter_by_libsize_zscore Numeric. Number of standard deviations below the mean to filter samples by library size (default 1.96).  Set to NULL to disable completely.
-#' @param cellTypeGroupFile      Character or NULL. Path to a two‑column TSV/CSV with columns `cell_type` and `group_label`; if NULL, no group plots are made.
-#' @param outMDSPlotRoot         Character. Directory in which to save the Glimma MDS HTML files.
-#' @param outPDF                 Character. File path for the output QC PDF report.
-#' @param outMDSCoordinatesDir   A directory to emit MDS outputs to, one file per experiment.
+#' @param randVars Character vector. Names of "random" metadata variables for MDS coloring.
+#' @param fixedVars Character vector. Names of "fixed" metadata variables for MDS grouping.
+#' @param max_num_samples Integer. Maximum number of samples to include in each MDS plot (default 2500).
+#' @param filter_by_libsize_zscore Numeric. Number of standard deviations below the mean to filter samples by library size (default 1.96). Set to NULL to disable completely.
+#' @param cellTypeGroupFile Character or NULL. Path to a two-column TSV/CSV with columns `cell_type` and `group_label`; if NULL, no group plots are made.
+#' @param outMDSPlotRoot Character. Directory in which to save the Glimma MDS HTML files.
+#' @param outPDF Character. File path for the output QC PDF report.
+#' @param outMDSCoordinatesDir A directory to emit MDS outputs to, one file per experiment.
+#'
 #' @return
 #' Invisibly returns NULL. Side effects:
 #' - Writes HTML MDS plots to `outMDSPlotRoot`.
-#' - Writes a multi‑page PDF of QC plots to `outPDF`.
+#' - Writes a multi-page PDF of QC plots to `outPDF`.
 #'
 #' @importFrom logger log_info
 #' @importFrom utils read.table
 #' @importFrom grDevices pdf dev.off
 #' @importFrom Glimma glimmaMDS
-#' @importFrom vcd   assocstats
+#' @importFrom vcd assocstats
 #' @importFrom corrplot corrplot
 #' @importFrom edgeR DGEList
 #' @export
@@ -187,18 +188,20 @@ runMDSPlots<-function (data_dir, data_name, additionalDonorMetadata, randVars, f
 #' @title Generate and Save Glimma MDS Plots
 #' @description
 #' Optionally subsample a DGEList to a fixed number of libraries, round metadata,
-#' and produce continuous‑ and discrete‑colour MDS plots via Glimma. The HTML widgets
+#' and produce continuous and discrete-color MDS plots via Glimma. The HTML widgets
 #' are saved to disk with titles indicating the data subset.
 #'
-#' @param dge            DGEList. An edgeR DGEList object containing counts and sample metadata.
-#' @param required_vars  Character vector. Sample‑metadata columns to include in the MDS plot.
-#' @param num_samples    Integer or NULL. Maximum number of samples to randomly select; if NULL, all samples are used.
+#' @param dge DGEList. An edgeR DGEList object containing counts and sample metadata.
+#' @param required_vars Character vector. Sample-metadata columns to include in the MDS plot.
+#' @param num_samples Integer or NULL. Maximum number of samples to randomly select; if NULL, all samples are used.
 #' @param outMDSPlotRoot Character. Directory in which to save the resulting HTML MDS plots. (Optional)
-#' @param data_name      Character. Prefix for output filenames and titles (e.g., “All Nuclei”).
+#' @param data_name Character. Prefix for output filenames and titles (for example, "All Nuclei").
 #' @param outMDSCoordinatesDir Character. Directory to save MDS coordinates. (Optional)
+#'
 #' @return
 #' Invisibly returns NULL. Side effects:
 #' - Saves two HTML Glimma MDS plots (`<data_name>_continuous.html` and `<data_name>_discrete.html`) in `outMDSPlotRoot`.
+#'
 #' @import htmlwidgets Glimma logger
 mdsPlot<-function (dge, required_vars, num_samples=NULL, outMDSPlotRoot, data_name="All nuclei", outMDSCoordinatesDir=NULL) {
     #why bother if you're not emitting results?
@@ -294,16 +297,16 @@ round_df_sig <- function(df, digits = 3L) {
 #' Compute Pairwise Variable Associations
 #'
 #' Calculates a matrix of pairwise association measures for the specified columns
-#' in a data frame. Numeric–numeric pairs use Pearson correlation; factor–factor
-#' pairs use Cramér's V
-#' @param df             A data.frame containing the variables to test.
-#' @param cols_to_test   Character vector of column names in df to include.
-#' @return A square numeric matrix (length(cols_to_test) × length(cols_to_test))
+#' in a data frame. Numeric-numeric pairs use Pearson correlation; factor-factor
+#' pairs use Cramer's V.
+#' @param df           A data.frame containing the variables to test.
+#' @param cols_to_test Character vector of column names in df to include.
+#' @return A square numeric matrix (length(cols_to_test) x length(cols_to_test))
 #'   with row/column names = cols_to_test, containing:
 #'   \itemize{
-#'     \item Pearson correlation for numeric–numeric
-#'     \item Cramér's V for factor–factor
-#'     \item √(SS_between/SS_total) for numeric–factor or factor–numeric
+#'     \item Pearson correlation for numeric-numeric
+#'     \item Cramer's V for factor-factor
+#'     \item sqrt(SS_between / SS_total) for numeric-factor or factor-numeric
 #'   }
 #'
 #' @details
@@ -387,7 +390,7 @@ scale_PC_cols <- function(df) {
 
     # loop over those columns and replace with scaled values
     for (j in pc.cols) {
-        # scale() returns a 1‐column matrix, so pull out the vector
+        # scale() returns a 1-column matrix, so pull out the vector
         df[[j]] <- as.numeric(scale(df[[j]], center = TRUE, scale = TRUE))
     }
     return (df)

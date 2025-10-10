@@ -4,12 +4,15 @@
 \alias{addMixedAssayType}
 \title{Flag donors with multiple assay types in the same region}
 \usage{
-addMixedAssayType(metricsDF)
+addMixedAssayType(metricsDF, has_village = TRUE)
 }
 \arguments{
 \item{metricsDF}{A data frame containing at least the columns
  `single_cell_assay`, `donor_external_id`, and `brain_region_abbreviation`.
 Each row represents a nuclei for a donor with a corresponding assay type / region}
+
+\item{has_village}{Logical; if \code{TRUE}, the metricsDF contains a metadata column
+that can be used to distinguish a donor run in two different villages from each other.}
 }
 \value{
 A data frame identical to `metricsDF` except that for donors associated

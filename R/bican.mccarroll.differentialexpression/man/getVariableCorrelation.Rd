@@ -12,18 +12,18 @@ getVariableCorrelation(df, cols_to_test = c())
 \item{cols_to_test}{Character vector of column names in df to include.}
 }
 \value{
-A square numeric matrix (length(cols_to_test) × length(cols_to_test))
+A square numeric matrix (length(cols_to_test) x length(cols_to_test))
   with row/column names = cols_to_test, containing:
   \itemize{
-    \item Pearson correlation for numeric–numeric
-    \item Cramér's V for factor–factor
-    \item √(SS_between/SS_total) for numeric–factor or factor–numeric
+    \item Pearson correlation for numeric-numeric
+    \item Cramer's V for factor-factor
+    \item sqrt(SS_between / SS_total) for numeric-factor or factor-numeric
   }
 }
 \description{
 Calculates a matrix of pairwise association measures for the specified columns
-in a data frame. Numeric–numeric pairs use Pearson correlation; factor–factor
-pairs use Cramér's V
+in a data frame. Numeric-numeric pairs use Pearson correlation; factor-factor
+pairs use Cramer's V.
 }
 \details{
 Rows with any missing values in the selected columns are dropped. Character

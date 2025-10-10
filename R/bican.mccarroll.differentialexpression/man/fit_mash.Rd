@@ -7,11 +7,8 @@
 fit_mash(
   Bhat,
   Shat,
-  FDR,
   npc = 5L,
-  n_null_est = 5000L,
   missing_mask = NULL,
-  add.mem.profile = TRUE,
   only_cannonical_matrixes = F,
   exclude_truncated_pca_matrix = F,
   strong_gene_fdr_threshold = 0.01,
@@ -19,18 +16,21 @@ fit_mash(
 )
 }
 \arguments{
-\item{Bhat}{Numeric matrix of effect estimates (genes x cell types).}
+\item{Bhat}{Numeric matrix of effect estimates (genes × cell types).}
 
-\item{Shat}{Numeric matrix of standard errors (same dimensions as \code{Bhat});
-must be finite and strictly positive.}
+\item{Shat}{Numeric matrix of standard errors (same shape as \code{Bhat}); finite and >0.}
 
-\item{FDR}{Numeric matrix of FDR estimates (genes x cell types)}
+\item{npc}{Integer. Number of PCs to seed data-driven covariances; capped at \code{ncol(Bhat)}. Default \code{5L}.}
 
-\item{npc}{Integer. Number of principal components used to seed
-data-driven covariances (capped at \code{ncol(Bhat)}). Default: \code{5L}.}
+\item{missing_mask}{Logical matrix indicating missing entries in \code{Bhat}/\code{Shat}; optional.}
 
-\item{lfsr_null_threshold}{Integer. lfsr threshold that all conditions must be above
-to include a gene in the null.}
+\item{only_cannonical_matrixes}{Logical. If \code{TRUE}, use only canonical covariances. Default \code{FALSE}.}
+
+\item{exclude_truncated_pca_matrix}{Logical. If \code{TRUE}, drop truncated PCA covariance from ED list. Default \code{FALSE}.}
+
+\item{strong_gene_fdr_threshold}{Numeric. FDR threshold to define "strong" genes for learning covariances. Default \code{0.01}.}
+
+\item{lfsr_null_threshold}{Numeric. lfsr threshold that all conditions must exceed to treat a gene as null when estimating \eqn{V}. Default \code{0.2}.}
 }
 \value{
 A fitted \code{mash} object (use \code{mashr} accessors such as

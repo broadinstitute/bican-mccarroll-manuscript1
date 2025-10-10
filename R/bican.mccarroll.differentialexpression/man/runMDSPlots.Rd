@@ -26,15 +26,15 @@ runMDSPlots(
 \item{additionalDonorMetadata}{A file containing additional donor metadata to merge with the DGEList samples.
 The first column is donor, and the other columns will be merged with the DGEList samples.}
 
-\item{randVars}{Character vector. Names of “random” metadata variables for MDS coloring.}
+\item{randVars}{Character vector. Names of "random" metadata variables for MDS coloring.}
 
-\item{fixedVars}{Character vector. Names of “fixed” metadata variables for MDS grouping.}
+\item{fixedVars}{Character vector. Names of "fixed" metadata variables for MDS grouping.}
 
 \item{max_num_samples}{Integer. Maximum number of samples to include in each MDS plot (default 2500).}
 
-\item{filter_by_libsize_zscore}{Numeric. Number of standard deviations below the mean to filter samples by library size (default 1.96).  Set to NULL to disable completely.}
+\item{filter_by_libsize_zscore}{Numeric. Number of standard deviations below the mean to filter samples by library size (default 1.96). Set to NULL to disable completely.}
 
-\item{cellTypeGroupFile}{Character or NULL. Path to a two‑column TSV/CSV with columns `cell_type` and `group_label`; if NULL, no group plots are made.}
+\item{cellTypeGroupFile}{Character or NULL. Path to a two-column TSV/CSV with columns `cell_type` and `group_label`; if NULL, no group plots are made.}
 
 \item{outMDSPlotRoot}{Character. Directory in which to save the Glimma MDS HTML files.}
 
@@ -45,10 +45,10 @@ The first column is donor, and the other columns will be merged with the DGEList
 \value{
 Invisibly returns NULL. Side effects:
 - Writes HTML MDS plots to `outMDSPlotRoot`.
-- Writes a multi‑page PDF of QC plots to `outPDF`.
+- Writes a multi-page PDF of QC plots to `outPDF`.
 }
 \description{
 Load a precomputed DGEList, validate sample variables, scale PCs,
-filter samples by library size, generate per–cell‑type and group MDS plots,
+filter samples by library size, generate per-cell-type and group MDS plots,
 and compile a QC PDF report including histograms and variable correlations.
 }

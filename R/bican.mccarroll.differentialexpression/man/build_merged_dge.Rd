@@ -10,6 +10,7 @@ build_merged_dge(
   cell_metadata_file,
   metadata_columns,
   has_village = T,
+  single_cell_assay = NULL,
   outDir = NULL,
   outName = NULL,
   validate_round_trip = F
@@ -26,6 +27,8 @@ build_merged_dge(
 program will automatically capture donor, cell type, region, and village (if applicable).}
 
 \item{has_village}{Logical; if \code{TRUE}, the donor names in the metacell files are expected to be in the format \code{donor_village}.}
+
+\item{single_cell_assay}{Optional; if provided, restricts data to a specific assay type (e.g., "10X-GEMX-3P").}
 
 \item{outDir}{Optional; directory to save the merged \code{DGEList} object as two gzipped TSV files.}
 

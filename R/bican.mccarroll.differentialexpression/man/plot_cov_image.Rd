@@ -16,7 +16,7 @@ plot_cov_image(
 )
 }
 \arguments{
-\item{U}{symmetric matrix (a mash component).}
+\item{U}{symmetric matrix (mash component).}
 
 \item{mode}{one of "cov", "cor", "trace":
 - "cov": plot U directly (magnitude + shape)
