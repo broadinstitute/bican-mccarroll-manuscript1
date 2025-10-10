@@ -78,6 +78,8 @@
 #' @noRd
 run_mashr<-function (in_dir, file_pattern="age", cellTypeListFile=NULL, npc=5, out_uncorrected_effect_size_matrix, out_corrected_effect_size_matrix) {
 
+    .need_pkg("mashr")
+
     # parse the inputs
     d=parse_de_inputs(in_dir, file_pattern, cellTypeListFile)
 
@@ -1675,6 +1677,12 @@ mash_export_tstats <- function(mash_fit, file = "mash_post_tstat.csv") {
     utils::write.table(ptstat, file = file, quote = FALSE, sep="\t")
 }
 
+.need_pkg <- function(pkg) {
+    if (!requireNamespace(pkg, quietly = TRUE)) {
+        stop(sprintf("%s is required for this function. Install with install.packages('%s').", pkg, pkg),
+             call. = FALSE)
+    }
+}
 ##########################
 # CLUSTER GENES POST-MASH (ADHOC)
 ##########################

@@ -451,34 +451,34 @@ replace_na_strings <- function(df) {
 #' @return A data frame identical to `metricsDF` except that for donors associated
 #'   with more than one distinct `single_cell_assay` in a region, the `single_cell_assay`
 #'   value is set to `"mixed"` in all rows for that donor-region combination.
-addMixedAssayType <- function(metricsDF, has_village=TRUE) {
-    # Get unique combinations of assay, donor, and region
-    columns=c("single_cell_assay", "donor_external_id", "brain_region_abbreviation")
-    if (has_village & ("village" %in% colnames(metricsDF)))
-        columns=c(columns, "village")
+addMixedAssayType <- function(metricsDF, has_village = TRUE) {
+    # Columns that define a distinct donor-region-(village) combination
+    base_cols <- c("donor_external_id", "brain_region_abbreviation")
+    label_cols <- if (has_village && ("village" %in% colnames(metricsDF))) {
+        c(base_cols, "village")
+    } else {
+        base_cols
+    }
 
-    distinct_rows <- unique(metricsDF[, columns])
+    # Unique rows over assay + label-defining columns
+    columns <- c("single_cell_assay", label_cols)
+    distinct_rows <- unique(metricsDF[, columns, drop = FALSE])
 
-    # Create a composite label for donor-region
-    distinct_rows$donor_region <- paste(distinct_rows$donor_external_id,
-                                        distinct_rows$brain_region_abbreviation,
-                                        sep = "_")
+    # Composite key for grouping
+    distinct_rows$key <- do.call(paste, c(distinct_rows[, label_cols, drop = FALSE], sep = "_"))
 
-    # Identify donor-region pairs with more than one assay
-    donor_region_counts <- table(distinct_rows$donor_region)
-    mixed_donor_regions <- names(donor_region_counts[donor_region_counts > 1])
+    # Identify keys with >1 assay
+    key_counts <- table(distinct_rows$key)
+    mixed_keys <- names(key_counts[key_counts > 1])
 
-    # Tag original rows for those mixed donor-regions
-    donor_region_all <- paste(metricsDF$donor_external_id,
-                              metricsDF$brain_region_abbreviation,
-                              sep = "_")
-
-    idx_mixed <- which(donor_region_all %in% mixed_donor_regions)
+    # Tag original rows matching mixed keys
+    all_keys <- do.call(paste, c(metricsDF[, label_cols, drop = FALSE], sep = "_"))
+    idx_mixed <- which(all_keys %in% mixed_keys)
     if (length(idx_mixed) > 0) {
         metricsDF$single_cell_assay[idx_mixed] <- "NextGEM:GEMX"
     }
 
-    return(metricsDF)
+    metricsDF
 }
 
 #' Parse the cell type proportions PCA file and add to the metrics DF.
