@@ -3,17 +3,16 @@
 # library(data.table)
 
 
-# metacell_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
-# manifest_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/DE_manifest.txt"
-# cell_metadata_file="/broad/bican_um1_mccarroll/RNAseq/analysis/cellarium_upload/CAP_freeze_2/CAP_cell_metadata.annotated.txt.gz"
-# cellTypeProportionsPCAFile=NULL
-# has_village=T;
+metacell_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
+manifest_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/DE_manifest.txt"
+cell_metadata_file="/broad/bican_um1_mccarroll/RNAseq/analysis/cellarium_upload/CAP_freeze_2/CAP_cell_metadata.annotated.txt.gz"
+cellTypeProportionsPCAFile=NULL; single_cell_assay=NULL
 
 # this doesn't include donor, region or village, as those are
 # automatically added by the manifest processing.
-# metadata_columns=c("biobank", "cohort", "age", "imputed_sex", "pmi_hr", "PC1", "PC2", "PC3", "PC4", "PC5", "toxicology_group", "single_cell_assay", "pct_intronic", "frac_contamination", "hbcac_status")
-# outDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
-# outName="donor_rxn_DGEList"
+metadata_columns=c("biobank", "cohort", "age", "imputed_sex", "pmi_hr", "PC1", "PC2", "PC3", "PC4", "PC5", "toxicology_group", "single_cell_assay", "pct_intronic", "frac_contamination", "hbcac_status")
+outDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
+outName="donor_rxn_DGEList"
 
 # z=bican.mccarroll.differentialexpression::build_merged_dge(manifest_file, metacell_dir, cell_metadata_file, metadata_columns,has_village, outDir, outName, validate_round_trip=T)
 
@@ -36,7 +35,6 @@
 #' @param cell_metadata_file Path to the TSV file containing donor-level metadata.
 #' @param metadata_columns Character vector of metadata column names to include from \code{cell_metadata_file}.  The
 #' program will automatically capture donor, cell type, region, and village (if applicable).
-#' @param has_village Logical; if \code{TRUE}, the donor names in the metacell files are expected to be in the format \code{donor_village}.
 #' @param single_cell_assay Optional; if provided, restricts data to a specific assay type (e.g., "10X-GEMX-3P").
 #' @param outDir Optional; directory to save the merged \code{DGEList} object as two gzipped TSV files.
 #' @param outName Optional; prefix for the output files. If \code{NULL}, no files are saved.
@@ -47,7 +45,7 @@
 #'
 #' @export
 #' @import data.table edgeR
-build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, metadata_columns, has_village=T,
+build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, metadata_columns,
                              single_cell_assay=NULL, outDir=NULL, outName=NULL, validate_round_trip=F) {
     # Read cell metadata
     cell_metadata <- data.table::fread(cell_metadata_file, data.table=F)
@@ -60,7 +58,7 @@ build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, me
     }
 
     # handle mixed assay types
-    cell_metadata<- addMixedAssayType(cell_metadata)
+    # cell_metadata<- addMixedAssayType(cell_metadata)
 
     # Add cell type proportions PCA scores to the cell metadata
     # if (!is.null(cellTypeProportionsPCAFile)) {
@@ -75,7 +73,7 @@ build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, me
     dge_list <- vector("list", length = nrow(manifest))
     for (i in seq_len(nrow(manifest))) {
         logger::log_info(paste("Processing metacell file ", i, "of", nrow(manifest), ":", manifest[i,]$output_name))
-        dge_list[[i]] <- process_metacell_file(manifest[i], metacell_dir, cell_metadata, metadata_columns, has_village=has_village)
+        dge_list[[i]] <- process_metacell_file(manifest[i], metacell_dir, cell_metadata, metadata_columns)
     }
 
     dge_list <- Filter(Negate(is.null), dge_list)
@@ -118,14 +116,13 @@ build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, me
 #' @param metacell_dir Directory containing the \code{*.metacells.txt.gz} count matrix files.
 #' @param cell_metadata A \code{data.frame} containing per-cell metadata used to extract donor-level annotations.
 #' @param metadata_columns A character vector of column names to be pulled from \code{cell_metadata} for each donor.
-#' @param has_village Logical; if \code{TRUE}, split the column names in the metacell into donor_village.
 #'
 #' @return A \code{DGEList} object with renamed sample columns and additional metadata in \code{dge$samples}.
 #' @import data.table edgeR
 #' @keywords internal
 
 #manifest_row=manifest[1];
-process_metacell_file <- function(manifest_row, metacell_dir, cell_metadata, metadata_columns, has_village=TRUE) {
+process_metacell_file <- function(manifest_row, metacell_dir, cell_metadata, metadata_columns) {
     file_path <- file.path(metacell_dir, paste0(manifest_row$output_name, ".metacells.txt.gz"))
 
     if (!file.exists(file_path)) {
@@ -145,16 +142,13 @@ process_metacell_file <- function(manifest_row, metacell_dir, cell_metadata, met
 
     # Rename columns: donor__celltype__region
     donors <- colnames(mat)
-    villages=NULL
-    if (has_village) {
-        # Split donor names into donor and village
-        donor_parts <- strsplit(donors, "_", fixed = TRUE)
-        donors <- sapply(donor_parts, function(x) x[1])  # Take the first part as donor
-        villages <- sapply(donor_parts, function(x) paste(x[-1], collapse = "_"))  # Join the rest as village
-        new_names <- paste0(donors, "__", villages, "__", manifest_row$cell_type_name, "__", manifest_row$region_name)
-    } else {
-        new_names <- paste0(donors, "__", manifest_row$cell_type_name, "__", manifest_row$region_name)
-    }
+
+    # Split donor names into donor and village
+    donor_parts <- strsplit(donors, "_", fixed = TRUE)
+    donors <- sapply(donor_parts, function(x) x[1])  # Take the first part as donor
+    villages <- sapply(donor_parts, function(x) paste(x[2], collapse = "_"))  # Join the rest as village
+    chemistry<- sapply(donor_parts, function(x) paste(x[c(-1,-2)], collapse = "_"))  # Join the rest as village
+    new_names <- paste0(donors, "__", villages, "__", manifest_row$cell_type_name, "__", manifest_row$region_name, "__", chemistry)
 
     colnames(mat) <- new_names
 
@@ -166,9 +160,11 @@ process_metacell_file <- function(manifest_row, metacell_dir, cell_metadata, met
     dge$samples$donor <- donors
     dge$samples$cell_type <- manifest_row$cell_type_name
     dge$samples$region <- manifest_row$region_name
+    dge$samples$village <- villages
 
-    if (has_village)
-        dge$samples$village <- villages
+    #chemistry is now being directly handled by file name.
+    dge$samples$single_cell_assay <- chemistry
+    metadata_columns_final=setdiff(metadata_columns, "single_cell_assay")
 
     #add donor level metadata
     # first subset the cell metadata to the filtered cell type information based on the manifest
@@ -186,7 +182,7 @@ process_metacell_file <- function(manifest_row, metacell_dir, cell_metadata, met
         return(dge)
     }
     # Add donor annotations
-    dge <- add_donor_annotations(dge, cell_metadata_this, metadata_columns)
+    dge <- add_donor_annotations(dge, cell_metadata_this, metadata_columns_final)
 
     #add the "use" columns.
     useCols=c("MDS", "differential_expression", "eQTL_Analysis")

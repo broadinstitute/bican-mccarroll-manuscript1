@@ -752,7 +752,7 @@ drop_single_level_rand_effects <- function(randVars, metadata, verbose = TRUE) {
         if (length(unique_levels) <= 1) {
             retainedVars <- setdiff(retainedVars, var)
             if (verbose) {
-                message(paste0("Dropping random effect '", var, "' - only ", length(unique_levels), " level(s) present in data."))
+                message(paste0("Dropping coefficient '", var, "' - only ", length(unique_levels), " level(s) present in data."))
             }
         }
     }

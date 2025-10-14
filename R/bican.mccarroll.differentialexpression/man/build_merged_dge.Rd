@@ -9,7 +9,6 @@ build_merged_dge(
   metacell_dir,
   cell_metadata_file,
   metadata_columns,
-  has_village = T,
   single_cell_assay = NULL,
   outDir = NULL,
   outName = NULL,
@@ -25,8 +24,6 @@ build_merged_dge(
 
 \item{metadata_columns}{Character vector of metadata column names to include from \code{cell_metadata_file}.  The
 program will automatically capture donor, cell type, region, and village (if applicable).}
-
-\item{has_village}{Logical; if \code{TRUE}, the donor names in the metacell files are expected to be in the format \code{donor_village}.}
 
 \item{single_cell_assay}{Optional; if provided, restricts data to a specific assay type (e.g., "10X-GEMX-3P").}
 

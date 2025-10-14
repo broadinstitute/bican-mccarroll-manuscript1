@@ -8,8 +8,7 @@ process_metacell_file(
   manifest_row,
   metacell_dir,
   cell_metadata,
-  metadata_columns,
-  has_village = TRUE
+  metadata_columns
 )
 }
 \arguments{
@@ -20,8 +19,6 @@ process_metacell_file(
 \item{cell_metadata}{A \code{data.frame} containing per-cell metadata used to extract donor-level annotations.}
 
 \item{metadata_columns}{A character vector of column names to be pulled from \code{cell_metadata} for each donor.}
-
-\item{has_village}{Logical; if \code{TRUE}, split the column names in the metacell into donor_village.}
 }
 \value{
 A \code{DGEList} object with renamed sample columns and additional metadata in \code{dge$samples}.
