@@ -14,7 +14,7 @@ result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/dif
 retained_features=c("donor", "age")
 donor_col = "donor"
 age_col = "age"
-seed =12
+seed =12345
 fdr_threshold=0.05
 
 
