@@ -608,7 +608,48 @@ plot_variable_by_group <- function(dge, variable = "frac_contamination", group_c
     }
 }
 
-
+#' Plot log-CPM density with quantile ribbons and return filtered DGEList
+#'
+#' Computes per-sample kernel density estimates of log-CPM expression,
+#' overlays quantile ribbons across samples, and draws the across-sample
+#' mean density. Genes are first filtered by a CPM cutoff, and the function
+#' returns both the filtered \code{DGEList} and the \code{ggplot2} object.
+#'
+#' @param dge A \code{DGEList} with raw counts and sample metadata.
+#' @param cpm_cutoff Numeric CPM threshold. Genes with CPM \eqn{\ge} this
+#'   value in at least one sample are kept for density estimation.
+#' @param logCPM_xlim Numeric length-2 vector giving the x-axis limits for
+#'   log-CPM when computing densities and plotting.
+#' @param lower_quantile Numeric in (0, 0.5]. Currently not used; quantile
+#'   ribbons are drawn from 0.5 up to \code{upper_quantile}.
+#' @param upper_quantile Numeric in [0.5, 1). Upper probability for the
+#'   outermost quantile ribbon.
+#' @param quantile_steps Integer \eqn{\ge} 1. Number of equally spaced
+#'   quantile levels between 0.5 and \code{upper_quantile}.
+#'
+#' @return A list with two elements:
+#' \itemize{
+#'   \item \code{filtered_dge}: the input \code{DGEList} filtered to genes
+#'         passing \code{cpm_cutoff} (library sizes not preserved).
+#'   \item \code{plot}: a \code{ggplot2} object showing quantile ribbons of
+#'         the per-sample log-CPM densities and the mean density curve.
+#' }
+#'
+#' @details
+#' For each sample, log-CPM is computed via \code{edgeR::cpm(dge, log = TRUE)}.
+#' Genes are filtered using CPM on the raw scale. Densities are evaluated on a
+#' regular grid defined by \code{logCPM_xlim}. Quantile ribbons are computed
+#' across samples at symmetric lower/upper probabilities (lower = 1 - q,
+#' upper = q) for \code{q} in \code{seq(0.5, upper_quantile, length.out = quantile_steps)}.
+#' A message with the gene counts pre- and post-filtering is logged via
+#' \code{logger::log_info()}.
+#'
+#' @importFrom edgeR cpm
+#' @importFrom stats density quantile
+#' @importFrom grDevices colorRampPalette
+#' @importFrom logger log_info
+#' @import ggplot2
+#' @export
 plot_logCPM_density_quantiles <- function(dge, cpm_cutoff = 0.5, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5) {
     #Make R CMD CHECK HAPPY
     y<- x <- ymin <- ymax <- band <- grid_x <- mean_density <- NULL
@@ -698,6 +739,32 @@ plot_logCPM_density_quantiles <- function(dge, cpm_cutoff = 0.5, logCPM_xlim = c
     return(list(filtered_dge = filtered_dge, plot = p))
 }
 
+#' Filter genes by total expression level
+#'
+#' Selects the top fraction of genes in a \code{DGEList} based on total read
+#' counts across all samples. The retained genes are those with the highest
+#' overall expression, and normalization factors are recomputed on the filtered
+#' object.
+#'
+#' @param dge A \code{DGEList} object containing raw counts and sample metadata.
+#' @param gene_filter_frac Numeric scalar between 0 and 1 specifying the
+#'   fraction of genes to retain, ranked by total counts. For example,
+#'   \code{0.5} retains the top 50\% of genes by expression.
+#' @param verbose Logical; if \code{TRUE}, prints the number of genes retained
+#'   after filtering using \code{logger::log_info()}.
+#'
+#' @return A filtered \code{DGEList} containing only the selected top-expressed
+#'   genes, with recalculated normalization factors.
+#'
+#' @details
+#' Genes are ranked by their total counts (sum across all samples), and the
+#' top \code{gene_filter_frac} fraction is retained. Library sizes are not kept
+#' from the input object (\code{keep.lib.sizes = FALSE}) to ensure consistency
+#' with the recalculated normalization factors.
+#'
+#' @importFrom edgeR calcNormFactors
+#' @importFrom logger log_info
+#' @export
 filter_top_expressed_genes <- function(dge, gene_filter_frac = 0.5, verbose = TRUE) {
     stopifnot("DGEList" %in% class(dge))
     stopifnot(gene_filter_frac > 0 && gene_filter_frac <= 1)
