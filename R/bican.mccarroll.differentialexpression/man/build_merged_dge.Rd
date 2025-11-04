@@ -9,6 +9,7 @@ build_merged_dge(
   metacell_dir,
   cell_metadata_file,
   metadata_columns,
+  split_id = TRUE,
   single_cell_assay = NULL,
   outDir = NULL,
   outName = NULL,
@@ -24,6 +25,9 @@ build_merged_dge(
 
 \item{metadata_columns}{Character vector of metadata column names to include from \code{cell_metadata_file}.  The
 program will automatically capture donor, cell type, region, and village (if applicable).}
+
+\item{split_id}{If the metacell column ID contains underscores, split on the first underscore to separate donor and village.
+If set to false, assume the column is the donor ID and is not a composite key.}
 
 \item{single_cell_assay}{Optional; if provided, restricts data to a specific assay type (e.g., "10X-GEMX-3P").}
 

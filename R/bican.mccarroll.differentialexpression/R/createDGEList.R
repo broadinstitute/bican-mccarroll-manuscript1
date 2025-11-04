@@ -14,7 +14,7 @@
 # outDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
 # outName="donor_rxn_DGEList"
 
-# z=bican.mccarroll.differentialexpression::build_merged_dge(manifest_file, metacell_dir, cell_metadata_file, metadata_columns,has_village, outDir, outName, validate_round_trip=T)
+# z=bican.mccarroll.differentialexpression::build_merged_dge(manifest_file, metacell_dir, cell_metadata_file, metadata_columns, split_id=TRUE, single_cell_assay=NULL, outDir, outName, validate_round_trip=T)
 
 
 # NOTE: For limma/voom runs, there is some metacells groups that are essentially duplicates.
@@ -35,6 +35,8 @@
 #' @param cell_metadata_file Path to the TSV file containing donor-level metadata.
 #' @param metadata_columns Character vector of metadata column names to include from \code{cell_metadata_file}.  The
 #' program will automatically capture donor, cell type, region, and village (if applicable).
+#' @param split_id If the metacell column ID contains underscores, split on the first underscore to separate donor and village.
+#' If set to false, assume the column is the donor ID and is not a composite key.
 #' @param single_cell_assay Optional; if provided, restricts data to a specific assay type (e.g., "10X-GEMX-3P").
 #' @param outDir Optional; directory to save the merged \code{DGEList} object as two gzipped TSV files.
 #' @param outName Optional; prefix for the output files. If \code{NULL}, no files are saved.
@@ -46,7 +48,7 @@
 #' @export
 #' @import data.table edgeR
 build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, metadata_columns,
-                             single_cell_assay=NULL, outDir=NULL, outName=NULL, validate_round_trip=F) {
+                             split_id=TRUE, single_cell_assay=NULL, outDir=NULL, outName=NULL, validate_round_trip=F) {
     # Read cell metadata
     cell_metadata <- data.table::fread(cell_metadata_file, data.table=F)
 
@@ -73,7 +75,7 @@ build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, me
     dge_list <- vector("list", length = nrow(manifest))
     for (i in seq_len(nrow(manifest))) {
         logger::log_info(paste("Processing metacell file ", i, "of", nrow(manifest), ":", manifest[i,]$output_name))
-        dge_list[[i]] <- process_metacell_file(manifest[i], metacell_dir, cell_metadata, metadata_columns)
+        dge_list[[i]] <- process_metacell_file(manifest[i], metacell_dir, cell_metadata, metadata_columns, split_id=split_id)
     }
 
     dge_list <- Filter(Negate(is.null), dge_list)
@@ -116,13 +118,14 @@ build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, me
 #' @param metacell_dir Directory containing the \code{*.metacells.txt.gz} count matrix files.
 #' @param cell_metadata A \code{data.frame} containing per-cell metadata used to extract donor-level annotations.
 #' @param metadata_columns A character vector of column names to be pulled from \code{cell_metadata} for each donor.
-#'
+#' @param split_id If the metacell column ID contains underscores, split on the first underscore to separate donor and village.
+#' If set to false, assume the column is the donor ID and is not a composite key.
 #' @return A \code{DGEList} object with renamed sample columns and additional metadata in \code{dge$samples}.
 #' @import data.table edgeR
 #' @keywords internal
 
 #manifest_row=manifest[1];
-process_metacell_file <- function(manifest_row, metacell_dir, cell_metadata, metadata_columns) {
+process_metacell_file <- function(manifest_row, metacell_dir, cell_metadata, metadata_columns, split_id=TRUE) {
     file_path <- file.path(metacell_dir, paste0(manifest_row$output_name, ".metacells.txt.gz"))
 
     if (!file.exists(file_path)) {
@@ -143,28 +146,41 @@ process_metacell_file <- function(manifest_row, metacell_dir, cell_metadata, met
     # Rename columns: donor__celltype__region
     donors <- colnames(mat)
 
-    # Split donor names into donor and village
-    donor_parts <- strsplit(donors, "_", fixed = TRUE)
-    donors <- sapply(donor_parts, function(x) x[1])  # Take the first part as donor
-    villages <- sapply(donor_parts, function(x) paste(x[2], collapse = "_"))  # Join the rest as village
-    chemistry<- sapply(donor_parts, function(x) paste(x[c(-1,-2)], collapse = "_"))  # Join the rest as village
-    new_names <- paste0(donors, "__", villages, "__", manifest_row$cell_type_name, "__", manifest_row$region_name, "__", chemistry)
-
-    colnames(mat) <- new_names
-
     # Create DGEList
     dge <- edgeR::DGEList(counts = mat)
 
-    # Add sample metadata
-    dge$samples$sample_name <- new_names
-    dge$samples$donor <- donors
-    dge$samples$cell_type <- manifest_row$cell_type_name
-    dge$samples$region <- manifest_row$region_name
-    dge$samples$village <- villages
+    if (split_id) {
+        # Split donor names into donor and village
+        donor_parts <- strsplit(donors, "_", fixed = TRUE)
+        donors <- sapply(donor_parts, function(x) x[1])  # Take the first part as donor
+        villages <- sapply(donor_parts, function(x) paste(x[2], collapse = "_"))  # Join the rest as village
+        chemistry<- sapply(donor_parts, function(x) paste(x[c(-1,-2)], collapse = "_"))  # Join the rest as village
+        new_names <- paste0(donors, "__", villages, "__", manifest_row$cell_type_name, "__", manifest_row$region_name, "__", chemistry)
+        colnames(mat) <- new_names
+
+        # Add sample metadata
+        dge$samples$sample_name <- new_names
+        dge$samples$donor <- donors
+        dge$samples$village <- villages
+        dge$samples$single_cell_assay <- chemistry
+    } else {
+        new_names <- paste0(donors, "__", manifest_row$cell_type_name, "__", manifest_row$region_name)
+        colnames(mat) <- new_names
+
+        # Add sample metadata
+        dge$samples$sample_name <- new_names
+        dge$samples$donor <- donors
+    }
 
     #chemistry is now being directly handled by file name.
-    dge$samples$single_cell_assay <- chemistry
     metadata_columns_final=setdiff(metadata_columns, "single_cell_assay")
+    dge$samples$cell_type <- manifest_row$cell_type_name
+    dge$samples$region <- manifest_row$region_name
+
+    #the counts column names must match the sample_name column in the samples data frame
+    #the rownames of the samples data frame must also match the sample_name
+    colnames(dge$counts) <- dge$samples$sample_name
+    rownames(dge$samples) <- dge$samples$sample_name
 
     #add donor level metadata
     # first subset the cell metadata to the filtered cell type information based on the manifest
@@ -183,6 +199,7 @@ process_metacell_file <- function(manifest_row, metacell_dir, cell_metadata, met
     }
     # Add donor annotations
     dge <- add_donor_annotations(dge, cell_metadata_this, metadata_columns_final)
+
 
     #add the "use" columns.
     useCols=c("MDS", "differential_expression", "eQTL_Analysis")
@@ -600,11 +617,16 @@ loadDGEList <- function(dir, prefix = "dge") {
     rownames(counts_mat) <- counts_df$GeneID
 
     # Extract gene annotation columns if present
+    # Explicitly handle empty column names (defend against python written dataframes)
+    colnames(counts_df)[colnames(counts_df) == ""] <- "empty_col"
+
     gene_cols <- setdiff(names(counts_df), c("GeneID", count_cols))
     genes_df <- if (length(gene_cols) > 0) counts_df[, gene_cols, drop = FALSE] else NULL
     if (!is.null(genes_df)) rownames(genes_df) <- counts_df$GeneID
 
     # Prepare samples data.frame: drop lib.size/norm.factors if present, then set rownames
+    # Explicitly handle empty column names (defend against python written dataframes)
+    colnames(samples_df)[colnames(samples_df) == ""] <- "empty_col"
     samples_df <- samples_df[, setdiff(colnames(samples_df), c("lib.size", "norm.factors", "SampleID")), drop = FALSE]
     rownames(samples_df) <- sample_ids
 

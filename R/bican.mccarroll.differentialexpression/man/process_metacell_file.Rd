@@ -8,7 +8,8 @@ process_metacell_file(
   manifest_row,
   metacell_dir,
   cell_metadata,
-  metadata_columns
+  metadata_columns,
+  split_id = TRUE
 )
 }
 \arguments{
@@ -19,6 +20,9 @@ process_metacell_file(
 \item{cell_metadata}{A \code{data.frame} containing per-cell metadata used to extract donor-level annotations.}
 
 \item{metadata_columns}{A character vector of column names to be pulled from \code{cell_metadata} for each donor.}
+
+\item{split_id}{If the metacell column ID contains underscores, split on the first underscore to separate donor and village.
+If set to false, assume the column is the donor ID and is not a composite key.}
 }
 \value{
 A \code{DGEList} object with renamed sample columns and additional metadata in \code{dge$samples}.
