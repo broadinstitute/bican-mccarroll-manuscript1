@@ -1,0 +1,804 @@
+# Test the donor age prediction model on external datasets using already trained models
+# Test the donor age prediction model the region by region data to look at both prediction accuracy and the
+# correlation of residuals within cell type across regions.
+
+# data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
+# data_name="donor_rxn_DGEList"
+# model_file_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/age_prediction"
+# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/age_prediction"
+#
+# retained_features=c("donor", "age")
+# donor_col = "donor"
+# age_col = "age"
+# out_region_pdf_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/age_prediction/age_prediction_residuals_by_region.pdf"
+# out_celltype_pdf_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/age_prediction/age_prediction_residuals_by_celltype.pdf"
+# out_region_predictions_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/age_prediction/age_prediction_region_results.txt"
+#
+# # Restrict the cell correlation analysis to a subset of cell types
+# cellTypeListFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/mash_cell_type_list_simple.txt"
+
+# Test fits on each region.
+test_donor_age_predictions_region_data<-function(data_dir, data_name) {
+    #validate the output directory exists
+    if (!dir.exists(result_dir)) {
+        stop("Result directory does not exist: ", result_dir)
+    }
+
+    #Load the model coefficients.
+    all_models=load_models(model_file_dir)
+    model_metrics=load_model_metrics(model_file_dir)
+
+    #load the DGEList and prepare the data
+    d=bican.mccarroll.differentialexpression::prepare_data_for_differential_expression(data_dir, data_name, randVars=c(), fixedVars=c())
+    dge=d$dge
+
+    #filter to autosomes, so we don't learn sex / age biases
+    dge=filter_dge_to_autosomes (dge, contig_yaml_file, reduced_gtf_file)
+
+    #validate all model genes in DGE
+    model_genes=unique(all_models$feature)
+    missing_genes=setdiff(model_genes, rownames(dge$counts))
+    if (length(missing_genes)>0) {
+        stop("The following model genes are missing from the DGEList counts matrix: ", paste(missing_genes, collapse=", "))
+    }
+
+    cell_type_list=unique(dge$samples$cell_type)
+    #cell_type_list="microglia" #hard coded for now.
+    lineStr <- strrep("=", 80)
+
+    results=list()
+
+    #cellType="microglia"; region="CaH"
+    for (cellType in cell_type_list) {
+        logger::log_info(lineStr)
+        logger::log_info(paste("Learning donor age model from expression for cell type:", cellType))
+        logger::log_info(lineStr)
+
+        regions=unique (dge$samples[dge$samples$cell_type==cellType,]$region)
+        model= all_models[all_models$cell_type==cellType,]
+
+        for (region in regions) {
+            logger::log_info(paste("  Testing region:", region))
+
+            #subset to the cell type and region
+            dge_sub=dge[,dge$samples$cell_type==cellType & dge$samples$region==region]
+
+            #collapse to one observation per donor
+            dge_sub<-collapse_by_donor(dge_sub, donor_col = donor_col, keep_cols = retained_features)
+
+            #filtering samples by library size - not predicting very small samples.
+            r<- bican.mccarroll.differentialexpression::filter_by_libsize(dge_sub, threshold_sd = 1.96, bins = 50, strTitlePrefix = cellType)
+            dge_sub<- r$dge
+
+            #test the model
+            result<-predict_age_from_dge(dge_sub, model, prior.count = 1)
+            result<-cbind(cell_type=cellType, region=region, result)
+            results[[paste(cellType, region, sep="_")]]=result
+        }
+    }
+
+    results=do.call(rbind, results)
+
+    if (!is.null(out_region_predictions_file))
+        write.table(results, file=out_region_predictions_file, sep="\t", quote=FALSE, row.names = FALSE)
+
+    #compute metrics per region
+    metrics=get_age_prediction_metrics(results)
+
+    if (!is.null(out_region_pdf_file))
+        pdf(out_region_pdf_file)
+
+    for (cellType in cell_type_list) {
+        m=model_metrics[model_metrics$cell_type==cellType & model_metrics$set=="Held-out donors",]
+        titleStr <- paste("Region specific predictions for ", cellType, " (on held-out donors)\n",
+                          "Overall model metrics: r = ", sprintf("%.3f", m$r),
+                          ", MedAE = ", sprintf("%.3f", m$median_abs_error),
+                          ", MAE = ", sprintf("%.3f", m$mean_abs_error), sep="")
+
+
+        p1=plot_age_predictions_by_region(results, cellType=cellType, titleStr=titleStr, facet_col = "region", metrics_df = metrics)
+        print (p1)
+        res_mat <- compute_residual_matrix(results, cellType = cellType)
+        if (ncol(res_mat) >= 2) {
+            p2<-plot_residual_pair_scatter(res_mat, cellType)
+            print (p2)
+            p3<-plot_residual_corr_heatmap(res_mat, cellType)
+            ComplexHeatmap::draw(p3, heatmap_legend_side = "right")
+        }
+    }
+
+    if (!is.null(out_region_pdf_file))
+        dev.off()
+}
+
+# Compare residuals across cell types
+compare_age_residuals_celltype<-function (model_file_dir, cellTypeListFile=NULL, out_celltype_pdf_file=NULL) {
+
+    model_predictions=load_model_predictions(model_file_dir)
+
+    if (!is.null(cellTypeListFile)) {
+        cell_types=read.table(cellTypeListFile, header=FALSE, stringsAsFactors = FALSE)$V1
+        model_predictions=model_predictions[model_predictions$cell_type %in% cell_types, ]
+    }
+
+    res_mat <- compute_residual_matrix(model_predictions, group_cols=c("donor", "cell_type"), drop_empty = TRUE)
+    p2<-plot_residual_pair_scatter_paged(res_mat, cellType=NULL, per_page = 4, facet_font_size = 8)
+    p3<-plot_residual_corr_heatmap(res_mat, cellType=NULL, annotate_cells = TRUE)
+
+    p4<-compare_age_model_features(model_file_dir)
+
+    if (!is.null(out_celltype_pdf_file))
+        pdf (out_celltype_pdf_file)
+
+    ComplexHeatmap::draw(p4, heatmap_legend_side = "right")
+    ComplexHeatmap::draw(p3, heatmap_legend_side = "right")
+    for (p in p2) {
+        print (p)
+    }
+
+    if (!is.null(out_celltype_pdf_file))
+        dev.off()
+
+}
+
+# Compare overlap of genes across models - this is also used in compare_age_residuals_celltype
+compare_age_model_features<-function (model_file_dir) {
+    all_models=load_models(model_file_dir)
+
+    if (!is.null(cellTypeListFile)) {
+        cell_types=read.table(cellTypeListFile, header=FALSE, stringsAsFactors = FALSE)$V1
+        all_models=all_models[all_models$cell_type %in% cell_types, ]
+    }
+
+    J <- jaccard_by_celltype(all_models, coef_thresh = 0)  # or small ε, e.g., 1e-8
+    ht <- plot_jaccard_heatmap(J, title = "Cell-type gene overlap in aging programs", annotate_cells = TRUE)
+
+    return (ht)
+}
+
+# Use cell type model to predict external data.
+# This is the "old" original data.
+# covariate_file="/broad/mccarroll/dropulation/analysis/latent_factor/metadata/BA46/BA46.n191/BA46.n191.knowncovars.txt"
+# cell_type = "astrocyte"; metacell_file="/broad/mccarroll/dropulation/analysis/eQTL/BA46/BA46.n191.raw.dge.astrocyte.All/maf_0.05_cisDist_10kb/BA46.n191.raw.dge.astrocyte.All.noOutliers.metacells.txt"
+# # cell_type = "microglia"; metacell_file="/broad/mccarroll/dropulation/analysis/eQTL/BA46/BA46.n191.raw.dge.microglia.All/maf_0.05_cisDist_10kb/BA46.n191.raw.dge.microglia.All.noOutliers.metacells.txt"
+# source_gtf_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.reduced.gtf"
+# target_gtf_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_maskedAlt.89/GRCh38_maskedAlt.reduced.gtf"
+
+# Reprocessed data on gencode v44
+covariate_file="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/BA46.n180.knowncovars_simple.txt"
+cell_type ="astrocyte"; metacell_file="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/metacells/astrocyte__BA46.metacells.txt.gz"
+# cell_type ="microglia"; metacell_file="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/metacells/microglia__BA46.metacells.txt.gz"
+
+source_gtf_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.reduced.gtf"
+target_gtf_file="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/modified_v44.annotation.reduced.gtf"
+
+
+
+#This has a bunch of junk for mapping between ENSG builds, which is imperfect at best.
+predict_external_data<-function () {
+    all_models=load_models(model_file_dir)
+    model= all_models[all_models$cell_type==cell_type,]
+
+    #load the data and make a DGEList object
+    dge <- load_mccarroll_metacells(covariate_file, metacell_file)
+    dge$samples$age <- as.numeric(dge$samples$age)/10
+
+    #only run the controls
+    dge <- dge[, dge$samples$schizophrenia==FALSE]
+
+    #do I need to filter data the same way I did before training?
+    # this can throw away genes that are in the model, *sigh*
+    #filter to the top 75% of highly expressed genes as a first pass.
+    #dge<-bican.mccarroll.differentialexpression::filter_top_expressed_genes(dge, gene_filter_frac = 0.75, verbose = TRUE)
+
+    #filter to cpm cutoff of 1.
+    #r2=bican.mccarroll.differentialexpression::plot_logCPM_density_quantiles(dge, cpm_cutoff = 1, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5)
+    #dge=r2$filtered_dge
+
+    #because the gene symbols may differ between the training and test data, map them via ENSG IDs
+    gene_symbol_map=gene_symbol_mapper(gene_symbols_source = model$feature, source_gtf_file = source_gtf_file, target_gtf_file = target_gtf_file)
+    #map the model features to the target gene symbols
+    #line up the map and model - they should be by default
+    idx=match(model$feature, gene_symbol_map$source_gene_symbol)
+    #map in the updated gene symbols
+    model$feature_new=gene_symbol_map$target_gene_symbol[idx]
+    #update the model to use the new gene symbols, as long as the new symbol is not NA
+    model$feature <- ifelse(!is.na(model$feature_new), model$feature_new, model$feature)
+
+
+    #what features are missing?
+    df <- data.frame(
+        coef = model$coef,
+        feature_missing = is.na(model$feature_new)
+    )
+
+    strTitle=paste("Model Coefficients\n", cell_type, " missing features ", length(which(df$feature_missing)), " / ", dim(df)[1], sep="")
+    ggplot(df, aes(x = seq_along(coef), y = coef, fill = feature_missing)) +
+        geom_col() +
+        labs(x = NULL, y = "Coefficient") +
+        ggtitle(strTitle) +
+        theme_classic()
+
+
+    #filtering samples by library size - not predicting very small samples.
+    r<- bican.mccarroll.differentialexpression::filter_by_libsize(dge, threshold_sd = 1.96, bins = 50, strTitlePrefix = cell_type)
+    dge<- r$dge
+
+    #run the model
+    result<-predict_age_from_dge(dge, model, prior.count = 1)
+    plot_age_pred_external(result, cell_type, strTitle=paste("Emi BA46 Controls", cell_type, "\n"))
+
+    #what about a dumb hack?  Replace the model mean/sd with the observed data.
+    #probably terrible idea.
+    lcpm <- edgeR::cpm(dge, log = TRUE, prior.count = 1)
+    model2<-model
+    model2$mean_train <- rowMeans(lcpm[model2$feature, , drop = FALSE])
+    model2$sd_train   <- apply(lcpm[model2$feature, , drop = FALSE], 1, sd)
+    model2$intercept=mean((dge$samples$age))
+    result2<-predict_age_from_dge(dge, model2, prior.count = 1)
+    plot_age_pred_external(result2, cell_type, strTitle=paste("Emi BA46 [retrained mean/sd]", cell_type, "\n"))
+
+    #compare the model coefficients and means to the test expression data.
+    plots=compare_external_data_to_model (dge, model)
+    for (p in plots) print (p)
+
+}
+
+
+
+compare_external_data_to_model<-function (dge, model) {
+    #are some of the features not correlated with age?
+    dge_new<-dge
+    lcpm <- edgeR::cpm(dge_new, log = TRUE, prior.count = 1)  # genes x samples
+    cor_list <- lapply(model$feature, function(gene) {
+        if (gene %in% rownames(lcpm)) {
+            expr <- lcpm[gene, ]
+            age <- dge_new$samples$age
+            r <- cor(expr, age, use = "pairwise.complete.obs")
+            return (data.frame(gene = gene, cor = r, stringsAsFactors = FALSE))
+        } else {
+            return (data.frame(gene = gene, cor = NA, stringsAsFactors = FALSE))
+        }
+    })
+    cor_df=do.call(rbind, cor_list)
+    idx=match(model$feature, cor_df$gene)
+    model$feature_cor=cor_df$cor[idx]
+
+
+    #compare the correlation and sign of the external data to the model.
+    p1=plot_coef_vs_feature_cor(model, cell_type = cell_type, nonzero_only = FALSE)
+
+    #check the mean and SD of each gene in the model vs training data
+    p2=plot_mean_expression_comparison(model, lcpm, cell_type)
+
+    #what if we split the model genes into test/train many times, and compute the difference in the mean expression for each feature?
+    #how often is the observed shift larger than the sampling shift?
+
+    result=list(p1, p2)
+    return (result)
+
+
+}
+
+plot_coef_vs_feature_cor <- function(model, cell_type = NULL, nonzero_only = FALSE) {
+    stopifnot(is.data.frame(model),
+              all(c("coef", "feature_cor") %in% colnames(model)))
+
+    df <- model
+    if (nonzero_only) df <- df[is.finite(df$coef) & df$coef != 0, , drop = FALSE]
+
+    idx <- is.finite(df$coef) & is.finite(df$feature_cor)
+    if (!any(idx)) stop("No finite pairs to plot.")
+
+    r_val <- suppressWarnings(stats::cor(df$coef[idx], df$feature_cor[idx], use = "pairwise.complete.obs"))
+    agree <- sign(df$coef[idx]) == sign(df$feature_cor[idx])
+    frac_same <- mean(agree)
+
+    title_str <- sprintf("%s%s r = %.3f, sign agreement = %.1f%%",
+                         if (!is.null(cell_type)) paste0(cell_type, ": ") else "",
+                         "", r_val, 100 * frac_same)
+
+    df$sign_agreement <- factor(ifelse(is.finite(df$coef) & is.finite(df$feature_cor) &
+                                           sign(df$coef) == sign(df$feature_cor), "Same", "Different"),
+                                levels = c("Same", "Different"))
+
+    ggplot2::ggplot(df[idx, , drop = FALSE],
+                    ggplot2::aes(x = coef, y = feature_cor, color = sign_agreement)) +
+        ggplot2::geom_point(alpha = 0.7, size = 2) +
+        ggplot2::geom_abline(intercept = 0, slope = 1, color = "red") +
+        ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
+        ggplot2::geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
+        ggplot2::scale_color_manual(values = c("Same" = "steelblue", "Different" = "orange"),
+                                    name = "Sign match") +
+        ggplot2::labs(
+            title = title_str,
+            x = "Model coefficient",
+            y = "Gene correlation with age"
+        ) +
+        ggplot2::theme_classic(base_size = 12) +
+        ggplot2::theme(legend.position = "top")
+}
+
+
+plot_mean_expression_comparison <- function(model, lcpm, cell_type) {
+    stopifnot(is.data.frame(model), is.matrix(lcpm))
+
+    # Compute external mean/sd
+    model$ext_mean <- rowMeans(lcpm[model$feature, , drop = FALSE], na.rm = TRUE)
+    model$ext_sd   <- apply(lcpm[model$feature, , drop = FALSE], 1, sd)
+    model$mean_shift <- model$ext_mean - model$mean_train
+    model$sd_ratio   <- model$ext_sd / model$sd_train
+
+    # Prep for plotting
+    df <- subset(model, is.finite(mean_train) & is.finite(ext_mean))
+    df$coef_sign <- factor(sign(df$coef),
+                           levels = c(-1, 0, 1),
+                           labels = c("Negative", "Zero", "Positive"))
+
+    xy_lim <- range(c(df$mean_train, df$ext_mean), na.rm = TRUE)
+    r_val  <- suppressWarnings(stats::cor(df$mean_train, df$ext_mean))
+
+    # Test: mean shift vs. coefficient sign
+    df_test <- subset(df, coef_sign %in% c("Negative", "Positive"))
+    wtest <- suppressWarnings(wilcox.test(mean_shift ~ coef_sign, data = df_test))
+    p_val <- signif(wtest$p.value, 3)
+
+    ggplot2::ggplot(df, ggplot2::aes(x = mean_train, y = ext_mean, color = coef_sign)) +
+        ggplot2::geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "red") +
+        ggplot2::geom_point(alpha = 0.7, size = 1.8) +
+        ggplot2::scale_x_continuous(limits = xy_lim, expand = ggplot2::expansion(mult = 0.02)) +
+        ggplot2::scale_y_continuous(limits = xy_lim, expand = ggplot2::expansion(mult = 0.02)) +
+        ggplot2::scale_color_manual(values = c(
+            "Negative" = "#D55E00",
+            "Zero" = "grey70",
+            "Positive" = "#0072B2"
+        )) +
+        ggplot2::labs(
+            title = paste0(cell_type, " mean expression comparison"),
+            subtitle = sprintf("Pearson r = %.3f | Wilcoxon p = %.3g (external - model means partitioned by coefficient sign)", r_val, p_val),
+            x = "Model mean expression (log2)",
+            y = "External mean expression (log2)",
+            color = "Coefficient sign"
+        ) +
+        ggplot2::theme_classic(base_size = 12) +
+        ggplot2::theme(
+            legend.position = "top",
+            legend.title = ggplot2::element_text(size = 9),
+            legend.text  = ggplot2::element_text(size = 9)
+        )
+}
+
+
+
+plot_age_pred_external<-function(result, cell_type, strTitle=paste("Emi BA46", cell_type, "\n")) {
+    metrics=compute_age_metrics(result$pred, result$age)
+    label <- paste0(
+        "r = ", sprintf("%.3f", metrics$r),
+        "\nMedAE = ", sprintf("%.3f", metrics$median_abs_error),
+        "\nMAE = ", sprintf("%.3f", metrics$mean_abs_error)
+    )
+
+    p<-plot_age_predictions(result, cell_type, titleStr = strTitle)
+
+    # Determine plot limits for corner placement
+    plot_limits <- layer_scales(p)
+    x_pos <- plot_limits$x$range$range[1]
+    y_pos <- plot_limits$y$range$range[2]
+
+    p <- p +
+        annotate("text",
+                 x = x_pos, y = y_pos,
+                 label = label,
+                 hjust = 0, vjust = 1,
+                 size = 6,
+                 color = "black") +
+        guides(color = "none")
+
+    print (p)
+}
+
+
+
+
+load_mccarroll_metacells<-function (covariate_file, metacell_file) {
+    md=read.table(covariate_file, header=TRUE, sep="\t", stringsAsFactors = FALSE)
+    e=read.table(metacell_file, header=TRUE, sep="\t", stringsAsFactors = FALSE)
+    # gene column can be either gene_symbol or GENE
+    if ("gene_symbol" %in% colnames (e)) {
+        rownames (e)=e$gene_symbol
+        e$gene_symbol=NULL
+    } else if ("GENE" %in% colnames (e)) {
+        rownames (e)=e$GENE
+        e$GENE=NULL
+    } else {
+        stop("No gene symbol column found in metacell file.")
+    }
+
+    counts=as.matrix(e)
+    #intersect
+    common_donors=intersect(colnames(counts), md$donor)
+    counts=counts[, common_donors]
+    md=md[match(common_donors, md$donor), ]
+    dge <- edgeR::DGEList(counts=counts, samples=md)
+    return (dge)
+}
+
+
+# Build Jaccard matrix of selected features per cell type
+jaccard_by_celltype <- function(all_models, coef_thresh = 0) {
+    stopifnot(all(c("cell_type","feature","coef") %in% names(all_models)))
+
+    # binary incidence matrix: features × cell_types
+    sel <- abs(all_models$coef) > coef_thresh
+    df  <- all_models[sel, c("feature","cell_type")]
+    df  <- unique(df)  # one row per (feature, cell_type)
+
+    feats <- sort(unique(df$feature))
+    cts   <- sort(unique(df$cell_type))
+    A <- matrix(FALSE, nrow = length(feats), ncol = length(cts),
+                dimnames = list(feats, cts))
+    A[cbind(match(df$feature, feats), match(df$cell_type, cts))] <- TRUE
+
+    # Jaccard: J = (A' A) / (n_i + n_j − A' A)
+    XtX <- crossprod(A)                           # |intersection|
+    n   <- matrix(colSums(A), ncol = ncol(A), nrow = ncol(A))
+    J   <- as.matrix(XtX / (n + t(n) - XtX))
+    diag(J) <- 1
+    J
+}
+
+# Heatmap with optional numeric annotation
+plot_jaccard_heatmap <- function(J, title = "Feature overlap (Jaccard Index)",
+                                 annotate_cells = TRUE, cluster = TRUE) {
+    stopifnot(requireNamespace("ComplexHeatmap", quietly = TRUE),
+              requireNamespace("circlize", quietly = TRUE),
+              requireNamespace("grid", quietly = TRUE))
+
+    col_fun <- circlize::colorRamp2(c(0, 0.5, 1), c("#f7fbff", "#6baed6", "#08306b"))
+
+    cf <- if (isTRUE(annotate_cells)) {
+        function(j, i, x, y, w, h, fill) {
+            grid::grid.text(sprintf("%.2f", J[i, j]), x, y, gp = grid::gpar(fontsize = 10))
+        }
+    } else NULL
+
+    ComplexHeatmap::Heatmap(
+        J, name = "Jaccard", col = col_fun,
+        cluster_rows = cluster, cluster_columns = cluster,
+        show_row_dend = cluster, show_column_dend = cluster,
+        row_names_gp = grid::gpar(fontsize = 10),
+        column_names_gp = grid::gpar(fontsize = 10),
+        heatmap_legend_param = list(at = c(0, 0.5, 1)),
+        cell_fun = cf, column_title = title
+    )
+}
+
+# Example:
+# J <- jaccard_by_celltype(all_models, coef_thresh = 0)  # or small ε, e.g., 1e-8
+# ht <- plot_jaccard_heatmap(J, title = "Cell-type feature Jaccard", annotate_cells = TRUE)
+# grid::grid.newpage(); ComplexHeatmap::draw(ht)
+
+
+
+
+plot_age_predictions_by_region <- function(results, cellType, titleStr = NULL,
+                                 facet_col = "region", metrics_df = NULL) {
+
+    if (is.null(titleStr)) titleStr <- paste("Region specific predictions for", cellType)
+
+    # facet variable
+    df <- results[results$cell_type == cellType, ]
+    facet_var <- df[[facet_col]]
+    df2 <- cbind(df, facet_var = facet_var)
+
+    # symmetric limits
+    rng <- range(c(df2$age, df2$pred), na.rm = TRUE)
+    rng <- c(rng[1] * 0.9, rng[2] * 1.1)
+
+    p <- ggplot(df2, aes(x = age, y = pred)) +
+        geom_abline(intercept = 0, slope = 1, color = "black", linetype = "dashed") +
+        geom_point(aes(color = facet_var), size = 2, alpha = 0.6) +
+        geom_smooth(method = "lm", formula = y ~ x,
+                    se = FALSE, linewidth = 0.6, color = "red") +
+        facet_wrap(~ facet_var) +
+        guides(color = "none") +
+        labs(title = titleStr, x = "Chronological Age", y = "Predicted Age") +
+        scale_x_continuous(limits = rng) +
+        scale_y_continuous(limits = rng) +
+        theme_classic(base_size = 12)
+
+    # optional per-facet metrics annotation
+    if (!is.null(metrics_df)) {
+        keep <- metrics_df$cell_type == cellType &
+            metrics_df[[facet_col]] %in% unique(df2$facet_var)
+        if (any(keep)) {
+            ann <- metrics_df[keep, c(facet_col, "r", "median_abs_error", "mean_abs_error")]
+            ann$label <- paste0(
+                "r = ", sprintf("%.3f", ann$r),
+                "\nMedAE = ", sprintf("%.3f", ann$median_abs_error),
+                "\nMAE = ", sprintf("%.3f", ann$mean_abs_error)
+            )
+            ann_df <- data.frame(
+                facet_var = ann[[facet_col]],
+                label = ann$label,
+                x = -Inf, y = Inf,
+                stringsAsFactors = FALSE
+            )
+            p <- p +
+                geom_text(data = ann_df,
+                          aes(x = x, y = y, label = label, color = facet_var),
+                          hjust = -0.1, vjust = 1.1, size = 3.2,
+                          inherit.aes = FALSE) +
+                guides(color = "none")
+        }
+    }
+
+    p
+}
+
+
+
+# compute_residual_matrix <- function(results, cellType) {
+#     df <- results[results$cell_type == cellType, ]
+#     stopifnot(all(c("donor","region","age","pred") %in% names(df)))
+#     df$resid <- df$pred - df$age
+#     #create a matrix of the residuals
+#     M <- with(df, tapply(pred - age, list(donor, region), I))
+#     as.matrix(M)  # donors × regions
+# }
+
+# if there's more than one observation for the grouping, aggregate using mean or median
+compute_residual_matrix <- function(results,
+                                    group_cols = c("donor", "region"),
+                                    cellType = NULL,
+                                    agg = c("mean", "median"),
+                                    drop_empty = TRUE) {
+    agg <- match.arg(agg)
+
+    stopifnot(all(c("age", "pred") %in% names(results)))
+    stopifnot(length(group_cols) == 2, all(group_cols %in% names(results)))
+
+    df <- if (is.null(cellType)) results else results[results$cell_type == cellType, , drop = FALSE]
+    if (!nrow(df)) stop("No rows after filtering")
+
+    # residuals
+    resid <- df$pred - df$age
+
+    # aggregator
+    fun <- if (agg == "mean") function(x) mean(x, na.rm = TRUE) else function(x) median(x, na.rm = TRUE)
+
+    # donors × second group (e.g., region or cell_type)
+    M <- tapply(resid, list(df[[group_cols[1]]], df[[group_cols[2]]]), fun)
+    M <- as.matrix(M)
+
+    if (drop_empty) {
+        keep_r <- rowSums(is.finite(M)) > 0
+        keep_c <- colSums(is.finite(M)) > 0
+        M <- M[keep_r, keep_c, drop = FALSE]
+    }
+    if (!nrow(M) || !ncol(M)) stop("Residual matrix empty after dropping empty groups")
+
+    M
+}
+
+# 2. Scatter plots with annotated correlations
+plot_residual_pair_scatter <- function(res_mat, cellType) {
+    regs <- colnames(res_mat)
+    pairs <- combn(regs, 2, simplify = FALSE)
+    df_list <- lapply(pairs, function(p) {
+        x <- res_mat[, p[1]]; y <- res_mat[, p[2]]
+        keep <- is.finite(x) & is.finite(y)
+        r <- cor(x[keep], y[keep])
+        data.frame(x = x[keep], y = y[keep],
+                   pair = paste(p[1], "vs", p[2]),
+                   corr = r,
+                   stringsAsFactors = FALSE)
+    })
+    D <- do.call(rbind, df_list)
+
+    rng <- range(c(D$x, D$y), na.rm = TRUE)
+    rng <- c(rng[1] * 0.9, rng[2] * 1.1)
+
+    title = "Age Prediction residuals (predicted - actual)"
+    title=paste(cellType, title, sep="\n")
+    ggplot(D, aes(x = x, y = y)) +
+        geom_abline(intercept = 0, slope = 1, color = "black", linetype = "dashed") +
+        geom_point(size = 2, alpha = 0.7, color = "steelblue") +
+        geom_smooth(method = "lm", formula = y ~ x, se = FALSE, linewidth = 0.6, color = "red") +
+        facet_wrap(~ pair) +
+        geom_text(
+            data = D |> dplyr::distinct(pair, corr),
+            aes(x = -Inf, y = Inf, label = sprintf("r = %.2f", corr)),
+            hjust = -0.1, vjust = 1.2, size = 3.2,
+            inherit.aes = FALSE
+        ) +
+        labs(title = title, x = "Residual in region A", y = "Residual in region B") +
+        scale_x_continuous(limits = rng) +
+        scale_y_continuous(limits = rng) +
+        theme_classic(base_size = 10)
+}
+
+# 2. Scatter plots with annotated correlations, paged if too many pairs
+plot_residual_pair_scatter_paged <- function(res_mat,
+                                             cellType = NULL,
+                                             per_page = 12,
+                                             facet_font_size = 10,
+                                             ncol = NULL) {
+    stopifnot(is.matrix(res_mat))
+    regs  <- colnames(res_mat)
+    prs   <- if (length(regs) >= 2) combn(regs, 2, simplify = FALSE) else list()
+    if (!length(prs)) stop("Need ≥2 regions (columns) in res_mat")
+
+    # build subplots
+    make_panel <- function(name, x, y) {
+        keep <- is.finite(x) & is.finite(y)
+        if (sum(keep) < 2) return(NULL)
+        x <- x[keep]; y <- y[keep]
+        r <- cor(x, y)
+        rng <- range(c(x, y)); pad <- diff(rng) * 0.1; lim <- c(rng[1]-pad, rng[2]+pad)
+
+        ggplot(data.frame(x, y), aes(x, y)) +
+            geom_abline(intercept = 0, slope = 1, color = "black", linetype = "dashed") +
+            geom_point(size = 2, alpha = 0.7, color = "steelblue") +
+            geom_smooth(method = "lm", formula = y ~ x, se = FALSE, linewidth = 0.6, color = "red") +
+            annotate("text", x = -Inf, y = Inf, label = sprintf("r = %.2f", r),
+                     hjust = -0.1, vjust = 1.2, size = 3.2) +
+            ggtitle(name) +
+            coord_cartesian(xlim = lim, ylim = lim) +
+            labs(x = "Residual in cell type A", y = "Residual in cell type B") +
+            theme_classic(base_size = 12) +
+            theme(plot.title = element_text(size = facet_font_size, hjust = 0.5))
+    }
+
+    plots <- list()
+    for (p in prs) {
+        name <- paste(p[1], "vs", p[2])
+        pan  <- make_panel(name, res_mat[, p[1]], res_mat[, p[2]])
+        if (!is.null(pan)) plots[[length(plots)+1]] <- pan
+    }
+    if (!length(plots)) stop("No valid pairs after filtering")
+
+    # paging with cowplot
+    if (is.null(ncol)) ncol <- ceiling(sqrt(per_page))
+    nrow <- ceiling(per_page / ncol)
+    blanks <- function(n) replicate(n, ggplot() + theme_void(), simplify = FALSE)
+
+    page_title <- "Age Prediction residuals (predicted – actual)"
+    if (!is.null(cellType)) page_title <- paste(cellType, page_title, sep = "\n")
+
+    pages <- list()
+    for (s in seq(1, length(plots), by = per_page)) {
+        page_plots <- plots[s:min(s + per_page - 1, length(plots))]
+        if (length(page_plots) < per_page)
+            page_plots <- c(page_plots, blanks(per_page - length(page_plots)))
+
+        grid <- cowplot::plot_grid(plotlist = page_plots, ncol = ncol, nrow = nrow)
+        pg <- cowplot::ggdraw() +
+            cowplot::draw_label(page_title, x = 0, y = 1, hjust = 0, vjust = 1, size = 14) +
+            cowplot::draw_plot(grid, y = 0, height = 0.94)
+        pages[[length(pages)+1]] <- pg
+    }
+
+    pages
+}
+
+
+
+# m: donors × regions residual matrix (from compute_residual_matrix)
+# method: "pearson" or "spearman"
+# cluster: TRUE = hierarchical clustering rows/cols; FALSE = keep input order
+# annotate_cells: TRUE = show correlation values in heatmap cells; FALSE = no annotation
+plot_residual_corr_heatmap <- function(res_mat, cellType = NULL, annotate_cells = TRUE) {
+    stopifnot(is.matrix(res_mat))
+    C <- cor(res_mat, use = "pairwise.complete.obs")  # regions × regions
+
+    col_fun <- circlize::colorRamp2(c(-1, 0, 1), c("#3b4cc0", "white", "#b40426"))
+
+    column_title <- "Age Prediction residuals (predicted - actual)"
+    if (!is.null(cellType)) column_title <- paste(cellType, column_title, sep = "\n")
+
+    # optional cell annotation
+    cf <- if (isTRUE(annotate_cells)) {
+        function(j, i, x, y, width, height, fill) {
+            grid::grid.text(sprintf("%.2f", C[i, j]), x, y, gp = grid::gpar(fontsize = 12))
+        }
+    } else NULL
+
+    ComplexHeatmap::Heatmap(
+        C,
+        name = "r",
+        col = col_fun,
+        cluster_rows = TRUE,
+        cluster_columns = TRUE,
+        row_title = NULL,
+        column_title = column_title,
+        show_row_dend = TRUE,
+        show_column_dend = TRUE,
+        row_names_gp = grid::gpar(fontsize = 9),
+        column_names_gp = grid::gpar(fontsize = 9),
+        heatmap_legend_param = list(at = c(-1, -0.5, 0, 0.5, 1), title = "Correlation"),
+        cell_fun = cf
+    )
+}
+
+
+
+
+get_age_prediction_metrics <- function(results) {
+    groups <- split(results, list(results$cell_type, results$region), drop = TRUE)
+
+    rows <- lapply(groups, function(df) {
+        m <- compute_age_metrics(df$pred, df$age)  # named numeric
+        data.frame(
+            cell_type = df$cell_type[1],
+            region    = df$region[1],
+            as.list(m),
+            row.names = NULL,
+            check.names = FALSE
+        )
+    })
+
+    r=do.call(rbind, rows)
+    rownames (r) <- NULL
+    r=r[order(r$cell_type, r$region),]
+
+    return (r)
+}
+
+load_model_metrics<-function (model_file_dir) {
+    model_files=list.files(model_file_dir, pattern="donor_age_model_metrics*", full.names = TRUE)
+
+    #x=model_files[1]
+    parseOne<-function (x) {
+        a=read.table(x, header=TRUE, sep="\t", stringsAsFactors = FALSE)
+
+        return (a)
+    }
+
+    all_models=lapply(model_files, parseOne)
+    logger::log_info(paste("Loaded model metrics for "), length(all_models), " cell types")
+    all_models=do.call(rbind, all_models)
+    return(all_models)
+
+    # Some ad-hoc plots.
+    #plot (all_models[all_models$set=="Cross-validation",]$median_abs_error, all_models[all_models$set=="Held-out donors",]$median_abs_error, xlab="Cross Validation", ylab="Held-out donors", main="median absolute error", )
+    #abline(0,1, col="red")
+
+    #plot (all_models[all_models$set=="Cross-validation",]$r, all_models[all_models$set=="Held-out donors",]$r, xlab="Cross Validation", ylab="Held-out donors", main="correlation")
+    #abline(0,1, col="red")
+
+    #z=data.frame(cell_type=all_models[all_models$set=="Cross-validation",]$cell_type, cv=all_models[all_models$set=="Cross-validation",]$r, ho=all_models[all_models$set=="Held-out donors",]$r)
+    #z$abs=abs(z$cv-z$ho)
+    #z=z[order(z$abs, decreasing = T),]
+
+}
+
+load_models<-function (model_file_dir) {
+    model_files=list.files(model_file_dir, pattern="donor_age_model_coefficients_*", full.names = TRUE)
+
+    #x=model_files[1]
+    parseOne<-function (x) {
+        a=read.table(x, header=TRUE, sep="\t", stringsAsFactors = FALSE)
+        return (a)
+    }
+
+    all_models=lapply(model_files, parseOne)
+    logger::log_info(paste("Loaded model coefficients for "), length(all_models), " cell types")
+    all_models=do.call(rbind, all_models)
+    return(all_models)
+}
+
+load_model_predictions<-function (model_file_dir) {
+    model_files=list.files(model_file_dir, pattern="donor_age_predictions*", full.names = TRUE)
+
+    #x=model_files[1]
+    parseOne<-function (x) {
+        a=read.table(x, header=TRUE, sep="\t", stringsAsFactors = FALSE)
+        return (a)
+    }
+
+    all_models=lapply(model_files, parseOne)
+    logger::log_info(paste("Loaded model predictions for "), length(all_models), " cell types")
+    all_models=do.call(rbind, all_models)
+    return(all_models)
+}
