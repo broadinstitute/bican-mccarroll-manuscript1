@@ -1,9 +1,9 @@
-# library(edgeR)
-# library(glmnet)
-# library(ggplot2)
-# library(logger)
-# library (cowplot)
-# library (dplyr)
+library(edgeR)
+library(glmnet)
+library(ggplot2)
+library(logger)
+library (cowplot)
+library (dplyr)
 
 # data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
 # data_name="donor_rxn_DGEList"
@@ -13,27 +13,26 @@
 # outPDFFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/age_prediction/age_prediction_results.pdf"
 #
 # #filtering to autosomal genes
-# contig_yaml_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.contig_groups.yaml"
-# reduced_gtf_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.reduced.gtf"
+contig_yaml_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.contig_groups.yaml"
+reduced_gtf_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.reduced.gtf"
 
 #filtering to gene functional types.  #TODO collapse this and autosomal processes.
-# gtf_path="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.gtf"
+gtf_path="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.gtf"
 
-# donor_col = "donor"
-# age_col = "age"
-# seed =12345; fdr_threshold=0.05; optimize_alpha=TRUE; alpha_fixed=0.5
-
+donor_col = "donor"
+age_col = "age"
+seed =12345; fdr_threshold=0.05; optimize_alpha=TRUE; alpha_fixed=0.5
 
 #run Emi's data:
-# data_dir="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/metacells"
-# data_name="donor_rxn_DGEList"
-#
-# #still use the same set of overall features from BICAN.
-# #I don't want to have to revisit this unless neccesary.
-# age_de_results_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type"
-# result_dir="/broad/mccarroll/dropulation/analysis/age_predictions/SNAP200"
-# outPDFFile="/broad/mccarroll/dropulation/analysis/age_predictions/SNAP200/age_prediction_results.pdf"
+data_dir="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/metacells"
+data_name="donor_rxn_DGEList"
 
+#still use the same set of overall features from BICAN.
+#I don't want to have to revisit this unless neccesary.
+#age_de_results_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type"
+age_de_results_dir="/broad/mccarroll/dropulation/analysis/SNAP200/differential_expression/sex_age"
+result_dir="/broad/mccarroll/dropulation/analysis/SNAP200/differential_expression/age_prediction"
+outPDFFile="/broad/mccarroll/dropulation/analysis/SNAP200/differential_expression/age_prediction/age_prediction_results_snap200_DE_genes.pdf"
 
 predict_age_by_celltype<-function (data_dir, data_name) {
     #validate the output directory exists
@@ -47,6 +46,9 @@ predict_age_by_celltype<-function (data_dir, data_name) {
 
     #filter the genes to autosomal only
     dge=filter_dge_to_autosomes (dge, contig_yaml_file, reduced_gtf_file)
+
+    # Experimental for SCZ - only use controls
+    # dge=dge[,dge$samples$schizophrenia==F ]
 
     #experimental: filter out lncRNAs and other non-gene symbols - this generally makes things a little worse
     # I guess those lncRNAs are doing something!
@@ -151,7 +153,7 @@ predict_age_celltype<-function (cellType, dge, retained_features=c("donor", "age
     dge_cell<-bican.mccarroll.differentialexpression::filter_top_expressed_genes(dge_cell, gene_filter_frac = 0.75, verbose = TRUE)
 
     #filter to cpm cutoff of 1.
-    r2=bican.mccarroll.differentialexpression::plot_logCPM_density_quantiles(dge_cell, cpm_cutoff = 1, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5)
+    r2=bican.mccarroll.differentialexpression::plot_logCPM_density_quantiles(dge_cell, cpm_cutoff = 1, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5, min_samples=1, fraction_samples=0.1)
     dge_cell=r2$filtered_dge
 
     #get age DE results (optional)

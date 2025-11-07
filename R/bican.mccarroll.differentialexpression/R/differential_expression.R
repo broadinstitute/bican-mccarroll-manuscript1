@@ -163,7 +163,7 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
             #filter to the top 75% of highly expressed genes as a first pass.
             dge_cell<-filter_top_expressed_genes(dge_cell, gene_filter_frac = 0.75, verbose = TRUE)
             #filter to cpm cutoff of 1.
-            r2=plot_logCPM_density_quantiles(dge_cell, cpm_cutoff = 1, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5)
+            r2=plot_logCPM_density_quantiles(dge_cell, cpm_cutoff = 1, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5, min_samples=1, fraction_samples=0.1)
             dge_cell=r2$filtered_dge
 
             #run differential expression
@@ -274,7 +274,7 @@ differential_expression_region <- function(data_dir, data_name, randVars, fixedV
                 #filter to the top 75% of highly expressed genes as a first pass.
                 dge_cell_region<-filter_top_expressed_genes(dge_cell_region, gene_filter_frac = 0.75, verbose = TRUE)
                 #filter to cpm cutoff of 1.
-                r2=plot_logCPM_density_quantiles(dge_cell_region, cpm_cutoff = 1, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5)
+                r2=plot_logCPM_density_quantiles(dge_cell_region, cpm_cutoff = 1, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5, min_samples=1, fraction_samples=0.1)
                 dge_cell_region=r2$filtered_dge
 
                 #run differential expression

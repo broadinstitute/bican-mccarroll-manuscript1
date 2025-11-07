@@ -192,7 +192,7 @@ predict_external_data<-function () {
     #dge<-bican.mccarroll.differentialexpression::filter_top_expressed_genes(dge, gene_filter_frac = 0.75, verbose = TRUE)
 
     #filter to cpm cutoff of 1.
-    #r2=bican.mccarroll.differentialexpression::plot_logCPM_density_quantiles(dge, cpm_cutoff = 1, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5)
+    #r2=bican.mccarroll.differentialexpression::plot_logCPM_density_quantiles(dge, cpm_cutoff = 1, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5, min_samples=1, fraction_samples=0.1)
     #dge=r2$filtered_dge
 
     #because the gene symbols may differ between the training and test data, map them via ENSG IDs

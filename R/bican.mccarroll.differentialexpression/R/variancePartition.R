@@ -102,7 +102,7 @@ runVariancePartition<-function (data_dir, data_name, randVars, fixedVars, outPDF
             #filter to the top 75% of highly expressed genes as a first pass.
             dge_cell<-filter_top_expressed_genes(dge_cell, gene_filter_frac = 0.75, verbose = TRUE)
             #filter to cpm cutoff of 1.
-            r2=plot_logCPM_density_quantiles(dge_cell, cpm_cutoff = 15, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5)
+            r2=plot_logCPM_density_quantiles(dge_cell, cpm_cutoff = 15, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5, min_samples=1, fraction_samples=0.1)
             dge_cell=r2$filtered_dge
 
             p1=r$plot
@@ -650,7 +650,7 @@ plot_variable_by_group <- function(dge, variable = "frac_contamination", group_c
 #' @importFrom logger log_info
 #' @import ggplot2
 #' @export
-plot_logCPM_density_quantiles <- function(dge, cpm_cutoff = 0.5, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5) {
+plot_logCPM_density_quantiles <- function(dge, cpm_cutoff = 0.5, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5, min_samples=1, fraction_samples=0) {
     #Make R CMD CHECK HAPPY
     y<- x <- ymin <- ymax <- band <- grid_x <- mean_density <- NULL
 
@@ -663,7 +663,10 @@ plot_logCPM_density_quantiles <- function(dge, cpm_cutoff = 0.5, logCPM_xlim = c
     lcpm <- edgeR::cpm(dge, log = TRUE)
 
     # Filter genes by CPM cutoff
-    keep_genes <- rowSums(edgeR::cpm(dge) >= cpm_cutoff) > 0
+    n_samples <- ncol(dge)
+    #always use at least one - don't accept genes with no expression.
+    threshold <- max(1L, min_samples, floor(fraction_samples * n_samples))
+    keep_genes <- rowSums(edgeR::cpm(dge) >= cpm_cutoff)  >= threshold
     filtered_dge <- dge[keep_genes, , keep.lib.sizes = FALSE]
     filtered_gene_count <- sum(keep_genes)
 
