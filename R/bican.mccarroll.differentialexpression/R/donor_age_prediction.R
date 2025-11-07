@@ -1,9 +1,9 @@
-library(edgeR)
-library(glmnet)
-library(ggplot2)
-library(logger)
-library (cowplot)
-library (dplyr)
+# library(edgeR)
+# library(glmnet)
+# library(ggplot2)
+# library(logger)
+# library (cowplot)
+# library (dplyr)
 
 # data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
 # data_name="donor_rxn_DGEList"
@@ -13,26 +13,26 @@ library (dplyr)
 # outPDFFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/age_prediction/age_prediction_results.pdf"
 #
 # #filtering to autosomal genes
-contig_yaml_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.contig_groups.yaml"
-reduced_gtf_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.reduced.gtf"
-
-#filtering to gene functional types.  #TODO collapse this and autosomal processes.
-gtf_path="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.gtf"
-
-donor_col = "donor"
-age_col = "age"
-seed =12345; fdr_threshold=0.05; optimize_alpha=TRUE; alpha_fixed=0.5
-
-#run Emi's data:
-data_dir="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/metacells"
-data_name="donor_rxn_DGEList"
+# contig_yaml_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.contig_groups.yaml"
+# reduced_gtf_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.reduced.gtf"
+#
+# #filtering to gene functional types.  #TODO collapse this and autosomal processes.
+# gtf_path="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.gtf"
+#
+# donor_col = "donor"
+# age_col = "age"
+# seed =12345; fdr_threshold=0.05; optimize_alpha=TRUE; alpha_fixed=0.5
+#
+# #run Emi's data:
+# data_dir="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/metacells"
+# data_name="donor_rxn_DGEList"
 
 #still use the same set of overall features from BICAN.
 #I don't want to have to revisit this unless neccesary.
 #age_de_results_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type"
-age_de_results_dir="/broad/mccarroll/dropulation/analysis/SNAP200/differential_expression/sex_age"
-result_dir="/broad/mccarroll/dropulation/analysis/SNAP200/differential_expression/age_prediction"
-outPDFFile="/broad/mccarroll/dropulation/analysis/SNAP200/differential_expression/age_prediction/age_prediction_results_snap200_DE_genes.pdf"
+# age_de_results_dir="/broad/mccarroll/dropulation/analysis/SNAP200/differential_expression/sex_age"
+# result_dir="/broad/mccarroll/dropulation/analysis/SNAP200/differential_expression/age_prediction"
+# outPDFFile="/broad/mccarroll/dropulation/analysis/SNAP200/differential_expression/age_prediction/age_prediction_results_snap200_DE_genes.pdf"
 
 predict_age_by_celltype<-function (data_dir, data_name) {
     #validate the output directory exists
