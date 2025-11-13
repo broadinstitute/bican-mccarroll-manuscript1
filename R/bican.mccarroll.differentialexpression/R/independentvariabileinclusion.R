@@ -72,7 +72,7 @@
 #' @importFrom corrplot corrplot
 #' @importFrom edgeR DGEList
 #' @export
-runMDSPlots<-function (data_dir, data_name, additionalDonorMetadata, randVars, fixedVars, max_num_samples=2500, filter_by_libsize_zscore=1.96, cellTypeGroupFile=NULL, outMDSPlotRoot, outPDF, outMDSCoordinatesDir=NULL) {
+runMDSPlots<-function (data_dir, data_name, additionalDonorMetadata=NULL, randVars, fixedVars, max_num_samples=2500, filter_by_libsize_zscore=1.96, cellTypeGroupFile=NULL, outMDSPlotRoot, outPDF, outMDSCoordinatesDir=NULL) {
     # load the pre-computed DGEList object
     logger::log_info(paste("Loading DGEList from:", data_dir, "with prefix:", data_name))
     dge=bican.mccarroll.differentialexpression::loadDGEList(data_dir, prefix = data_name)

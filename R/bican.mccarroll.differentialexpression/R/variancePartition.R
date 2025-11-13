@@ -721,7 +721,7 @@ plot_logCPM_density_quantiles <- function(dge, cpm_cutoff = 0.5, logCPM_xlim = c
     }
 
     # Add mean line and cutoff line
-    strTitle=paste0("Expression filtering by CPM [", cpm_cutoff, "] (All Genes: ", orig_gene_count, " filtered to ", filtered_gene_count, ")")
+    strTitle=paste0("Expression filtering by CPM [", cpm_cutoff, "] for at least [", threshold, "] observations. (All Genes: ", orig_gene_count, " filtered to ", filtered_gene_count, ")")
     logger::log_info(strTitle)
 
     p <- p +

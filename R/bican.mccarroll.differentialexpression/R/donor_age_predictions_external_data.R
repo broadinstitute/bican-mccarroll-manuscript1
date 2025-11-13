@@ -6,7 +6,7 @@
 # data_name="donor_rxn_DGEList"
 # model_file_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/age_prediction"
 # result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/age_prediction"
-#
+# #
 # retained_features=c("donor", "age")
 # donor_col = "donor"
 # age_col = "age"
@@ -165,20 +165,432 @@ compare_age_model_features<-function (model_file_dir) {
 # target_gtf_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_maskedAlt.89/GRCh38_maskedAlt.reduced.gtf"
 
 # Reprocessed data on gencode v44
-covariate_file="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/BA46.n180.knowncovars_simple.txt"
-cell_type ="astrocyte"; metacell_file="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/metacells/astrocyte__BA46.metacells.txt.gz"
-# cell_type ="microglia"; metacell_file="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/metacells/microglia__BA46.metacells.txt.gz"
+# covariate_file="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/BA46.n180.knowncovars_simple.txt"
+# cell_type ="astrocyte"; metacell_file="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/metacells/astrocyte__BA46.metacells.txt.gz"
+# # cell_type ="microglia"; metacell_file="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/metacells/microglia__BA46.metacells.txt.gz"
+#
+# source_gtf_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.reduced.gtf"
+# target_gtf_file="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/modified_v44.annotation.reduced.gtf"
+# model_file_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/age_prediction"
+# library (ggplot2)
+# library(dplyr)
+# library(gganimate)
+# library(cowplot)
 
-source_gtf_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.reduced.gtf"
-target_gtf_file="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/modified_v44.annotation.reduced.gtf"
+##########################
+# MINI-TASK: Optimize donor subset to better match mean expression
+##########################
 
+optimize_test_donor_subset<-function () {
+    all_models=load_models(model_file_dir)
+    model= all_models[all_models$cell_type==cell_type,]
+    #model=model[model$coef!=0,]
+
+    #load the data and make a DGEList object
+    dge <- load_mccarroll_metacells(covariate_file, metacell_file)
+    dge$samples$age <- as.numeric(dge$samples$age)/10
+
+    #only run the controls
+    # dge <- dge[, dge$samples$schizophrenia==FALSE]
+
+    #because the gene symbols may differ between the training and test data, map them via ENSG IDs
+    gene_symbol_map=gene_symbol_mapper(gene_symbols_source = model$feature, source_gtf_file = source_gtf_file, target_gtf_file = target_gtf_file)
+    #map the model features to the target gene symbols
+    #line up the map and model - they should be by default
+    idx=match(model$feature, gene_symbol_map$source_gene_symbol)
+    #map in the updated gene symbols
+    model$feature_new=gene_symbol_map$target_gene_symbol[idx]
+    #update the model to use the new gene symbols, as long as the new symbol is not NA
+    model$feature <- ifelse(!is.na(model$feature_new), model$feature_new, model$feature)
+    model$feature_new=NULL
+
+    #filtering samples by library size - not predicting very small samples.
+    r<- bican.mccarroll.differentialexpression::filter_by_libsize(dge, threshold_sd = 1.96, bins = 50, strTitlePrefix = cell_type)
+    dge<- r$dge
+
+    #filter to cpm cutoff of 1, but keep genes in the model too!
+    r2=bican.mccarroll.differentialexpression::plot_logCPM_density_quantiles(dge, cpm_cutoff = 1, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5, min_samples=1, fraction_samples=0.1)
+
+    #if there are any features that aren't in both the filtered dge and the model, need to drop.
+    genesMissingFromUnfilteredData=setdiff(model$feature, rownames(dge$counts))
+    if (length(genesMissingFromUnfilteredData)>0) {
+        warning(paste0("The following model features are missing from the unfiltered data and will be removed from the model: ", paste(genesMissingFromUnfilteredData, collapse=", ")))
+        model=model[!model$feature %in% genesMissingFromUnfilteredData, ]
+    }
+
+    #keep the genes that are either significant figures originally, or pass the filtering threshold.
+    genesMissingFromModel=setdiff(model$feature, rownames(r2$filtered_dge$counts))
+    genesFinal=union (genesMissingFromModel, rownames(r2$filtered_dge$counts))
+    dge<-dge[genesFinal, ]
+
+    #just use the model coefficients that are non-zero for this analysis.
+    model=model[model$coef!=0,]
+    lcpm <- edgeR::cpm(dge$counts, log = TRUE, prior.count = 1)
+    res <- greedy_match_donors(lcpm, model, max_drop_frac=0.75)
+
+    filtered_lcpm=lcpm[,res$kept_donors]
+    p1=plot_mean_expression_comparison(model, lcpm, cell_type)
+    p2=plot_mean_expression_comparison(model, filtered_lcpm, cell_type, strTitle = " (after donor filtering)")
+
+    age_df=dge$samples[,c("donor", "age")]
+
+    animate_mean_matching_panels_cowplot(model, lcpm, res, "microglia", age_df,
+                                 out_file = "/downloads/mean_match_panels.mp4", fps = 10)
+
+
+}
+
+
+# lcpm_ext: genes x donors log-CPM matrix for external dataset
+# model: data.frame with at least columns 'feature' and 'mean_train'
+# max_drop_frac: stop if more than this fraction of donors would be removed
+# tol: minimum improvement in total absolute error required to drop a donor
+# lcpm_ext=lcpm
+greedy_match_donors <- function(lcpm_ext, model,
+                                max_drop_frac = 0.5,
+                                tol = 1e-8) {
+    stopifnot(is.matrix(lcpm_ext) || is.data.frame(lcpm_ext))
+    lcpm_ext <- as.matrix(lcpm_ext)
+
+    # intersect genes
+    feats <- intersect(model$feature, rownames(lcpm_ext))
+    if (length(feats) == 0L) stop("No overlapping genes between model and lcpm_ext")
+
+    train_mu <- model$mean_train[match(feats, model$feature)]
+    ext_mat  <- lcpm_ext[feats, , drop = FALSE]
+
+    donors <- colnames(ext_mat)
+    n_donors <- length(donors)
+    if (is.null(donors)) donors <- paste0("donor", seq_len(n_donors))
+
+    # initial sums / means over all donors
+    kept      <- rep(TRUE, n_donors)
+    cur_sums  <- rowSums(ext_mat)
+    n_kept    <- n_donors
+    cur_mu    <- cur_sums / n_kept
+    cur_err   <- sum(abs(cur_mu - train_mu))
+
+    history <- data.frame(
+        step            = 0L,
+        n_kept          = n_kept,
+        total_abs_error = cur_err,
+        dropped_donor   = NA_character_,
+        stringsAsFactors = FALSE
+    )
+
+    max_drops <- floor(n_donors * max_drop_frac)
+
+    for (step in seq_len(max_drops)) {
+        best_err <- Inf
+        best_j   <- NA_integer_
+
+        # try dropping each currently kept donor
+        for (j in which(kept)) {
+            new_sums <- cur_sums - ext_mat[, j]
+            new_n    <- n_kept - 1L
+            mu_new   <- new_sums / new_n
+            err_new  <- sum(abs(mu_new - train_mu))
+
+            if (err_new < best_err) {
+                best_err <- err_new
+                best_j   <- j
+            }
+        }
+
+        # stop if no improvement
+        if (is.na(best_j) || best_err > cur_err - tol) break
+
+        # commit the best drop
+        kept[best_j] <- FALSE
+        cur_sums     <- cur_sums - ext_mat[, best_j]
+        n_kept       <- n_kept - 1L
+        cur_err      <- best_err
+
+        history <- rbind(
+            history,
+            data.frame(
+                step            = step,
+                n_kept          = n_kept,
+                total_abs_error = cur_err,
+                dropped_donor   = donors[best_j],
+                stringsAsFactors = FALSE
+            )
+        )
+    }
+
+    kept_donors    <- donors[kept]
+    dropped_donors <- donors[!kept]
+
+    list(
+        kept_donors        = kept_donors,
+        dropped_donors     = dropped_donors,
+        history            = history,
+        initial_error      = history$total_abs_error[1],
+        final_error        = tail(history$total_abs_error, 1),
+        improvement        = history$total_abs_error[1] - tail(history$total_abs_error, 1)
+    )
+}
+
+
+
+# --------------------------------------------------------------------
+# Helper: build one frame’s scatter data
+# --------------------------------------------------------------------
+.mean_frame <- function(model, lcpm, keep_donors, step_int, step_lab, n_kept) {
+    lcpm_sub <- lcpm[, keep_donors, drop = FALSE]
+    feats <- intersect(model$feature, rownames(lcpm_sub))
+    if (length(feats) == 0L) {
+        return(data.frame(
+            feature    = character(0),
+            train_mean = numeric(0),
+            ext_mean   = numeric(0),
+            coef_sign  = character(0),
+            step_int   = integer(0),
+            step_lab   = character(0),
+            n_kept     = integer(0),
+            stringsAsFactors = FALSE
+        ))
+    }
+    idx <- match(feats, model$feature)
+    train_mean <- model$mean_train[idx]
+    ext_mean   <- rowMeans(lcpm_sub[feats, , drop = FALSE])
+    coef_sign  <- ifelse(model$coef[idx] >= 0, "Positive", "Negative")
+
+    data.frame(
+        feature    = feats,
+        train_mean = train_mean,
+        ext_mean   = ext_mean,
+        coef_sign  = coef_sign,
+        step_int   = step_int,
+        step_lab   = step_lab,
+        n_kept     = n_kept,
+        stringsAsFactors = FALSE
+    )
+}
+
+# --------------------------------------------------------------------
+# Main animation function
+# --------------------------------------------------------------------
+animate_mean_matching_panels_cowplot <- function(
+        model, lcpm, res, cell_type, age_df,
+        out_file = "mean_match_panels.mp4",
+        fps = 2,
+        width = 1900, height = 1080,
+        dpi = 300) {
+
+    history <- res$history
+
+    # Enforce ascending step order for consistent playback
+    ord <- order(history$step)
+    history <- history[ord, , drop = FALSE]
+
+    donors_all <- colnames(lcpm)
+
+    # Age table must cover all donors referenced by lcpm
+    if (!"donor" %in% colnames(age_df)) age_df$donor <- rownames(age_df)
+    if (!"age" %in% colnames(age_df)) stop("age_df must have an 'age' column")
+    age_df$age <- as.numeric(age_df$age)
+    missing_age <- setdiff(donors_all, age_df$donor)
+    if (length(missing_age)) {
+        stop(sprintf("age_df missing %d donor(s), e.g. %s",
+                     length(missing_age), paste(utils::head(missing_age, 5L), collapse = ", ")))
+    }
+
+    # Reconstruct donor inclusion list per (sorted) step
+    keep_list <- vector("list", nrow(history))
+    keep <- donors_all
+    keep_list[[1]] <- keep
+    if (nrow(history) > 1) {
+        for (i in 2:nrow(history)) {
+            d_drop <- history$dropped_donor[i]
+            if (!is.na(d_drop)) keep <- setdiff(keep, d_drop)
+            keep_list[[i]] <- keep
+        }
+    }
+
+    # Stable state labels used across all panels
+    state_levels <- sprintf("Step %d | kept %d", history$step, history$n_kept)
+
+    # Assemble per-step scatter + summary (align with .mean_frame signature: step_int, step_lab)
+    pieces <- lapply(seq_along(keep_list), function(i) {
+        if (length(keep_list[[i]]) < 1L) {
+            stop(sprintf("No donors kept at step %d; animation requires >=1 donor per step.", history$step[i]))
+        }
+        sc <- .mean_frame(
+            model       = model,
+            lcpm        = lcpm,
+            keep_donors = keep_list[[i]],
+            step_int    = history$step[i],
+            step_lab    = state_levels[i],
+            n_kept      = history$n_kept[i]
+        )
+        err <- if (nrow(sc)) mean(abs(sc$ext_mean - sc$train_mean), na.rm = TRUE) else NA_real_
+        list(
+            scatter = sc,
+            summary = data.frame(
+                step_int = history$step[i],
+                step_lab = state_levels[i],
+                n_kept   = history$n_kept[i],
+                frac     = history$n_kept[i]/ncol(lcpm),
+                error_ma = err,
+                stringsAsFactors = FALSE
+            )
+        )
+    })
+
+    scatters <- if (length(pieces)) do.call(rbind, lapply(pieces, `[[`, "scatter")) else NULL
+    sums     <- if (length(pieces)) do.call(rbind, lapply(pieces, `[[`, "summary")) else NULL
+
+    # Ordered state factor for strict play order in transition_manual()
+    scatters$state <- factor(scatters$step_lab, levels = state_levels)
+    sums$state     <- factor(sums$step_lab,     levels = state_levels)
+
+    # Panel B data: ages per step for kept donors (must exist for every step)
+    ages_list <- lapply(seq_along(keep_list), function(i) {
+        donors_i <- keep_list[[i]]
+        m <- match(donors_i, age_df$donor)
+        ages <- age_df$age[m]
+        if (anyNA(ages)) {
+            miss <- donors_i[is.na(ages)]
+            stop(sprintf("Missing ages for %d donor(s) at step %d, e.g. %s",
+                         length(miss), history$step[i], paste(utils::head(miss, 5L), collapse = ", ")))
+        }
+        data.frame(
+            state    = factor(rep(state_levels[i], length(ages)), levels = state_levels),
+            step_int = rep(history$step[i], length(ages)),
+            age      = ages,
+            stringsAsFactors = FALSE
+        )
+    })
+    ages_long <- do.call(rbind, ages_list)
+
+    # Global axis limits for scatter
+    lim_all <- range(c(scatters$train_mean, scatters$ext_mean), na.rm = TRUE)
+
+    # -------------------------------
+    # Panel A: mean expression scatter
+    # -------------------------------
+    p_scatter <- ggplot2::ggplot(
+        scatters, ggplot2::aes(x = train_mean, y = ext_mean, color = coef_sign, group = feature)
+    ) +
+        ggplot2::geom_point(alpha = 0.7, size = 2) +
+        ggplot2::geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "red") +
+        ggplot2::scale_x_continuous("Model mean expression (log2)", limits = lim_all, expand = ggplot2::expansion(mult = 0.02)) +
+        ggplot2::scale_y_continuous("External mean expression (log2)", limits = lim_all, expand = ggplot2::expansion(mult = 0.02)) +
+        ggplot2::scale_color_manual(values = c("Negative" = "orange", "Positive" = "steelblue")) +
+        ggplot2::labs(
+            title = sprintf("%s mean expression comparison", cell_type),
+            subtitle = "{current_frame}"
+        ) +
+        ggplot2::theme_classic(base_size = 8) +
+        ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5), legend.position = "top") +
+        gganimate::transition_manual(scatters$state)
+
+    # ----------------------------------------------
+    # Panel B: histogram of donor ages (replaces frac)
+    # ----------------------------------------------
+    age_rng <- range(ages_long$age, na.rm = TRUE)
+    bw <- max(0.25, (age_rng[2] - age_rng[1]) / 20)
+    boundary <- floor(age_rng[1])
+
+    p_age <- ggplot2::ggplot(ages_long, ggplot2::aes(x = age)) +
+        ggplot2::geom_histogram(binwidth = bw, boundary = boundary, closed = "right", fill = "grey40") +
+        ggplot2::ggtitle("Donor Age Distribution") +
+        ggplot2::theme_classic(base_size = 10) +
+        ggplot2::theme(
+            axis.title.x = ggplot2::element_blank(),
+            axis.title.y = ggplot2::element_blank(),
+            axis.text.x  = ggplot2::element_text(size = 8),
+            axis.text.y  = ggplot2::element_text(size = 8),
+            plot.title   = ggplot2::element_text(hjust = 0.5, size = 10, face = "bold")
+        ) +
+        gganimate::transition_manual(ages_long$state)
+
+    # -----------------------
+    # Panel C: error trace
+    # -----------------------
+    sums$step_f <- factor(sums$step_int, levels = history$step)
+    p_err <- ggplot2::ggplot(sums, ggplot2::aes(x = as.integer(sums$step_f), y = error_ma)) +
+        ggplot2::geom_line(linewidth = 0.6, na.rm = TRUE) +
+        ggplot2::geom_point(size = 3, na.rm = TRUE) +
+        ggplot2::ggtitle("Error Trace") +
+        ggplot2::coord_cartesian(ylim = c(0, max(sums$error_ma, na.rm = TRUE))) +  # force baseline = 0
+        ggplot2::theme_classic(base_size = 12) +
+        ggplot2::theme(
+            axis.title.x = ggplot2::element_blank(),
+            axis.text.x  = ggplot2::element_blank(),
+            axis.ticks.x = ggplot2::element_blank(),
+            axis.title.y = ggplot2::element_text(size = 10),
+            axis.text.y  = ggplot2::element_text(size = 8),
+            plot.title   = ggplot2::element_text(hjust = 0.5, size = 11, face = "bold"),
+            plot.margin  = ggplot2::margin(2, 4, 2, 4)
+        ) +
+        gganimate::transition_manual(sums$state)
+
+
+    # Render each panel
+    render_panel <- function(p) {
+        gganimate::animate(
+            p,
+            fps = fps,
+            renderer = gganimate::magick_renderer(),
+            width = width, height = height, res = dpi
+        )
+    }
+    a_frames <- render_panel(p_scatter)
+    b_frames <- render_panel(p_age)
+    c_frames <- render_panel(p_err)
+
+    # Combine frames using cowplot
+    tdir <- tempfile("frames_")
+    dir.create(tdir)
+    nF <- length(a_frames)
+    png_paths <- character(nF)
+
+    for (i in seq_len(nF)) {
+        combined <- cowplot::plot_grid(
+            cowplot::ggdraw() +
+                ggplot2::theme(plot.background = ggplot2::element_rect(fill = "white", color = NA)) +
+                cowplot::draw_image(a_frames[i], interpolate = TRUE),
+            cowplot::plot_grid(
+                cowplot::ggdraw() +
+                    ggplot2::theme(plot.background = ggplot2::element_rect(fill = "white", color = NA)) +
+                    cowplot::draw_image(b_frames[i], interpolate = TRUE),
+                cowplot::ggdraw() +
+                    ggplot2::theme(plot.background = ggplot2::element_rect(fill = "white", color = NA)) +
+                    cowplot::draw_image(c_frames[i], interpolate = TRUE),
+                ncol = 1,
+                rel_heights = c(1, 1)  # was (1, 1)
+            ),
+            ncol = 2,
+            rel_widths = c(3.0, 1.0)      # was (2.4, 1)
+        )
+
+        ggplot2::ggsave(
+            filename = (png_paths[i] <- file.path(tdir, sprintf("frame_%04d.png", i))),
+            plot = combined, width = width/dpi, height = height/dpi, dpi = dpi, bg = "white"
+        )
+    }
+
+
+    # Encode MP4
+    av::av_encode_video(png_paths, output = out_file, framerate = fps)
+
+
+    invisible(out_file)
+}
+
+
+##########################
+# END MINI-TASK : Optimize donor subset to better match mean expression
+##########################
 
 
 #This has a bunch of junk for mapping between ENSG builds, which is imperfect at best.
 predict_external_data<-function () {
     all_models=load_models(model_file_dir)
     model= all_models[all_models$cell_type==cell_type,]
-
+    model=model[model$coef!=0,]
     #load the data and make a DGEList object
     dge <- load_mccarroll_metacells(covariate_file, metacell_file)
     dge$samples$age <- as.numeric(dge$samples$age)/10
@@ -320,7 +732,7 @@ plot_coef_vs_feature_cor <- function(model, cell_type = NULL, nonzero_only = FAL
 }
 
 
-plot_mean_expression_comparison <- function(model, lcpm, cell_type) {
+plot_mean_expression_comparison <- function(model, lcpm, cell_type, strTitle=NULL) {
     stopifnot(is.data.frame(model), is.matrix(lcpm))
 
     # Compute external mean/sd
@@ -343,6 +755,12 @@ plot_mean_expression_comparison <- function(model, lcpm, cell_type) {
     wtest <- suppressWarnings(wilcox.test(mean_shift ~ coef_sign, data = df_test))
     p_val <- signif(wtest$p.value, 3)
 
+    if (!is.null(strTitle)) {
+        plot_title <- strTitle
+    } else {
+        plot_title <- paste0(cell_type, " mean expression comparison")
+    }
+
     ggplot2::ggplot(df, ggplot2::aes(x = mean_train, y = ext_mean, color = coef_sign)) +
         ggplot2::geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "red") +
         ggplot2::geom_point(alpha = 0.7, size = 1.8) +
@@ -354,7 +772,7 @@ plot_mean_expression_comparison <- function(model, lcpm, cell_type) {
             "Positive" = "#0072B2"
         )) +
         ggplot2::labs(
-            title = paste0(cell_type, " mean expression comparison"),
+            title = plot_title,
             subtitle = sprintf("Pearson r = %.3f | Wilcoxon p = %.3g (external - model means partitioned by coefficient sign)", r_val, p_val),
             x = "Model mean expression (log2)",
             y = "External mean expression (log2)",

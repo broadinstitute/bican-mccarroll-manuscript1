@@ -200,7 +200,6 @@ process_metacell_file <- function(manifest_row, metacell_dir, cell_metadata, met
     # Add donor annotations
     dge <- add_donor_annotations(dge, cell_metadata_this, metadata_columns_final)
 
-
     #add the "use" columns.
     useCols=c("MDS", "differential_expression", "eQTL_Analysis")
     for (col in useCols) {

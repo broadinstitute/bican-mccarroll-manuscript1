@@ -10,7 +10,9 @@ plot_logCPM_density_quantiles(
   logCPM_xlim = c(-5, 15),
   lower_quantile = 0.05,
   upper_quantile = 0.95,
-  quantile_steps = 5
+  quantile_steps = 5,
+  min_samples = 1,
+  fraction_samples = 0
 )
 }
 \arguments{
