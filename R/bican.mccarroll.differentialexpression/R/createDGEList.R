@@ -35,6 +35,7 @@
 #' @param cell_metadata_file Path to the TSV file containing donor-level metadata.
 #' @param metadata_columns Character vector of metadata column names to include from \code{cell_metadata_file}.  The
 #' program will automatically capture donor, cell type, region, and village (if applicable).
+#' @param convert_na_columns_to_false A vector of column names in \code{metadata_columns} for which \code{NA} values, those values will be converted to FALSE.
 #' @param split_id If the metacell column ID contains underscores, split on the first underscore to separate donor and village.
 #' If set to false, assume the column is the donor ID and is not a composite key.
 #' @param single_cell_assay Optional; if provided, restricts data to a specific assay type (e.g., "10X-GEMX-3P").
@@ -47,7 +48,7 @@
 #'
 #' @export
 #' @import data.table edgeR
-build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, metadata_columns,
+build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, metadata_columns, convert_na_columns_to_false=NULL,
                              split_id=TRUE, single_cell_assay=NULL, outDir=NULL, outName=NULL, validate_round_trip=F) {
     # Read cell metadata
     cell_metadata <- data.table::fread(cell_metadata_file, data.table=F)
@@ -90,6 +91,11 @@ build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, me
     # Combine using edgeR::cbind
     dge_merged <- do.call(cbind, dge_list)
 
+    #convert NA to FALSE for specified columns
+    if (!is.null(convert_na_columns_to_false)) {
+        dge_merged$samples<- convert_na_to_false(dge_merged$samples, convert_na_columns_to_false)
+    }
+
     # write to disk if the outDir and outName are provided
     if (!is.null(outDir) && !is.null(outName)) {
         saveDGEList(dge_merged, dir = outDir, prefix = outName)
@@ -99,8 +105,6 @@ build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, me
         }
 
     }
-
-
 
     return(dge_merged)
 }
@@ -318,12 +322,21 @@ getAnnotations <- function(metricsDF,
             if (is.numeric(x)) {
                 row[[col]] <- mean(x, na.rm = TRUE)
             } else {
+                # Treat literal "NA" as missing
+                x[x == "NA"] <- NA
+
                 unique_vals <- unique(stats::na.omit(x))
-                if (length(unique_vals) == 1) {
+                if (length(unique_vals) == 0) {
+                    # All values are NA in this group for this column
+                    row[[col]] <- NA
+                } else if (length(unique_vals) == 1) {
                     row[[col]] <- unique_vals
                 } else {
-                    stop(sprintf("Non-unique categorical values in column '%s' for group: %s",
-                                 col, paste(row[1, aggregationFeatures], collapse = ", ")))
+                    stop(sprintf(
+                        "Non-unique categorical values in column '%s' for group: %s",
+                        col,
+                        paste(row[1, aggregationFeatures], collapse = ", ")
+                    ))
                 }
             }
         }
@@ -694,4 +707,45 @@ compareDGEList <- function(dge1, dge2, tol = 1e-8) {
     # If we reach here, everything matches
     logger::log_info("DGELists are equal within tolerance of ", tol)
     return(TRUE)
+}
+
+#' Convert NA and "NA" Values to "FALSE" in Selected Columns
+#'
+#' This function takes a data frame and a set of column names, and replaces
+#' both missing values (`NA`) and literal `"NA"` strings in those columns with
+#' the string `"FALSE"`. All values in the specified columns are returned as
+#' character vectors.
+#'
+#' @param df A data frame containing the columns to be modified.
+#' @param cols A character vector of column names within `df` to process.
+#'
+#' @return
+#' The input data frame with the specified columns modified such that any
+#' `NA` or `"NA"` values are replaced with `"FALSE"`. The function returns
+#' the modified data frame.
+#'
+#' @examples
+#' df <- data.frame(
+#'     ctp_donor_outlier = c(NA, "NA", "3+ CTP outlier samples"),
+#'     other_col = 1:3,
+#'     stringsAsFactors = FALSE
+#' )
+#'
+#' convert_na_to_false(df, "ctp_donor_outlier")
+#'
+#' @export
+convert_na_to_false <- function(df, cols) {
+    for (col in cols) {
+        x <- df[[col]]
+
+        # Convert real NA to "FALSE"
+        x[is.na(x)] <- "FALSE"
+
+        # Convert literal "NA" to "FALSE"
+        x[x == "NA"] <- "FALSE"
+
+        # Ensure everything is stored as character
+        df[[col]] <- as.character(x)
+    }
+    df
 }
