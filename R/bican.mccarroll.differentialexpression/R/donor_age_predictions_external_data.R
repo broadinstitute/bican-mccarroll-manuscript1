@@ -1,3 +1,9 @@
+# library (ggplot2)
+# library(dplyr)
+# library(gganimate)
+# library(cowplot)
+
+
 # Test the donor age prediction model on external datasets using already trained models
 # Test the donor age prediction model the region by region data to look at both prediction accuracy and the
 # correlation of residuals within cell type across regions.
@@ -158,24 +164,22 @@ compare_age_model_features<-function (model_file_dir) {
 
 # Use cell type model to predict external data.
 # This is the "old" original data.
-# covariate_file="/broad/mccarroll/dropulation/analysis/latent_factor/metadata/BA46/BA46.n191/BA46.n191.knowncovars.txt"
-# cell_type = "astrocyte"; metacell_file="/broad/mccarroll/dropulation/analysis/eQTL/BA46/BA46.n191.raw.dge.astrocyte.All/maf_0.05_cisDist_10kb/BA46.n191.raw.dge.astrocyte.All.noOutliers.metacells.txt"
-# # cell_type = "microglia"; metacell_file="/broad/mccarroll/dropulation/analysis/eQTL/BA46/BA46.n191.raw.dge.microglia.All/maf_0.05_cisDist_10kb/BA46.n191.raw.dge.microglia.All.noOutliers.metacells.txt"
-# source_gtf_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.reduced.gtf"
-# target_gtf_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_maskedAlt.89/GRCh38_maskedAlt.reduced.gtf"
+training_data_samples_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells/donor_rxn_DGEList_samples.tsv.gz"
+
+covariate_file="/broad/mccarroll/dropulation/analysis/latent_factor/metadata/BA46/BA46.n191/BA46.n191.knowncovars.txt"
+cell_type = "astrocyte"; metacell_file="/broad/mccarroll/dropulation/analysis/eQTL/BA46/BA46.n191.raw.dge.astrocyte.All/maf_0.05_cisDist_10kb/BA46.n191.raw.dge.astrocyte.All.noOutliers.metacells.txt"
+cell_type = "microglia"; metacell_file="/broad/mccarroll/dropulation/analysis/eQTL/BA46/BA46.n191.raw.dge.microglia.All/maf_0.05_cisDist_10kb/BA46.n191.raw.dge.microglia.All.noOutliers.metacells.txt"
+source_gtf_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.reduced.gtf"
+target_gtf_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_maskedAlt.89/GRCh38_maskedAlt.reduced.gtf"
 
 # Reprocessed data on gencode v44
-# covariate_file="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/BA46.n180.knowncovars_simple.txt"
-# cell_type ="astrocyte"; metacell_file="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/metacells/astrocyte__BA46.metacells.txt.gz"
-# # cell_type ="microglia"; metacell_file="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/metacells/microglia__BA46.metacells.txt.gz"
-#
-# source_gtf_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.reduced.gtf"
-# target_gtf_file="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/modified_v44.annotation.reduced.gtf"
-# model_file_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/age_prediction"
-# library (ggplot2)
-# library(dplyr)
-# library(gganimate)
-# library(cowplot)
+covariate_file="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/BA46.n180.knowncovars_simple.txt"
+cell_type ="astrocyte"; metacell_file="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/metacells/astrocyte__BA46.metacells.txt.gz"
+# cell_type ="microglia"; metacell_file="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/metacells/microglia__BA46.metacells.txt.gz"
+source_gtf_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.reduced.gtf"
+target_gtf_file="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/modified_v44.annotation.reduced.gtf"
+model_file_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/age_prediction"
+model_file_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/age_prediction_alpha_0"
 
 ##########################
 # MINI-TASK: Optimize donor subset to better match mean expression
@@ -184,7 +188,12 @@ compare_age_model_features<-function (model_file_dir) {
 optimize_test_donor_subset<-function () {
     all_models=load_models(model_file_dir)
     model= all_models[all_models$cell_type==cell_type,]
-    #model=model[model$coef!=0,]
+
+    #read in the training data so we can get the age distribution for this cell type.
+    training_samples=read.table(training_data_samples_file, header=TRUE, stringsAsFactors = FALSE)
+    training_samples=training_samples[training_samples$cell_type==cell_type,]
+    age_df_train=unique(training_samples[,c("donor", "age")])
+    age_df_train$age=as.numeric(age_df_train$age)/10
 
     #load the data and make a DGEList object
     dge <- load_mccarroll_metacells(covariate_file, metacell_file)
@@ -225,6 +234,27 @@ optimize_test_donor_subset<-function () {
 
     #just use the model coefficients that are non-zero for this analysis.
     model=model[model$coef!=0,]
+
+    logger::log_info(paste("Number of features in model", nrow(model)))
+    #run the prediction on the original data
+    result1<-predict_age_from_dge(dge, model, prior.count = 1)
+    plot_age_pred_external(result1, cell_type, strTitle=paste("Emi BA46 [default mean/sd]", cell_type, "\n"))
+
+    #run predictions on controls only
+    dge_sub<-dge[, dge$samples$schizophrenia==FALSE]
+    result1<-predict_age_from_dge(dge_sub, model, prior.count = 1)
+    plot_age_pred_external(result1, cell_type, strTitle=paste("Emi BA46 [default mean/sd] controls", cell_type, "\n"))
+
+    #run the prediction on the relearned mean/sd using all donors
+    result2<-predict_age_from_dge(dge, model, prior.count = 1, override_model_params_dge=dge)
+    plot_age_pred_external(result2, cell_type, strTitle=paste("Emi BA46 [retrained mean/sd]", cell_type, "\n"))
+
+    #run the prediction on the relearned mean/sd using all control donors
+    dge_sub<-dge[, dge$samples$schizophrenia==FALSE]
+    result2<-predict_age_from_dge(dge_sub, model, prior.count = 1, override_model_params_dge=dge)
+    plot_age_pred_external(result2, cell_type, strTitle=paste("Emi BA46 [retrained mean/sd] controls", cell_type, "\n"))
+
+    #Learn a subset of donors that better match the training mean expression by optimization
     lcpm <- edgeR::cpm(dge$counts, log = TRUE, prior.count = 1)
     res <- greedy_match_donors(lcpm, model, max_drop_frac=0.75)
 
@@ -232,13 +262,310 @@ optimize_test_donor_subset<-function () {
     p1=plot_mean_expression_comparison(model, lcpm, cell_type)
     p2=plot_mean_expression_comparison(model, filtered_lcpm, cell_type, strTitle = " (after donor filtering)")
 
-    age_df=dge$samples[,c("donor", "age")]
+    age_df_test=dge$samples[,c("donor", "age")]
 
-    animate_mean_matching_panels_cowplot(model, lcpm, res, "microglia", age_df,
-                                 out_file = "/downloads/mean_match_panels.mp4", fps = 10)
+    #animate_mean_matching_panels_cowplot(model, lcpm, res, "microglia", age_df_test,
+    #                                     out_file = "/downloads/mean_match_panels.mp4", fps = 10)
+
+    #the age distributions before/after age matching
+    plot_age_distribution(age_df_train, age_df_test, strTitle=paste("Donor Age Distribution - all data", cell_type), name_train="BICAN", name_test="SNAP200 - all donors")
+
+    #plot the age distributions of the original data and optimized subset
+    optimized_age_df=age_df=age_df_test[age_df_test$donor %in% res$kept_donors,]
+    plot_age_distribution(age_df_train, optimized_age_df, strTitle=paste("Donor Age Distribution - all data", cell_type), name_train="BICAN", name_test="SNAP200 - optimized subset")
+
+    #run the prediction on the relearned mean/sd
+    dge_sub<-dge[, colnames(dge) %in% res$kept_donors]
+    #train using the new model, but the original data
+    result2<-predict_age_from_dge(dge, model, prior.count = 1, override_model_params_dge=dge_sub)
+    plot_age_pred_external(result2, cell_type, strTitle=paste("Emi BA46 [retrained mean/sd]", cell_type, "\n"))
+
+    #what if we just predict controls?
+    dge_controls <- dge[, dge$samples$schizophrenia==FALSE]
+    result2<-predict_age_from_dge(dge_controls, model, prior.count = 1, override_model_params_dge=dge_sub)
+    plot_age_pred_external(result2, cell_type, strTitle=paste("Emi BA46 Controls [retrained mean/sd] controls", cell_type))
+
+    #plot the age distribution of the original and optimized results
+    plot_age_distribution(age_df_train, age_df_test, strTitle=paste("Donor Age Distribution - all data", cell_type), name_train="BICAN", name_test="SNAP200 - all donors")
+
+    #plot the age distributions of the original data and optimized subset
+    age_df_test_subset=age_df_test[age_df_test$donor %in% res$kept_donors,]
+    plot_age_distribution(age_df_train, age_df_test_subset, strTitle=paste("Donor Age Distribution - all data", cell_type), name_train="BICAN", name_test="SNAP200 - optimized subset")
+
+    ##########################
+    # MATCH AGE DISTRIBUTION
+    ##########################
+
+    # learn a subset of donors that better match the training age distribution
+    age_matched<-sample_test_ages_to_match_train(age_df_train, age_df_test, max_drop_frac = 0.75)
+    print (age_matched$prob_plot)
+    print (age_matched$ks_plot)
+
+    #the age distributions before/after age matching
+    plot_age_distribution(age_df_train, age_df_test, strTitle=paste("Donor Age Distribution - all data", cell_type), name_train="BICAN", name_test="SNAP200 - all donors")
+
+    #plot the age distributions of the original data and optimized subset
+    plot_age_distribution(age_df_train, age_matched$subset, strTitle=paste("Donor Age Distribution - all data", cell_type), name_train="BICAN", name_test="SNAP200 - age matched subset")
+
+    # Run the age predictions on the age-matched subset
+    #run the prediction on the relearned mean/sd
+    dge_sub<-dge[, colnames(dge) %in% age_matched$subset$donor]
+    #train using the new model, but the original data
+    result2<-predict_age_from_dge(dge, model, prior.count = 1, override_model_params_dge=dge_sub)
+    plot_age_pred_external(result2, cell_type, strTitle=paste("Emi BA46 [age matched mean/sd]", cell_type, "\n"))
+
+    #what if we just predict controls?
+    dge_sub<-dge[, colnames(dge) %in% age_matched$subset$donor]
+    dge_controls <- dge[, dge$samples$schizophrenia==FALSE]
+    result3<-predict_age_from_dge(dge_controls, model, prior.count = 1, override_model_params_dge=dge_sub)
+    plot_age_pred_external(result3, cell_type, strTitle=paste("Emi BA46 Controls [age matched mean/sd]", cell_type))
 
 
 }
+
+plot_age_distribution<-function (age_df_train, age_df_test, strTitle=NULL, name_train="BICAN", name_test="SNAP200") {
+    age_df_train$dataset <- name_train
+    age_df_test$dataset  <- name_test
+
+    age_df <- rbind(age_df_train, age_df_test)
+
+    if (is.null(strTitle))
+        strTitle <- "Donor Age Distribution"
+
+    # Ensure dataset is a factor with clean levels
+    age_df$dataset <- factor(age_df$dataset)
+
+    # Build a shared colour mapping whose *names* match dataset levels
+    # Assume 2 datasets; extend this vector if you add more.
+    dataset_colors <- c("steelblue", "firebrick")
+    names(dataset_colors) <- levels(age_df$dataset)
+
+    # Histogram
+    p1 <- ggplot(age_df, aes(x = age, fill = dataset)) +
+        geom_histogram(alpha = 0.4, position = "identity", bins = 50) +
+        labs(x = "Age [Decades]", y = "Count") +
+        scale_fill_manual(values = dataset_colors) +
+        theme_bw() +
+        ggtitle(strTitle)
+
+    p2 <- ggplot(age_df, aes(x = age, colour = dataset)) +
+        stat_ecdf(size = 1) +
+        geom_line(
+            data = data.frame(
+                age     = c(min(age_df$age), max(age_df$age)),
+                uniform = c(0, 1)
+            ),
+            aes(x = age, y = uniform),
+            inherit.aes = FALSE,
+            linetype = 2
+        ) +
+        labs(x = "Age [Decades]", y = "ECDF") +
+        scale_colour_manual(values = dataset_colors) +
+        theme_bw()
+
+    cowplot::plot_grid(p1, p2, ncol=1)
+
+}
+
+sample_test_ages_to_match_train <- function(age_df_train,
+                                            age_df_test,
+                                            max_drop_frac = 0.75,
+                                            max_ks = NULL,
+                                            n_reps_per_size = 1000, seed=1) {
+    # age_df_train, age_df_test: data frames with an "age" column
+    # max_drop_frac: maximum fraction of test donors allowed to be dropped
+    # max_ks: optional maximum acceptable KS distance.
+    #         If not NULL, we:
+    #           1) restrict to sizes with D <= max_ks
+    #           2) within that restricted set, pick the "end of the decline"
+    #              (rule below). If none satisfy D <= max_ks, fall back to
+    #              using all sizes.
+    # n_reps_per_size: number of random resamples per subset size.
+
+    set.seed(seed)
+
+    if (max_drop_frac < 0 || max_drop_frac >= 1) {
+        stop("max_drop_frac must be in [0, 1).")
+    }
+    if (!("age" %in% names(age_df_train)) || !("age" %in% names(age_df_test))) {
+        stop("Both data frames must have an 'age' column.")
+    }
+
+    n_test <- nrow(age_df_test)
+    if (n_test == 0L) {
+        stop("age_df_test has no rows.")
+    }
+
+    # Minimum allowed subset size
+    n_keep_min <- max(1L, ceiling((1 - max_drop_frac) * n_test))
+
+    #### 1. Importance weights via density ratio ####
+
+    dens_train <- density(age_df_train$age)
+    dens_test  <- density(age_df_test$age, bw = dens_train$bw)
+
+    p_train <- approx(dens_train$x, dens_train$y,
+                      xout = age_df_test$age, rule = 2)$y
+    p_test  <- approx(dens_test$x, dens_test$y,
+                      xout = age_df_test$age, rule = 2)$y
+
+    positive_test <- p_test[p_test > 0]
+    if (length(positive_test) == 0L) {
+        prob <- rep(1 / n_test, n_test)
+    } else {
+        tiny <- min(positive_test)
+        p_test[p_test <= 0] <- tiny
+
+        weights <- p_train / p_test
+        weights[!is.finite(weights) | weights < 0] <- 0
+
+        if (all(weights == 0)) {
+            prob <- rep(1 / n_test, n_test)
+        } else {
+            prob <- weights / sum(weights)
+        }
+    }
+
+    #### 2. Candidate subset sizes ####
+
+    if (n_test <= 1000L) {
+        step <- 1L
+    } else {
+        step <- max(1L, floor((n_test - n_keep_min) / 100L))
+    }
+
+    sizes <- seq(from = n_test, to = n_keep_min, by = -step)
+    if (sizes[length(sizes)] != n_keep_min) {
+        sizes <- c(sizes, n_keep_min)
+    }
+
+    #### 3. For each size: repeat sampling, keep best KS ####
+
+    n_sizes  <- length(sizes)
+    D_vec    <- numeric(n_sizes)
+    m_vec    <- integer(n_sizes)
+    idx_list <- vector("list", n_sizes)
+
+    for (i in seq_len(n_sizes)) {
+        m <- sizes[i]
+        m_vec[i] <- m
+
+        best_D_for_m   <- Inf
+        best_idx_for_m <- NULL
+
+        for (r in seq_len(n_reps_per_size)) {
+            idx <- sample.int(n_test, size = m, replace = FALSE, prob = prob)
+            ks_res <- suppressWarnings(stats::ks.test(age_df_test$age[idx],
+                                                      age_df_train$age))
+            D <- as.numeric(ks_res$statistic)
+
+            if (D < best_D_for_m) {
+                best_D_for_m   <- D
+                best_idx_for_m <- idx
+            }
+        }
+
+        D_vec[i]      <- best_D_for_m
+        idx_list[[i]] <- best_idx_for_m
+    }
+
+    #### 4. Selection rule: first increase in KS when going to smaller sizes ####
+    # m_vec is constructed so that i = 1 has the largest subset size (n_test),
+    # and i increases as subset size decreases. So we scan i = 2..n and look
+    # for the first i where D_vec[i] > D_vec[i - 1]; we then choose i - 1.
+
+    choose_end_of_decline <- function(idx_seq) {
+        # idx_seq must be ordered so that m_vec[idx_seq] is decreasing.
+        if (length(idx_seq) == 1L) return(idx_seq)
+
+        for (k in seq(2L, length(idx_seq))) {
+            i_prev <- idx_seq[k - 1L]
+            i_cur  <- idx_seq[k]
+            if (D_vec[i_cur] > D_vec[i_prev]) {
+                return(i_prev)
+            }
+        }
+        # If we never see an increase, pick the smallest size (last index)
+        idx_seq[length(idx_seq)]
+    }
+
+    chosen_i <- NA_integer_
+
+    if (!is.null(max_ks)) {
+        ok <- which(D_vec <= max_ks)
+        if (length(ok) > 0L) {
+            chosen_i <- choose_end_of_decline(ok)
+        }
+    }
+
+    if (is.na(chosen_i)) {
+        all_idx <- seq_len(n_sizes)
+        chosen_i <- choose_end_of_decline(all_idx)
+    }
+
+    chosen_idx <- idx_list[[chosen_i]]
+    chosen_m   <- m_vec[chosen_i]
+    chosen_D   <- D_vec[chosen_i]
+
+    #### 5a. ggplot2 KS-distance vs subset-size diagnostic ####
+
+    df_ks <- data.frame(
+        subset_size = m_vec,
+        ks_distance = D_vec
+    )
+
+    strTitle=paste("KS distance vs retained subset size (optimal n=[", chosen_m, "])", sep="")
+
+    ks_plot <- ggplot(df_ks, aes(x = subset_size, y = ks_distance)) +
+        geom_line() +
+        geom_point() +
+        geom_point(data = data.frame(subset_size = chosen_m,
+                                     ks_distance = chosen_D),
+                   aes(x = subset_size, y = ks_distance),
+                   color = "red", size = 3) +
+        geom_text(data = data.frame(subset_size = chosen_m,
+                                    ks_distance = chosen_D),
+                  aes(label = "chosen"),
+                  hjust = -0.2, vjust = 0, size = 3) +
+        labs(
+            x = "Number of test donors kept",
+            y = "KS distance to train distribution",
+            title = strTitle
+        ) +
+        theme_bw()
+
+    #### 5b. ggplot2 sampling probability vs age ####
+
+    df_prob <- data.frame(
+        age  = age_df_test$age,
+        prob = prob
+    )
+
+    prob_plot <- ggplot(df_prob, aes(x = age, y = prob)) +
+        geom_point() +
+        labs(
+            x = "SNAP200 donor age [decades]",
+            y = "sampling probability",
+            title = "Sampling probability vs test donor age"
+        ) +
+        theme_bw()
+
+    #### Return results ####
+    list(
+        subset       = age_df_test[chosen_idx, , drop = FALSE],
+        ks_chosen    = chosen_D,
+        size_chosen  = chosen_m,
+        sizes        = m_vec,
+        ks_values    = D_vec,
+        prob         = prob,
+        ks_plot      = ks_plot,
+        prob_plot    = prob_plot
+    )
+}
+
+
+
+
 
 
 # lcpm_ext: genes x donors log-CPM matrix for external dataset
@@ -598,15 +925,6 @@ predict_external_data<-function () {
     #only run the controls
     dge <- dge[, dge$samples$schizophrenia==FALSE]
 
-    #do I need to filter data the same way I did before training?
-    # this can throw away genes that are in the model, *sigh*
-    #filter to the top 75% of highly expressed genes as a first pass.
-    #dge<-bican.mccarroll.differentialexpression::filter_top_expressed_genes(dge, gene_filter_frac = 0.75, verbose = TRUE)
-
-    #filter to cpm cutoff of 1.
-    #r2=bican.mccarroll.differentialexpression::plot_logCPM_density_quantiles(dge, cpm_cutoff = 1, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5, min_samples=1, fraction_samples=0.1)
-    #dge=r2$filtered_dge
-
     #because the gene symbols may differ between the training and test data, map them via ENSG IDs
     gene_symbol_map=gene_symbol_mapper(gene_symbols_source = model$feature, source_gtf_file = source_gtf_file, target_gtf_file = target_gtf_file)
     #map the model features to the target gene symbols
@@ -616,7 +934,6 @@ predict_external_data<-function () {
     model$feature_new=gene_symbol_map$target_gene_symbol[idx]
     #update the model to use the new gene symbols, as long as the new symbol is not NA
     model$feature <- ifelse(!is.na(model$feature_new), model$feature_new, model$feature)
-
 
     #what features are missing?
     df <- data.frame(
@@ -639,16 +956,12 @@ predict_external_data<-function () {
     #run the model
     result<-predict_age_from_dge(dge, model, prior.count = 1)
     plot_age_pred_external(result, cell_type, strTitle=paste("Emi BA46 Controls", cell_type, "\n"))
+    #plot_age_pred_external(result, cell_type, strTitle=paste("Emi BA46", cell_type, "\n"))
 
     #what about a dumb hack?  Replace the model mean/sd with the observed data.
     #probably terrible idea.
-    lcpm <- edgeR::cpm(dge, log = TRUE, prior.count = 1)
-    model2<-model
-    model2$mean_train <- rowMeans(lcpm[model2$feature, , drop = FALSE])
-    model2$sd_train   <- apply(lcpm[model2$feature, , drop = FALSE], 1, sd)
-    model2$intercept=mean((dge$samples$age))
-    result2<-predict_age_from_dge(dge, model2, prior.count = 1)
-    plot_age_pred_external(result2, cell_type, strTitle=paste("Emi BA46 [retrained mean/sd]", cell_type, "\n"))
+    result2<-predict_age_from_dge(dge, model2, prior.count = 1, override_model_params_dge=dge)
+    plot_age_pred_external(result3, cell_type, strTitle=paste("Emi BA46 [retrained mean/sd] Controls", cell_type, "\n"))
 
     #compare the model coefficients and means to the test expression data.
     plots=compare_external_data_to_model (dge, model)

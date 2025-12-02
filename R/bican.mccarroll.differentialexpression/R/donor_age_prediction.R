@@ -12,6 +12,10 @@
 # result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/age_prediction"
 # outPDFFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/age_prediction/age_prediction_results.pdf"
 #
+# age_de_results_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type"
+# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/age_prediction_alpha_0"
+# outPDFFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/age_prediction_alpha_0/age_prediction_results_alpha0.pdf"
+# #
 # #filtering to autosomal genes
 # contig_yaml_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.contig_groups.yaml"
 # reduced_gtf_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.reduced.gtf"
@@ -21,9 +25,9 @@
 #
 # donor_col = "donor"
 # age_col = "age"
-# seed =12345; fdr_threshold=0.05; optimize_alpha=TRUE; alpha_fixed=NULL
-#
-# #run Emi's data:
+# seed =12345; fdr_threshold=0.05; optimize_alpha=FALSE; alpha_fixed=0
+
+#run Emi's data:
 # data_dir="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/metacells"
 # data_name="donor_rxn_DGEList"
 
@@ -47,13 +51,6 @@ predict_age_by_celltype<-function (data_dir, data_name) {
     #filter the genes to autosomal only
     dge=filter_dge_to_autosomes (dge, contig_yaml_file, reduced_gtf_file)
 
-    # Experimental for SCZ - only use controls
-    # dge=dge[,dge$samples$schizophrenia==F ]
-
-    #experimental: filter out lncRNAs and other non-gene symbols - this generally makes things a little worse
-    # I guess those lncRNAs are doing something!
-    #dge=filter_dge_to_gene_functions (dge, gene_functions=c("protein_coding"), gtf_path)
-
     cell_type_list=unique(dge$samples$cell_type)
     #cell_type_list="microglia" #hard coded for now.
     lineStr <- strrep("=", 80)
@@ -76,29 +73,12 @@ predict_age_by_celltype<-function (data_dir, data_name) {
         test_set_metrics_list[[cellType]]=r$test_set_metrics
 
         # QC plots
-        age_dist_plot <- plot_age_hist_stacked(r$dge_train, r$dge_test, r$cellType)
-        pred_age_plot_train <- plot_age_predictions(r$cv_model$donor_age_predictions, cellType, titleStr=paste("TRAIN", cellType, "\n"))
-        pred_age_plot_test <- plot_age_predictions(r$test_set_predictions, cellType, titleStr=paste("TEST", cellType, "\n [20% held out data]"))
-        perf_plot<-plot_model_performance(
-            cv_metrics = r$cv_model$overall_metrics,
-            per_fold_metrics = r$cv_model$per_fold_metrics,
-            test_metrics = r$test_set_metrics,
-            cellType = cellType
-        )
+        plot_list=age_prediction_qc_plots(r)
 
-        p=cowplot::plot_grid(pred_age_plot_train, pred_age_plot_test, age_dist_plot, perf_plot, ncol=2)
-
-        coef1=plot_fold_coefficients(r$cv_model$fold_models, positive_only = FALSE, min_nonzero = 1, top_n=NA, cellType=cellType)
-
-        #plot the age DE results if available against the model average coefficients
-        model_vs_de_plot=NULL
-        if (!is.null(r$age_de_results))
-            model_vs_de_plot=plot_model_vs_de(r$cv_model$final_model, r$age_de_results, cellType = NULL)
-
-        print (p)
-        print (coef1)
-        if (!is.null(r$age_de_results))
-            print (model_vs_de_plot)
+        for (p in plot_list) {
+            if (!is.null(p))
+                print(p)
+        }
 
         #write out the donor predictions, model coefficients, and metrics
         write_donor_age_predictions(r, result_dir, cellType)
@@ -116,7 +96,29 @@ predict_age_by_celltype<-function (data_dir, data_name) {
         dev.off()
     }
 
-    # for each cell type
+}
+
+age_prediction_qc_plots<-function (r) {
+    age_dist_plot <- plot_age_hist_stacked(r$dge_train, r$dge_test, r$cellType)
+    pred_age_plot_train <- plot_age_predictions(r$cv_model$donor_age_predictions, cellType, titleStr=paste("TRAIN", cellType, "\n"))
+    pred_age_plot_test <- plot_age_predictions(r$test_set_predictions, cellType, titleStr=paste("TEST", cellType, "\n [20% held out data]"))
+    perf_plot<-plot_model_performance(
+        cv_metrics = r$cv_model$overall_metrics,
+        per_fold_metrics = r$cv_model$per_fold_metrics,
+        test_metrics = r$test_set_metrics,
+        cellType = cellType
+    )
+
+    p=cowplot::plot_grid(pred_age_plot_train, pred_age_plot_test, age_dist_plot, perf_plot, ncol=2)
+
+    coef1=plot_fold_coefficients(r$cv_model$fold_models, positive_only = FALSE, min_nonzero = 1, top_n=NA, cellType=cellType)
+
+    #plot the age DE results if available against the model average coefficients
+    model_vs_de_plot=NULL
+    if (!is.null(r$age_de_results))
+        model_vs_de_plot=plot_model_vs_de(r$cv_model$final_model, r$age_de_results, cellType = NULL)
+
+    return (list(main_qc_plot=p, coefficient_plot=coef1, model_vs_de_plot=model_vs_de_plot))
 
 }
 
@@ -567,9 +569,30 @@ compute_age_metrics <- function(pred, actual) {
 # Starts from RAW counts: calcNormFactors -> cpm(log=TRUE, prior.count=1) -> z-score using training means/SDs -> linear predictor.
 # dge_new: DGEList with raw counts
 # model_final: data.frame from finalize_enet_model()
+# override_model_params (optional) Override the gene mean, sd, and model intercept with the expression values from this DGEList.
 # Returns: dataframe with donor, age, pred columns.
-predict_age_from_dge <- function(dge_new, model_final, prior.count = 1) {
+predict_age_from_dge <- function(dge_new, model_final, prior.count = 1, override_model_params_dge=NULL, update_intercept=T) {
     stopifnot("DGEList" %in% class(dge_new))
+
+    if (!is.null(override_model_params_dge)) {
+        logger::log_info("Overriding model parameters with provided DGEList expression values.")
+        #compute mean and sd from the override DGEList
+        #dge_override <- edgeR::calcNormFactors(override_model_params_dge)
+        dge_override <- override_model_params_dge
+        lcpm_override <- edgeR::cpm(dge_override, log = TRUE, prior.count = prior.count)  # genes x samples
+
+        common <- intersect(model_final$feature, rownames(lcpm_override))
+        if (length(common) > 0) {
+            idx_common <- match(common, model_final$feature)
+            mu_override <- rowMeans(lcpm_override[common, , drop = FALSE])
+            sd_override <- apply(lcpm_override[common, , drop = FALSE], 1, sd)
+            model_final$mean_train[idx_common] <- mu_override
+            model_final$sd_train[idx_common] <- sd_override
+        }
+        #the intercept has to be from the population to be predicted, not from the subset used to train the model.
+        if (update_intercept)
+            model_final$intercept=mean((dge_new$samples$age))
+    }
 
     # 1) normalize + log-CPM
     if (is.null(dge_new$samples$norm.factors)) dge_new <- edgeR::calcNormFactors(dge_new)
@@ -644,8 +667,8 @@ plot_age_predictions <- function(df, cellType, titleStr = NULL) {
         geom_smooth(method = "lm", formula = y ~ x, se = FALSE, linewidth = 0.6, color = "red") +
         labs(
             title = titleStr,
-            x = "Chronological Age",
-            y = "Predicted Age"
+            x = "Chronological Age [decades]",
+            y = "Predicted Age [decades]"
         ) +
         scale_x_continuous(limits = xlim_val) +
         scale_y_continuous(limits = ylim_val) +
