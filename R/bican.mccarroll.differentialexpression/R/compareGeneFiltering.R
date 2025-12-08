@@ -98,10 +98,37 @@ compare_age_de_runs<-function (old_data_dir, new_data_dir, outPDF, outFile=NULL,
     #this generates plots and the summary dataframe
     z=plot_summary(df)
 
+    #plot the fraction discovery vs initial
+
+    d3=df[, c("cell_type", "num_genes_significant_old", "num_genes_significant_new")]
+    d3$log10_num_genes_old <- log10(d3$num_genes_significant_old + 1)
+    d3$frac_genes_discovered <- d3$num_genes_significant_new /
+        (d3$num_genes_significant_old + 1)
+    d3$parent_type <- factor(sub("(_.*)$", "", d3$cell_type))
+
+    p<-ggplot(d3,
+           aes(x = log10_num_genes_old,
+               y = frac_genes_discovered,
+               color = parent_type)) +
+        geom_point(size = 2) +
+        geom_smooth(method = "loess",
+                    se = FALSE,
+                    color = "black",
+                    linetype = "dashed",
+                    linewidth = 0.8) +
+        labs(
+            x = expression(log[10]("Number of significant genes (before filtering)")),
+            y = "Fraction of genes discovered (level 3)",
+            title = "Reduction vs initial number of discoveries"
+        ) +
+        theme_bw()
+
+
     #plots
     if (!is.null(outPDF)) {
         pdf(outPDF)
         print (z$plot)
+        print (p)
         for (p in plot_list){
             print(p)
         }
@@ -111,8 +138,12 @@ compare_age_de_runs<-function (old_data_dir, new_data_dir, outPDF, outFile=NULL,
     if (!is.null(outFile)) {
         write.table (z$df, file=outFile, sep="\t", quote=FALSE, row.names=FALSE)
     }
+
+
     return (z)
 }
+
+
 
 
 plot_summary <- function(df) {
@@ -640,6 +671,7 @@ plot_reduction_vs_initial <- function(df, cluster_df) {
         ) +
         theme_bw()
 }
+
 
 plot_reduction_by_parent_type <- function(df) {
 

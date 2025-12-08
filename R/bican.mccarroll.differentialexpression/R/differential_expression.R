@@ -131,6 +131,10 @@
 differential_expression <- function(data_dir, data_name, randVars, fixedVars, contrast_file, interaction_var=NULL, absolute_effects=FALSE, cellTypeListFile=NULL, outPDF=NULL, result_dir, n_cores = parallel::detectCores() - 2) {
     #validate the output directory exists
     if (!dir.exists(result_dir)) {
+        logger::log_info(paste("Creating result directory:", result_dir))
+        dir.create(result_dir, recursive=TRUE)
+    }
+    if (!dir.exists(result_dir)) {
         stop("Result directory does not exist: ", result_dir)
     }
 

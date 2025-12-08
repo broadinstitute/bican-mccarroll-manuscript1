@@ -4,14 +4,14 @@
 # library (corrplot)
 # library (logger)
 # library(ggplot2)
-
-#library(variancePartition)
-#library(edgeR)
-#library(limma)
-
-#library(BiocParallel)
-#library (variancePartition)
-#library(lme4)
+#
+# library(variancePartition)
+# library(edgeR)
+# library(limma)
+#
+# library(BiocParallel)
+# library (variancePartition)
+# library(lme4)
 
 # data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
 # data_name="donor_rxn_DGEList"
@@ -134,6 +134,11 @@ runVariancePartition<-function (data_dir, data_name, randVars, fixedVars, outPDF
     } else {
         logger::log_info("No cell types found in the DGEList samples.")
     }
+
+    #correlation plot
+    # exclude donor!
+    required_vars=c(randVars, fixedVars)
+    correlation_vars <- setdiff(required_vars, "donor")
 
     if (!is.null(outPDF)) {
         logger::log_info(paste("Saving all plots to PDF:", outPDF))
