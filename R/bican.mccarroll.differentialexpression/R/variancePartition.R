@@ -82,12 +82,15 @@ runVariancePartition<-function (data_dir, data_name, randVars, fixedVars, outPDF
     d=prepare_data_for_differential_expression(data_dir, data_name, randVars, fixedVars)
     dge=d$dge;fixedVars=d$fixedVars;randVars=d$randVars
 
+    # REMOVE THIS HACK AFTER TESTING. If you don't set compute_baseline, you deserve what you get.
+    #z=metadata_donor_outlier_splitting(dge, randVars, compute_baseline = compute_baseline)
+    #randVars=z$randVars;dge=z$dge
+
     # Variance Partition by cell type
     cell_type_list=unique(dge$samples$cell_type)
-    #cell_type_list=cell_type_list[2]
     plotList=list()
     line <- strrep("=", 80)
-    #cellType="microglia"
+    #cellType="astrocyte"
     if (length(cell_type_list) > 0) {
         for (cellType in cell_type_list) {
             logger::log_info(line)
@@ -113,13 +116,6 @@ runVariancePartition<-function (data_dir, data_name, randVars, fixedVars, outPDF
 
             filtering_qc_plots=cowplot::plot_grid(p1, p2, ncol=1, label_size = 12)
 
-            # batch to age correlation using canCorPairs(formula, data)
-            # fString=paste(required_vars, collapse = " + ")
-            # f<-formula(paste("~", fString, sep=" "))
-            # C<- canCorPairs(formula=f, data=dge$samples)
-            # plotCorrMatrix(C)
-
-
             varPart=run_variance_partition(dge_cell, fixedVars, randVars, verbose = TRUE, allCellTypes = FALSE)
             p3=variancePartition::plotVarPart(varPart, main = paste("Variance Partition", cellType), label.angle = 30)
             p3<- p3 + ggplot2::theme(axis.text.x = ggplot2::element_text(size = 9))
@@ -143,6 +139,8 @@ runVariancePartition<-function (data_dir, data_name, randVars, fixedVars, outPDF
     if (!is.null(outPDF)) {
         logger::log_info(paste("Saving all plots to PDF:", outPDF))
         grDevices::pdf(outPDF)
+        #add in the correlation plot
+        corr_matrix <- getVariableCorrelation(dge$samples, cols_to_test = correlation_vars)
         for (i in 1:length(plotList)) {
             print(plotList[[i]])
         }
@@ -156,6 +154,230 @@ runVariancePartition<-function (data_dir, data_name, randVars, fixedVars, outPDF
     # z4=plot_variable_by_region(dge, variable = "pct_intronic", return_data = TRUE)
 
 }
+
+
+plot_magnitude <- function(varPart, threshold = 0.01, plot_residual = TRUE) {
+    stopifnot(is.matrix(varPart) || is.data.frame(varPart))
+
+    vp <- as.matrix(varPart)
+
+    # Optionally drop residual column when not plotting it
+    if (!plot_residual) {
+        resid_idx <- which(colnames(vp) %in% c("Residuals", "residuals", "resid"))
+        if (length(resid_idx) == 1L) {
+            vp <- vp[, -resid_idx, drop = FALSE]
+        }
+    }
+
+    # Compute fraction of genes above threshold for each term
+    df <- data.frame(
+        term = colnames(vp),
+        frac = apply(vp, 2L, function(x) mean(x > threshold))
+    )
+
+    # Local reimplementation of variancePartition::ggColorHue
+    ggColorHue <- function(n) {
+        if (n <= 0) return(character(0))
+        hues <- seq(15, 375, length.out = n + 1L)
+        grDevices::hcl(h = hues, l = 65, c = 100)[1L:n]
+    }
+
+    n <- nrow(df)
+
+    # Build color vector, matching plotVarPart logic as closely as possible
+    if (plot_residual) {
+        resid_idx <- which(df$term %in% c("Residuals", "residuals", "resid"))
+
+        if (length(resid_idx) == 1L && n > 1L) {
+            n_effect <- n - 1L
+            hue_cols <- ggColorHue(n_effect)
+
+            col_vec <- character(n)
+            effect_idx <- setdiff(seq_len(n), resid_idx)
+
+            col_vec[effect_idx] <- hue_cols
+            col_vec[resid_idx] <- "grey85"
+            names(col_vec) <- df$term
+        } else {
+            # No identifiable residual column; just use hues
+            col_vec <- ggColorHue(n)
+            names(col_vec) <- df$term
+        }
+    } else {
+        col_vec <- ggColorHue(n)
+        names(col_vec) <- df$term
+    }
+
+    # Axis label reflects threshold (assumes threshold is a fraction, e.g. 0.01 = 1%)
+    xlab_txt <- paste0("Fraction of genes with variance >", threshold * 100, "%")
+
+    ggplot2::ggplot(df, ggplot2::aes(x = frac, y = term, fill = term)) +
+        ggplot2::geom_col() +
+        ggplot2::scale_fill_manual(values = col_vec) +
+        ggplot2::labs(
+            x = xlab_txt,
+            y = "",
+            title = "Magnitude of variance components"
+        ) +
+        coord_cartesian(xlim = c(0, 1)) +
+        ggplot2::theme_bw() +
+        ggplot2::theme(
+            axis.text.y = ggplot2::element_text(size = 10),
+            legend.position = "none"
+        )
+}
+
+plot_magnitude_survival <- function(varPart,
+                                thresholds = seq(0, 1, 0.01),
+                                plot_residual = TRUE) {
+    stopifnot(is.matrix(varPart) || is.data.frame(varPart))
+
+    vp <- as.matrix(varPart)
+
+    # Optionally drop residual column when not plotting it
+    if (!plot_residual) {
+        resid_idx <- which(colnames(vp) %in% c("Residuals", "residuals", "resid"))
+        if (length(resid_idx) == 1L) {
+            vp <- vp[, -resid_idx, drop = FALSE]
+        }
+    }
+
+    terms <- colnames(vp)
+    n_terms <- length(terms)
+
+    # Local reimplementation of variancePartition::ggColorHue
+    ggColorHue <- function(n) {
+        if (n <= 0) return(character(0))
+        hues <- seq(15, 375, length.out = n + 1L)
+        grDevices::hcl(h = hues, l = 65, c = 100)[1L:n]
+    }
+
+    # Build color vector, matching plotVarPart logic as closely as possible
+    if (plot_residual) {
+        resid_idx <- which(terms %in% c("Residuals", "residuals", "resid"))
+
+        if (length(resid_idx) == 1L && n_terms > 1L) {
+            n_effect <- n_terms - 1L
+            hue_cols <- ggColorHue(n_effect)
+
+            col_vec <- character(n_terms)
+            effect_idx <- setdiff(seq_len(n_terms), resid_idx)
+
+            col_vec[effect_idx] <- hue_cols
+            col_vec[resid_idx] <- "grey85"
+            names(col_vec) <- terms
+        } else {
+            col_vec <- ggColorHue(n_terms)
+            names(col_vec) <- terms
+        }
+    } else {
+        col_vec <- ggColorHue(n_terms)
+        names(col_vec) <- terms
+    }
+
+    # Build long data.frame: one row per term × threshold
+    df_list <- vector("list", n_terms)
+    for (j in seq_len(n_terms)) {
+        vj <- vp[, j]
+        frac_j <- sapply(thresholds, function(t) mean(vj > t))
+        df_list[[j]] <- data.frame(
+            term = terms[j],
+            threshold = thresholds,
+            frac = frac_j
+        )
+    }
+    df <- do.call(rbind, df_list)
+
+    ggplot2::ggplot(df, ggplot2::aes(x = threshold, y = frac, color = term)) +
+        ggplot2::geom_line() +
+        ggplot2::scale_color_manual(values = col_vec) +
+        ggplot2::labs(
+            x = "Variance threshold",
+            y = "Fraction of genes with variance > threshold",
+            title = "Magnitude of variance components across thresholds"
+        ) +
+        ggplot2::theme_bw() +
+        ggplot2::theme(
+            legend.title = ggplot2::element_blank()
+        )
+}
+
+plot_magnitude_ecdf <- function(varPart,
+                                thresholds = seq(0, 1, 0.01),
+                                plot_residual = TRUE) {
+    stopifnot(is.matrix(varPart) || is.data.frame(varPart))
+
+    vp <- as.matrix(varPart)
+
+    # Optionally drop residual column when not plotting it
+    if (!plot_residual) {
+        resid_idx <- which(colnames(vp) %in% c("Residuals", "residuals", "resid"))
+        if (length(resid_idx) == 1L) {
+            vp <- vp[, -resid_idx, drop = FALSE]
+        }
+    }
+
+    terms <- colnames(vp)
+    n_terms <- length(terms)
+
+    # Local reimplementation of variancePartition::ggColorHue
+    ggColorHue <- function(n) {
+        if (n <= 0) return(character(0))
+        hues <- seq(15, 375, length.out = n + 1L)
+        grDevices::hcl(h = hues, l = 65, c = 100)[1L:n]
+    }
+
+    # Build color vector, matching plotVarPart logic as closely as possible
+    if (plot_residual) {
+        resid_idx <- which(terms %in% c("Residuals", "residuals", "resid"))
+
+        if (length(resid_idx) == 1L && n_terms > 1L) {
+            n_effect <- n_terms - 1L
+            hue_cols <- ggColorHue(n_effect)
+
+            col_vec <- character(n_terms)
+            effect_idx <- setdiff(seq_len(n_terms), resid_idx)
+
+            col_vec[effect_idx] <- hue_cols
+            col_vec[resid_idx] <- "grey85"
+            names(col_vec) <- terms
+        } else {
+            col_vec <- ggColorHue(n_terms)
+            names(col_vec) <- terms
+        }
+    } else {
+        col_vec <- ggColorHue(n_terms)
+        names(col_vec) <- terms
+    }
+
+    # Build long data.frame: one row per term × threshold
+    df_list <- vector("list", n_terms)
+    for (j in seq_len(n_terms)) {
+        vj <- vp[, j]
+        # eCDF: P(variance <= t)
+        frac_j <- sapply(thresholds, function(t) mean(vj <= t))
+        df_list[[j]] <- data.frame(
+            term = terms[j],
+            threshold = thresholds,
+            frac = frac_j
+        )
+    }
+    df <- do.call(rbind, df_list)
+
+    ggplot2::ggplot(df, ggplot2::aes(x = threshold, y = frac, color = term)) +
+        ggplot2::geom_line() +
+        ggplot2::scale_color_manual(values = col_vec) +
+        ggplot2::labs(
+            x = "Variance threshold",
+            y = "Fraction of genes with variance ≤ threshold (eCDF)",
+            title = "eCDF of variance components"
+        ) +
+        ggplot2::theme_bw() +
+        ggplot2::theme(
+            legend.title = ggplot2::element_blank()
+        )
+}
+
 
 #' Prepare data for variance partition or differential expression
 #'
@@ -172,10 +394,13 @@ runVariancePartition<-function (data_dir, data_name, randVars, fixedVars, outPDF
 #' @param data_name               Character. Prefix or name used to load the DGEList object.
 #' @param randVars               Character vector. Names of random metadata variables for MDS coloring.
 #' @param fixedVars              Character vector. Names of fixed metadata variables for MDS grouping.
+#' @param force_as_factor Character vector. Optional. Column names to force as factors.  Important when
+#' there are encodings of categorical variables that use numeric values.  Default is c("imputed_sex") which
+#' is useful for the BICAN data, but this can be altered as needed.
 #' @return A list containing the DGEList object, fixed variables, and random variables.
 #'
 #' @export
-prepare_data_for_differential_expression<-function (data_dir, data_name, randVars, fixedVars) {
+prepare_data_for_differential_expression<-function (data_dir, data_name, randVars, fixedVars, force_as_factor=c("imputed_sex")) {
     # load the pre-computed DGEList object
     logger::log_info(paste("Loading DGEList from:", data_dir, "with prefix:", data_name))
     dge=bican.mccarroll.differentialexpression::loadDGEList(data_dir, prefix = data_name)
@@ -186,7 +411,7 @@ prepare_data_for_differential_expression<-function (data_dir, data_name, randVar
     #if the num_nuclei variable is present, convert it to log10 for regressions
     if ("num_nuclei" %in% colnames(dge$samples)) {
         logger::log_info("Converting num_nuclei to Z-score of log10(num_nuceli) and adding to fixed effects")
-        dge$samples$z_log10_nuclei <- scale(log10(dge$samples$num_nuclei))
+        dge$samples$z_log10_nuclei <- as.numeric (scale(log10(dge$samples$num_nuclei)))
         #remove the original num_nuclei column
         dge$samples$num_nuclei <- NULL
         fixedVars=c("z_log10_nuclei", fixedVars)
@@ -199,9 +424,9 @@ prepare_data_for_differential_expression<-function (data_dir, data_name, randVar
     #scale genetic PCs to unit variance.
     dge$samples=bican.mccarroll.differentialexpression::scale_PC_cols(dge$samples)
 
-    #convert to factors
-    #don't convert norm.factors!
-    dge$samples<-auto_factorize_df(dge$samples, exclude= c("norm.factors", "lib.size"), max_unique_numeric = 10)
+    #The user needs to be careful and pay attention to the output.
+    dge$samples<-auto_factorize_df(dge$samples, factor_cols = force_as_factor)
+    report_factorization_results(dge$samples)
 
     #scale age to decades for numeric stability.
     if ("age" %in% colnames(dge$samples)) {
@@ -288,10 +513,6 @@ run_variance_partition <- function(dge_subset, fixedVars, randVars, verbose = TR
     # plotPercentBars(varPart[rownames(varPart)=="CD2AP", ])
     # plotPercentBars(varPart[rownames(varPart)=="FAM66C", ])
 
-    #an interesting finding - the gene with the highest variance explained by toxicology is CD2AP
-    #but that gene is better explained by cell type.
-
-
 
 }
 
@@ -317,29 +538,58 @@ buildVariancePartitionModelFormula<-function (fixedVars, randVars) {
     return(form)
 }
 
-auto_factorize_df <- function(df, max_unique_numeric = 10, exclude = NULL) {
+auto_factorize_df <- function(df, factor_cols = NULL) {
     stopifnot(is.data.frame(df))
-    stopifnot(is.null(exclude) || all(exclude %in% colnames(df)))
 
-    df[] <- lapply(names(df), function(col_name) {
+    if (!is.null(factor_cols)) {
+        stopifnot(all(factor_cols %in% names(df)))
+    }
+
+    convert_column <- function(col, col_name, factor_cols) {
+        # Explicit override: force to factor
+        if (!is.null(factor_cols) && col_name %in% factor_cols) {
+            return(factor(col))
+        }
+
+        # Default logic: only convert strings (and logicals, if desired)
+        if (is.logical(col)) {
+            return(factor(col))
+        }
+
+        if (is.character(col)) {
+            return(factor(col))
+        }
+
+        # Leave numerics (and everything else) as-is
+        col
+    }
+
+    for (col_name in names(df)) {
+        df[[col_name]] <- convert_column(df[[col_name]], col_name, factor_cols)
+    }
+    df
+}
+
+
+report_factorization_results <- function(df) {
+    stopifnot(is.data.frame(df))
+
+    for (col_name in names(df)) {
         col <- df[[col_name]]
 
-        # Skip excluded columns
-        if (!is.null(exclude) && col_name %in% exclude) {
-            return(col)
-        }
+        # Collapse multiple classes into one string
+        cls <- paste(class(col), collapse = ", ")
 
-        # Factorize logic
-        if (is.character(col)) {
-            factor(col)
-        } else if (is.numeric(col) && length(unique(col)) < max_unique_numeric) {
-            factor(col)
+        if (is.factor(col)) {
+            logger::log_info(
+                "{col_name}: class={cls}, levels={length(levels(col))}"
+            )
         } else {
-            col
+            logger::log_info(
+                "{col_name}: class={cls}"
+            )
         }
-    })
-
-    return(as.data.frame(df))
+    }
 }
 
 
@@ -913,6 +1163,9 @@ profile_variancePartition_runtime <- function(exprObj, formula, data, batch_size
 
     total_start_time <- Sys.time()
 
+    # Track failed genes across all batches
+    total_failed_genes <- character(0)
+
     for (i in seq_along(batches)) {
         batch_idx <- batches[[i]]
 
@@ -926,12 +1179,31 @@ profile_variancePartition_runtime <- function(exprObj, formula, data, batch_size
 
         batch_start_time <- Sys.time()
 
-        varPart_batch <- variancePartition::fitExtractVarPartModel(
-            exprObj = exprObj[batch_idx, ],
-            formula = formula,
-            data = data,
-            BPPARAM = BPPARAM
+        # Catch and muffle only the variancePartition summary warning
+        varPart_batch <- withCallingHandlers(
+            variancePartition::fitExtractVarPartModel(
+                exprObj = exprObj[batch_idx, , drop = FALSE],
+                formula = formula,
+                data    = data,
+                BPPARAM = BPPARAM
+            ),
+            warning = function(w) {
+                msg <- conditionMessage(w)
+                if (grepl("^Model failed for [0-9]+ responses", msg)) {
+                    invokeRestart("muffleWarning")
+                }
+            }
         )
+
+        # Collect failures for this batch, if any
+        errs <- attr(varPart_batch, "errors")
+        if (!is.null(errs)) {
+            failed_idx <- which(!is.na(errs))
+            if (length(failed_idx) > 0L) {
+                batch_failed_genes <- names(errs)[failed_idx]
+                total_failed_genes <- c(total_failed_genes, batch_failed_genes)
+            }
+        }
 
         batch_end_time <- Sys.time()
         batch_runtime_sec <- as.numeric(difftime(batch_end_time, batch_start_time, units = "secs"))
@@ -952,6 +1224,17 @@ profile_variancePartition_runtime <- function(exprObj, formula, data, batch_size
     total_runtime_sec <- as.numeric(difftime(total_end_time, total_start_time, units = "secs"))
 
     logger::log_info(paste0("Total runtime: ", round(total_runtime_sec, 2), " seconds"))
+
+    # Summarize failures across all batches
+    if (length(total_failed_genes) > 0L) {
+        unique_failed <- unique(total_failed_genes)
+        n_failed <- length(unique_failed)
+
+        logger::log_warn(paste0(
+            "variancePartition failed for ", n_failed,
+            " gene(s) out of ", n_genes, "."
+        ))
+    }
 
     #Convert back to a standard variancePartition object.
     # Combine all varPart batch results into a single object
@@ -1026,3 +1309,95 @@ densityPlot<-function (variance_partition_result_rds_file) {
 
 }
 
+#################################################
+# ADHOC EXPLORATION OF metadata donor outliers.
+#################################################
+
+# This is for hacky testing of outlier splitting based on metadata_donor_outlier
+# converts the encoded columns into boolean columns and subsets the DGEList
+# to only include samples with valid metadata_donor_outlier values.
+# Returns a list with the subsetted DGEList and the names of the new boolean columns
+# created.
+# If compute_baseline is TRUE, only subsets the DGEList. and drops the original column from randVars.
+metadata_donor_outlier_splitting <- function(
+        dge,
+        randVars,
+        column = "metadata_donor_outlier",
+        encodeValues = c("OD/dependence", "neurodegeneration"),
+        keepCompleteObservations = c("OD/dependence", "neurodegeneration", "FALSE"),
+        compute_baseline = FALSE
+) {
+    # Require the column to exist
+    if (!(column %in% colnames(dge$samples))) {
+        stop(sprintf("Column '%s' not found in DGEList samples.", column))
+    }
+
+    samples <- dge$samples
+    vals <- as.character(samples[[column]])
+
+    # Define subset used in BOTH baseline and test modes
+    keep <- !is.na(vals) & vals %in% keepCompleteObservations
+
+    if (!any(keep)) {
+        stop(sprintf(
+            "No samples matched keepCompleteObservations in column '%s'.",
+            column
+        ))
+    }
+
+    if (!all(keep)) {
+        logger::log_info(paste(
+            "metadata_donor_outlier_splitting: removing", sum(!keep),
+            "samples not in keepCompleteObservations from column", column
+        ))
+    }
+
+    # Baseline: same subset, no new columns, drop original random effect
+    if (compute_baseline) {
+        dge_sub <- dge[, keep]
+        dge_sub$samples <- samples[keep, , drop = FALSE]
+
+        updated_randVars <- setdiff(randVars, column)
+
+        logger::log_info(paste(
+            "metadata_donor_outlier_splitting: baseline mode; subset to",
+            ncol(dge_sub), "samples and dropped", column,
+            "from random effects."
+        ))
+
+        return(list(
+            dge = dge_sub,
+            randVars = updated_randVars,
+            new_columns = character(0)
+        ))
+    }
+
+    # Test mode: same subset, add factor indicators for encodeValues
+    new_columns <- character(0)
+
+    for (val in encodeValues) {
+        new_col <- gsub("[^A-Za-z0-9]+", "_", val)
+
+        logical_vec <- !is.na(vals) & vals == val
+        # Explicit factor with FALSE/TRUE levels
+        samples[[new_col]] <- factor(logical_vec, levels = c(FALSE, TRUE))
+
+        new_columns <- c(new_columns, new_col)
+    }
+
+    dge_sub <- dge[, keep]
+    dge_sub$samples <- samples[keep, , drop = FALSE]
+
+    updated_randVars <- unique(c(setdiff(randVars, column), new_columns))
+
+    logger::log_info(paste(
+        "Updated random variables for variance partition:",
+        paste(updated_randVars, collapse = ", ")
+    ))
+
+    return(list(
+        dge = dge_sub,
+        randVars = updated_randVars,
+        new_columns = new_columns
+    ))
+}
