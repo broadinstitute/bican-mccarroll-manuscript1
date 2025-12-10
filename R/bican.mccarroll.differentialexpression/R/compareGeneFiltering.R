@@ -1,8 +1,10 @@
 # Compare old vs new CPM filtering of differential expression results
 
-# library(ggplot2)
-# library(cowplot)
-# library(ggrepel)
+#library(ggplot2)
+#library(cowplot)
+#library(ggrepel)
+#library(logger)
+
 #
 # old_data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression_old_gene_filtering/sex_age/cell_type"
 # new_data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type"
@@ -82,6 +84,7 @@ compare_age_de_runs<-function (old_data_dir, new_data_dir, outPDF, outFile=NULL,
 
     plot_list=list()
     df_list=list()
+    merged_list=list()
 
     for (cell_type in cell_types_list){
         logger::log_info(paste0("Comparing age DE results for cell type: ", cell_type, "\n"))
@@ -91,6 +94,7 @@ compare_age_de_runs<-function (old_data_dir, new_data_dir, outPDF, outFile=NULL,
                             fdr_cutoff=fdr_cutoff)
         plot_list[[cell_type]]=p$plot
         df_list[[cell_type]]=p$df
+        merged_list[[cell_type]]=p$merged
     }
 
     df=do.call(rbind, df_list)
@@ -129,8 +133,8 @@ compare_age_de_runs<-function (old_data_dir, new_data_dir, outPDF, outFile=NULL,
         pdf(outPDF)
         print (z$plot)
         print (p)
-        for (p in plot_list){
-            print(p)
+        for (pp in plot_list){
+            print(pp)
         }
         dev.off()
     }
@@ -139,11 +143,10 @@ compare_age_de_runs<-function (old_data_dir, new_data_dir, outPDF, outFile=NULL,
         write.table (z$df, file=outFile, sep="\t", quote=FALSE, row.names=FALSE)
     }
 
+    # test_de_inflation(merged_list[["microglia"]], main_prefix = "DE Analysis Age Microglia", pval_col = "P.Value_old", t_col = "t_old")
 
     return (z)
 }
-
-
 
 
 plot_summary <- function(df) {
@@ -270,6 +273,109 @@ plot_summary <- function(df) {
 }
 
 
+test_de_inflation <- function(
+        de_dataframe,
+        main_prefix = "DE Analysis",
+        pval_col = "P.Value",
+        t_col = "t"
+) {
+    stopifnot(is.data.frame(de_dataframe))
+    stopifnot(all(c(pval_col, t_col) %in% names(de_dataframe)))
+
+    pvals <- de_dataframe[[pval_col]]
+    tvals <- de_dataframe[[t_col]]
+    n <- length(pvals)
+
+    ## 1) Genomic inflation factor (lambda)
+    chi2 <- tvals^2
+    lambda_gc <- median(chi2, na.rm = TRUE) / qchisq(0.5, df = 1)
+
+    ## 2) KS test vs Uniform(0,1)
+    ks_res <- ks.test(pvals, "punif")
+
+    ## 3) Counts of small p-values
+    thresholds <- c(1e-2, 1e-3, 1e-4, 1e-5)
+    small_counts <- sapply(thresholds, function(thr) sum(pvals <= thr, na.rm = TRUE))
+
+    ## -------- Log output --------
+    log_info("Genomic inflation factor lambda_gc: {sprintf('%.3f', lambda_gc)}")
+    log_info("KS test D={sprintf('%.3f', ks_res$statistic)}, p={formatC(ks_res$p.value, format='e', digits=2)}")
+
+    for (i in seq_along(thresholds)) {
+        thr <- thresholds[i]
+        log_info("Number of genes with p <= {thr}: {small_counts[i]}")
+    }
+
+    ## -------- QQ plot data --------
+    expected <- -log10((seq_len(n) - 0.5) / n)
+    observed <- -log10(sort(pvals))
+    dfqq <- data.frame(expected = expected, observed = observed)
+
+    ## Annotation coordinates (upper-left)
+    x_range <- range(dfqq$expected, finite = TRUE)
+    y_range <- range(dfqq$observed, finite = TRUE)
+
+    x_annot <- x_range[1] + 0.05 * diff(x_range)
+    y_annot <- y_range[2] - 0.05 * diff(y_range)
+
+    ## Annotation text
+    label_lines <- c(
+        sprintf("lambda = %.3f", lambda_gc),
+        sprintf("KS p = %s", formatC(ks_res$p.value, format = "e", digits = 2)),
+        sprintf("p<=1e-3: %d", small_counts[thresholds == 1e-3]),
+        sprintf("p<=1e-4: %d", small_counts[thresholds == 1e-4]),
+        sprintf("p<=1e-5: %d", small_counts[thresholds == 1e-5])
+    )
+    annot_label <- paste(label_lines, collapse = "\n")
+
+    ## -------- QQ plot --------
+    qqplot <- ggplot(dfqq, aes(x = expected, y = observed)) +
+        geom_point(alpha = 0.6, size = 1) +
+        geom_abline(intercept = 0, slope = 1, color = "red", linewidth = 0.7) +
+        annotate(
+            "text",
+            x = x_annot, y = y_annot,
+            label = annot_label,
+            hjust = 0, vjust = 1,
+            size = 3
+        ) +
+        labs(
+            title = paste(main_prefix, "QQ-plot of p-values"),
+            x = "Expected -log10(p)",
+            y = "Observed -log10(p)"
+        ) +
+        theme_bw()
+
+    ## -------- Histogram --------
+    dfhist <- data.frame(pvals = pvals)
+
+    histplot <- ggplot(dfhist, aes(x = pvals)) +
+        geom_histogram(bins = 40, color = "black", fill = "grey80") +
+        labs(
+            title = paste(main_prefix, "P-value histogram"),
+            x = "P-value",
+            y = "Count"
+        ) +
+        theme_bw()
+
+    ## -------- Combined panel --------
+    combined <- cowplot::plot_grid(
+        qqplot,
+        histplot,
+        ncol = 1,
+        rel_heights = c(2, 1),
+        align = "v"
+    )
+
+    print(combined)
+
+    invisible(list(
+        lambda_gc = lambda_gc,
+        ks = ks_res,
+        small_counts = small_counts
+    ))
+}
+
 #' Compare age DE results between old and strict filtering (ad hoc)
 #'
 #' This internal helper compares differential expression results for age
@@ -343,6 +449,9 @@ compare_age_de_run <- function (cell_type,
                     by = "gene",
                     suffixes = c("_old", "_new"),
                     all = FALSE)
+
+    #add the cell type
+    merged<-cbind(cell_type=cell_type, merged)
 
     ## Dropped genes and their old significance status
     genes_old <- old_de$gene
@@ -501,7 +610,7 @@ compare_age_de_run <- function (cell_type,
                num_genes_significant_old=num_genes_significant_old,
                num_genes_significant_new=num_genes_significant_new)
 
-    result=list(df=df, plot=combined)
+    result=list(df=df, plot=combined, merged=merged)
     return (result)
 }
 
