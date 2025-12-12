@@ -5,7 +5,7 @@
 # library (cowplot)
 # library (dplyr)
 #
-# data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
+# data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metacells/LEVEL_2"
 # data_name="donor_rxn_DGEList"
 # #
 # age_de_results_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type"
@@ -22,7 +22,7 @@
 #
 # #filtering to gene functional types.  #TODO collapse this and autosomal processes.
 # gtf_path="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.gtf"
-#
+# #
 # donor_col = "donor"
 # age_col = "age"
 # seed =12345; fdr_threshold=0.05; optimize_alpha=FALSE; alpha_fixed=0
@@ -97,6 +97,8 @@ predict_age_by_celltype<-function (data_dir, data_name) {
     }
 
 }
+
+
 
 age_prediction_qc_plots<-function (r) {
     age_dist_plot <- plot_age_hist_stacked(r$dge_train, r$dge_test, r$cellType)

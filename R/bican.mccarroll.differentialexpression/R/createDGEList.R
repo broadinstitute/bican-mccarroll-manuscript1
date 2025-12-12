@@ -1,7 +1,7 @@
 # Load required libraries
 # library(edgeR)
 # library(data.table)
-
+# library(mltools)
 
 # metacell_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
 # manifest_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/DE_manifest.txt"
@@ -110,6 +110,108 @@ build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, me
 }
 
 
+#' Build eQTL covariates for tensorQTL
+#'
+#' This is functionally very similar to build_merged_dge, but the eQTL data keeps each
+#' cell type / region combination as a separate input matrix, and needs a matching covariate file.
+#' The covariates are additionally one-hot encoded in preparation for tensorQTL.
+#'
+#' The output covariates file for each cell type / region combination is in the expected format for PrepareEqtlCovariates:
+#' In the first row/column "id,".  The header column contains donor IDs, each row's first column is the covariate name, followed by values.
+#' @param manifest_file Path to the manifest file, with required columns: \code{output_name}, \code{cell_type_name}, \code{region_name}, and \code{cell_type_filter_str}.
+#' @param metacell_dir Path to the directory containing \code{*.metacells.txt.gz} files.
+#' @param cell_metadata_file Path to the TSV file containing donor-level metadata.
+#' @param metadata_columns Character vector of metadata column names to include from \code{cell_metadata_file}.  The
+#' program will automatically capture donor id.
+#' @param force_category_columns A vector of column names in \code{metadata_columns} that should be treated as categorical variables
+#' @param outDir Directory to save the covariates files.  Each file will have the matching prefix of the metacell file.
+#'
+build_eQTL_covariates<-function (manifest_file, metacell_dir, cell_metadata_file, metadata_columns, force_category_columns=c(), outDir) {
+    # Read cell metadata
+    cell_metadata <- data.table::fread(cell_metadata_file, data.table=F)
+    cell_metadata <- replace_na_strings(cell_metadata)
+
+    #scale age to decades for numeric stability.
+    if ("age" %in% colnames(cell_metadata)) {
+        logger::log_info("Scaling age to decades for numeric stability")
+        cell_metadata$age <- cell_metadata$age / 10
+    }
+
+    manifest <- data.table::fread(manifest_file)
+
+    metadata_list <- vector("list", length = nrow(manifest))
+
+    for (i in seq_len(nrow(manifest))) {
+        logger::log_info(paste("Processing metacell file ", i, "of", nrow(manifest), ":", manifest[i,]$output_name))
+
+        manifest_row=manifest[i,]
+        # create donor level metadata
+        # first subset the cell metadata to the filtered cell type information based on the manifest
+        # This is to handle complex cell type filters like "MSN_D1 matrix" which rely on multiple columns.
+        cell_metadata_this <- filter_df_auto_df_name(cell_metadata, manifest_row$cell_type_filter_str)
+        # Filter by region list
+        cell_metadata_this<- filter_by_region_list(df=cell_metadata_this, region_str=manifest_row$region_list)
+        # add the mixed assay type
+        cell_metadata_this<- addMixedAssayType(cell_metadata_this,has_village=FALSE)
+
+        #aggregate donor-level metadata
+        donor_metadata <- getAnnotations(cell_metadata_this, aggregationFeatures = "donor_external_id",  additionalColumns=metadata_columns, addCounts = add_counts)
+
+        #if add_counts is true, add that to the metadata_columns
+        if (add_counts && !("num_nuclei" %in% metadata_columns)) {
+            metadata_columns_this <- c(metadata_columns, "num_nuclei")
+        } else {
+            metadata_columns_this <- metadata_columns
+        }
+
+        if ("num_nuclei" %in% colnames(donor_metadata)) {
+            donor_metadata$z_log10_nuclei <- as.numeric (scale(log10(donor_metadata$num_nuclei)))
+            donor_metadata$num_nuclei <- NULL
+            metadata_columns_this <- c(metadata_columns_this, "z_log10_nuclei")
+            metadata_columns_this<-setdiff(metadata_columns_this, "num_nuclei")
+        }
+
+
+        #align with the donors in the metacell file
+        file_path <- file.path(metacell_dir, paste0(manifest_row$output_name, ".metacells.txt.gz"))
+
+        if (!file.exists(file_path)) {
+            warning("Missing file: ", file_path)
+            return(NULL)
+        }
+
+
+        # Read counts matrix (genes x donors) for the donor IDs.
+        mat <- read.table(file_path, nrow=1, header=TRUE, sep="\t", stringsAsFactors = FALSE)
+        donor_list=colnames(mat)[-1]  #exclude the gene column
+        idx=match(donor_list, donor_metadata$donor_external_id)
+        donor_metadata<-donor_metadata[idx, metadata_columns_this, drop = FALSE]
+
+        #one hot encode the categorical variables - force categorical values first.
+        donor_metadata<-encode_as_factor(donor_metadata, force_category_columns)
+        X <- mltools::one_hot(as.data.table(donor_metadata))
+
+        #just in case, rename '.' to '_'
+        names(X) <- gsub("\\.", "_", names(X), fixed = FALSE)
+        #Need to transpose.  Features are in rows.
+        Xt=t(X)
+
+        #add the donor ID last, you don't want to hot-1 encode it!
+        donor_metadata_final<-data.frame("id"=rownames(Xt), Xt, row.names = NULL)
+        colnames(donor_metadata_final)<- c("id", rownames (donor_metadata))
+        metadata_list[[i]] <- donor_metadata_final
+
+    }
+
+    # write to disk
+    for (i in seq_len(nrow(manifest))) {
+        out_file <- file.path(outDir, paste0(manifest[i,]$output_name, ".covariates.txt"))
+        logger::log_info(paste("Writing eQTL covariates to:", out_file))
+        write.table(metadata_list[[i]], file = out_file, sep = "\t", na = "NA", quote = FALSE, row.names = FALSE)
+    }
+
+    logger::log_info(paste("Finished Writing eQTL covariates to:", outDir))
+}
 
 #' Process a Single Metacell Count Matrix
 #'
@@ -122,7 +224,7 @@ build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, me
 #' @param metacell_dir Directory containing the \code{*.metacells.txt.gz} count matrix files.
 #' @param cell_metadata A \code{data.frame} containing per-cell metadata used to extract donor-level annotations.
 #' @param metadata_columns A character vector of column names to be pulled from \code{cell_metadata} for each donor.
-#' @param split_id If the metacell column ID contains underscores, split on the first underscore to separate donor and village.
+#' @param split_id If the metacell column ID contains underscores, split on the first underscore to separate donor, village and 10x chemistry.
 #' If set to false, assume the column is the donor ID and is not a composite key.
 #' @return A \code{DGEList} object with renamed sample columns and additional metadata in \code{dge$samples}.
 #' @import data.table edgeR
@@ -202,7 +304,13 @@ process_metacell_file <- function(manifest_row, metacell_dir, cell_metadata, met
         return(dge)
     }
     # Add donor annotations
-    dge <- add_donor_annotations(dge, cell_metadata_this, metadata_columns_final)
+    if (split_id) {
+        aggregationFeatures = c("donor_external_id", "village", "single_cell_assay")
+    } else {
+        aggregationFeatures = c("donor_external_id")
+    }
+
+    dge <- add_donor_annotations(dge, cell_metadata_this, metadata_columns_final, aggregationFeatures=aggregationFeatures, add_counts=TRUE)
 
     #add the "use" columns.
     useCols=c("MDS", "differential_expression", "eQTL_Analysis")
@@ -225,14 +333,17 @@ process_metacell_file <- function(manifest_row, metacell_dir, cell_metadata, met
 #' @param dge_merged A \code{DGEList} object with a \code{donor} column in \code{dge$samples}.
 #' @param cell_metadata A data frame of per-cell metadata used to extract donor-level summaries.
 #' @param metadata_columns Character vector of columns to extract and merge into the \code{samples} data frame.
+#' @param aggregationFeatures A character vector of column names to group by (default is \code{"donor_external_id"}).  This
+#' should match the encoding of the metacell data.
 #' @param add_counts Logical; if \code{TRUE}, adds a column \code{n_cells} with the number of nuclei per donor (num_nuclei)
 #'
 #' @return A \code{DGEList} object with additional donor-level columns in \code{dge$samples}.
 #'
 #' @keywords internal
-add_donor_annotations<-function (dge_merged, cell_metadata, metadata_columns, add_counts=TRUE) {
+add_donor_annotations<-function (dge_merged, cell_metadata, metadata_columns, add_counts=TRUE, aggregationFeatures = "donor_external_id") {
     #aggregate donor-level metadata
-    donor_metadata <- getAnnotations(cell_metadata, aggregationFeatures = "donor_external_id",  additionalColumns=metadata_columns, addCounts = add_counts)
+
+    donor_metadata <- getAnnotations(cell_metadata, aggregationFeatures=aggregationFeatures,  additionalColumns=metadata_columns, addCounts = add_counts)
 
     #if add_counts is true, add that to the metadata_columns
     if (add_counts && !("num_nuclei" %in% metadata_columns)) {
@@ -240,9 +351,33 @@ add_donor_annotations<-function (dge_merged, cell_metadata, metadata_columns, ad
     }
 
     # Merge with cell metadata
-    idx=match(dge_merged$samples$donor, donor_metadata$donor_external_id)
-    dge_merged$samples <- cbind(dge_merged$samples, donor_metadata[idx, metadata_columns, drop = FALSE])
+    #idx=match(dge_merged$samples$donor, donor_metadata$donor_external_id)
+    #dge_merged$samples <- cbind(dge_merged$samples, donor_metadata[idx, metadata_columns, drop = FALSE])
 
+    ## build a composite key from the aggregation columns (must exist in both tables)
+    ## map key columns in dge_merged$samples -> donor_metadata
+    key_cols_samples <- aggregationFeatures
+    key_cols_samples[key_cols_samples == "donor_external_id"] <- "donor"
+
+    key_cols_meta <- aggregationFeatures
+
+    key_merged <- do.call(
+        paste,
+        c(dge_merged$samples[, key_cols_samples, drop = FALSE], sep = "\r")
+    )
+    key_meta <- do.call(
+        paste,
+        c(donor_metadata[, key_cols_meta, drop = FALSE], sep = "\r")
+    )
+
+    if (any(duplicated(key_meta))) stop("donor_metadata has duplicated aggregation keys.")
+
+    idx <- match(key_merged, key_meta)
+
+    dge_merged$samples <- cbind(
+        dge_merged$samples,
+        donor_metadata[idx, metadata_columns, drop = FALSE]
+    )
     return(dge_merged)
 }
 
@@ -314,7 +449,11 @@ getAnnotations <- function(metricsDF,
     split_groups <- split(subsetDF, f = subsetDF[, aggregationFeatures], drop = TRUE)
 
     # Compute per-group summaries
-    result_list <- lapply(split_groups, function(df) {
+    summarize_group <- function(df,
+                                aggregationFeatures,
+                                additionalColumns,
+                                addCounts) {
+
         row <- df[1, aggregationFeatures, drop = FALSE]
 
         for (col in additionalColumns) {
@@ -327,7 +466,6 @@ getAnnotations <- function(metricsDF,
 
                 unique_vals <- unique(stats::na.omit(x))
                 if (length(unique_vals) == 0) {
-                    # All values are NA in this group for this column
                     row[[col]] <- NA
                 } else if (length(unique_vals) == 1) {
                     row[[col]] <- unique_vals
@@ -345,8 +483,13 @@ getAnnotations <- function(metricsDF,
             row[["num_nuclei"]] <- nrow(df)
         }
 
-        return(row)
-    })
+        row
+    }
+
+    result_list <- lapply(split_groups, summarize_group, aggregationFeatures = aggregationFeatures,
+                          additionalColumns = additionalColumns, addCounts = addCounts
+    )
+
 
     # Combine summaries
     annotationDF <- do.call(rbind, result_list)
@@ -478,7 +621,7 @@ replace_na_strings <- function(df) {
 #'   value is set to `"mixed"` in all rows for that donor-region combination.
 addMixedAssayType <- function(metricsDF, has_village = TRUE) {
     # Columns that define a distinct donor-region-(village) combination
-    base_cols <- c("donor_external_id", "brain_region_abbreviation")
+    base_cols <- c("donor_external_id", "brain_region_abbreviation_simple")
     label_cols <- if (has_village && ("village" %in% colnames(metricsDF))) {
         c(base_cols, "village")
     } else {
@@ -749,3 +892,16 @@ convert_na_to_false <- function(df, cols) {
     }
     df
 }
+
+encode_as_factor <- function(df, cols) {
+    for (col in cols) {
+        if (!col %in% names(df)) {
+            stop(sprintf("Column '%s' not found in data frame.", col))
+        }
+        if (!is.factor(df[[col]])) {
+            df[[col]] <- factor(df[[col]])
+        }
+    }
+    df
+}
+
