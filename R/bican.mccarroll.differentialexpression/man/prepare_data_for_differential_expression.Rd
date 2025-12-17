@@ -8,7 +8,8 @@ prepare_data_for_differential_expression(
   data_dir,
   data_name,
   randVars,
-  fixedVars
+  fixedVars,
+  force_as_factor = c("imputed_sex")
 )
 }
 \arguments{
@@ -19,6 +20,10 @@ prepare_data_for_differential_expression(
 \item{randVars}{Character vector. Names of random metadata variables for MDS coloring.}
 
 \item{fixedVars}{Character vector. Names of fixed metadata variables for MDS grouping.}
+
+\item{force_as_factor}{Character vector. Optional. Column names to force as factors.  Important when
+there are encodings of categorical variables that use numeric values.  Default is c("imputed_sex") which
+is useful for the BICAN data, but this can be altered as needed.}
 }
 \value{
 A list containing the DGEList object, fixed variables, and random variables.

@@ -21,7 +21,7 @@ process_metacell_file(
 
 \item{metadata_columns}{A character vector of column names to be pulled from \code{cell_metadata} for each donor.}
 
-\item{split_id}{If the metacell column ID contains underscores, split on the first underscore to separate donor and village.
+\item{split_id}{If the metacell column ID contains underscores, split on the first underscore to separate donor, village and 10x chemistry.
 If set to false, assume the column is the donor ID and is not a composite key.}
 }
 \value{

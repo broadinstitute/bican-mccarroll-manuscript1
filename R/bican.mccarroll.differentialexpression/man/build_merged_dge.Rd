@@ -9,6 +9,7 @@ build_merged_dge(
   metacell_dir,
   cell_metadata_file,
   metadata_columns,
+  convert_na_columns_to_false = NULL,
   split_id = TRUE,
   single_cell_assay = NULL,
   outDir = NULL,
@@ -25,6 +26,8 @@ build_merged_dge(
 
 \item{metadata_columns}{Character vector of metadata column names to include from \code{cell_metadata_file}.  The
 program will automatically capture donor, cell type, region, and village (if applicable).}
+
+\item{convert_na_columns_to_false}{A vector of column names in \code{metadata_columns} for which \code{NA} values, those values will be converted to FALSE.}
 
 \item{split_id}{If the metacell column ID contains underscores, split on the first underscore to separate donor and village.
 If set to false, assume the column is the donor ID and is not a composite key.}

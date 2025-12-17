@@ -8,7 +8,8 @@ add_donor_annotations(
   dge_merged,
   cell_metadata,
   metadata_columns,
-  add_counts = TRUE
+  add_counts = TRUE,
+  aggregationFeatures = "donor_external_id"
 )
 }
 \arguments{
@@ -19,6 +20,9 @@ add_donor_annotations(
 \item{metadata_columns}{Character vector of columns to extract and merge into the \code{samples} data frame.}
 
 \item{add_counts}{Logical; if \code{TRUE}, adds a column \code{n_cells} with the number of nuclei per donor (num_nuclei)}
+
+\item{aggregationFeatures}{A character vector of column names to group by (default is \code{"donor_external_id"}).  This
+should match the encoding of the metacell data.}
 }
 \value{
 A \code{DGEList} object with additional donor-level columns in \code{dge$samples}.

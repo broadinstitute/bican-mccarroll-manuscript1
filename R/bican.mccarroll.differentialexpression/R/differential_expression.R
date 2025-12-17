@@ -148,64 +148,71 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
 
     # Variance Partition by cell type
     cell_type_list=unique(dge$samples$cell_type)
+    if (length(cell_type_list) == 0) {
+        logger::log_info("No cell types found in the DGEList samples.")
+        return(NULL)
+    }
+
     #cellType=cell_type_list[1]
     #cellType="GABA_MGE_DFC"
     lineStr <- strrep("=", 80)
 
     plot_list= list()
-    if (length(cell_type_list) > 0) {
-        for (cellType in cell_type_list) {
-            logger::log_info(lineStr)
-            logger::log_info(paste("Creating differential expression analysis for cell type:", cellType))
-            logger::log_info(lineStr)
 
-            dge_cell <- dge[, dge$samples$cell_type == cellType, keep.lib.sizes = TRUE]
-            #filtering samples by library size
-            r<- filter_by_libsize(dge_cell, threshold_sd = 1.96, bins = 50, strTitlePrefix = cellType)
-            dge_cell<- r$dge
+    for (cellType in cell_type_list) {
+        logger::log_info(lineStr)
+        logger::log_info(paste("Creating differential expression analysis for cell type:", cellType))
+        logger::log_info(lineStr)
 
-            #filter to the top 75% of highly expressed genes as a first pass.
-            dge_cell<-filter_top_expressed_genes(dge_cell, gene_filter_frac = 0.75, verbose = TRUE)
-            #filter to cpm cutoff of 1.
-            r2=plot_logCPM_density_quantiles(dge_cell, cpm_cutoff = 1, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5, min_samples=1, fraction_samples=0.1)
-            dge_cell=r2$filtered_dge
+        dge_cell <- dge[, dge$samples$cell_type == cellType, keep.lib.sizes = TRUE]
+        #filtering samples by library size
+        r<- filter_by_libsize(dge_cell, threshold_sd = 1.96, bins = 50, strTitlePrefix = cellType)
+        dge_cell<- r$dge
 
-            #run differential expression
-            #this produces one list per contrast comparison.
-            z<-differential_expression_one_cell_type(dge_cell, fixedVars, randVars, contrast_defs,
-                                                     interaction_var=interaction_var, absolute_effects=absolute_effects,
-                                                     verbose = TRUE, n_cores = n_cores)
+        #filter to the top 75% of highly expressed genes as a first pass.
+        dge_cell<-filter_top_expressed_genes(dge_cell, gene_filter_frac = 0.75, verbose = TRUE)
+        #filter to cpm cutoff of 1.
+        r2=plot_logCPM_density_quantiles(dge_cell, cpm_cutoff = 1, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5, min_samples=1, fraction_samples=0.1)
+        dge_cell=r2$filtered_dge
 
-            # flatten the results for summary and plotting
-            # keep only data frames, keep ONLY inner names, preserve order
-            z_flat <- do.call(c, lapply(unname(z), function(x) x[sapply(x, is.data.frame)]))
+        #run differential expression
+        #this produces one list per contrast comparison.
+        z<-differential_expression_one_cell_type(dge_cell, fixedVars, randVars, contrast_defs,
+                                                 interaction_var=interaction_var, absolute_effects=absolute_effects,
+                                                 verbose = TRUE, n_cores = n_cores)
 
-            #save the results
-            for (contrast in names(z_flat)) {
-                out=z_flat[[contrast]]
-                # replace ":" with "_" in contrast name for filenames
-                contrast_name_clean <- gsub(":", "_", contrast, fixed = TRUE)
-                n=paste(cellType, contrast_name_clean, sep="_")
-                outFile <- file.path(result_dir, paste0(n, "_DE_results.txt"))
-                logger::log_info(paste("Saving results to:", outFile))
-                write.table(out, file = outFile, sep = "\t", quote = FALSE, row.names = TRUE, col.names = TRUE)
-            }
+        # flatten the results for summary and plotting
+        z_flat <- flatten_de_results(z)
 
-            #make a volcano plot for each contrast
-            for (contrast in names(z_flat)) {
-                # replace ":" with "_" in contrast name for filenames
-                contrast_name_clean <- gsub(":", "_", contrast, fixed = TRUE)
-                n=paste(cellType, contrast, sep="_")
-                df <- z_flat[[contrast]]
-                if (nrow(df) > 0) {
-                    p <- make_volcano(df, fdr_thresh = 0.05, lfc_thresh = 0,
-                                      top_n_each = 10, title = paste(cellType, contrast_name_clean))
-                    plot_list[[n]] <- p
-                }
+        if (length(z_flat) == 0) {
+            logger::log_warn("No non-empty DE result tables to write for this cellType/region.")
+            next
+        }
+
+        #save the results
+        for (contrast in names(z_flat)) {
+            out=z_flat[[contrast]]
+            # replace ":" with "_" in contrast name for filenames
+            contrast_name_clean <- gsub(":", "_", contrast, fixed = TRUE)
+            n=paste(cellType, contrast_name_clean, sep="_")
+            outFile <- file.path(result_dir, paste0(n, "_DE_results.txt"))
+            logger::log_info(paste("Saving results to:", outFile))
+            write.table(out, file = outFile, sep = "\t", quote = FALSE, row.names = TRUE, col.names = TRUE)
+        }
+
+        #make a volcano plot for each contrast
+        for (contrast in names(z_flat)) {
+            # replace ":" with "_" in contrast name for filenames
+            contrast_name_clean <- gsub(":", "_", contrast, fixed = TRUE)
+            n=paste(cellType, contrast, sep="_")
+            df <- z_flat[[contrast]]
+            if (nrow(df) > 0) {
+                p <- make_volcano(df, fdr_thresh = 0.05, lfc_thresh = 0,
+                                  top_n_each = 10, title = paste(cellType, contrast_name_clean))
+                plot_list[[n]] <- p
             }
         }
-    } else {
-        logger::log_info("No cell types found in the DGEList samples.")
+
     }
 
     if (!is.null(outPDF)) {
@@ -252,69 +259,78 @@ differential_expression_region <- function(data_dir, data_name, randVars, fixedV
 
     # Variance Partition by cell type
     cell_type_list=unique(dge$samples$cell_type)
+
+    if (length(cell_type_list) == 0) {
+        logger::log_info("No cell types found in the DGEList samples.")
+        return(NULL)
+    }
+
     #cellType="astrocyte";
     line <- strrep("=", 80)
 
     plot_list= list()
-    if (length(cell_type_list) > 0) {
-        for (cellType in cell_type_list) {
-            logger::log_info(line)
-            logger::log_info(paste("Creating differential expression analysis for cell type:", cellType))
-            logger::log_info(line)
 
-            dge_cell <- dge[, dge$samples$cell_type == cellType, keep.lib.sizes = TRUE]
+    for (cellType in cell_type_list) {
 
-            region_list<-unique(dge_cell$samples$region)
+        logger::log_info(line)
+        logger::log_info(paste("Creating differential expression analysis for cell type:", cellType))
+        logger::log_info(line)
 
-            for (region in region_list) {
+        dge_cell <- dge[, dge$samples$cell_type == cellType, keep.lib.sizes = TRUE]
 
-                dge_cell_region <- dge_cell[, dge_cell$samples$region == region, keep.lib.sizes = TRUE]
-                logger::log_info(paste("  Analyzing region:", region, "with", dim(dge_cell_region$samples)[1], "samples."))
+        region_list<-unique(dge_cell$samples$region)
 
-                #filtering samples by library size
-                r<- filter_by_libsize(dge_cell_region, threshold_sd = 1.96, bins = 50, strTitlePrefix = cellType)
-                dge_cell_region<- r$dge
+        for (region in region_list) {
+            dge_cell_region <- dge_cell[, dge_cell$samples$region == region, keep.lib.sizes = TRUE]
+            logger::log_info(paste("  Analyzing region:", region, "with", dim(dge_cell_region$samples)[1], "samples."))
 
-                #filter to the top 75% of highly expressed genes as a first pass.
-                dge_cell_region<-filter_top_expressed_genes(dge_cell_region, gene_filter_frac = 0.75, verbose = TRUE)
-                #filter to cpm cutoff of 1.
-                r2=plot_logCPM_density_quantiles(dge_cell_region, cpm_cutoff = 1, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5, min_samples=1, fraction_samples=0.1)
-                dge_cell_region=r2$filtered_dge
+            #filtering samples by library size
+            r<- filter_by_libsize(dge_cell_region, threshold_sd = 1.96, bins = 50, strTitlePrefix = cellType)
+            dge_cell_region<- r$dge
 
-                #run differential expression
-                #this produces one list per contrast comparison.
-                # no interaction or absolute effects for region-specific tests.
-                z<-differential_expression_one_cell_type(dge_cell_region, fixedVars, randVars, contrast_defs,
-                                                         interaction_var=NULL, absolute_effects=FALSE,
-                                                         verbose = TRUE, n_cores = n_cores)
+            #filter to the top 75% of highly expressed genes as a first pass.
+            dge_cell_region<-filter_top_expressed_genes(dge_cell_region, gene_filter_frac = 0.75, verbose = TRUE)
+            #filter to cpm cutoff of 1.
+            r2=plot_logCPM_density_quantiles(dge_cell_region, cpm_cutoff = 1, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5, min_samples=1, fraction_samples=0.1)
+            dge_cell_region=r2$filtered_dge
 
-                # flatten the results for summary and plotting
-                # keep only data frames, keep ONLY inner names, preserve order
-                z_flat <- do.call(c, lapply(unname(z), function(x) x[sapply(x, is.data.frame)]))
+            #run differential expression
+            #this produces one list per contrast comparison.
+            # no interaction or absolute effects for region-specific tests.
+            z<-differential_expression_one_cell_type(dge_cell_region, fixedVars, randVars, contrast_defs,
+                                                     interaction_var=NULL, absolute_effects=FALSE,
+                                                     verbose = TRUE, n_cores = n_cores)
 
-                #save the results
-                for (contrast in names(z_flat)) {
-                    out=z_flat[[contrast]]
-                    n=paste(cellType, region, contrast, sep="_")
-                    outFile <- file.path(result_dir, paste0(n, "_DE_results.txt"))
-                    logger::log_info(paste("Saving results to:", outFile))
-                    write.table(out, file = outFile, sep = "\t", quote = FALSE, row.names = TRUE, col.names = TRUE)
-                }
+            # flatten the results for summary and plotting
+            # keep only data frames, keep ONLY inner names, preserve order
+            z_flat <- flatten_de_results(z)
 
-                #make a volcano plot for each contrast
-                for (contrast in names(z_flat)) {
-                    n=paste(cellType, region, contrast, sep="_")
-                    df <- z_flat[[contrast]]
-                    if (nrow(df) > 0) {
-                        p <- make_volcano(df, fdr_thresh = 0.05, lfc_thresh = 0,
-                                          top_n_each = 10, title = paste(cellType, contrast))
-                        plot_list[[n]] <- p
-                    }
+            if (length(z_flat) == 0) {
+                logger::log_warn("No non-empty DE result tables to write for this cellType/region.")
+                next
+            }
+
+            #save the results
+            for (contrast in names(z_flat)) {
+                out=z_flat[[contrast]]
+                n=paste(cellType, region, contrast, sep="_")
+                outFile <- file.path(result_dir, paste0(n, "_DE_results.txt"))
+                logger::log_info(paste("Saving results to:", outFile))
+                write.table(out, file = outFile, sep = "\t", quote = FALSE, row.names = TRUE, col.names = TRUE)
+            }
+
+            #make a volcano plot for each contrast
+            for (contrast in names(z_flat)) {
+                n=paste(cellType, region, contrast, sep="_")
+                df <- z_flat[[contrast]]
+                if (nrow(df) > 0) {
+                    p <- make_volcano(df, fdr_thresh = 0.05, lfc_thresh = 0,
+                                      top_n_each = 10, title = paste(cellType, contrast))
+                    plot_list[[n]] <- p
                 }
             }
+
         }
-    } else {
-        logger::log_info("No cell types found in the DGEList samples.")
     }
 
     if (!is.null(outPDF)) {
@@ -329,6 +345,17 @@ differential_expression_region <- function(data_dir, data_name, randVars, fixedV
 
 }
 
+flatten_de_results <- function(z) {
+    z_flat <- do.call(c, lapply(unname(z), function(x) {
+        if (!is.list(x)) return(list())
+        x[vapply(x, is.data.frame, logical(1))]
+    }))
+
+    if (length(z_flat) == 0) return(list())
+
+    keep <- vapply(z_flat, function(df) nrow(df) > 0, logical(1))
+    z_flat[keep]
+}
 
 ########################
 # DELEGATION FUNCTION
@@ -354,7 +381,7 @@ differential_expression_one_cell_type <- function(
         dge$samples <- sanitize_levels(dge$samples)
     }
 
-    # Continuous iff contrast_defs rows for var have both levels NA; else fall back to sample type
+    # Continuous if contrast_defs rows for var have both levels NA; else fall back to sample type
     is_continuous_var <- function(var, df, samples){
         rows <- df[df$variable == var, , drop = FALSE]
         if (nrow(rows)) {
@@ -380,7 +407,7 @@ differential_expression_one_cell_type <- function(
             # the tested contrast must be continuous. Otherwise skip.
             if (!is.null(interaction_var) && !cg_is_cont) {
                 msg("SKIP: '%s' has categorical contrasts in contrast_defs; relative interactions require continuous.", cg)
-                out[[cg]] <- NULL
+                out[[cg]] <- list()
                 next
             }
 
@@ -392,13 +419,13 @@ differential_expression_one_cell_type <- function(
                 if (!(baseline_level %in% unique(dge$samples[[interaction_var]]))) {
                     msg("SKIP: baseline level '%s' for interaction_var '%s' not found in data for contrast_group '%s'.",
                         baseline_level, interaction_var, cg)
-                    out[[cg]] <- NULL
+                    out[[cg]] <- list()
                     next
                 }
                 if (length(levs) < 2) {
                     msg("SKIP: interaction_var '%s' has only one level in data for contrast_group '%s'.",
                         interaction_var, cg)
-                    out[[cg]] <- NULL
+                    out[[cg]] <- list()
                     next
                 }
             }
@@ -544,6 +571,14 @@ continuous_by_factor_differential_expression <- function(
     if (qr(X)$rank < ncol(X)) stop("Design not full rank. Check fixed effects.")
     miss <- setdiff(cont_cols, colnames(X))
     if (length(miss)) stop("Missing per-level slope columns in design: ", paste(miss, collapse = ", "))
+
+    # Check for any other issues with the fit, and return early if they are detected.
+    chk <- should_skip_dream_subset(fixed_form, dge_cell_this$samples, min_n = 50)
+
+    if (chk$skip) {
+        logger::log_warn(paste("Skipping dream fit:", chk$reason))
+        return(list())
+    }
 
     # voom + dream + eBayes
     #param <- BiocParallel::MulticoreParam(workers = n_cores)
@@ -718,6 +753,14 @@ categorical_by_categorical_differential_expression <- function(
         L[colA, i] <- -1
     }
 
+    # Check for any other issues with the fit, and return early if they are detected.
+    chk <- should_skip_dream_subset(fixed_form, dge_cell_this$samples, min_n = 50)
+
+    if (chk$skip) {
+        logger::log_warn(paste("Skipping dream fit:", chk$reason))
+        return(list())
+    }
+
     # --- voom + dream with L ---
     #param <- BiocParallel::MulticoreParam(workers = n_cores)
     param <- make_bpparam(n_cores=n_cores)
@@ -862,6 +905,13 @@ differential_expression_one_cell_type_contrast_group <- function(
     has_contrasts_groups <- !all(is.na(contrast_defs_this$reference_level) & is.na(contrast_defs_this$comparison_level))
     L <- if (has_contrasts_groups) contrast_matrix else NULL
 
+    # Check for any other issues with the fit, and return early if they are detected.
+    chk <- should_skip_dream_subset(fixed_form, dge_cell_this$samples, min_n = 50)
+
+    if (chk$skip) {
+        logger::log_warn(paste("Skipping dream fit:", chk$reason))
+        return(list())
+    }
 
     # ---- fit ---------------------------------------------------------------
     #param <- BiocParallel::MulticoreParam(workers = n_cores)
@@ -921,41 +971,6 @@ differential_expression_one_cell_type_contrast_group <- function(
                 tt[[nm]] <- variancePartition::topTable(fitmm, coef = ic, number = Inf)
             }
         }
-
-        # optional: absolute effects matrix for convenience
-        # No longer needed, absolute effects are modeled directly in categorical_by_categorical_differential_expression + continuous_by_factor_differential_expression
-        # abs_list <- list()
-        # C <- coef(fitmm)
-        # to_colmat <- function(x, nm) {
-        #     x <- as.matrix(x); colnames(x) <- nm; x
-        # }
-        #
-        # if (add_interaction && contrast_group %in% colnames(C)) {
-        #     for (lev in levels(dge_cell_this$samples[[interaction_var]])) {
-        #         nm <- paste0("abs_", contrast_group, ":", interaction_var, lev)
-        #         if (lev == baseline) {
-        #             abs_list[[lev]] <- to_colmat(C[, contrast_group, drop = FALSE], nm)
-        #         } else {
-        #             ic <- .pick_int_name(colnames(C), contrast_group, interaction_var, lev)
-        #             if (!is.na(ic)) {
-        #                 abs_list[[lev]] <- to_colmat(C[, contrast_group, drop = FALSE] + C[, ic, drop = FALSE], nm)
-        #             }
-        #         }
-        #     }
-        # }
-
-        #If there are interactions, return the absolute effects as a data.frame with genes in rownames to be
-        #consistent with other DE results.
-        # if (length(abs_list)) {
-        #     abs_mat <- do.call(cbind, abs_list)
-        #     abs_df  <- as.data.frame(abs_mat, stringsAsFactors = FALSE)
-        #
-        #     df_name <- paste0(contrast_group, "_absolute_effects")
-        #     tt[[df_name]] <- abs_df
-        # } else {
-        #     df_name <- paste0(contrast_group, "_absolute_effects")
-        #     tt[[df_name]] <- NULL
-        # }
     }
 
     tt
@@ -1170,33 +1185,6 @@ log_decide_tests_summary <- function(fit, L, label = "DE summary") {
     logger::log_info("{label}:\n{paste(capture.output(print(out)), collapse = '\n')}")
 }
 
-# Filter genes with extreme voom weights
-# filter_high_weight_genes <- function(vobj, dge, quantile_threshold = 0.999, verbose = TRUE) {
-#     stopifnot(!is.null(vobj), !is.null(dge))
-#
-#     weights <- vobj$weights
-#     gene_names <- rownames(dge$counts)
-#
-#     if (nrow(weights) != length(gene_names)) {
-#         stop("Number of genes in weights does not match gene names from DGEList.")
-#     }
-#
-#     max_weights <- apply(weights, 1, max, na.rm = TRUE)
-#     threshold <- stats::quantile(max_weights, quantile_threshold, na.rm = TRUE)
-#
-#     keep <- max_weights < threshold
-#     n_dropped <- sum(!keep)
-#     n_total <- length(keep)
-#
-#     if (verbose) {
-#         message(sprintf(
-#             "Filtering %d of %d genes (%.2f%%) with extreme weights (quantile threshold %.3f -> %.2e)",
-#             n_dropped, n_total, 100 * n_dropped / n_total, quantile_threshold, threshold
-#         ))
-#     }
-#
-#     return(gene_names[keep])
-# }
 
 # Filter genes with extreme voom weights
 #TODO: remove dge argument, no longer needed.
@@ -1237,6 +1225,62 @@ filter_high_weight_genes <- function(vobj, dge, quantile_threshold = 0.999, max_
     tested_genes[keep_idx]
 }
 
+
+#' Decide whether to skip a dream fit for a small or unstable subset
+#'
+#' Uses the fixed-effects design matrix to decide whether to skip a fit because
+#' there are too few samples or the design is numerically unstable.
+#'
+#' Assumes upstream code has already enforced complete cases and a full-rank
+#' design for the same \code{fixed_form} and \code{samp}.
+#'
+#' @param fixed_form Fixed-effects formula used to build the design matrix.
+#' @param samp Sample metadata (\code{data.frame}), typically \code{dge$samples}.
+#' @param min_n Minimum number of samples required.
+#' @param min_df_resid Minimum required residual degrees of freedom (\code{n - p}).
+#' @param max_kappa Maximum allowed condition number for the design matrix.
+#'
+#' @return A list with \code{skip}, \code{reason}, \code{n}, \code{p},
+#'   \code{df_resid}, and \code{kappa}.
+#'
+should_skip_dream_subset <- function(fixed_form, samp,
+                                           min_n = 25,
+                                           min_df_resid = 10,
+                                           max_kappa = 1e10) {
+
+    n <- nrow(samp)
+    if (n < min_n) {
+        return(list(skip = TRUE,
+                    reason = sprintf("Too few samples: n=%d < %d", n, min_n),
+                    n = n, p = NA_integer_, df_resid = NA_integer_, kappa = NA_real_))
+    }
+
+    X <- stats::model.matrix(fixed_form, data = samp)
+    p <- ncol(X)
+
+    df_resid <- n - p
+    if (df_resid < min_df_resid) {
+        return(list(skip = TRUE,
+                    reason = sprintf("Too few residual degrees of freedom: df_resid=%d < %d", df_resid, min_df_resid),
+                    n = n, p = p, df_resid = df_resid, kappa = NA_real_))
+    }
+
+    sv <- base::svd(X, nu = 0, nv = 0)$d
+    kappa_est <- max(sv) / min(sv)
+
+    if (!is.finite(kappa_est) || kappa_est > max_kappa) {
+        return(list(skip = TRUE,
+                    reason = sprintf("Ill-conditioned design: kappa~%.2e > %.2e", kappa_est, max_kappa),
+                    n = n, p = p, df_resid = df_resid, kappa = kappa_est))
+    }
+
+    list(skip = FALSE,
+         reason = "",
+         n = n,
+         p = p,
+         df_resid = df_resid,
+         kappa = kappa_est)
+}
 
 
 

@@ -7,7 +7,7 @@
 runMDSPlots(
   data_dir,
   data_name,
-  additionalDonorMetadata,
+  additionalDonorMetadata = NULL,
   randVars,
   fixedVars,
   max_num_samples = 2500,
