@@ -1,4 +1,3 @@
-
 # library(bican.mccarroll.differentialexpression)
 # library(variancePartition)
 # library(Glimma)
@@ -573,7 +572,7 @@ continuous_by_factor_differential_expression <- function(
     if (length(miss)) stop("Missing per-level slope columns in design: ", paste(miss, collapse = ", "))
 
     # Check for any other issues with the fit, and return early if they are detected.
-    chk <- should_skip_dream_subset(fixed_form, dge_this$samples, min_n = 50)
+    chk <- should_skip_dream_subset(fixed_form, samp, min_n = 50)
 
     if (chk$skip) {
         logger::log_warn(paste("Skipping dream fit:", chk$reason))
