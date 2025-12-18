@@ -698,6 +698,14 @@ categorical_by_categorical_differential_expression <- function(
     X <- stats::model.matrix(fixed_form, data = samp)
     if (qr(X)$rank < ncol(X)) stop("Design not full rank.")
 
+    # Check for any other issues with the fit, and return early if they are detected.
+    chk <- should_skip_dream_subset(fixed_form, samp, min_n = 50)
+
+    if (chk$skip) {
+        logger::log_warn(paste("Skipping dream fit:", chk$reason))
+        return(list())
+    }
+
     # Map "A__R" labels to the actual design columns created by model.matrix
     combocols <- grep("^combo", colnames(X), value = TRUE)
     if (!length(combocols)) stop("No 'combo' columns found in design.")
@@ -752,16 +760,7 @@ categorical_by_categorical_differential_expression <- function(
         L[colA, i] <- -1
     }
 
-    # Check for any other issues with the fit, and return early if they are detected.
-    chk <- should_skip_dream_subset(fixed_form, dge$samples, min_n = 50)
-
-    if (chk$skip) {
-        logger::log_warn(paste("Skipping dream fit:", chk$reason))
-        return(list())
-    }
-
     # --- voom + dream with L ---
-    #param <- BiocParallel::MulticoreParam(workers = n_cores)
     param <- make_bpparam(n_cores=n_cores)
     v1 <- variancePartition::voomWithDreamWeights(dge, full_form, data = samp, span=0.3, BPPARAM = param)
     keep <- filter_high_weight_genes(v1, dge, quantile_threshold = 0.999)
