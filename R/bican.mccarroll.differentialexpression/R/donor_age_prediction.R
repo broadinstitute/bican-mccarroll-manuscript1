@@ -38,7 +38,12 @@
 # result_dir="/broad/mccarroll/dropulation/analysis/SNAP200/differential_expression/age_prediction"
 # outPDFFile="/broad/mccarroll/dropulation/analysis/SNAP200/differential_expression/age_prediction/age_prediction_results_snap200_DE_genes.pdf"
 
-predict_age_by_celltype<-function (data_dir, data_name) {
+predict_age_by_celltype<-function (data_dir, data_name, result_dir, age_de_results_dir, outPDFFile=NULL,
+                                  contig_yaml_file, reduced_gtf_file,
+                                  donor_col = "donor", age_col = "age",
+                                  seed =42, fdr_threshold=0.05,
+                                  optimize_alpha=FALSE, alpha_fixed=0.5) {
+
     #validate the output directory exists
     if (!dir.exists(result_dir)) {
         stop("Result directory does not exist: ", result_dir)
@@ -73,7 +78,7 @@ predict_age_by_celltype<-function (data_dir, data_name) {
         test_set_metrics_list[[cellType]]=r$test_set_metrics
 
         # QC plots
-        plot_list=age_prediction_qc_plots(r)
+        plot_list=age_prediction_qc_plots(r, cellType)
 
         for (p in plot_list) {
             if (!is.null(p))
@@ -100,7 +105,7 @@ predict_age_by_celltype<-function (data_dir, data_name) {
 
 
 
-age_prediction_qc_plots<-function (r) {
+age_prediction_qc_plots<-function (r, cellType) {
     age_dist_plot <- plot_age_hist_stacked(r$dge_train, r$dge_test, r$cellType)
     pred_age_plot_train <- plot_age_predictions(r$cv_model$donor_age_predictions, cellType, titleStr=paste("TRAIN", cellType, "\n"))
     pred_age_plot_test <- plot_age_predictions(r$test_set_predictions, cellType, titleStr=paste("TEST", cellType, "\n [20% held out data]"))
@@ -663,6 +668,9 @@ plot_age_predictions <- function(df, cellType, titleStr = NULL) {
     xlim_val <- range_all
     ylim_val <- range_all
 
+    #Make R CMD CHECK happy
+    age <- pred <- NULL
+
     ggplot(df, aes(x = age, y = pred)) +
         geom_point(size = 2, alpha = 0.7, color = "steelblue") +
         geom_abline(intercept = 0, slope = 1, color = "black", linetype = "dashed") +
@@ -689,6 +697,9 @@ plot_age_hist_stacked <- function(dge_train, dge_test, cellType = NULL) {
     )
     df$set <- factor(df$set, levels = c("Train", "Held-out donors"))
     x_range <- range(df$age, na.rm = TRUE)
+
+    #Make R CMD CHECK happy
+    age <- set <- NULL
 
     ggplot(df, aes(x = age, fill = set)) +
         geom_histogram(color = "white", bins = 30, na.rm = TRUE) +
@@ -732,6 +743,9 @@ plot_model_performance <- function(cv_metrics, per_fold_metrics, test_metrics, c
         data.frame(source="Held-out donors",         metric="Median AE", value=test_metrics$median_abs_error)
     )
     df_points$x <- "All"
+
+    #Make R CMD CHECK happy
+    x <- value <- metric <- source <- NULL
 
     ggplot() +
         # box + jitter for per-fold metrics
@@ -803,73 +817,105 @@ plot_model_performance <- function(cv_metrics, per_fold_metrics, test_metrics, c
 plot_fold_coefficients <- function(fold_models, positive_only = FALSE,
                                    min_nonzero = 1, top_n = NA, cellType = NULL) {
     stopifnot(is.list(fold_models), length(fold_models) >= 1)
-    suppressPackageStartupMessages({ library(ggplot2); library(dplyr) })
+
+    # Make R CMD check happy (non-standard eval + ggplot2)
+    coef <- feature <- fold <- med <- any_pos <- nnz <- NULL
 
     df <- dplyr::bind_rows(fold_models)
+
+    if (!("fold" %in% names(df))) stop("fold_models must include a 'fold' column.")
+    if (!("feature" %in% names(df))) stop("fold_models must include a 'feature' column.")
+    if (!("coef" %in% names(df))) stop("fold_models must include a 'coef' column.")
+
     df$fold <- factor(df$fold, levels = sort(unique(df$fold)))
 
     # Remove zero coefficients
-    df <- df %>% filter(coef != 0)
+    df <- dplyr::filter(df, coef != 0)
 
     # Summarize feature-level medians
-    feature_summary <- df %>%
-        group_by(feature) %>%
-        summarize(any_pos = any(coef > 0),
-                  nnz = sum(coef != 0),
-                  med = median(coef),
-                  .groups = "drop") %>%
-        filter((!positive_only | any_pos), nnz >= min_nonzero) %>%
-        arrange(desc(med))
+    feature_summary <- dplyr::arrange(
+        dplyr::filter(
+            dplyr::summarise(
+                dplyr::group_by(df, feature),
+                any_pos = any(coef > 0),
+                nnz = sum(coef != 0),
+                med = stats::median(coef),
+                .groups = "drop"
+            ),
+            (!positive_only | any_pos),
+            nnz >= min_nonzero
+        ),
+        dplyr::desc(med)
+    )
 
-    if (!is.na(top_n) && is.finite(top_n)) feature_summary <- head(feature_summary, top_n)
-    df_plot <- df %>% semi_join(feature_summary, by = "feature")
+    if (!is.na(top_n) && is.finite(top_n)) {
+        feature_summary <- utils::head(feature_summary, top_n)
+    }
+
+    df_plot <- dplyr::semi_join(df, feature_summary, by = "feature")
     df_plot$feature <- factor(df_plot$feature, levels = rev(feature_summary$feature))
 
-    # Add median values to plotting dataframe
-    median_lines <- feature_summary %>%
-        filter(feature %in% df_plot$feature) %>%
-        mutate(feature = factor(feature, levels = rev(feature)))
+    median_lines <- dplyr::mutate(
+        dplyr::filter(feature_summary, feature %in% df_plot$feature),
+        feature = factor(feature, levels = rev(levels(df_plot$feature)))
+    )
 
-    ggplot(df_plot, aes(x = coef, y = feature, color = fold)) +
-        geom_vline(xintercept = 0, linetype = "dashed", color = "grey70") +
-        geom_point(size = 2.2, alpha = 0.8,
-                   position = position_jitter(height = 0.15, width = 0)) +
-        geom_segment(data = median_lines,
-                     aes(x = med, xend = med,
-                         y = as.numeric(feature) - 0.4,
-                         yend = as.numeric(feature) + 0.4),
-                     color = "black", linewidth = 0.7) +
-        scale_color_brewer(palette = "Dark2") +
-        labs(
-            title = paste0("Elastic Net coefficients across folds",
-                           if (!is.null(cellType)) paste0(" (", cellType, ")")),
-            x = "Coefficient", y = NULL, color = "Fold"
+    ggplot2::ggplot(df_plot, ggplot2::aes(x = coef, y = feature, color = fold)) +
+        ggplot2::geom_vline(xintercept = 0, linetype = "dashed", color = "grey70") +
+        ggplot2::geom_point(
+            size = 2.2,
+            alpha = 0.8,
+            position = ggplot2::position_jitter(height = 0.15, width = 0)
         ) +
-        theme_classic(base_size = 12) +
-        theme(
-            axis.text.y = element_text(size = 9),
-            axis.ticks.y = element_blank(),
-            axis.ticks.length.y = unit(0, "pt"),
+        ggplot2::geom_segment(
+            data = median_lines,
+            ggplot2::aes(
+                x = med,
+                xend = med,
+                y = as.numeric(feature) - 0.4,
+                yend = as.numeric(feature) + 0.4
+            ),
+            color = "black",
+            linewidth = 0.7
+        ) +
+        ggplot2::scale_color_brewer(palette = "Dark2") +
+        ggplot2::labs(
+            title = paste0(
+                "Elastic Net coefficients across folds",
+                if (!is.null(cellType)) paste0(" (", cellType, ")")
+            ),
+            x = "Coefficient",
+            y = NULL,
+            color = "Fold"
+        ) +
+        ggplot2::theme_classic(base_size = 12) +
+        ggplot2::theme(
+            axis.text.y = ggplot2::element_text(size = 9),
+            axis.ticks.y = ggplot2::element_blank(),
+            axis.ticks.length.y = grid::unit(0, "pt"),
             legend.position = "top",
-            panel.grid.major.x = element_line(color = "grey90", linewidth = 0.3)
+            panel.grid.major.x = ggplot2::element_line(color = "grey90", linewidth = 0.3)
         )
-
 }
+
 
 # Compare elastic net model coefficients with DE logFC (nonzero only)
 #final_model=r$cv_model$final_model; age_de_results=r$age_de_results; cellType=cellType
-plot_model_vs_de <- function(final_model, age_de_results, cellType = NULL) {
-    suppressPackageStartupMessages({ library(ggplot2); library(dplyr); library(tibble) })
+plot_model_vs_de <- function(final_model, age_de_results, cellType = NULL, feature="logFC") {
 
-    df <- final_model %>%
-        filter(coef != 0) %>%
-        select(feature, model_coef = coef) %>%
-        inner_join(
-            age_de_results %>%
-                rownames_to_column("feature") %>%
-                select(feature, logFC),
-            by = "feature"
-        )
+    df <- dplyr::inner_join(
+        dplyr::select(
+            dplyr::filter(final_model, coef != 0),
+            feature,
+            model_coef = coef
+        ),
+        dplyr::select(
+            tibble::rownames_to_column(age_de_results, "feature"),
+            feature,
+            logFC
+        ),
+        by = "feature"
+    )
 
     # fraction with same direction
     same_direction <- sign(df$model_coef) == sign(df$logFC)
@@ -880,6 +926,10 @@ plot_model_vs_de <- function(final_model, age_de_results, cellType = NULL) {
     strTitle <- if (!is.null(cellType)) cellType else ""
     strTitle <- paste0(strTitle, sprintf("sign %.1f%% agreement - genes with non-zero coefficients [%d]", 100 * frac_same, n_total))
     strTitle <- paste0(strTitle, sprintf("\ngenes significant in age DE: [%d]", n_total_de))
+
+    #Make R CMD CHECK happy
+    logFC <- model_coef <- NULL
+
     ggplot(df, aes(x = logFC, y = model_coef)) +
         geom_hline(yintercept = 0, linetype = "dashed", color = "grey70") +
         geom_vline(xintercept = 0, linetype = "dashed", color = "grey70") +
@@ -1187,7 +1237,7 @@ filter_dge_to_autosomes<-function (dge, contig_yaml_file, reduced_gtf_file) {
 }
 
 filter_dge_to_gene_functions<-function (dge, gene_functions=c("protein_coding"), gtf_path) {
-    if (is.null(gene_functions) | is.null(reduced_gtf_file)) {
+    if (is.null(gene_functions) | is.null(gtf_path)) {
         return (dge)
     }
 

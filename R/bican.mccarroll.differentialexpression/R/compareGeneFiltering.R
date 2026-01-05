@@ -110,6 +110,9 @@ compare_age_de_runs<-function (old_data_dir, new_data_dir, outPDF, outFile=NULL,
         (d3$num_genes_significant_old + 1)
     d3$parent_type <- factor(sub("(_.*)$", "", d3$cell_type))
 
+    #Make R CMD CHECK happy
+    log10_num_genes_old<-frac_genes_discovered<-parent_type<-NULL
+
     p<-ggplot(d3,
            aes(x = log10_num_genes_old,
                y = frac_genes_discovered,
@@ -219,10 +222,13 @@ plot_summary <- function(df) {
     }
 
     ## main plot
+    #Make R CMD CHECK happy
+    metric<-value<-label<-NULL
+
     p_main <- ggplot(df_main, aes(x = metric, y = value)) +
         geom_violin(trim = FALSE) +
         geom_jitter(width = 0.08, height = 0, size = 1, alpha = 0.6) +
-        geom_text_repel(
+        ggrepel::geom_text_repel(
             data = df_main[df_main$label != "", ],
             aes(label = label),
             max.overlaps = Inf,
@@ -244,7 +250,7 @@ plot_summary <- function(df) {
     p_frac <- ggplot(df_frac, aes(x = metric, y = value)) +
         geom_violin(trim = FALSE) +
         geom_jitter(width = 0.08, height = 0, size = 1, alpha = 0.6) +
-        geom_text_repel(
+        ggrepel::geom_text_repel(
             data = df_frac[df_frac$label != "", ],
             aes(label = label),
             max.overlaps = Inf,
@@ -487,6 +493,9 @@ compare_age_de_run <- function (cell_type,
     ## Plot 1: effect size comparison
     lim_logfc <- range(c(merged$logFC_old, merged$logFC_new), na.rm = TRUE)
 
+    #Make R CMD CHECK happy
+    logFC_old<-logFC_new<-NULL
+
     p_effect <- ggplot(merged,
                        aes(x = logFC_old, y = logFC_new)) +
         geom_point(alpha = 0.4, size = 0.7) +
@@ -531,6 +540,9 @@ compare_age_de_run <- function (cell_type,
     lim_fdr <- range(c(merged$neg_log10_fdr_old, merged$neg_log10_fdr_new),
                      na.rm = TRUE)
 
+    #Make R CMD CHECK happy
+    neg_log10_fdr_old<-neg_log10_fdr_new<-NULL
+
     p_fdr <- ggplot(merged,
                     aes(x = neg_log10_fdr_old, y = neg_log10_fdr_new)) +
         geom_point(alpha = 0.4, size = 0.7) +
@@ -563,6 +575,9 @@ compare_age_de_run <- function (cell_type,
     ))
 
     max_y <- max(drop_counts$count)
+
+    #Make R CMD CHECK happy
+    status<-count<-percent<-NULL
 
     p_drop_bar <- ggplot(drop_counts,
                          aes(x = status, y = count)) +
@@ -619,6 +634,9 @@ plot_frac_lines <- function(df) {
 
     ## Sort by comparison_level for correct line drawing
     df_sorted <- df[order(df$cell_type, df$comparison_level), ]
+
+    #Make R CMD CHECK Happy
+    comparison_level<-frac_genes_discovered<-cell_type<-NULL
 
     ggplot(df_sorted,
            aes(x = comparison_level,
@@ -695,6 +713,10 @@ cluster_filtering_trajectories <- function(df, K = 4) {
     df2 <- df2[order(df2$cluster, df2$cell_type, df2$comparison_level), ]
 
     ## Trajectory plot with cluster means (thick dashed)
+
+    #Make R CMD CHECK Happy
+    comparison_level <- frac_genes_discovered <- cluster <- cell_type <- frac_genes_mean <- NULL
+
     p_trajectories <- ggplot(
         df2,
         aes(
@@ -762,6 +784,12 @@ plot_reduction_vs_initial <- function(df, cluster_df) {
     ## log10 of initial number of significant genes
     d3$log10_num_genes_old <- log10(d3$num_genes_significant_old)
 
+    #Make R CMD CHECK happy
+    log10_num_genes_old<-frac_genes_discovered<-parent_type<-NULL
+
+    #Make R CMD CHECK happy
+    cluster<-NULL
+
     ggplot(d3,
            aes(x = log10_num_genes_old,
                y = frac_genes_discovered,
@@ -796,6 +824,9 @@ plot_reduction_by_parent_type <- function(df) {
 
     ## Convert to factor for stable legend ordering
     d3$parent_type <- factor(d3$parent_type)
+
+    #Make R CMD CHECK happy
+    log10_num_genes_old<-frac_genes_discovered<-parent_type<-NULL
 
     ggplot(d3,
            aes(x = log10_num_genes_old,

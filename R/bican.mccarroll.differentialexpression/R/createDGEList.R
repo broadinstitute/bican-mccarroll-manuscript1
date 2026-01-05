@@ -124,9 +124,10 @@ build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, me
 #' @param metadata_columns Character vector of metadata column names to include from \code{cell_metadata_file}.  The
 #' program will automatically capture donor id.
 #' @param force_category_columns A vector of column names in \code{metadata_columns} that should be treated as categorical variables
+#' @param add_counts Logical; if \code{TRUE}, adds a column \code{num_nuclei} with the number of nuclei per donor.
 #' @param outDir Directory to save the covariates files.  Each file will have the matching prefix of the metacell file.
 #'
-build_eQTL_covariates<-function (manifest_file, metacell_dir, cell_metadata_file, metadata_columns, force_category_columns=c(), outDir) {
+build_eQTL_covariates<-function (manifest_file, metacell_dir, cell_metadata_file, metadata_columns, force_category_columns=c(), add_counts=T, outDir) {
     # Read cell metadata
     cell_metadata <- data.table::fread(cell_metadata_file, data.table=F)
     cell_metadata <- replace_na_strings(cell_metadata)
@@ -182,7 +183,7 @@ build_eQTL_covariates<-function (manifest_file, metacell_dir, cell_metadata_file
 
 
         # Read counts matrix (genes x donors) for the donor IDs.
-        mat <- read.table(file_path, nrow=1, header=TRUE, sep="\t", stringsAsFactors = FALSE)
+        mat <- read.table(file_path, nrows=1, header=TRUE, sep="\t", stringsAsFactors = FALSE)
         donor_list=colnames(mat)[-1]  #exclude the gene column
         idx=match(donor_list, donor_metadata$donor_external_id)
         donor_metadata<-donor_metadata[idx, metadata_columns_this, drop = FALSE]

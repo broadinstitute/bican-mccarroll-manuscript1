@@ -10,6 +10,7 @@ build_eQTL_covariates(
   cell_metadata_file,
   metadata_columns,
   force_category_columns = c(),
+  add_counts = T,
   outDir
 )
 }
@@ -24,6 +25,8 @@ build_eQTL_covariates(
 program will automatically capture donor id.}
 
 \item{force_category_columns}{A vector of column names in \code{metadata_columns} that should be treated as categorical variables}
+
+\item{add_counts}{Logical; if \code{TRUE}, adds a column \code{num_nuclei} with the number of nuclei per donor.}
 
 \item{outDir}{Directory to save the covariates files.  Each file will have the matching prefix of the metacell file.}
 }

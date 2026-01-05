@@ -211,6 +211,9 @@ plot_magnitude <- function(varPart, threshold = 0.01, plot_residual = TRUE) {
     # Axis label reflects threshold (assumes threshold is a fraction, e.g. 0.01 = 1%)
     xlab_txt <- paste0("Fraction of genes with variance >", threshold * 100, "%")
 
+    #Make R CMD CHECK happy
+    frac<-term<-NULL
+
     ggplot2::ggplot(df, ggplot2::aes(x = frac, y = term, fill = term)) +
         ggplot2::geom_col() +
         ggplot2::scale_fill_manual(values = col_vec) +
@@ -275,7 +278,7 @@ plot_magnitude_survival <- function(varPart,
         names(col_vec) <- terms
     }
 
-    # Build long data.frame: one row per term × threshold
+    # Build long data.frame: one row per term x threshold
     df_list <- vector("list", n_terms)
     for (j in seq_len(n_terms)) {
         vj <- vp[, j]
@@ -287,6 +290,9 @@ plot_magnitude_survival <- function(varPart,
         )
     }
     df <- do.call(rbind, df_list)
+
+    #Make R CMD CHECK happy
+    frac<-term<-threshold<-NULL
 
     ggplot2::ggplot(df, ggplot2::aes(x = threshold, y = frac, color = term)) +
         ggplot2::geom_line() +
@@ -364,12 +370,15 @@ plot_magnitude_ecdf <- function(varPart,
     }
     df <- do.call(rbind, df_list)
 
+    #Make R CMD CHECK happy
+    frac<-term<-threshold<-NULL
+
     ggplot2::ggplot(df, ggplot2::aes(x = threshold, y = frac, color = term)) +
         ggplot2::geom_line() +
         ggplot2::scale_color_manual(values = col_vec) +
         ggplot2::labs(
             x = "Variance threshold",
-            y = "Fraction of genes with variance ≤ threshold (eCDF)",
+            y = "Fraction of genes with variance threshold (eCDF)",
             title = "eCDF of variance components"
         ) +
         ggplot2::theme_bw() +
@@ -881,6 +890,8 @@ plot_variable_by_group <- function(dge, variable = "frac_contamination", group_c
 #'   outermost quantile ribbon.
 #' @param quantile_steps Integer \eqn{\ge} 1. Number of equally spaced
 #'   quantile levels between 0.5 and \code{upper_quantile}.
+#' @param min_samples Integer \eqn{\ge} 1. Minimum number of samples that express a gene
+#' @param fraction_samples Numeric in [0, 1]. Minimum fraction of samples that express a gene.
 #'
 #' @return A list with two elements:
 #' \itemize{

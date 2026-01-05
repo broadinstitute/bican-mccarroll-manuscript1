@@ -32,6 +32,10 @@ outermost quantile ribbon.}
 
 \item{quantile_steps}{Integer \eqn{\ge} 1. Number of equally spaced
 quantile levels between 0.5 and \code{upper_quantile}.}
+
+\item{min_samples}{Integer \eqn{\ge} 1. Minimum number of samples that express a gene}
+
+\item{fraction_samples}{Numeric in [0, 1]. Minimum fraction of samples that express a gene.}
 }
 \value{
 A list with two elements:
