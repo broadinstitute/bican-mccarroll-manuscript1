@@ -1,0 +1,19 @@
+Package: bican.mccarroll.differentialexpression
+Type: Package
+Title: Differential expression analysis for BICAN
+Remotes: github::hasaru-k/GlimmaV2, bioc::edgeR, bioc::limma, bioc::variancePartition, bioc::BiocParallel, bioc::ComplexHeatmap
+Version: 0.1.0
+Imports: data.table, edgeR, logger, ggplot2, htmlwidgets, Glimma, corrplot, vcd, variancePartition, BiocParallel, cowplot, limma, progress, lme4, ggrepel, mashr, ashr, circlize, ComplexHeatmap, clue, reshape2, ggforce, scales, glmnet, BiocIO, mltools, dplyr, tidyr, yaml, tibble
+Authors@R: c(
+    person(
+      "James", "Nemesh",
+      email = "nemesh@broadinstitute.org",
+      role = c("aut", "cre")
+    )
+  )
+Description: More about what it does (maybe more than one line).
+    Continuation lines should be indented.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.3.3
