@@ -125,6 +125,8 @@ compare_eqtl_runs_ctr<-function (baseline_data_dir, comparison_data_dir, fdr_thr
         region=regions,
         stringsAsFactors = FALSE
     )
+    #so that the comparisons are always in the same order
+    df=df[order(df$cell_type, df$region),]
 
     baseline_name= basename (baseline_data_dir)
     comparison_name= basename (comparison_data_dir)
