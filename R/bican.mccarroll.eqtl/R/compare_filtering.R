@@ -1330,18 +1330,8 @@ get_or_build_augmented_indices_for_sign <- function(index_file,
 
     log_info("Writing sign-test cache.")
 
-    utils::write.table(
-        augmented$index_dt,
-        file = paths$index_path,
-        sep = "\t",
-        quote = FALSE,
-        row.names = FALSE,
-        col.names = TRUE
-    )
-
     utils::write.table(augmented$index_dt, file = paths$index_path,
-        sep = "\t", quote = FALSE, row.names = FALSE, col.names = TRUE)
-
+                       sep = "\t", quote = FALSE, row.names = FALSE, col.names = TRUE)
 
     utils::write.table(augmented$index_comparison_dt, file = paths$comparison_path,
                        sep = "\t", quote = FALSE, row.names = FALSE, col.names = TRUE)
@@ -1420,12 +1410,15 @@ read_index_file<-function (index_file, colsToKeep=c("gene_name", "variant_id", "
 }
 
 read_all_pairs_file<-function (all_pairs_file, colsToKeep=c("phenotype_id", "variant_id", "slope", "pval_nominal")) {
-    cmd <- sprintf(
-        "gzip -cd %s | grep -v -E '^[[:space:]]*#'",
-        shQuote(all_pairs_file)
-    )
+    # cmd <- sprintf(
+    #     "gzip -cd %s | grep -v -E '^[[:space:]]*#'",
+    #     shQuote(all_pairs_file)
+    # )
+    # all_pairs <- data.table::fread(cmd = cmd)
 
-    all_pairs <- data.table::fread(cmd = cmd)
+    #simplified!
+    all_pairs <- data.table::fread(all_pairs_file)
+
     ## Keep only requested columns that actually exist in the file
     cols_present <- intersect(colsToKeep, names(all_pairs))
     all_pairs <- all_pairs[, cols_present, with = FALSE]
