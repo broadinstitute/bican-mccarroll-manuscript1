@@ -240,7 +240,7 @@ compare_eqtl_runs<-function (cell_type="MSN", region="CaH", baseline_name, compa
                              cache_dir=NULL) {
 
 
-    cache_dir_final<-get_eqtl_cache_dir(subdir = "sign_cache", cache_dir = cache_dir)
+    cache_dir_final<-get_eqtl_cache_dir(cache_dir = cache_dir)
 
     aug <- get_or_build_augmented_indices_for_sign(
         index_file = index_file,
@@ -403,14 +403,6 @@ compare_index_eqtls<-function (index_dt, index_comparison_dt, baseline_name, com
     ))
 }
 
-compare_sign_test_results<-function (index_dt, index_comparison_dt, baseline_name, comparison_name, fdr_threshold=0.05) {
-    #sign test agreement between levels for SNP/genes that are found in the baseline level (baseline FDR <0.05)
-    compute_sign_concordance_baseline_sig(index_dt,
-                                                      fdr_threshold = 0.05,
-                                                      qval_col = "qval",
-                                                      slope_col = "slope",
-                                                      slope_cross_col = "slope_cross")
-}
 
 ##########################
 # PLOTS
@@ -1031,9 +1023,6 @@ plot_sign_test <- function(index_dt,
     xlab_txt <- paste0("slope (", baseline_name, ")")
     ylab_txt <- paste0("slope (", comparison_name, ")")
 
-    # Make R CMD CHECK happy
-    slope_col <- slope_cross_col <- NULL
-
     p <- ggplot2::ggplot(
         df_fdr[ok, , drop = FALSE],
         ggplot2::aes(x = .data[[slope_col]], y = .data[[slope_cross_col]])
@@ -1197,7 +1186,8 @@ compute_sign_concordance_baseline_sig <- function(index_dt,
 #'   created.
 #' @param prefix Character scalar. Filename prefix used for cache files
 #'   (default \code{"sign_cache"}).
-#'
+#' @param path_suffix_depth Integer scalar. Number of path components from the
+#'   end of each input file path to include in the cache key (default 4).
 #' @return A list with two elements:
 #'   \describe{
 #'     \item{index_path}{Cache path for the baseline augmented index file.}
@@ -1205,26 +1195,66 @@ compute_sign_concordance_baseline_sig <- function(index_dt,
 #'   }
 #'
 #' @importFrom digest digest
+# build_sign_cache_paths <- function(index_file,
+#                                    index_file_comparison,
+#                                    all_pairs_file,
+#                                    all_pairs_file_comparison,
+#                                    cache_dir,
+#                                    prefix = "sign_cache") {
+#     files <- c(index_file, index_file_comparison, all_pairs_file, all_pairs_file_comparison)
+#     stopifnot(all(file.exists(files)))
+#
+#     fi <- file.info(files)
+#     stopifnot(!any(is.na(fi$size)), !any(is.na(fi$mtime)))
+#
+#     norm_paths <- vapply(
+#         files,
+#         function(x) normalizePath(x, winslash = "/", mustWork = TRUE),
+#         character(1)
+#     )
+#
+#     meta <- paste(
+#         norm_paths,
+#         fi$size,
+#         as.numeric(fi$mtime),
+#         sep = "|",
+#         collapse = "||"
+#     )
+#
+#     key <- digest::digest(meta, algo = "md5")
+#
+#     list(
+#         index_path = file.path(cache_dir, paste0(prefix, "_index_", key, ".tsv.gz")),
+#         comparison_path = file.path(cache_dir, paste0(prefix, "_comparison_", key, ".tsv.gz"))
+#     )
+# }
 build_sign_cache_paths <- function(index_file,
                                    index_file_comparison,
                                    all_pairs_file,
                                    all_pairs_file_comparison,
                                    cache_dir,
-                                   prefix = "sign_cache") {
+                                   prefix = "sign_cache",
+                                   path_suffix_depth = 4L) {
+    .build_path_suffix <- function(p, n = 4L) {
+        parts <- strsplit(p, "/")[[1]]
+        parts <- parts[nzchar(parts)]
+        utils::tail(parts, n)
+    }
+
     files <- c(index_file, index_file_comparison, all_pairs_file, all_pairs_file_comparison)
     stopifnot(all(file.exists(files)))
 
     fi <- file.info(files)
     stopifnot(!any(is.na(fi$size)), !any(is.na(fi$mtime)))
 
-    norm_paths <- vapply(
+    suffixes <- vapply(
         files,
-        function(x) normalizePath(x, winslash = "/", mustWork = TRUE),
+        function(x) paste(.build_path_suffix(x, n = path_suffix_depth), collapse = "/"),
         character(1)
     )
 
     meta <- paste(
-        norm_paths,
+        suffixes,
         fi$size,
         as.numeric(fi$mtime),
         sep = "|",
@@ -1319,8 +1349,7 @@ get_or_build_augmented_indices_for_sign <- function(index_file,
     augmented
 }
 
-get_eqtl_cache_dir <- function(subdir = "sign_cache",
-                               cache_dir = NULL) {
+get_eqtl_cache_dir <- function(cache_dir = NULL) {
     ## 1) Explicit argument override
     if (!is.null(cache_dir)) {
         base <- cache_dir
@@ -1335,7 +1364,7 @@ get_eqtl_cache_dir <- function(subdir = "sign_cache",
         }
     }
 
-    cache_dir_final <- file.path(base, subdir)
+    cache_dir_final <- file.path(base)
 
     if (!dir.exists(cache_dir_final)) {
         dir.create(cache_dir_final, recursive = TRUE, showWarnings = FALSE)

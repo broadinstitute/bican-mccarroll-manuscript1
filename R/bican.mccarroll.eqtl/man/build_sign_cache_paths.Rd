@@ -10,7 +10,8 @@ build_sign_cache_paths(
   all_pairs_file,
   all_pairs_file_comparison,
   cache_dir,
-  prefix = "sign_cache"
+  prefix = "sign_cache",
+  path_suffix_depth = 4L
 )
 }
 \arguments{
@@ -29,6 +30,9 @@ created.}
 
 \item{prefix}{Character scalar. Filename prefix used for cache files
 (default \code{"sign_cache"}).}
+
+\item{path_suffix_depth}{Integer scalar. Number of path components from the
+end of each input file path to include in the cache key (default 4).}
 }
 \value{
 A list with two elements:
