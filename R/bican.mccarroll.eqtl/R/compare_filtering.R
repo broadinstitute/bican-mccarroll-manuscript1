@@ -62,6 +62,7 @@
 #'
 #' @importFrom logger log_info
 #' @importFrom utils write.table
+#' @export
 compare_all_eQTL_runs<-function (data_dir, outDir, filter_levels=c(0,1,2,3), fdr_threshold=0.05, cache_dir) {
     base_level=filter_levels[1]
     results=list()
@@ -109,6 +110,7 @@ compare_all_eQTL_runs<-function (data_dir, outDir, filter_levels=c(0,1,2,3), fdr
 #' @importFrom logger log_info
 #' @importFrom utils write.table
 #' @importFrom grDevices pdf dev.off
+#' @export
 compare_eqtl_runs_ctr<-function (baseline_data_dir, comparison_data_dir, fdr_threshold=0.05, outPDF=NULL, outFile=NULL, cache_dir=NULL) {
 
     file_separator="__"
@@ -231,6 +233,7 @@ compare_eqtl_runs_ctr<-function (baseline_data_dir, comparison_data_dir, fdr_thr
 #' @importFrom ggplot2 ggplot aes geom_point geom_abline labs ggtitle theme theme_bw element_text scale_color_manual
 #' @importFrom cowplot plot_grid ggdraw draw_label
 #' @importFrom logger log_info
+#' @export
 compare_eqtl_runs<-function (cell_type="MSN", region="CaH", baseline_name, comparison_name,
                              index_file, index_file_comparison,
                              all_pairs_file, all_pairs_file_comparison, fdr_threshold=0.05,
