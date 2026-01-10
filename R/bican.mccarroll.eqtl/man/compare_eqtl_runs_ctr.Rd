@@ -9,6 +9,7 @@ compare_eqtl_runs_ctr(
   comparison_data_dir,
   fdr_threshold = 0.05,
   outPDF = NULL,
+  outSummaryPDF = NULL,
   outFile = NULL,
   cache_dir = NULL
 )
@@ -25,6 +26,9 @@ results (e.g., \code{.../LEVEL_2}).}
 
 \item{outPDF}{Character scalar or NULL. If non-NULL, a PDF is created and all
 per-dataset plots are written to it.}
+
+\item{outSummaryPDF}{Character scalar or NULL. If non-NULL, a summary PDF
+is created containing overall summary plots across all datasets.}
 
 \item{outFile}{Character scalar or NULL. If non-NULL, per-dataset summary
 statistics are written to this file as tab-delimited text.}

@@ -13,7 +13,8 @@ plot_egene_effect_scatter(
   abs_slopes = FALSE,
   title = "Effect sizes for union of discovered eGenes",
   point_size = 1.2,
-  title_size = 16
+  title_size = 16,
+  annot_size = 4
 )
 }
 \arguments{
@@ -36,6 +37,8 @@ plot_egene_effect_scatter(
 \item{point_size}{numeric scalar. Point size.}
 
 \item{title_size}{numeric scalar. Title font size.}
+
+\item{annot_size}{numeric scalar. Annotation text size.}
 }
 \value{
 A list with:

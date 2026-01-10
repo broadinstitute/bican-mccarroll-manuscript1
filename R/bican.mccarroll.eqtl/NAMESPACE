@@ -3,6 +3,7 @@
 export(compare_all_eQTL_runs)
 export(compare_eqtl_runs)
 export(compare_eqtl_runs_ctr)
+import(ggrepel)
 importFrom(cowplot,draw_label)
 importFrom(cowplot,ggdraw)
 importFrom(cowplot,plot_grid)
