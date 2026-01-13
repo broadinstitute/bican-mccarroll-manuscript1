@@ -1,28 +1,34 @@
+## ------------------------------------------------------------------
+## DEBUG ONLY — interactive development block
+## Uncomment for manual experimentation in RStudio
+## ------------------------------------------------------------------
+
 library(edgeR)
 library(glmnet)
 library(ggplot2)
 library(logger)
 library (cowplot)
 library (dplyr)
-#
+source("R/age_model_fit_core.R", local=TRUE)
+
+
+#data dir
 data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metacells/LEVEL_2"
 data_name="donor_rxn_DGEList"
 
+#age DE results dir
 age_de_results_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results/LEVEL_2/sex_age/cell_type"
 result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/age_prediction/age_prediction_alpha_0"
 outPDFFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/age_prediction/age_prediction_alpha_0/age_prediction_results_alpha0.pdf"
-# #
-# #filtering to autosomal genes
+
+#filtering to autosomal genes
 contig_yaml_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.contig_groups.yaml"
 reduced_gtf_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.reduced.gtf"
-#
-# #filtering to gene functional types.  #TODO collapse this and autosomal processes.
-# gtf_path="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.gtf"
-# #
 
 donor_col = "donor"
 age_col = "age"
 seed =12345; fdr_threshold=0.05; optimize_alpha=FALSE; alpha_fixed=0
+
 
 #run Emi's data:
 # data_dir="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/metacells"
@@ -75,19 +81,27 @@ predict_age_by_celltype<-function (data_dir, data_name, result_dir, age_de_resul
         logger::log_info(paste("Learning donor age model from expression for cell type:", cellType))
         logger::log_info(lineStr)
 
-        r=predict_age_celltype(cellType, dge, retained_features=retained_features, donor_col = donor_col, age_de_results_dir=age_de_results_dir, fdr_threshold=fdr_threshold, optimize_alpha=optimize_alpha, alpha_fixed=alpha_fixed, seed=seed)
+        r=predict_age_celltype(cellType, dge, retained_features=retained_features, donor_col = donor_col, age_de_results_dir=age_de_results_dir, fdr_threshold=fdr_threshold, optimize_alpha=optimize_alpha, alpha_fixed=alpha_fixed, mc_repeats=200, seed=seed)
+
+        # gracefully skip cell types that short-circuit (e.g. too few genes)
+        if (is.null(r)) {
+            next
+        }
+
         test_set_metrics_list[[cellType]]=r$test_set_metrics
+
+        # Keep only what will be written
+        outputs_list[[cellType]] <- extract_age_outputs(r, cellType = cellType, region = NA_character_)
 
         # QC plots
         plot_list=age_prediction_qc_plots(r, cellType)
+        plot_list$mc_donor_pred_plot<-plot_mc_donor_predictions(outputs_list[[cellType]]$donor_predictions)
 
         for (p in plot_list) {
             if (!is.null(p))
                 print(p)
         }
 
-        # Keep only what will be written
-        outputs_list[[cellType]] <- extract_age_outputs(r, cellType = cellType, region = NA_character_)
 
     }
 
@@ -129,16 +143,6 @@ age_prediction_qc_plots<-function (r, cellType) {
         model_vs_de_plot=plot_model_vs_de(r$cv_model$final_model, r$age_de_results, cellType = NULL)
 
     return (list(main_qc_plot=p, coefficient_plot=coef1, model_vs_de_plot=model_vs_de_plot))
-
-}
-
-compare_age_residuals_to_donor_coefficients<-function () {
-    #Load the DGEList, get the sample metadata
-    #simplify to per-donor covariates
-    #compare covariates to each cell type donor age residuals (prediction - chronological age)
-
-    d=bican.mccarroll.differentialexpression::prepare_data_for_differential_expression(data_dir, data_name, randVars=c(), fixedVars=c())
-    dge=d$dge
 
 }
 
@@ -259,6 +263,11 @@ predict_age_celltype <- function(cellType, dge, retained_features = c("donor", "
         dge_cell <- dge_cell[genes_to_keep, ]
     }
 
+    #check that there are at least 2 genes to fit the model!
+    if (!has_min_features(dge_cell, min_features = 2L, context = cellType)) {
+        return(NULL)
+    }
+
     # Outer holdout split (80/20)
     n_bins <- 5
     d <- make_holdout_stratified(dge_cell, age_col = "age", donor_col = "donor",
@@ -311,8 +320,36 @@ predict_age_celltype <- function(cellType, dge, retained_features = c("donor", "
         n_repeats = mc_repeats,
         optimize_alpha = optimize_alpha,
         alpha_fixed = alpha_fixed,
-        seed = seed
+        seed = seed,
+        verbose_every=mc_repeats / 10
     )
+
+    # ------------------------------------------------------------------
+    # Final model for external prediction (fit on ALL donors; no OOF)
+    # ------------------------------------------------------------------
+    logger::log_info("Fitting final model on all donors for external prediction.")
+
+    if (optimize_alpha) {
+        final_cv_model <- train_enet_cv_optimize_alpha(
+            dge_cell,
+            k_fold_index = NULL,
+            age_col = "age",
+            donor_col = "donor",
+            alpha_grid = seq(0, 1, by = 0.1),
+            compute_oof = FALSE,
+            seed = seed
+        )
+    } else {
+        final_cv_model <- train_enet_cv(
+            dge_cell,
+            k_fold_index = NULL,
+            age_col = "age",
+            donor_col = "donor",
+            alpha_fixed = alpha_fixed,
+            compute_oof = FALSE,
+            seed = seed
+        )
+    }
 
     final_oof_predictions <- final_repeat$donor_residual_summary
     final_oof_metrics <- final_repeat$avg_pred_metrics
@@ -337,623 +374,38 @@ predict_age_celltype <- function(cellType, dge, retained_features = c("donor", "
     return(result)
 }
 
-
-
-
-#########################
-# TRAIN AND PREDICT AGE
-#########################
-
-#' Train Elastic Net age model with K-fold cross-validation
+#' Check that a DGEList has enough features for model fitting
 #'
-#' @param dge_train A DGEList object containing log-CPM data for training.
-#' @param k_fold_index Named integer vector: donor IDs mapped to fold number.
-#' @param age_col Column in dge$samples giving donor age.
-#' @param donor_col Column in dge$samples giving donor ID.
-#' @param alpha_fixed Elastic net alpha (0=L2 ridge, 1=L1 lasso).
-#' @param refit_model_all_data If set to true, refit the final model using all of the data.
-#' If set to false, the final model is obtained by averaging the per-fold model coefficients.
+#' Internal guard to ensure that downstream modeling steps (e.g. glmnet)
+#' have a sufficient number of features. Intended to be used to short-circuit
+#' model fitting for cell types with too few genes after filtering.
 #'
-#' @param seed Random seed for reproducibility.
+#' @param dge A \code{DGEList}.
+#' @param min_features Integer; minimum number of features (rows) required.
+#' @param context Optional character string used in log messages
+#'   (e.g. cell type name).
 #'
-#' @return A list with:
-#' \itemize{
-#'   \item per_fold — metrics for each CV fold.
-#'   \item oof — per-donor predicted and true ages.
-#'   \item overall — combined metrics across all folds.
-#'   \item coef_matrix — feature × fold coefficient table.
-#'   \item intercepts — intercept per fold.
-#'   \item scaling — mean and sd of each feature per fold.
-#' }
-#' @export
-# Donor-level K-fold elastic-net with per-fold data frames and reusable metrics.
-train_enet_cv <- function(dge_train, k_fold_index,
-                          age_col = "age", donor_col = "donor",
-                          alpha_fixed = 0.5,
-                          refit_model_all_data=T,
-                          seed = 1) {
+#' @return Logical; \code{TRUE} if \code{nrow(dge) >= min_features}, otherwise
+#'   \code{FALSE}.
+#'
+#' @keywords internal
+has_min_features <- function(dge, min_features = 2L, context = NULL) {
+    stopifnot("DGEList" %in% class(dge))
 
-    stopifnot("DGEList" %in% class(dge_train))
-    set.seed(seed)
-
-    # helpers
-    scale_train <- function(M) {
-        mu <- colMeans(M); s <- apply(M, 2, sd); s[s == 0] <- 1
-        list(X = sweep(sweep(M, 2, mu, "-"), 2, s, "/"), mu = mu, s = s)
-    }
-
-    scale_apply <- function(M, mu, s) sweep(sweep(M, 2, mu, "-"), 2, s, "/")
-
-    smp   <- dge_train$samples
-    donor <- as.character(smp[[donor_col]])
-    age   <- as.numeric(smp[[age_col]])
-
-    stopifnot(!is.null(names(k_fold_index)))
-    fold_id <- as.integer(k_fold_index[donor])
-    K <- max(fold_id, na.rm = TRUE)
-
-    dge_train <- edgeR::calcNormFactors(dge_train)
-    X_all <- t(edgeR::cpm(dge_train, log = TRUE, prior.count = 1))  # samples x genes
-
-    oof_pred <- rep(NA_real_, length(age))
-    per_fold <- data.frame(fold=integer(0), n_train=integer(0), n_test=integer(0),
-                           lambda=double(0), r=double(0), median_abs_error=double(0), mean_abs_error=double(0))
-    fold_predictions <- vector("list", K)
-    fold_models <- vector("list", K)
-
-    for (k in seq_len(K)) {
-        te <- which(fold_id == k)
-        tr <- which(fold_id != k)
-
-        Xtr_s <- scale_train(X_all[tr, , drop = FALSE])
-        Xte   <- scale_apply(X_all[te, , drop = FALSE], Xtr_s$mu, Xtr_s$s)
-        ytr <- age[tr]; yte <- age[te]
-
-        cv <- glmnet::cv.glmnet(Xtr_s$X, ytr, family = "gaussian",
-                                alpha = alpha_fixed, standardize = FALSE,
-                                type.measure = "mae")
-        fit <- glmnet::glmnet(Xtr_s$X, ytr, family = "gaussian",
-                              alpha = alpha_fixed, lambda = cv$lambda.min,
-                              standardize = FALSE)
-
-        pred <- as.numeric(predict(fit, Xte))
-        oof_pred[te] <- pred
-
-        m <- compute_age_metrics(pred, yte)
-        per_fold[nrow(per_fold)+1, ] <- cbind(fold = k, n_train = length(tr), n_test = length(te), cv$lambda.min, m)
-
-        fold_predictions[[k]] <- data.frame(
-            donor = donor[te], age = yte, pred = pred, fold = k,
-            row.names = rownames(smp)[te], check.names = FALSE
+    if (nrow(dge) < min_features) {
+        msg <- paste0(
+            "Skipping model fit: only ", nrow(dge),
+            " feature(s) available (need >= ", min_features, ")."
         )
-
-        # per-fold model dataframe: coefficients + scaling + intercept
-        feats_k <- rownames(fit$beta)
-        coef_df_k <- data.frame(
-            feature = feats_k,
-            coef = as.numeric(fit$beta),
-            mean_train = Xtr_s$mu[feats_k],
-            sd_train = Xtr_s$s[feats_k],
-            intercept = as.numeric(fit$a0),
-            fold = k,
-            row.names = NULL, check.names = FALSE
-        )
-        fold_models[[k]] <- coef_df_k
-    }
-
-    overall <- compute_age_metrics(oof_pred, age)
-    oof_df <- do.call(rbind, fold_predictions)
-    model_df <- do.call(rbind, fold_models)  # long form: one row per (feature, fold)
-
-    #refit the model using all of the data.
-    #this will find the final lambda
-    if (refit_model_all_data) {
-        logger::log_info("Refitting final model using all training data.")
-        X_all_s <- scale_train(X_all)
-
-        cv_final <- glmnet::cv.glmnet(X_all_s$X, age, family="gaussian",
-                                      alpha=alpha_fixed, standardize=FALSE,
-                                      type.measure="mae")
-
-        fit_final <- glmnet::glmnet(X_all_s$X, age, family="gaussian",
-                                    alpha=alpha_fixed, lambda=cv_final$lambda.min,
-                                    standardize=FALSE)
-
-        feats_final <- rownames(fit_final$beta)
-        final_model <- data.frame(
-            feature = feats_final,
-            coef = as.numeric(fit_final$beta),
-            mean_train = X_all_s$mu[feats_final],
-            sd_train = X_all_s$s[feats_final],
-            intercept = as.numeric(fit_final$a0),
-            row.names = NULL, check.names = FALSE
-        )
-        final_model$cor<-compute_age_expression_correlation(X_all[, final_model$feature], age)
-        logger::log_info("Final model lambda: {cv_final$lambda.min}")
-    } else {
-        #take the average of the model parameters across the folds.
-        final_model <- aggregate(cbind(coef, mean_train, sd_train, intercept) ~ feature,
-                                 data = model_df, FUN = mean)
-    }
-
-    result=list(
-        per_fold_metrics = per_fold,
-        overall_metrics = overall,          # OOF metrics
-        donor_age_predictions = oof_df,               # donor-level predictions
-        fold_models = fold_models,  # list of per-fold model data frames
-        model_df = model_df,         # combined long data frame
-        final_model = final_model
-    )
-}
-
-#######################
-# GRID SEARCH ALPHA
-# In practice, this performs no better than fixing alpha=0.5
-# This is the same finding as the paper: https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0237006
-#######################
-
-scale_train <- function(M) {
-    mu <- colMeans(M)
-    s <- apply(M, 2, sd)
-    s[s == 0] <- 1
-    list(
-        X = sweep(sweep(M, 2, mu, "-"), 2, s, "/"),
-        mu = mu,
-        s = s
-    )
-}
-
-scale_apply <- function(M, mu, s) {
-    sweep(sweep(M, 2, mu, "-"), 2, s, "/")
-}
-
-# Search for best (alpha, lambda)
-select_alpha_lambda <- function(X, y, alpha_grid, foldid = NULL, seed = NULL) {
-    if (!is.null(seed)) set.seed(seed)
-    best <- list(cvmin = Inf)
-    for (a in alpha_grid) {
-        cv <- glmnet::cv.glmnet(
-            X, y, family = "gaussian",
-            alpha = a, foldid = foldid,
-            standardize = FALSE, type.measure = "mae"
-        )
-        cvmin <- min(cv$cvm)
-        if (cvmin < best$cvmin) {
-            best <- list(
-                alpha = a,
-                lambda_min = cv$lambda.min,
-                lambda_1se = cv$lambda.1se,
-                cvmin = cvmin
-            )
+        if (!is.null(context)) {
+            msg <- paste0(context, ": ", msg)
         }
+        logger::log_warn(msg)
+        return(FALSE)
     }
-    best
+
+    TRUE
 }
-
-train_enet_cv_optimize_alpha <- function(dge_train, k_fold_index,
-                          age_col = "age", donor_col = "donor",
-                          alpha_grid = seq(0,1, by = 0.1),
-                          refit_model_all_data = TRUE,
-                          seed = 1) {
-
-    stopifnot("DGEList" %in% class(dge_train))
-    set.seed(seed)
-
-    smp <- dge_train$samples
-    donor <- as.character(smp[[donor_col]])
-    age <- as.numeric(smp[[age_col]])
-
-    stopifnot(!is.null(names(k_fold_index)))
-    fold_id <- as.integer(k_fold_index[donor])
-    if (any(is.na(fold_id))) stop("Missing fold assignment for some donors")
-    K <- max(fold_id, na.rm = TRUE)
-
-    dge_train <- edgeR::calcNormFactors(dge_train)
-    X_all <- t(edgeR::cpm(dge_train, log = TRUE, prior.count = 1))  # samples x genes
-
-    oof_pred <- rep(NA_real_, length(age))
-    per_fold <- data.frame(
-        fold = integer(0),
-        n_train = integer(0),
-        n_test = integer(0),
-        alpha = double(0),
-        lambda = double(0),
-        r = double(0),
-        median_abs_error = double(0),
-        mean_abs_error = double(0)
-    )
-    fold_predictions <- vector("list", K)
-    fold_models <- vector("list", K)
-
-    for (k in seq_len(K)) {
-        te <- which(fold_id == k)
-        tr <- which(fold_id != k)
-
-        Xtr_s <- scale_train(X_all[tr, , drop = FALSE])
-        Xte <- scale_apply(X_all[te, , drop = FALSE], Xtr_s$mu, Xtr_s$s)
-        ytr <- age[tr]; yte <- age[te]
-
-        set.seed(seed + k)
-        inner_foldid <- sample(rep(1:5, length.out = length(tr)))
-
-        sel <- select_alpha_lambda(Xtr_s$X, ytr, alpha_grid, foldid = inner_foldid)
-        fit <- glmnet::glmnet(
-            Xtr_s$X, ytr, family = "gaussian",
-            alpha = sel$alpha, lambda = sel$lambda_min,
-            standardize = FALSE
-        )
-
-        pred <- as.numeric(predict(fit, newx = Xte))
-        oof_pred[te] <- pred
-
-        m <- compute_age_metrics(pred, yte)
-        per_fold <- rbind(per_fold, data.frame(
-            fold = k, n_train = length(tr), n_test = length(te),
-            alpha = sel$alpha, lambda = sel$lambda_min,
-            r = m[["r"]],
-            median_abs_error = m[["median_abs_error"]],
-            mean_abs_error = m[["mean_abs_error"]]
-        ))
-
-        fold_predictions[[k]] <- data.frame(
-            donor = donor[te], age = yte, pred = pred, fold = k,
-            row.names = rownames(smp)[te], check.names = FALSE
-        )
-
-        feats_k <- rownames(fit$beta)
-        coef_df_k <- data.frame(
-            feature = feats_k,
-            coef = as.numeric(fit$beta),
-            mean_train = Xtr_s$mu[feats_k],
-            sd_train = Xtr_s$s[feats_k],
-            intercept = as.numeric(fit$a0),
-            fold = k,
-            row.names = NULL, check.names = FALSE
-        )
-        fold_models[[k]] <- coef_df_k
-    }
-
-    overall <- compute_age_metrics(oof_pred, age)
-    oof_df <- do.call(rbind, fold_predictions)
-    model_df <- do.call(rbind, fold_models)
-
-    if (isTRUE(refit_model_all_data)) {
-        logger::log_info("Refitting final model using all training data.")
-        X_all_s <- scale_train(X_all)
-        sel_full <- select_alpha_lambda(X_all_s$X, age, alpha_grid, seed = seed)
-        fit_final <- glmnet::glmnet(
-            X_all_s$X, age, family = "gaussian",
-            alpha = sel_full$alpha, lambda = sel_full$lambda_min,
-            standardize = FALSE
-        )
-
-        feats_final <- rownames(fit_final$beta)
-        final_model <- data.frame(
-            feature = feats_final,
-            coef = as.numeric(fit_final$beta),
-            mean_train = X_all_s$mu[feats_final],
-            sd_train = X_all_s$s[feats_final],
-            intercept = as.numeric(fit_final$a0),
-            row.names = NULL, check.names = FALSE
-        )
-        final_alpha <- sel_full$alpha
-        final_lambda <- sel_full$lambda_min
-        final_model$cor<-compute_age_expression_correlation(X_all[, final_model$feature], age)
-
-        logger::log_info("Final model alpha: {final_alpha}, lambda: {final_lambda}")
-    } else {
-        final_model <- aggregate(cbind(coef, mean_train, sd_train, intercept) ~ feature,
-                                 data = model_df, FUN = mean)
-        final_alpha <- NA_real_
-        final_lambda <- NA_real_
-    }
-
-    list(
-        per_fold_metrics = per_fold,
-        overall_metrics = overall,
-        donor_age_predictions = oof_df,
-        fold_models = fold_models,
-        model_df = model_df,
-        final_model = final_model,
-        final_alpha = final_alpha,
-        final_lambda = final_lambda
-    )
-}
-
-compute_age_expression_correlation<-function (X_all, age) {
-    cor_vec=apply (X_all, 2, function (x) {
-        suppressWarnings(stats::cor(x, age))
-    })
-    return (cor_vec)
-
-}
-
-
-#' Compute correlation and error metrics for predicted vs. actual ages
-#'
-#' @param pred Numeric vector of predicted ages.
-#' @param actual Numeric vector of actual (chronological) ages.
-#'
-#' @return A one-row data.frame with:
-#' \itemize{
-#'   \item r — Pearson correlation.
-#'   \item median_abs_error — median absolute difference.
-#'   \item mean_abs_error — mean absolute error.
-#' }
-#' @export
-compute_age_metrics <- function(pred, actual) {
-    stopifnot(length(pred) == length(actual))
-    r     <- suppressWarnings(stats::cor(pred, actual))
-    median_abs_error <- stats::median(abs(pred - actual))
-    mean_abs_error   <- mean(abs(pred - actual))
-    data.frame(r = r, median_abs_error = median_abs_error, mean_abs_error = mean_abs_error)
-}
-
-
-# Predict ages from a DGEList using the finalized model.
-# Starts from RAW counts: calcNormFactors -> cpm(log=TRUE, prior.count=1) -> z-score using training means/SDs -> linear predictor.
-# dge_new: DGEList with raw counts
-# model_final: data.frame from finalize_enet_model()
-# override_model_params (optional) Override the gene mean, sd, and model intercept with the expression values from this DGEList.
-# Returns: dataframe with donor, age, pred columns.
-predict_age_from_dge <- function(dge_new, model_final, prior.count = 1, override_model_params_dge=NULL, update_intercept=T) {
-    stopifnot("DGEList" %in% class(dge_new))
-
-    if (!is.null(override_model_params_dge)) {
-        logger::log_info("Overriding model parameters with provided DGEList expression values.")
-        #compute mean and sd from the override DGEList
-        #dge_override <- edgeR::calcNormFactors(override_model_params_dge)
-        dge_override <- override_model_params_dge
-        lcpm_override <- edgeR::cpm(dge_override, log = TRUE, prior.count = prior.count)  # genes x samples
-
-        common <- intersect(model_final$feature, rownames(lcpm_override))
-        if (length(common) > 0) {
-            idx_common <- match(common, model_final$feature)
-            mu_override <- rowMeans(lcpm_override[common, , drop = FALSE])
-            sd_override <- apply(lcpm_override[common, , drop = FALSE], 1, sd)
-            model_final$mean_train[idx_common] <- mu_override
-            model_final$sd_train[idx_common] <- sd_override
-        }
-        #the intercept has to be from the population to be predicted, not from the subset used to train the model.
-        if (update_intercept)
-            model_final$intercept=mean((dge_new$samples$age))
-    }
-
-    # 1) normalize + log-CPM
-    if (is.null(dge_new$samples$norm.factors)) dge_new <- edgeR::calcNormFactors(dge_new)
-    lcpm <- edgeR::cpm(dge_new, log = TRUE, prior.count = prior.count)  # genes x samples
-
-    # 2) align to model features and build samples × features matrix
-    feats <- model_final$feature
-    samp_ids <- colnames(lcpm)
-    X <- matrix(0.0, nrow = length(samp_ids), ncol = length(feats),
-                dimnames = list(samp_ids, feats))
-
-    common <- intersect(feats, rownames(lcpm))
-    if (length(common) > 0)
-        X[, common] <- t(lcpm[common, , drop = FALSE])
-
-    # 3) impute missing genes at training mean (so z = 0 for those features)
-    if (length(common) < length(feats)) {
-        miss <- setdiff(feats, common)
-        logger::log_warn(paste("Genes in model not found in new data:", length(miss), "of", nrow(model_final)))
-        if (length(miss) > 0) {
-            idx_miss <- match(miss, model_final$feature)
-            mu_miss  <- model_final$mean_train[idx_miss]
-            for (g in seq_along(miss)) X[, miss[g]] <- mu_miss[g]
-        }
-    }
-
-    # Precompute index to pull params in 'feats' order
-    idx <- match(feats, model_final$feature)
-
-    # 4) z-score using training means/SDs
-    mu <- model_final$mean_train[idx]
-    sd <- model_final$sd_train[idx]
-    sd[!is.finite(sd) | sd == 0] <- 1
-    Xz <- sweep(sweep(X, 2, mu, "-"), 2, sd, "/")
-
-    # 5) linear predictor
-    beta <- model_final$coef[idx]
-    intercept <- unique(model_final$intercept)[1]
-    pred <- as.numeric(intercept + Xz %*% beta)
-    stats::setNames(pred, samp_ids)
-
-    data.frame(donor = dge_new$samples$donor,
-               age   = dge_new$samples$age,
-               pred  = pred,
-               row.names = rownames(dge_new$samples),
-               check.names = FALSE)
-}
-
-
-
-#' Compute donor age residuals using repeated stratified train/test splits
-#'
-#' Performs repeated Monte Carlo cross-validation by repeatedly splitting donors
-#' into stratified 80/20 train/test sets, fitting an age prediction model on the
-#' training donors, and predicting ages for the held-out donors. For each donor,
-#' predictions and residuals are accumulated across all repeats in which that
-#' donor was held out, allowing estimation of average residuals and their
-#' stability with respect to training-set composition.
-#'
-#' This approach reduces dependence on any single train/test split and can
-#' mitigate repeatable biases introduced by fixed fold assignments, at the cost
-#' of increased computation. It is intended for within-cell-type residual
-#' analysis rather than external model deployment.
-#'
-#' @param dge_cell A donor-collapsed \code{DGEList} for a single cell type, with
-#'   one sample per donor and donor age stored in \code{dge_cell$samples}.
-#' @param age_col Column name in \code{dge_cell$samples} containing donor age.
-#' @param donor_col Column name in \code{dge_cell$samples} containing donor IDs.
-#' @param n_bins Number of age quantile bins used for stratified splitting.
-#' @param test_prop Fraction of donors assigned to the test set in each repeat
-#'   (e.g., 0.20 for an 80/20 split).
-#' @param n_repeats Number of random stratified splits to perform.
-#' @param optimize_alpha Logical; if \code{TRUE}, optimize elastic net alpha
-#'   within each repeat using inner cross-validation.
-#' @param alpha_fixed Elastic net alpha value to use when
-#'   \code{optimize_alpha = FALSE}.
-#' @param seed Random seed used to initialize the sequence of random splits.
-#'   Each repeat uses \code{seed + repeat - 1}.
-#' @param refit_model_all_data Logical; passed to \code{train_enet_cv} to control
-#'   whether the final model in each repeat is refit on all training donors before
-#'   prediction.
-#' @param verbose_every Integer; if non-NULL and positive, log progress every
-#'   \code{verbose_every} repeats.
-#'
-#' @return A list with the following elements:
-#' \itemize{
-#'   \item \code{donor_oof_predictions}: Long-format data.frame with one row per
-#'     donor per repeat in which the donor was held out, containing donor ID,
-#'     true age, predicted age, residual (\code{pred - age}), and repeat index.
-#'   \item \code{donor_residual_summary}: Data.frame with one row per donor,
-#'     summarizing residual behavior across repeats, including mean prediction,
-#'     mean and median residuals, residual standard deviation, and the number of
-#'     times the donor was held out (\code{n_oof}).
-#'   \item \code{per_repeat_metrics}: Data.frame of performance metrics (e.g.,
-#'     correlation, median absolute error, mean absolute error) computed
-#'     separately for each repeat.
-#'   \item \code{avg_pred_metrics}: Performance metrics computed using the
-#'     per-donor average predicted age across repeats.
-#'   \item \code{params}: List of parameters used to generate the repeated splits
-#'     (test fraction, number of bins, number of repeats, alpha settings, seed).
-#' }
-#'
-#' @details
-#' Only out-of-fold predictions are used for residual computation; donors are
-#' never evaluated on models trained using their own data. The number of
-#' out-of-fold predictions per donor may vary slightly depending on random
-#' sampling. The resulting residual summaries can be used to assess both donor
-#' age deviation and the stability of that deviation across different training
-#' backgrounds.
-#'
-#' @export
-compute_final_residuals_repeated_splits <- function(dge_cell,
-                                                    age_col = "age",
-                                                    donor_col = "donor",
-                                                    n_bins = 5,
-                                                    test_prop = 0.20,
-                                                    n_repeats = 100,
-                                                    optimize_alpha = FALSE,
-                                                    alpha_fixed = 0.5,
-                                                    seed = 1,
-                                                    refit_model_all_data = TRUE,
-                                                    verbose_every = 10) {
-
-    stopifnot("DGEList" %in% class(dge_cell))
-    stopifnot(test_prop > 0, test_prop < 1)
-    stopifnot(n_repeats >= 1)
-
-    oof_list <- vector("list", n_repeats)
-    metrics_list <- vector("list", n_repeats)
-
-    fit_predict_once <- function(dge_train, dge_test, seed_fit) {
-
-        k_fold_index <- make_cv_folds_stratified(dge_train,
-                                                 age_col = age_col,
-                                                 donor_col = donor_col,
-                                                 K = 5,
-                                                 n_bins = n_bins,
-                                                 seed = seed_fit)
-
-        if (optimize_alpha) {
-            r <- train_enet_cv_optimize_alpha(dge_train, k_fold_index,
-                                              age_col = age_col,
-                                              donor_col = donor_col,
-                                              seed = seed_fit)
-        } else {
-            r <- train_enet_cv(dge_train, k_fold_index,
-                               age_col = age_col,
-                               donor_col = donor_col,
-                               alpha_fixed = alpha_fixed,
-                               refit_model_all_data = refit_model_all_data,
-                               seed = seed_fit)
-        }
-
-        pred_df <- predict_age_from_dge(dge_test, r$final_model, prior.count = 1)
-        list(pred_df = pred_df, model = r)
-    }
-
-    set.seed(seed)
-
-    for (rep_i in seq_len(n_repeats)) {
-
-        seed_i <- seed + rep_i - 1L
-
-        if (!is.null(verbose_every) && verbose_every > 0 && (rep_i %% verbose_every == 0)) {
-            logger::log_info(paste("Repeated split", rep_i, "of", n_repeats))
-        }
-
-        h <- make_holdout_stratified(dge_cell,
-                                     age_col = age_col,
-                                     donor_col = donor_col,
-                                     test_prop = test_prop,
-                                     n_bins = n_bins,
-                                     seed = seed_i)
-
-        dge_train <- h$dge_train
-        dge_test  <- h$dge_test
-
-        fp <- fit_predict_once(dge_train, dge_test, seed_fit = seed_i)
-
-        pred_df <- fp$pred_df
-        pred_df[["mc_iter"]] <- rep_i
-        pred_df[["resid"]] <- pred_df[["pred"]] - pred_df[["age"]]
-
-        oof_list[[rep_i]] <- pred_df[, c("donor", "age", "pred", "resid", "mc_iter")]
-
-        m <- compute_age_metrics(pred_df$pred, pred_df$age)
-        metrics_list[[rep_i]] <- cbind(mc_iter = rep_i, m)
-    }
-
-    oof_all <- do.call(rbind, oof_list)
-    per_repeat_metrics <- do.call(rbind, metrics_list)
-
-    # Aggregate donor residual stability across repeats where donor was OOF
-    age_unique <- unique(dge_cell$samples[, c(donor_col, age_col), drop = FALSE])
-    colnames(age_unique) <- c("donor", "age")
-    age_unique$donor <- as.character(age_unique$donor)
-    age_unique$age <- as.numeric(age_unique$age)
-
-    split_counts <- aggregate(mc_iter ~ donor, data = oof_all, FUN = length)
-    colnames(split_counts)[2] <- "n_oof"
-
-    resid_mean <- aggregate(resid ~ donor, data = oof_all, FUN = mean)
-    resid_median <- aggregate(resid ~ donor, data = oof_all, FUN = stats::median)
-    resid_sd <- aggregate(resid ~ donor, data = oof_all, FUN = stats::sd)
-
-    colnames(resid_mean)[2] <- "resid_mean"
-    colnames(resid_median)[2] <- "resid_median"
-    colnames(resid_sd)[2] <- "resid_sd"
-
-    pred_mean <- aggregate(pred ~ donor, data = oof_all, FUN = mean)
-    colnames(pred_mean)[2] <- "pred_mean"
-
-    donor_summary <- merge(age_unique, split_counts, by = "donor", all.x = TRUE)
-    donor_summary <- merge(donor_summary, pred_mean, by = "donor", all.x = TRUE)
-    donor_summary <- merge(donor_summary, resid_mean, by = "donor", all.x = TRUE)
-    donor_summary <- merge(donor_summary, resid_median, by = "donor", all.x = TRUE)
-    donor_summary <- merge(donor_summary, resid_sd, by = "donor", all.x = TRUE)
-
-    avg_pred_metrics <- compute_age_metrics(donor_summary$pred_mean, donor_summary$age)
-
-    list(
-        donor_oof_predictions = oof_all,             # long form: one row per (donor, mc_iter) when held out
-        donor_residual_summary = donor_summary,      # one row per donor: mean/median/sd residual + n_oof
-        per_repeat_metrics = per_repeat_metrics,     # metrics per split
-        avg_pred_metrics = avg_pred_metrics,         # metrics using pred_mean across repeats
-        params = list(
-            test_prop = test_prop,
-            n_bins = n_bins,
-            n_repeats = n_repeats,
-            optimize_alpha = optimize_alpha,
-            alpha_fixed = alpha_fixed,
-            seed = seed
-        )
-    )
-}
-
 
 
 ########################
@@ -1156,13 +608,15 @@ plot_fold_coefficients <- function(fold_models, positive_only = FALSE,
         feature_summary <- utils::head(feature_summary, top_n)
     }
 
+    # Keep only selected features (semi_join filters rows only; no columns added)
     df_plot <- dplyr::semi_join(df, feature_summary, by = "feature")
+
+    # Set plotting order for features (largest medians at top)
     df_plot$feature <- factor(df_plot$feature, levels = rev(feature_summary$feature))
 
-    median_lines <- dplyr::mutate(
-        dplyr::filter(feature_summary, feature %in% df_plot$feature),
-        feature = factor(feature, levels = rev(levels(df_plot$feature)))
-    )
+    # Median ticks: use feature_summary (contains 'med'), restricted to plotted features
+    median_lines <- dplyr::filter(feature_summary, feature %in% levels(df_plot$feature))
+    median_lines$feature <- factor(median_lines$feature, levels = levels(df_plot$feature))
 
     ggplot2::ggplot(df_plot, ggplot2::aes(x = coef, y = feature, color = fold)) +
         ggplot2::geom_vline(xintercept = 0, linetype = "dashed", color = "grey70") +
@@ -1171,16 +625,14 @@ plot_fold_coefficients <- function(fold_models, positive_only = FALSE,
             alpha = 0.8,
             position = ggplot2::position_jitter(height = 0.15, width = 0)
         ) +
-        ggplot2::geom_segment(
+        # Draw medians as horizontal tick marks at x = med for each feature row
+        ggplot2::geom_point(
             data = median_lines,
-            ggplot2::aes(
-                x = med,
-                xend = med,
-                y = as.numeric(feature) - 0.4,
-                yend = as.numeric(feature) + 0.4
-            ),
+            ggplot2::aes(x = med, y = feature),
+            inherit.aes = FALSE,
             color = "black",
-            linewidth = 0.7
+            shape = 95,   # horizontal line glyph (robust on discrete y)
+            size = 1.5
         ) +
         ggplot2::scale_color_brewer(palette = "Dark2") +
         ggplot2::labs(
@@ -1247,6 +699,57 @@ plot_model_vs_de <- function(final_model, age_de_results, cellType = NULL, featu
         theme_classic(base_size = 12)
 }
 
+plot_mc_donor_predictions <- function(donor_predictions,
+                                      alpha_points = 0.8,
+                                      errorbar_width = 0.1) {
+
+    # Silence R CMD CHECK notes
+    cell_type <- region <- age <- pred_mean <- resid_mean <- resid_sd <- NULL
+
+    ct <- unique(donor_predictions$cell_type)
+    rg <- unique(donor_predictions$region)
+
+    stopifnot(length(ct) == 1, length(rg) == 1)
+
+    title_str <- paste0(
+        "Monte Carlo OOF donor age predictions\n",
+        "Cell type: ", ct,
+        if (!is.na(rg)) paste0(" | Region: ", rg) else ""
+    )
+
+    ggplot(donor_predictions,
+           aes(x = age, y = pred_mean, color = resid_mean)) +
+
+        geom_errorbar(
+            aes(ymin = pred_mean - resid_sd,
+                ymax = pred_mean + resid_sd),
+            width = errorbar_width,
+            alpha = 0.4
+        ) +
+
+        geom_point(size = 2) +
+
+        geom_abline(intercept = 0, slope = 1,
+                    linetype = 2, linewidth = 0.8) +
+
+        scale_color_gradient2(
+            low = "steelblue",
+            mid = "grey80",
+            high = "firebrick",
+            midpoint = 0,
+            name = "Residual\n(pred − age)"
+        ) +
+
+        labs(
+            x = "Chronological age",
+            y = "Predicted age (MC mean)",
+            title = title_str
+        ) +
+
+        theme_bw()
+}
+
+
 #' Create a custom ggplot2 theme with smaller plot titles
 #'
 #' @param base_size Base font size for the theme (default 12).
@@ -1286,29 +789,55 @@ get_output_basename <- function(pdf_file, default = "age_prediction_results") {
 
 extract_age_outputs <- function(r, cellType, region = NA_character_) {
 
-    preds <- r$final_oof_predictions[, c("donor", "age", "pred")]
-    preds <- cbind(cell_type = cellType, region = region, preds)
+    meta_cols <- c("cell_type", "region")
 
+    # -----------------------------
+    # Donor predictions (MC OOF)
+    # -----------------------------
+    preds <- r$final_oof_predictions[
+        , c("donor", "age", "n_oof", "pred_mean",
+            "resid_mean", "resid_median", "resid_sd"),
+        drop = FALSE
+    ]
+
+    preds$cell_type <- cellType
+    preds$region <- region
+    preds <- preds[, c(meta_cols, setdiff(colnames(preds), meta_cols)), drop = FALSE]
+
+    # -----------------------------
+    # Model coefficients (ALL donors; external prediction)
+    # -----------------------------
     coefs <- r$final_cv_model$final_model
-    coefs <- cbind(cell_type = cellType, region = region, coefs)
+    coefs$cell_type <- cellType
+    coefs$region <- region
+    coefs <- coefs[, c(meta_cols, setdiff(colnames(coefs), meta_cols)), drop = FALSE]
 
-    # Summary metrics (3 rows per cell type/region)
+    # -----------------------------
+    # Summary metrics
+    # -----------------------------
     mets <- rbind(
-        cbind(set = "Final OOF (all donors)", r$final_oof_metrics),
+        cbind(set = "Final MC OOF (all donors; mean pred)", r$final_oof_metrics),
         cbind(set = "Inner CV OOF (80% train)", r$cv_model$overall_metrics),
         cbind(set = "Outer holdout (20% donors)", r$test_set_metrics)
     )
-    mets <- cbind(cell_type = cellType, region = region, mets)
 
-    # Per-fold metrics (inner CV on 80% train)
+    mets$cell_type <- cellType
+    mets$region <- region
+    mets <- mets[, c(meta_cols, setdiff(colnames(mets), meta_cols)), drop = FALSE]
+
+    # -----------------------------
+    # Per-fold metrics (inner CV)
+    # -----------------------------
     fold_mets <- r$cv_model$per_fold_metrics
-    fold_mets <- cbind(cell_type = cellType, region = region, fold_mets)
+    fold_mets$cell_type <- cellType
+    fold_mets$region <- region
+    fold_mets <- fold_mets[, c(meta_cols, setdiff(colnames(fold_mets), meta_cols)), drop = FALSE]
 
     list(
-        donor_predictions = preds,
+        donor_predictions  = preds,
         model_coefficients = coefs,
-        model_metrics = mets,
-        per_fold_metrics = fold_mets
+        model_metrics      = mets,
+        per_fold_metrics   = fold_mets
     )
 }
 
@@ -1352,206 +881,7 @@ write_age_outputs_all <- function(outputs, result_dir, output_basename) {
     ))
 }
 
-#' Write donor-level age predictions for a cell type
-#'
-#' Writes donor-level predicted ages (and true ages) to a tab-delimited file for a
-#' single cell type. This function uses the final full-dataset out-of-fold (OOF)
-#' predictions stored in \code{r$final_oof_predictions}, which provide one
-#' prediction per donor from a model that did not train on that donor.
-#'
-#' @param r Result list returned by \code{predict_age_celltype()}.
-#' @param result_dir Output directory for result files.
-#' @param cellType Cell type name (used in output file name and in a \code{cell_type} column).
-#'
-#' @return Invisibly returns the output file path.
-#' @export
-write_donor_age_predictions <- function(r, result_dir, cellType) {
 
-    colsToKeep <- c("donor", "age", "pred")
-
-    # Use FINAL full-dataset OOF predictions only
-    df <- r$final_oof_predictions[, colsToKeep]
-
-    # Add cell type for tracking
-    df <- cbind(cell_type = cellType, df)
-
-    out_file <- file.path(result_dir,
-                          paste0("donor_age_predictions_", cellType, ".txt"))
-
-    write.table(df, file = out_file,
-                sep = "\t", quote = FALSE,
-                row.names = FALSE, col.names = TRUE)
-}
-
-#' Write age model coefficients for a cell type
-#'
-#' Writes the coefficient table for the all-data model trained on the full cohort.
-#' The coefficients written by this function are intended for prediction on
-#' external datasets and are stored in \code{r$final_cv_model$final_model}.
-#'
-#' The output includes the feature name, coefficient, per-feature training mean and
-#' standard deviation used for z-scoring, and the model intercept.
-#'
-#' @param r Result list returned by \code{predict_age_celltype()}.
-#' @param result_dir Output directory for result files.
-#' @param cellType Cell type name (used in output file name and in a \code{cell_type} column).
-#'
-#' @return Invisibly returns the output file path.
-#' @export
-write_model_coefficients <- function(r, result_dir, cellType) {
-
-    # Use coefficients from the ALL-DATA model (for external prediction)
-    df <- cbind(cell_type = cellType, r$final_cv_model$final_model)
-
-    out_file <- file.path(result_dir,
-                          paste0("donor_age_model_coefficients_", cellType, ".txt"))
-
-    write.table(df, file = out_file,
-                sep = "\t", quote = FALSE,
-                row.names = FALSE, col.names = TRUE)
-}
-
-#' Write age model performance metrics for a cell type
-#'
-#' Writes summary and per-fold performance metrics for a cell type.
-#'
-#' The summary metrics file includes:
-#' \itemize{
-#'   \item \strong{Final OOF (all donors)}: metrics computed from full-dataset
-#'         out-of-fold predictions (\code{r$final_oof_metrics}).
-#'   \item \strong{Inner CV OOF (80\% train)}: metrics from inner cross-validation
-#'         on the 80\% training split (\code{r$cv_model$overall_metrics}).
-#'   \item \strong{Outer holdout (20\% donors)}: metrics computed on the held-out
-#'         donor split (\code{r$test_set_metrics}).
-#' }
-#'
-#' The per-fold metrics file contains fold-wise inner CV metrics from
-#' \code{r$cv_model$per_fold_metrics}.
-#'
-#' @param r Result list returned by \code{predict_age_celltype()}.
-#' @param result_dir Output directory for result files.
-#' @param cellType Cell type name (used in output file name and in a \code{cell_type} column).
-#'
-#' @return Invisibly returns a character vector of length 2 with the summary and per-fold file paths.
-#' @export
-write_model_metrics <- function(r, result_dir, cellType) {
-
-    out_file <- file.path(result_dir,
-                          paste0("donor_age_model_metrics_", cellType, ".txt"))
-
-    df <- rbind(
-        cbind(set = "Final OOF (all donors)", r$final_oof_metrics),
-        cbind(set = "Inner CV OOF (80% train)", r$cv_model$overall_metrics),
-        cbind(set = "Outer holdout (20% donors)", r$test_set_metrics)
-    )
-
-    df <- cbind(cell_type = cellType, df)
-
-    write.table(df, file = out_file,
-                sep = "\t", quote = FALSE,
-                row.names = FALSE, col.names = TRUE)
-
-    # Also write per-fold metrics (inner CV on 80% train)
-    out_file2 <- file.path(result_dir,
-                           paste0("donor_age_model_per_fold_metrics_", cellType, ".txt"))
-
-    df2 <- r$cv_model$per_fold_metrics
-    df2 <- cbind(cell_type = cellType, df2)
-
-    write.table(df2, file = out_file2,
-                sep = "\t", quote = FALSE,
-                row.names = FALSE, col.names = TRUE)
-}
-
-#########################
-# MAKE TEST / TRAIN DATA
-#########################
-
-# Quantile bin helper
-.quantile_bins <- function(x, n_bins = 5) {
-    if (length(unique(na.omit(x))) <= 1L) return(factor(rep("bin1", length(x))))
-    qs <- unique(stats::quantile(x, probs = seq(0, 1, length.out = n_bins + 1), na.rm = TRUE))
-    cut(x, breaks = qs, include.lowest = TRUE, right = TRUE)
-}
-
-# Hamilton apportionment helper
-.apportion_round <- function(n_per_bin, prop) {
-    target <- n_per_bin * prop
-    base   <- floor(target)
-    rem    <- round(sum(target)) - sum(base)
-    if (rem > 0) {
-        frac <- target - base
-        add  <- order(frac, decreasing = TRUE)[seq_len(min(rem, length(frac)))]
-        base[add] <- base[add] + 1L
-    }
-    base
-}
-
-# 1) Donor-grouped, age-stratified holdout split
-make_holdout_stratified <- function(dge, age_col = "age", donor_col = "donor",
-                                    test_prop = 0.20, n_bins = 5, seed = 1) {
-    stopifnot("DGEList" %in% class(dge), test_prop > 0, test_prop < 1)
-    smp   <- dge$samples
-    age   <- as.numeric(smp[[age_col]])
-    names (age) <- as.character(smp[[donor_col]])
-
-    #bin donors by age quantiles
-    d_bins <- .quantile_bins(age, n_bins = n_bins)
-    set.seed(seed)
-
-    donors <- names(age)
-    by_bin <- split(donors, d_bins)
-    n_bin  <- vapply(by_bin, length, 1L)
-    n_test_bin <- .apportion_round(n_bin, prop = test_prop)
-
-    test_donors <- character(0)
-    i <- 0L
-    # samples from donor age bins
-    for (b in names(by_bin)) {
-        i <- i + 1L
-        pool <- by_bin[[b]]
-        if (length(pool) == 0) next
-        k <- n_test_bin[i]
-        if (k > 0) test_donors <- c(test_donors, sample(pool, k))
-    }
-
-    test_donors <- unique(test_donors)
-
-    # return indices and convenient subsets
-    dge_train<-dge[ , !dge$samples$donor %in% test_donors, keep.lib.sizes = TRUE]
-    dge_test<-dge[ , dge$samples$donor %in% test_donors, keep.lib.sizes = TRUE]
-
-    list(
-        dge_train    = dge_train,
-        dge_test     = dge_test
-    )
-}
-
-# 2) Donor-grouped, age-stratified K-folds on a (possibly pre-subset) DGEList
-make_cv_folds_stratified <- function(dge, age_col = "age", donor_col = "donor",
-                                     K = 5, n_bins = 5, seed = 1) {
-    stopifnot("DGEList" %in% class(dge), K >= 2)
-    smp   <- dge$samples
-    donor <- as.character(smp[[donor_col]])          # define donor
-    age   <- as.numeric(smp[[age_col]])
-    names(age) <- donor                               # donors == samples
-
-    d_bins <- .quantile_bins(age, n_bins = n_bins)
-    set.seed(seed)
-
-    fold_by_donor <- integer(length(age)); names(fold_by_donor) <- names(age)
-    for (b in levels(d_bins)) {
-        pool <- names(age)[d_bins == b]
-        if (length(pool) == 0) next
-        pool <- sample(pool)
-        fseq <- rep(1:K, length.out = length(pool))
-        fold_by_donor[pool] <- fseq
-    }
-
-    fold_id <- as.integer(fold_by_donor[donor])       # map to sample order
-    names(fold_id) <- rownames(smp)
-    fold_id
-}
 
 ####################
 # READ IN DATA AND COLLAPSE TO DONOR OBSERVATIONS
