@@ -1,0 +1,30 @@
+---
+# Instructions for using this template:
+# 1. Replace <package_name> below with the short name of the python package.
+#    E.g. if the package is bican.mccarroll.mypackage, replace "<package_name>"
+#    with "mypackage".
+# 2. Name the workflow file R-<package_name>.yml, e.g. R-mypackage.yml
+# 3. Commit the above changes
+
+# Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
+# Need help debugging build failures?
+# Start at https://github.com/r-lib/actions#where-to-find-help
+"on":
+  push:
+    branches:
+      - "main"
+  pull_request:
+    branches:
+      - "main"
+    paths:
+      - "R/bican.mccarroll.celltypeproportions/**"
+
+name: "Build and check R bican.mccarroll.celltypeproportions package"
+
+
+jobs:
+  call-R-reusable:
+    uses: "./.github/workflows/R-reusable.yml"
+    with:
+      package_name: "celltypeproportions"
+    secrets: "inherit"
