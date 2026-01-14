@@ -30,6 +30,11 @@ age_col = "age"
 seed =12345; fdr_threshold=0.05; optimize_alpha=FALSE; alpha_fixed=0
 
 
+# Region specific DE results and output.
+# age_de_results_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results/LEVEL_2/sex_age/cell_type_region_interaction_absolute_effects"
+# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/age_prediction/age_prediction_region_alpha_0"
+# outPDFFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/age_prediction/age_prediction_region_alpha_0/age_prediction_results_alpha0.pdf"
+
 #run Emi's data:
 # data_dir="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/metacells"
 # data_name="donor_rxn_DGEList"
@@ -41,6 +46,47 @@ seed =12345; fdr_threshold=0.05; optimize_alpha=FALSE; alpha_fixed=0
 # result_dir="/broad/mccarroll/dropulation/analysis/SNAP200/differential_expression/age_prediction"
 # outPDFFile="/broad/mccarroll/dropulation/analysis/SNAP200/differential_expression/age_prediction/age_prediction_results_snap200_DE_genes.pdf"
 
+
+#' Train donor age prediction models across all cell types and write results
+#'
+#' Loads a donor-level RNA-seq dataset (as a \code{DGEList}), restricts to autosomal genes,
+#' and then fits a donor age prediction model per cell type . For each successfully fit
+#' cell type, this function generates QC plots and writes
+#' concatenated tab-delimited outputs (donor predictions, model coefficients, and metrics)
+#' across all cell types.
+#'
+#' Cell types may be skipped due to insufficient genes after filtering.
+#'
+#' @param data_dir Directory containing the serialized input object used by
+#'   \code{bican.mccarroll.differentialexpression::prepare_data_for_differential_expression()}.
+#' @param data_name Name of the dataset object to load (passed through to
+#'   \code{prepare_data_for_differential_expression()}).
+#' @param result_dir Output directory for text artifacts produced by
+#'   \code{\link{write_age_outputs_all}}. Must already exist.
+#' @param age_de_results_dir Directory containing per-cell-type age differential expression
+#'   results used by \code{\link{get_age_de_results}} and \code{\link{predict_age_celltype}}.
+#' @param outPDFFile Optional path to a PDF file. If provided, QC plots generated during
+#'   processing are printed to this PDF; otherwise plots are printed to the active device.
+#' @param contig_yaml_file Path to the contig-groups YAML file used by
+#'   \code{\link{filter_dge_to_autosomes}}.
+#' @param reduced_gtf_file Path to the reduced GTF used by \code{\link{filter_dge_to_autosomes}}.
+#' @param donor_col Column name in \code{dge$samples} identifying the donor. Default \code{"donor"}.
+#' @param age_col Column name in \code{dge$samples} giving chronological age. Default \code{"age"}.
+#' @param seed Integer random seed used for splitting/training inside \code{\link{predict_age_celltype}}.
+#' @param fdr_threshold FDR cutoff used when filtering to age DE genes inside
+#'   \code{\link{predict_age_celltype}}. Default \code{0.05}.
+#' @param optimize_alpha Logical; if \code{TRUE}, select elastic net \code{alpha} by grid search
+#'   (via \code{\link{train_enet_cv_optimize_alpha}}). If \code{FALSE}, use \code{alpha_fixed}.
+#' @param alpha_fixed Numeric elastic net \code{alpha} used when \code{optimize_alpha = FALSE}
+#'   (\code{0} ridge, \code{1} lasso). Default \code{0.5}.
+#'
+#' @details
+#' Output file basenames are derived from \code{outPDFFile} using \code{\link{get_output_basename}}.
+#' The following helper functions are used internally:
+#' @importFrom logger log_info
+#' @importFrom grDevices pdf dev.off
+#'
+#' @export
 predict_age_by_celltype<-function (data_dir, data_name, result_dir, age_de_results_dir, outPDFFile=NULL,
                                   contig_yaml_file, reduced_gtf_file,
                                   donor_col = "donor", age_col = "age",
@@ -699,6 +745,7 @@ plot_model_vs_de <- function(final_model, age_de_results, cellType = NULL, featu
         theme_classic(base_size = 12)
 }
 
+
 plot_mc_donor_predictions <- function(donor_predictions,
                                       alpha_points = 0.8,
                                       errorbar_width = 0.1) {
@@ -717,6 +764,17 @@ plot_mc_donor_predictions <- function(donor_predictions,
         if (!is.na(rg)) paste0(" | Region: ", rg) else ""
     )
 
+    # ------------------------------------------------------------------
+    # Shared axis limits
+    # ------------------------------------------------------------------
+    rng <- range(
+        c(donor_predictions$age, donor_predictions$pred_mean),
+        na.rm = TRUE
+    )
+
+    pad <- 0.05 * diff(rng)
+    lims <- c(rng[1] - pad, rng[2] + pad)
+
     ggplot(donor_predictions,
            aes(x = age, y = pred_mean, color = resid_mean)) +
 
@@ -727,7 +785,7 @@ plot_mc_donor_predictions <- function(donor_predictions,
             alpha = 0.4
         ) +
 
-        geom_point(size = 2) +
+        geom_point(size = 2, alpha = alpha_points) +
 
         geom_abline(intercept = 0, slope = 1,
                     linetype = 2, linewidth = 0.8) +
@@ -737,8 +795,10 @@ plot_mc_donor_predictions <- function(donor_predictions,
             mid = "grey80",
             high = "firebrick",
             midpoint = 0,
-            name = "Residual\n(pred − age)"
+            name = "Residual (pred - age)"
         ) +
+
+        coord_equal(xlim = lims, ylim = lims) +
 
         labs(
             x = "Chronological age",
@@ -748,6 +808,7 @@ plot_mc_donor_predictions <- function(donor_predictions,
 
         theme_bw()
 }
+
 
 
 #' Create a custom ggplot2 theme with smaller plot titles
@@ -777,6 +838,15 @@ custom_theme_small_title <- function(base_size = 12, title_size = 10,
 #######################
 # WRITE OUTPUTS
 #######################
+
+.round_columns <- function(df, digits_map) {
+    for (nm in names(digits_map)) {
+        if (nm %in% colnames(df)) {
+            df[[nm]] <- round(df[[nm]], digits_map[[nm]])
+        }
+    }
+    df
+}
 
 get_output_basename <- function(pdf_file, default = "age_prediction_results") {
 
@@ -843,10 +913,22 @@ extract_age_outputs <- function(r, cellType, region = NA_character_) {
 
 write_age_outputs_all <- function(outputs, result_dir, output_basename) {
 
+
+
     donor_predictions <- do.call(rbind, lapply(outputs, function(x) x$donor_predictions))
     model_coefficients <- do.call(rbind, lapply(outputs, function(x) x$model_coefficients))
     model_metrics <- do.call(rbind, lapply(outputs, function(x) x$model_metrics))
     per_fold_metrics <- do.call(rbind, lapply(outputs, function(x) x$per_fold_metrics))
+
+    #round the outputs.
+    #the number of digits to round to
+    donor_pred_digits <- list(pred_mean = 3, resid_mean = 3, resid_median = 3, resid_sd = 3)
+    metrics_digits <- list(r = 3, median_abs_error = 3, mean_abs_error = 3)
+
+    #round the outputs
+    donor_predictions <- .round_columns(donor_predictions, donor_pred_digits)
+    model_metrics <- .round_columns(model_metrics, metrics_digits)
+    per_fold_metrics <- .round_columns(per_fold_metrics, metrics_digits)
 
     out_pred <- file.path(result_dir,
                           paste0(output_basename, "_donor_predictions.txt"))
@@ -1005,6 +1087,44 @@ get_age_de_results<-function (cellType, age_de_results_dir, fdr_threshold=0.05) 
     de_results=de_results[de_results$adj.P.Val<=fdr_threshold,]
     return (de_results)
 }
+
+get_age_de_results <- function(cellType,
+                               age_de_results_dir,
+                               region = NULL,
+                               fdr_threshold = 0.05) {
+
+    if (is.null(age_de_results_dir))
+        return(NULL)
+
+    # Construct expected filename
+    if (is.null(region)) {
+        # e.g. microglia_age_DE_results.txt
+        expectedFileName <- paste(cellType, "age", "DE_results.txt", sep = "_")
+    } else {
+        # e.g. microglia_age_CaH_DE_results.txt
+        expectedFileName <- paste(cellType, "age", region, "DE_results.txt", sep = "_")
+    }
+
+    files <- list.files(path = age_de_results_dir, full.names = TRUE)
+
+    match <- grep(paste0("^", expectedFileName, "$"), basename(files), value = TRUE)
+
+    if (length(match) != 1) {
+        stop(
+            "Did not find exactly one DE results file for cell type ",
+            cellType,
+            if (!is.null(region)) paste0(" and region ", region),
+            " in directory ", age_de_results_dir, ". Expected file: ", expectedFileName
+        )
+    }
+
+    f <- file.path(age_de_results_dir, match)
+    de_results <- utils::read.table(f, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+    de_results <- de_results[de_results$adj.P.Val <= fdr_threshold, , drop = FALSE]
+
+    de_results
+}
+
 
 filter_dge_to_autosomes<-function (dge, contig_yaml_file, reduced_gtf_file) {
     if (is.null(contig_yaml_file) | is.null(reduced_gtf_file)) {
