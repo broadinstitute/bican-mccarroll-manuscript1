@@ -9,7 +9,8 @@ compute_ctp_and_metrics(
   group_cols,
   cell_type_col,
   metric_cols = NULL,
-  filters = NULL
+  filters = NULL,
+  group_filters = NULL
 )
 }
 \arguments{
@@ -19,9 +20,11 @@ compute_ctp_and_metrics(
 
 \item{cell_type_col}{Column name representing cell type annotations.}
 
-\item{metric_cols}{(Optional) Character vector of metric columns to compute means for.}
+\item{metric_cols}{Optional; Character vector of metric columns to compute means for.}
 
-\item{filters}{(Optional) Character vector of filtering expressions.}
+\item{filters}{Optional; Character vector of filtering expressions.}
+
+\item{group_filters}{Optional;  Filtering expressions to apply within groups.}
 }
 \value{
 Dataframe with cell type proportions and optional metrics.

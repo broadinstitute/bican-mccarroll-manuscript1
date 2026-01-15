@@ -3,26 +3,24 @@
 #library(logger)
 
 #input_file <- "/broad/bican_um1_mccarroll/RNAseq/analysis/cellarium_upload/CAP_freeze_3/CAP_cell_metadata.annotated.txt.gz"
-#df <- read.table(input_file, sep = "\t", header = TRUE, stringsAsFactors = FALSE)
-
 #filters <- c("brain_region_abbreviation == 'DFC'", "single_cell_assay == '10X-GEMX-3P'", "!any(gex_donor_celltype_outlier, na.rm=TRUE)")
 #group_cols <- c("donor_external_id", "village")
 #cell_type_col <- "annotation_most_specific"
 #metric_cols <- c("pct_intronic", "frac_contamination")
-#out_dir <- "/broad/mccarroll/yooolivi/test/celltypeproportions"
-#prefix <- "DFC_10X-GEMX-3P"
+#out_file <- "/broad/mccarroll/yooolivi/test/celltypeproportions/DFC_10X-GEMX-3P.cell_type_proportions.txt"
 
-#ctp <- compute_ctp_and_metrics(df, group_cols, cell_type_col, metric_cols, filters)
-#save_ctp(ctp, out_dir, prefix)
+#ctp <- load_and_compute_ctp(input_file, group_cols, cell_type_col, out_file, metric_cols, filters)
+
 
 #' Filters dataframe.
 #'
 #' @param df Dataframe to filter.
 #' @param filters Character vector of filtering expressions.
-#' @param group_cols (Optional) Character vector of columns to group by before filtering
+#' @param group_cols Optional; Character vector of columns to group by before filtering
+#' @param group_filters Optional; Character vector of filtering expressions to apply within groups.
 #'
 #' @return Filtered dataframe.
-filter_df <- function(df, filters=NULL, group_cols=NULL) {
+filter_df <- function(df, filters=NULL, group_cols=NULL, group_filters=NULL) {
 
   if (is.null(filters) || length(filters) == 0) {
     logger::log_info("No filtering criteria found.")
@@ -35,16 +33,15 @@ filter_df <- function(df, filters=NULL, group_cols=NULL) {
 
   logger::log_info("Applying the following filters: {paste(filters, collapse = ', ')}")
 
-  if(!is.null(group_cols)) {
+  filtered_df <- df |>
+    dplyr::filter(!!!rlang::parse_exprs(filters))
+
+  if(!is.null(group_cols) & !is.null(group_filters)) {
     filtered_df <- df |>
       dplyr::group_by(across(all_of(group_cols))) |>
-      dplyr::filter(!!!rlang::parse_exprs(filters)) |>
+      dplyr::filter(!!!rlang::parse_exprs(group_filters)) |>
       dplyr::ungroup()
-  } else {
-    filtered_df <- df |>
-      dplyr::filter(!!!rlang::parse_exprs(filters))
   }
-
   return(filtered_df)
 
 }
@@ -127,14 +124,15 @@ compute_mean_cell_type_metrics <- function(df, group_cols, cell_type_col, metric
 #' @param df Dataframe containing cell metadata.
 #' @param group_cols Character vector of columns to group by (e.g., donor ID)
 #' @param cell_type_col Column name representing cell type annotations.
-#' @param metric_cols (Optional) Character vector of metric columns to compute means for.
-#' @param filters (Optional) Character vector of filtering expressions.
+#' @param metric_cols Optional; Character vector of metric columns to compute means for.
+#' @param filters Optional; Character vector of filtering expressions.
+#' @param group_filters Optional;  Filtering expressions to apply within groups.
 #'
 #' @return Dataframe with cell type proportions and optional metrics.
-compute_ctp_and_metrics <- function(df, group_cols, cell_type_col, metric_cols = NULL, filters = NULL) {
+compute_ctp_and_metrics <- function(df, group_cols, cell_type_col, metric_cols = NULL, filters = NULL, group_filters=NULL) {
 
   # Step 1: Filter the data frame
-  filtered_df <- filter_df(df, filters, group_cols)
+  filtered_df <- filter_df(df, filters, group_cols, group_filters)
 
   # Step 2: Compute cell type proportions
   ctp_df <- compute_ctp(filtered_df, group_cols, cell_type_col)
@@ -162,20 +160,48 @@ compute_ctp_and_metrics <- function(df, group_cols, cell_type_col, metric_cols =
 #' @param output_prefix Prefix for the output file name.
 #'
 #' @return None
-save_ctp <- function(ctp_df, out_dir, output_prefix) {
+save_ctp <- function(ctp_df, out_file) {
 
   # round floats
   ctp_df_out <- ctp_df |>
     dplyr::mutate(across(where(is.double), ~ round(.x, 6)))
 
   # save file
-  ctp_file <- file.path(out_dir, paste0(output_prefix, ".cell_type_proportions.txt"))
-  write.table(ctp_df_out, file = ctp_file, sep = "\t", row.names = FALSE, quote = FALSE)
-
+  write.table(ctp_df_out, file = out_file, sep = "\t", row.names = FALSE, quote = FALSE)
 }
 
 
 
+#' Main workflow to compute cell type proportions and optional metrics from a metadata file.
+#'
+#' @param cell_metadata_file Path to the cell metadata file (one row for each cell barcode),
+#' with columns for grouping (e.g., donor ID, brain region), cell type, and optional metrics.
+#' @param group_cols Character vector of columns to group by (e.g., donor ID)
+#' @param cell_type_col Column name representing cell type annotations.
+#' @param metric_cols Optional; Character vector of metric columns to compute means for.
+#' @param filters Optional; Character vector of filtering expressions.
+#' @param group_filters Optional; Character vector of filtering expressions to apply within groups.
+#' @param out_file Optional; Output file to save the results
+#'
+#' @return Dataframe with cell type proportions and optional metrics.
+load_and_compute_ctp <- function(cell_metadata_file, group_cols, cell_type_col, out_file=NULL, metric_cols = NULL, filters = NULL, group_filters=NULL) {
+
+  # read input file
+  logger::log_info("Loading cell metadata from {cell_metadata_file}")
+  df <- read.table(cell_metadata_file, sep = "\t", header = TRUE, stringsAsFactors = FALSE)
+
+  # compute CTP and metrics
+  logger::log_info("Computing cell type proportions...")
+  ctp_df <- compute_ctp_and_metrics(df, group_cols, cell_type_col, metric_cols, filters, group_filters)
+
+  # save results
+  if(!is.null(out_file)) {
+    logger::log_info("Saving results to {out_file}")
+    save_ctp(ctp_df, out_file)
+  }
+
+  return(ctp_df)
+}
 
 
 
