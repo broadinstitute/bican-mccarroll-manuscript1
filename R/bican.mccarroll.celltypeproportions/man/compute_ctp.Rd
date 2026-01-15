@@ -14,7 +14,7 @@ compute_ctp(df, group_cols, cell_type_col)
 \item{cell_type_col}{Column name representing cell type annotations.}
 }
 \value{
-Dataframe with cell type proportions per grouping.
+Dataframe with cell type proportions and total nuclei counts (raw & z-scored) per grouping.
 }
 \description{
 Computes cell type proportions for a given grouping.
