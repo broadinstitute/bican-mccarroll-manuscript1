@@ -11,8 +11,8 @@
 #out_dir <- "/broad/mccarroll/yooolivi/test/celltypeproportions"
 #prefix <- "DFC_10X-GEMX-3P"
 
-ctp <- compute_ctp_and_metrics(df, group_cols, cell_type_col, metric_cols, filters)
-save_ctp(ctp, out_dir, prefix)
+#ctp <- compute_ctp_and_metrics(df, group_cols, cell_type_col, metric_cols, filters)
+#save_ctp(ctp, out_dir, prefix)
 
 
 #' Filters dataframe.
