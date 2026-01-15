@@ -4,7 +4,8 @@
 
 #input_file <- "/broad/bican_um1_mccarroll/RNAseq/analysis/cellarium_upload/CAP_freeze_3/CAP_cell_metadata.annotated.txt.gz"
 #df <- read.table(input_file, sep = "\t", header = TRUE, stringsAsFactors = FALSE)
-#filters <- c("brain_region_abbreviation == 'DFC'", "single_cell_assay == '10X-GEMX-3P'")
+
+#filters <- c("brain_region_abbreviation == 'DFC'", "single_cell_assay == '10X-GEMX-3P'", "!any(gex_donor_celltype_outlier, na.rm=TRUE)")
 #group_cols <- c("donor_external_id", "village")
 #cell_type_col <- "annotation_most_specific"
 #metric_cols <- c("pct_intronic", "frac_contamination")
@@ -14,14 +15,14 @@
 #ctp <- compute_ctp_and_metrics(df, group_cols, cell_type_col, metric_cols, filters)
 #save_ctp(ctp, out_dir, prefix)
 
-
 #' Filters dataframe.
 #'
 #' @param df Dataframe to filter.
 #' @param filters Character vector of filtering expressions.
+#' @param group_cols (Optional) Character vector of columns to group by before filtering
 #'
 #' @return Filtered dataframe.
-filter_df <- function(df, filters=NULL) {
+filter_df <- function(df, filters=NULL, group_cols=NULL) {
 
   if (is.null(filters) || length(filters) == 0) {
     logger::log_info("No filtering criteria found.")
@@ -34,8 +35,15 @@ filter_df <- function(df, filters=NULL) {
 
   logger::log_info("Applying the following filters: {paste(filters, collapse = ', ')}")
 
-  filtered_df <- df |>
-    dplyr::filter(!!!rlang::parse_exprs(filters))
+  if(!is.null(group_cols)) {
+    filtered_df <- df |>
+      dplyr::group_by(across(all_of(group_cols))) |>
+      dplyr::filter(!!!rlang::parse_exprs(filters)) |>
+      dplyr::ungroup()
+  } else {
+    filtered_df <- df |>
+      dplyr::filter(!!!rlang::parse_exprs(filters))
+  }
 
   return(filtered_df)
 
@@ -62,13 +70,13 @@ compute_ctp <- function(df, group_cols, cell_type_col) {
     dplyr::summarise(n_nuclei = dplyr::n(), .groups = 'drop') |>
     dplyr::group_by(across(all_of(group_cols))) |>
     dplyr::mutate(total_nuclei = sum(n_nuclei),
-           fraction_nuclei = n_nuclei / total_nuclei)
+           fraction_nuclei = n_nuclei / total_nuclei) |>
+    dplyr::ungroup()
 
   nuclei_counts <- ctp_df |>
     dplyr::select(all_of(group_cols), total_nuclei) |>
     dplyr::distinct() |>
     dplyr::mutate(log10_nuclei = log10(total_nuclei)) |>
-    dplyr::ungroup() |>
     dplyr::mutate(z_log10_nuclei = as.numeric(scale(log10_nuclei))) |>
     dplyr::select(-total_nuclei, -log10_nuclei)
 
@@ -126,7 +134,7 @@ compute_mean_cell_type_metrics <- function(df, group_cols, cell_type_col, metric
 compute_ctp_and_metrics <- function(df, group_cols, cell_type_col, metric_cols = NULL, filters = NULL) {
 
   # Step 1: Filter the data frame
-  filtered_df <- filter_df(df, filters)
+  filtered_df <- filter_df(df, filters, group_cols)
 
   # Step 2: Compute cell type proportions
   ctp_df <- compute_ctp(filtered_df, group_cols, cell_type_col)

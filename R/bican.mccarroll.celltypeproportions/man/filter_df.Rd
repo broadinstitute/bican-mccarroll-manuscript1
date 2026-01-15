@@ -4,12 +4,14 @@
 \alias{filter_df}
 \title{Filters dataframe.}
 \usage{
-filter_df(df, filters = NULL)
+filter_df(df, filters = NULL, group_cols = NULL)
 }
 \arguments{
 \item{df}{Dataframe to filter.}
 
 \item{filters}{Character vector of filtering expressions.}
+
+\item{group_cols}{(Optional) Character vector of columns to group by before filtering}
 }
 \value{
 Filtered dataframe.
