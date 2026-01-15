@@ -47,7 +47,7 @@ filter_df <- function(df, filters=NULL) {
 #' @param group_cols Character vector of columns to group by (e.g., donor ID)
 #' @param cell_type_col Column name representing cell type annotations.
 #'
-#' @return Dataframe with cell type proportions per grouping.
+#' @return Dataframe with cell type proportions and total nuclei counts (raw & z-scored) per grouping.
 compute_ctp <- function(df, group_cols, cell_type_col) {
 
   # Check if specified columns exist in the dataframe
@@ -58,13 +58,21 @@ compute_ctp <- function(df, group_cols, cell_type_col) {
 
   # Compute cell type proportions
   ctp_df <- df |>
-    dplyr::group_by(across(all_of(group_cols)), !!sym(cell_type_col)) |>
-    dplyr::summarise(n_nuclei = n(), .groups = 'drop') |>
+    dplyr::group_by(across(all_of(group_cols)), !!rlang::sym(cell_type_col)) |>
+    dplyr::summarise(n_nuclei = dplyr::n(), .groups = 'drop') |>
     dplyr::group_by(across(all_of(group_cols))) |>
     dplyr::mutate(total_nuclei = sum(n_nuclei),
            fraction_nuclei = n_nuclei / total_nuclei)
 
-  return(ctp_df)
+  nuclei_counts <- ctp_df |>
+    dplyr::select(all_of(group_cols), total_nuclei) |>
+    dplyr::distinct() |>
+    dplyr::summarise(z_log10_nuclei = scale(log10(total_nuclei)))
+
+  sample_df <- ctp_df |>
+    dplyr::left_join(nuclei_counts, by = group_cols)
+
+  return(sample_df)
 }
 
 
@@ -86,7 +94,7 @@ compute_mean_cell_type_metrics <- function(df, group_cols, cell_type_col, metric
 
   # Compute mean metrics
   mean_metrics_df <- df |>
-    dplyr::group_by(across(all_of(group_cols)), !!sym(cell_type_col)) |>
+    dplyr::group_by(across(all_of(group_cols)), !!rlang::sym(cell_type_col)) |>
     dplyr::summarise(
       across(
         all_of(metric_cols),
