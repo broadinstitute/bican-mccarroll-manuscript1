@@ -4,7 +4,7 @@
 \alias{save_ctp}
 \title{Save CTP results.}
 \usage{
-save_ctp(ctp_df, out_dir, output_prefix)
+save_ctp(ctp_df, out_file)
 }
 \arguments{
 \item{ctp_df}{Dataframe containing cell type proportions and optional metrics.}
