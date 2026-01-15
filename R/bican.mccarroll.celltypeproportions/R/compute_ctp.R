@@ -11,8 +11,8 @@
 #out_dir <- "/broad/mccarroll/yooolivi/test/celltypeproportions"
 #prefix <- "DFC_10X-GEMX-3P"
 
-#ctp <- compute_ctp_and_metrics(df, group_cols, cell_type_col, metric_cols, filters)
-#save_ctp(ctp, out_dir, prefix)
+ctp <- compute_ctp_and_metrics(df, group_cols, cell_type_col, metric_cols, filters)
+save_ctp(ctp, out_dir, prefix)
 
 
 #' Filters dataframe.
@@ -67,7 +67,10 @@ compute_ctp <- function(df, group_cols, cell_type_col) {
   nuclei_counts <- ctp_df |>
     dplyr::select(all_of(group_cols), total_nuclei) |>
     dplyr::distinct() |>
-    dplyr::summarise(z_log10_nuclei = scale(log10(total_nuclei)))
+    dplyr::mutate(log10_nuclei = log10(total_nuclei)) |>
+    dplyr::ungroup() |>
+    dplyr::mutate(z_log10_nuclei = as.numeric(scale(log10_nuclei))) |>
+    dplyr::select(-total_nuclei, -log10_nuclei)
 
   sample_df <- ctp_df |>
     dplyr::left_join(nuclei_counts, by = group_cols)
