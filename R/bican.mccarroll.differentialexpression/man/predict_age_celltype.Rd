@@ -2,7 +2,7 @@
 % Please edit documentation in R/donor_age_prediction.R
 \name{predict_age_celltype}
 \alias{predict_age_celltype}
-\title{Fit a donor-level age prediction model for a single cell type}
+\title{Fit a donor-level age prediction model for a single cell type (optionally within a region)}
 \usage{
 predict_age_celltype(
   cellType,
@@ -10,10 +10,12 @@ predict_age_celltype(
   retained_features = c("donor", "age"),
   donor_col = "donor",
   age_de_results_dir,
+  region = NULL,
   fdr_threshold = 0.05,
   optimize_alpha = FALSE,
   alpha_fixed = 0.5,
   mc_repeats = 100,
+  min_donors = 50,
   seed = 1
 )
 }
@@ -22,7 +24,8 @@ predict_age_celltype(
 \code{dge$samples$cell_type}.}
 
 \item{dge}{A \code{DGEList} containing counts and sample metadata. Must contain
-\code{dge$samples$cell_type}, donor IDs, and ages.}
+\code{dge$samples$cell_type}, \code{dge$samples$region} (if using \code{region}),
+donor IDs, and ages.}
 
 \item{retained_features}{Character vector of sample-level columns to retain
 during donor collapsing (passed to \code{collapse_by_donor()}).}
@@ -31,6 +34,11 @@ during donor collapsing (passed to \code{collapse_by_donor()}).}
 
 \item{age_de_results_dir}{Directory containing age differential expression
 results used by \code{get_age_de_results()}.}
+
+\item{region}{Optional character scalar; if not \code{NULL}, subset
+\code{dge$samples$region == region} before collapsing across samples. When set,
+\code{get_age_de_results()} is called with the same \code{region} so that region-
+specific DE results can be used (if present).}
 
 \item{fdr_threshold}{Numeric; FDR cutoff for selecting genes from age DE
 results. If \code{get_age_de_results()} returns \code{NULL}, no DE-based
@@ -47,53 +55,63 @@ corresponds to lasso.}
 \code{compute_final_residuals_repeated_splits()} when computing final donor
 residual summaries on the full dataset.}
 
+\item{min_donors}{Integer; minimum number of donors required to fit the model.
+If the donor-level dataset has fewer donors, the function returns \code{NULL}.}
+
 \item{seed}{Integer random seed used for the outer holdout split, inner CV fold
-construction, and Monte Carlo repeated splits.}
+construction, Monte Carlo repeated splits, and the final refit for external prediction.}
 }
 \value{
 A list with components:
 \itemize{
   \item \code{cell_type}: cell type name.
+  \item \code{region}: region used for training (\code{NA_character_} if not provided).
   \item \code{dge_train}: donor-level training \code{DGEList} (80\% donors).
   \item \code{dge_test}: donor-level held-out \code{DGEList} (20\% donors).
-  \item \code{cv_model}: result of \code{train_enet_cv()} or
-        \code{train_enet_cv_optimize_alpha()} on \code{dge_train}.
-  \item \code{test_set_predictions}: data.frame of predictions on held-out
-        donors with columns \code{donor}, \code{age}, and \code{pred}.
-  \item \code{test_set_metrics}: performance metrics on held-out donors as
-        returned by \code{compute_age_metrics()}.
+  \item \code{cv_model}: result of \code{train_enet_cv()} or \code{train_enet_cv_optimize_alpha()}
+        on \code{dge_train}.
+  \item \code{test_set_predictions}: data.frame of predictions on held-out donors with columns
+        \code{donor}, \code{age}, and \code{pred}.
+  \item \code{test_set_metrics}: performance metrics on held-out donors as returned by
+        \code{compute_age_metrics()}.
   \item \code{age_de_results}: age DE results returned by \code{get_age_de_results()}
         (or \code{NULL} if unavailable).
   \item \code{final_oof_predictions}: per-donor residual summary returned by
         \code{compute_final_residuals_repeated_splits()} (one row per donor).
-  \item \code{final_oof_metrics}: overall metrics computed from the per-donor
-        average prediction across repeats (\code{final_repeat$avg_pred_metrics}).
+  \item \code{final_oof_metrics}: overall metrics computed from the per-donor average prediction
+        across repeats (\code{final_repeat$avg_pred_metrics}).
+  \item \code{final_cv_model}: final model fit on all donors for external prediction
+        (computed with \code{compute_oof = FALSE}).
 }
 }
 \description{
 Trains an elastic net (or ridge/lasso depending on \code{alpha_fixed}) age
-prediction model from gene expression for one cell type. The function:
+prediction model from gene expression for one cell type. If \code{region} is
+provided, the input \code{DGEList} is first subset to the requested cell type
+and region before collapsing multiple observations per donor into a single
+donor-level profile.
+}
+\details{
+The function:
 \enumerate{
-  \item Subsets the input \code{DGEList} to the requested cell type.
-  \item Collapses multiple observations per donor (e.g., across regions) into a
-        single donor-level profile via \code{collapse_by_donor()}.
+  \item Subsets the input \code{DGEList} to the requested cell type (and region, if set).
+  \item Collapses multiple observations per donor into a single donor-level profile via
+        \code{collapse_by_donor()}.
   \item Applies standard expression QC and gene filtering steps.
   \item Optionally filters genes to a set significant in external age DE results.
   \item Performs an outer 80/20 donor-level holdout split for validation.
-  \item Trains the model on the 80\% training donors using inner stratified
-        K-fold CV to choose the regularization strength (and optionally alpha).
+  \item Trains the model on the 80\% training donors using inner stratified K-fold CV to
+        choose the regularization strength (and optionally alpha).
   \item Evaluates the model on the held-out 20\% donors.
-  \item Computes "final" donor residuals by running repeated stratified 80/20
-        Monte Carlo splits on the full donor-level dataset and summarizing the
-        per-donor out-of-fold residual distribution.
+  \item Computes "final" donor residuals by running repeated stratified 80/20 Monte Carlo
+        splits on the full donor-level dataset and summarizing the per-donor out-of-fold
+        residual distribution.
+  \item Fits a final model on all donors for external prediction.
 }
-}
-\details{
-The "final" donor residuals are computed using repeated stratified 80/20 splits
-on the full donor-level dataset. For each repeat, donors in the test split are
-predicted by a model trained on the corresponding training split, and only
-those out-of-fold predictions contribute to the donor's residual distribution.
-This reduces dependence of residual estimates on a single fold assignment and
-can be used to assess residual stability with respect to training-set
-composition.
+
+
+The "final" donor residuals are computed using repeated stratified 80/20 splits on the full
+donor-level dataset. For each repeat, donors in the test split are predicted by a model
+trained on the corresponding training split, and only those out-of-fold predictions contribute
+to the donor's residual distribution.
 }

@@ -3,34 +3,34 @@
 ## Uncomment for manual experimentation in RStudio
 ## ------------------------------------------------------------------
 
-library(edgeR)
-library(glmnet)
-library(ggplot2)
-library(logger)
-library (cowplot)
-library (dplyr)
-source("R/age_model_fit_core.R", local=TRUE)
-
-
-#data dir
-data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metacells/LEVEL_2"
-data_name="donor_rxn_DGEList"
-
-#age DE results dir
-age_de_results_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results/LEVEL_2/sex_age/cell_type"
-result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/age_prediction/age_prediction_alpha_0"
-outPDFFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/age_prediction/age_prediction_alpha_0/age_prediction_results_alpha0.pdf"
-
-#filtering to autosomal genes
-contig_yaml_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.contig_groups.yaml"
-reduced_gtf_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.reduced.gtf"
-
-donor_col = "donor"
-age_col = "age"
-seed =12345; fdr_threshold=0.05; optimize_alpha=FALSE; alpha_fixed=0
-
-
-# Region specific DE results and output.
+# library(edgeR)
+# library(glmnet)
+# library(ggplot2)
+# library(logger)
+# library (cowplot)
+# library (dplyr)
+# source("R/age_model_fit_core.R", local=TRUE)
+#
+#
+# #data dir
+# data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metacells/LEVEL_2"
+# data_name="donor_rxn_DGEList"
+#
+# #age DE results dir
+# age_de_results_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results/LEVEL_2/sex_age/cell_type"
+# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/age_prediction/age_prediction_alpha_0"
+# outPDFFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/age_prediction/age_prediction_alpha_0/age_prediction_results_alpha0.pdf"
+#
+# #filtering to autosomal genes
+# contig_yaml_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.contig_groups.yaml"
+# reduced_gtf_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.reduced.gtf"
+#
+# donor_col = "donor"
+# age_col = "age"
+# seed =12345; fdr_threshold=0.05; optimize_alpha=FALSE; alpha_fixed=0
+#
+#
+# # Region specific DE results and output.
 # age_de_results_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results/LEVEL_2/sex_age/cell_type_region_interaction_absolute_effects"
 # result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/age_prediction/age_prediction_region_alpha_0"
 # outPDFFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/age_prediction/age_prediction_region_alpha_0/age_prediction_results_alpha0.pdf"
@@ -79,6 +79,9 @@ seed =12345; fdr_threshold=0.05; optimize_alpha=FALSE; alpha_fixed=0
 #'   (via \code{\link{train_enet_cv_optimize_alpha}}). If \code{FALSE}, use \code{alpha_fixed}.
 #' @param alpha_fixed Numeric elastic net \code{alpha} used when \code{optimize_alpha = FALSE}
 #'   (\code{0} ridge, \code{1} lasso). Default \code{0.5}.
+#' @param mc_repeats Integer; number of repeated stratified 80/20 splits used for the final
+#'   Monte Carlo residual summaries inside \code{\link{predict_age_celltype}}.
+#' @param min_donors Minimum number of donors required to fit a model for a given cell type.
 #'
 #' @details
 #' Output file basenames are derived from \code{outPDFFile} using \code{\link{get_output_basename}}.
@@ -91,11 +94,12 @@ predict_age_by_celltype<-function (data_dir, data_name, result_dir, age_de_resul
                                   contig_yaml_file, reduced_gtf_file,
                                   donor_col = "donor", age_col = "age",
                                   seed =42, fdr_threshold=0.05,
-                                  optimize_alpha=FALSE, alpha_fixed=0.5) {
+                                  optimize_alpha=FALSE, alpha_fixed=0.5,
+                                  mc_repeats=200, min_donors=50) {
 
     #validate the output directory exists
     if (!dir.exists(result_dir)) {
-        stop("Result directory does not exist: ", result_dir)
+        dir.create(result_dir, recursive = TRUE)
     }
 
     #load the DGEList and prepare the data
@@ -126,8 +130,11 @@ predict_age_by_celltype<-function (data_dir, data_name, result_dir, age_de_resul
         logger::log_info(lineStr)
         logger::log_info(paste("Learning donor age model from expression for cell type:", cellType))
         logger::log_info(lineStr)
-
-        r=predict_age_celltype(cellType, dge, retained_features=retained_features, donor_col = donor_col, age_de_results_dir=age_de_results_dir, fdr_threshold=fdr_threshold, optimize_alpha=optimize_alpha, alpha_fixed=alpha_fixed, mc_repeats=200, seed=seed)
+        r=predict_age_celltype(cellType, dge, retained_features=retained_features,
+                               donor_col = donor_col, age_de_results_dir=age_de_results_dir,
+                               region=NULL, fdr_threshold=fdr_threshold,
+                               optimize_alpha=optimize_alpha, alpha_fixed=alpha_fixed,
+                               mc_repeats=mc_repeats, min_donors=min_donors, seed=seed)
 
         # gracefully skip cell types that short-circuit (e.g. too few genes)
         if (is.null(r)) {
@@ -166,6 +173,166 @@ predict_age_by_celltype<-function (data_dir, data_name, result_dir, age_de_resul
 
 }
 
+#' Train donor age prediction models across cell types and regions and write results
+#'
+#' Loads a donor-level RNA-seq dataset (as a \code{DGEList}), restricts to autosomal genes,
+#' and then fits a donor age prediction model for each (cell type, region) combination.
+#' Regions are discovered per cell type from \code{dge$samples$region}. For each
+#' successfully fit combination, this function generates QC plots and writes concatenated
+#' tab-delimited outputs (donor predictions, model coefficients, and metrics) across all
+#' combinations.
+#'
+#' Combinations may be skipped due to insufficient genes after filtering.
+#'
+#' @param data_dir Directory containing the serialized input object used by
+#'   \code{bican.mccarroll.differentialexpression::prepare_data_for_differential_expression()}.
+#' @param data_name Name of the dataset object to load (passed through to
+#'   \code{prepare_data_for_differential_expression()}).
+#' @param result_dir Output directory for text artifacts produced by
+#'   \code{\link{write_age_outputs_all}}. Must already exist.
+#' @param age_de_results_dir Directory containing per-cell-type or per-(cell type, region)
+#'   age differential expression results used by \code{\link{get_age_de_results}} and
+#'   \code{\link{predict_age_celltype}}.
+#' @param outPDFFile Optional path to a PDF file. If provided, QC plots generated during
+#'   processing are printed to this PDF; otherwise plots are printed to the active device.
+#' @param contig_yaml_file Path to the contig-groups YAML file used by
+#'   \code{\link{filter_dge_to_autosomes}}.
+#' @param reduced_gtf_file Path to the reduced GTF used by \code{\link{filter_dge_to_autosomes}}.
+#' @param donor_col Column name in \code{dge$samples} identifying the donor. Default \code{"donor"}.
+#' @param age_col Column name in \code{dge$samples} giving chronological age. Default \code{"age"}.
+#' @param seed Integer random seed used for splitting/training inside \code{\link{predict_age_celltype}}.
+#' @param fdr_threshold FDR cutoff used when filtering to age DE genes inside
+#'   \code{\link{predict_age_celltype}}. Default \code{0.05}.
+#' @param optimize_alpha Logical; if \code{TRUE}, select elastic net \code{alpha} by grid search
+#'   (via \code{\link{train_enet_cv_optimize_alpha}}). If \code{FALSE}, use \code{alpha_fixed}.
+#' @param alpha_fixed Numeric elastic net \code{alpha} used when \code{optimize_alpha = FALSE}
+#'   (\code{0} ridge, \code{1} lasso). Default \code{0.5}.
+#' @param mc_repeats Integer; number of repeated stratified 80/20 splits used for the final
+#'   Monte Carlo residual summaries inside \code{\link{predict_age_celltype}}.
+#' @param min_donors Minimum number of donors required to fit a model for a given cell type.
+#'
+#' @details
+#' Output file basenames are derived from \code{outPDFFile} using \code{\link{get_output_basename}}.
+#'
+#' Regions are discovered per cell type as:
+#' \code{unique(dge$samples$region[dge$samples$cell_type == cellType])} (with \code{NA} removed).
+#' Each (cell type, region) pair is fit by calling \code{\link{predict_age_celltype}} with
+#' \code{region} set. The \code{region} value is propagated into outputs via
+#' \code{\link{extract_age_outputs}}.
+#'
+#' @importFrom logger log_info
+#' @importFrom grDevices pdf dev.off
+#'
+#' @export
+predict_age_by_celltype_region <- function(data_dir, data_name, result_dir, age_de_results_dir,
+                                           outPDFFile = NULL,
+                                           contig_yaml_file, reduced_gtf_file,
+                                           donor_col = "donor", age_col = "age",
+                                           seed = 42, fdr_threshold = 0.05,
+                                           optimize_alpha = FALSE, alpha_fixed = 0.5,
+                                           mc_repeats = 200, min_donors=50) {
+
+    if (!dir.exists(result_dir)) {
+        dir.create(result_dir, recursive = TRUE)
+    }
+
+    #load the DGEList and prepare the data
+    d=bican.mccarroll.differentialexpression::prepare_data_for_differential_expression(data_dir, data_name, randVars=c(), fixedVars=c())
+    dge=d$dge
+
+    #filter the genes to autosomal only
+    dge=filter_dge_to_autosomes (dge, contig_yaml_file, reduced_gtf_file)
+
+    cell_type_list <- unique(dge$samples$cell_type)
+    lineStr <- strrep("=", 80)
+
+    if (!is.null(outPDFFile)) {
+        grDevices::pdf(outPDFFile)
+    }
+
+    output_basename <- get_output_basename(outPDFFile)
+    retained_features <- c(donor_col, age_col)
+
+    test_set_metrics_list <- list()
+    outputs_list <- list()
+
+    for (cellType in cell_type_list) {
+
+        logger::log_info(lineStr)
+        logger::log_info(paste("Learning donor age model from expression for cell type:", cellType))
+        logger::log_info(lineStr)
+
+        regions <- unique(dge$samples$region[dge$samples$cell_type == cellType])
+        regions <- regions[!is.na(regions)]
+
+        # If region is missing entirely for this cell type, skip (or treat as one "NA" bin).
+        if (length(regions) == 0) {
+            next
+        }
+
+        for (region in regions) {
+
+            logger::log_info(paste0("Region: [", region, "]"))
+
+            r <- predict_age_celltype(
+                cellType,
+                dge,
+                retained_features = retained_features,
+                donor_col = donor_col,
+                age_de_results_dir = age_de_results_dir,
+                region = region,
+                fdr_threshold = fdr_threshold,
+                optimize_alpha = optimize_alpha,
+                alpha_fixed = alpha_fixed,
+                mc_repeats = mc_repeats,
+                min_donors=min_donors,
+                seed = seed
+            )
+
+            if (is.null(r)) {
+                next
+            }
+
+            key <- paste(cellType, region, sep = "__")
+            test_set_metrics_list[[key]] <- r$test_set_metrics
+
+            outputs_list[[key]] <- extract_age_outputs(
+                r,
+                cellType = cellType,
+                region = as.character(region)
+            )
+
+            plot_list <- age_prediction_qc_plots(r, cellType)
+            plot_list$mc_donor_pred_plot <- plot_mc_donor_predictions(outputs_list[[key]]$donor_predictions)
+
+            for (p in plot_list) {
+                if (!is.null(p)) {
+                    print(p)
+                }
+            }
+        }
+    }
+
+    write_age_outputs_all(outputs_list, result_dir, output_basename)
+
+    if (length(test_set_metrics_list) > 0) {
+        test_set_metrics_df <- do.call(rbind, test_set_metrics_list)
+        mean_metrics <- apply(test_set_metrics_df, 2, mean)
+        logger::log_info(
+            "Mean metrics of held out test sets across all fits: {paste(names(mean_metrics), sprintf('[%.3f]', mean_metrics), collapse = ', ')}"
+        )
+    } else {
+        logger::log_info("No successful (cell type, region) fits; no mean metrics to report.")
+    }
+
+    if (!is.null(outPDFFile)) {
+        grDevices::dev.off()
+    }
+
+    invisible(NULL)
+}
+
+
 
 
 age_prediction_qc_plots<-function (r, cellType) {
@@ -192,34 +359,45 @@ age_prediction_qc_plots<-function (r, cellType) {
 
 }
 
-#' Fit a donor-level age prediction model for a single cell type
+#' Fit a donor-level age prediction model for a single cell type (optionally within a region)
 #'
 #' Trains an elastic net (or ridge/lasso depending on \code{alpha_fixed}) age
-#' prediction model from gene expression for one cell type. The function:
+#' prediction model from gene expression for one cell type. If \code{region} is
+#' provided, the input \code{DGEList} is first subset to the requested cell type
+#' and region before collapsing multiple observations per donor into a single
+#' donor-level profile.
+#'
+#' The function:
 #' \enumerate{
-#'   \item Subsets the input \code{DGEList} to the requested cell type.
-#'   \item Collapses multiple observations per donor (e.g., across regions) into a
-#'         single donor-level profile via \code{collapse_by_donor()}.
+#'   \item Subsets the input \code{DGEList} to the requested cell type (and region, if set).
+#'   \item Collapses multiple observations per donor into a single donor-level profile via
+#'         \code{collapse_by_donor()}.
 #'   \item Applies standard expression QC and gene filtering steps.
 #'   \item Optionally filters genes to a set significant in external age DE results.
 #'   \item Performs an outer 80/20 donor-level holdout split for validation.
-#'   \item Trains the model on the 80\% training donors using inner stratified
-#'         K-fold CV to choose the regularization strength (and optionally alpha).
+#'   \item Trains the model on the 80\% training donors using inner stratified K-fold CV to
+#'         choose the regularization strength (and optionally alpha).
 #'   \item Evaluates the model on the held-out 20\% donors.
-#'   \item Computes "final" donor residuals by running repeated stratified 80/20
-#'         Monte Carlo splits on the full donor-level dataset and summarizing the
-#'         per-donor out-of-fold residual distribution.
+#'   \item Computes "final" donor residuals by running repeated stratified 80/20 Monte Carlo
+#'         splits on the full donor-level dataset and summarizing the per-donor out-of-fold
+#'         residual distribution.
+#'   \item Fits a final model on all donors for external prediction.
 #' }
 #'
 #' @param cellType Character scalar; the cell type label used to subset
 #'   \code{dge$samples$cell_type}.
 #' @param dge A \code{DGEList} containing counts and sample metadata. Must contain
-#'   \code{dge$samples$cell_type}, donor IDs, and ages.
+#'   \code{dge$samples$cell_type}, \code{dge$samples$region} (if using \code{region}),
+#'   donor IDs, and ages.
 #' @param retained_features Character vector of sample-level columns to retain
 #'   during donor collapsing (passed to \code{collapse_by_donor()}).
 #' @param donor_col Column name in \code{dge$samples} containing donor IDs.
 #' @param age_de_results_dir Directory containing age differential expression
 #'   results used by \code{get_age_de_results()}.
+#' @param region Optional character scalar; if not \code{NULL}, subset
+#'   \code{dge$samples$region == region} before collapsing across samples. When set,
+#'   \code{get_age_de_results()} is called with the same \code{region} so that region-
+#'   specific DE results can be used (if present).
 #' @param fdr_threshold Numeric; FDR cutoff for selecting genes from age DE
 #'   results. If \code{get_age_de_results()} returns \code{NULL}, no DE-based
 #'   feature filtering is performed.
@@ -231,43 +409,46 @@ age_prediction_qc_plots<-function (r, cellType) {
 #' @param mc_repeats Integer; number of repeated stratified 80/20 splits to run in
 #'   \code{compute_final_residuals_repeated_splits()} when computing final donor
 #'   residual summaries on the full dataset.
+#' @param min_donors Integer; minimum number of donors required to fit the model.
+#'   If the donor-level dataset has fewer donors, the function returns \code{NULL}.
 #' @param seed Integer random seed used for the outer holdout split, inner CV fold
-#'   construction, and Monte Carlo repeated splits.
+#'   construction, Monte Carlo repeated splits, and the final refit for external prediction.
 #'
 #' @return A list with components:
 #' \itemize{
 #'   \item \code{cell_type}: cell type name.
+#'   \item \code{region}: region used for training (\code{NA_character_} if not provided).
 #'   \item \code{dge_train}: donor-level training \code{DGEList} (80\% donors).
 #'   \item \code{dge_test}: donor-level held-out \code{DGEList} (20\% donors).
-#'   \item \code{cv_model}: result of \code{train_enet_cv()} or
-#'         \code{train_enet_cv_optimize_alpha()} on \code{dge_train}.
-#'   \item \code{test_set_predictions}: data.frame of predictions on held-out
-#'         donors with columns \code{donor}, \code{age}, and \code{pred}.
-#'   \item \code{test_set_metrics}: performance metrics on held-out donors as
-#'         returned by \code{compute_age_metrics()}.
+#'   \item \code{cv_model}: result of \code{train_enet_cv()} or \code{train_enet_cv_optimize_alpha()}
+#'         on \code{dge_train}.
+#'   \item \code{test_set_predictions}: data.frame of predictions on held-out donors with columns
+#'         \code{donor}, \code{age}, and \code{pred}.
+#'   \item \code{test_set_metrics}: performance metrics on held-out donors as returned by
+#'         \code{compute_age_metrics()}.
 #'   \item \code{age_de_results}: age DE results returned by \code{get_age_de_results()}
 #'         (or \code{NULL} if unavailable).
 #'   \item \code{final_oof_predictions}: per-donor residual summary returned by
 #'         \code{compute_final_residuals_repeated_splits()} (one row per donor).
-#'   \item \code{final_oof_metrics}: overall metrics computed from the per-donor
-#'         average prediction across repeats (\code{final_repeat$avg_pred_metrics}).
+#'   \item \code{final_oof_metrics}: overall metrics computed from the per-donor average prediction
+#'         across repeats (\code{final_repeat$avg_pred_metrics}).
+#'   \item \code{final_cv_model}: final model fit on all donors for external prediction
+#'         (computed with \code{compute_oof = FALSE}).
 #' }
 #'
 #' @details
-#' The "final" donor residuals are computed using repeated stratified 80/20 splits
-#' on the full donor-level dataset. For each repeat, donors in the test split are
-#' predicted by a model trained on the corresponding training split, and only
-#' those out-of-fold predictions contribute to the donor's residual distribution.
-#' This reduces dependence of residual estimates on a single fold assignment and
-#' can be used to assess residual stability with respect to training-set
-#' composition.
+#' The "final" donor residuals are computed using repeated stratified 80/20 splits on the full
+#' donor-level dataset. For each repeat, donors in the test split are predicted by a model
+#' trained on the corresponding training split, and only those out-of-fold predictions contribute
+#' to the donor's residual distribution.
 #'
 #' @export
 predict_age_celltype <- function(cellType, dge, retained_features = c("donor", "age"),
                                  donor_col = "donor", age_de_results_dir,
+                                 region = NULL,
                                  fdr_threshold = 0.05,
                                  optimize_alpha = FALSE, alpha_fixed = 0.5,
-                                 mc_repeats=100,
+                                 mc_repeats = 100, min_donors=50,
                                  seed = 1) {
 
     if (optimize_alpha) {
@@ -276,9 +457,15 @@ predict_age_celltype <- function(cellType, dge, retained_features = c("donor", "
         logger::log_info(paste("Using fixed alpha =", alpha_fixed))
     }
 
-    dge_cell <- dge[, dge$samples$cell_type == cellType, keep.lib.sizes = TRUE]
+    # Subset to cell type (and region if provided) BEFORE collapsing
+    if (is.null(region)) {
+        dge_cell <- dge[, dge$samples$cell_type == cellType, keep.lib.sizes = TRUE]
+    } else {
+        dge_cell <- dge[, dge$samples$cell_type == cellType & dge$samples$region == region,
+                        keep.lib.sizes = TRUE]
+    }
 
-    # Collapse across regions and multiple samples per donor
+    # Collapse multiple samples per donor
     dge_cell <- collapse_by_donor(dge_cell, donor_col = donor_col, keep_cols = retained_features)
 
     # Filtering samples by library size
@@ -300,8 +487,10 @@ predict_age_celltype <- function(cellType, dge, retained_features = c("donor", "
     )
     dge_cell <- r2$filtered_dge
 
-    # Get age DE results (optional)
-    age_de_results <- get_age_de_results(cellType, age_de_results_dir, fdr_threshold = fdr_threshold)
+    # Get age DE results (optional), region-aware
+    age_de_results <- get_age_de_results(cellType, age_de_results_dir,
+                                         region = region,
+                                         fdr_threshold = fdr_threshold)
     if (!is.null(age_de_results)) {
         genes_to_keep <- intersect(rownames(dge_cell), rownames(age_de_results))
         logger::log_info(paste("Filtering to", length(genes_to_keep),
@@ -309,7 +498,7 @@ predict_age_celltype <- function(cellType, dge, retained_features = c("donor", "
         dge_cell <- dge_cell[genes_to_keep, ]
     }
 
-    #check that there are at least 2 genes to fit the model!
+    # check that there are at least 2 genes to fit the model
     if (!has_min_features(dge_cell, min_features = 2L, context = cellType)) {
         return(NULL)
     }
@@ -352,9 +541,7 @@ predict_age_celltype <- function(cellType, dge, retained_features = c("donor", "
     test_set_predictions <- predict_age_from_dge(dge_test, cv_model$final_model, prior.count = 1)
     metrics_test <- compute_age_metrics(test_set_predictions$pred, test_set_predictions$age)
 
-    # ------------------------------------------------------------------
-    # NEW: Many fold repeated-split OOF residual computation on full dataset
-    # ------------------------------------------------------------------
+    # Final repeated-split OOF residual computation on full dataset
     logger::log_info("Computing final repeated-split OOF residuals on all donors (full dataset).")
 
     final_repeat <- compute_final_residuals_repeated_splits(
@@ -367,12 +554,10 @@ predict_age_celltype <- function(cellType, dge, retained_features = c("donor", "
         optimize_alpha = optimize_alpha,
         alpha_fixed = alpha_fixed,
         seed = seed,
-        verbose_every=mc_repeats / 10
+        verbose_every = mc_repeats / 10
     )
 
-    # ------------------------------------------------------------------
     # Final model for external prediction (fit on ALL donors; no OOF)
-    # ------------------------------------------------------------------
     logger::log_info("Fitting final model on all donors for external prediction.")
 
     if (optimize_alpha) {
@@ -400,25 +585,21 @@ predict_age_celltype <- function(cellType, dge, retained_features = c("donor", "
     final_oof_predictions <- final_repeat$donor_residual_summary
     final_oof_metrics <- final_repeat$avg_pred_metrics
 
-    result <- list(
+    list(
         cell_type = cellType,
+        region = if (is.null(region)) NA_character_ else as.character(region),
         dge_train = dge_train,
         dge_test = dge_test,
-
-        # Existing outputs
         cv_model = cv_model,
         test_set_predictions = test_set_predictions,
         test_set_metrics = metrics_test,
         age_de_results = age_de_results,
-
-        # New outputs
         final_cv_model = final_cv_model,
         final_oof_predictions = final_oof_predictions,
         final_oof_metrics = final_oof_metrics
     )
-
-    return(result)
 }
+
 
 #' Check that a DGEList has enough features for model fitting
 #'
