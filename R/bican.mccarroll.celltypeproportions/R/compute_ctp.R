@@ -43,8 +43,8 @@ filter_df <- function(df, filters=NULL, group_cols=NULL, group_filters=NULL) {
   } else {
     filtered_df <- df |>
       dplyr::filter(!!!rlang::parse_exprs(filters))
-
   }
+
   return(filtered_df)
 
 }
