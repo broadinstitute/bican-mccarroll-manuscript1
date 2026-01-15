@@ -33,14 +33,17 @@ filter_df <- function(df, filters=NULL, group_cols=NULL, group_filters=NULL) {
 
   logger::log_info("Applying the following filters: {paste(filters, collapse = ', ')}")
 
-  filtered_df <- df |>
-    dplyr::filter(!!!rlang::parse_exprs(filters))
-
   if(!is.null(group_cols) & !is.null(group_filters)) {
+    logger::log_info("Applying group-wise filters: {paste(group_filters, collapse = ', ')} within groups defined by: {paste(group_cols, collapse = ', ')}")
     filtered_df <- df |>
+      dplyr::filter(!!!rlang::parse_exprs(filters)) |>
       dplyr::group_by(across(all_of(group_cols))) |>
       dplyr::filter(!!!rlang::parse_exprs(group_filters)) |>
       dplyr::ungroup()
+  } else {
+    filtered_df <- df |>
+      dplyr::filter(!!!rlang::parse_exprs(filters))
+
   }
   return(filtered_df)
 
