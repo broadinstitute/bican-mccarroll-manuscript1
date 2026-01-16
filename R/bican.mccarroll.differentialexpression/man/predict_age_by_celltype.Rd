@@ -29,8 +29,7 @@ predict_age_by_celltype(
 \item{data_name}{Name of the dataset object to load (passed through to
 \code{prepare_data_for_differential_expression()}).}
 
-\item{result_dir}{Output directory for text artifacts produced by
-\code{\link{write_age_outputs_all}}. Must already exist.}
+\item{result_dir}{Output directory for covariates, metrics, and predictions/residuals}
 
 \item{age_de_results_dir}{Directory containing per-cell-type age differential expression
 results used by \code{\link{get_age_de_results}} and \code{\link{predict_age_celltype}}.}
@@ -72,8 +71,4 @@ across all cell types.
 }
 \details{
 Cell types may be skipped due to insufficient genes after filtering.
-
-
-Output file basenames are derived from \code{outPDFFile} using \code{\link{get_output_basename}}.
-The following helper functions are used internally:
 }

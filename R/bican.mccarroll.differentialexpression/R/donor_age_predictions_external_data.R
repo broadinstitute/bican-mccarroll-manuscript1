@@ -1,7 +1,7 @@
-# library (ggplot2)
-# library(dplyr)
-# library(gganimate)
-# library(cowplot)
+library (ggplot2)
+library(dplyr)
+library(gganimate)
+library(cowplot)
 
 
 # Test the donor age prediction model on external datasets using already trained models
@@ -24,146 +24,148 @@
 # cellTypeListFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/mash_cell_type_list_simple.txt"
 
 # Test fits on each region.
-test_donor_age_predictions_region_data <- function(data_dir, data_name,
-                                                   model_file_dir,
-                                                   result_dir,
-                                                   contig_yaml_file = NULL,
-                                                   reduced_gtf_file = NULL,
-                                                   retained_features = c("donor", "age"),
-                                                   donor_col = "donor",
-                                                   age_col = "age",
-                                                   out_region_pdf_file = NULL,
-                                                   out_celltype_pdf_file = NULL,
-                                                   out_region_predictions_file = NULL) {
-    #validate the output directory exists
-    if (!dir.exists(result_dir)) {
-        stop("Result directory does not exist: ", result_dir)
-    }
-
-    #Load the model coefficients.
-    all_models = load_models(model_file_dir)
-    model_metrics = load_model_metrics(model_file_dir)
-
-    #load the DGEList and prepare the data
-    d = bican.mccarroll.differentialexpression::prepare_data_for_differential_expression(data_dir,
-                                                                                         data_name,
-                                                                                         randVars = c(),
-                                                                                         fixedVars = c())
-    dge = d$dge
-
-    #filter to autosomes, so we don't learn sex / age biases
-    dge = filter_dge_to_autosomes (dge, contig_yaml_file, reduced_gtf_file)
-
-    #validate all model genes in DGE
-    model_genes = unique(all_models$feature)
-    missing_genes = setdiff(model_genes, rownames(dge$counts))
-    if (length(missing_genes) > 0) {
-        stop(
-            "The following model genes are missing from the DGEList counts matrix: ",
-            paste(missing_genes, collapse = ", ")
-        )
-    }
-
-    cell_type_list = unique(dge$samples$cell_type)
-    #cell_type_list="microglia" #hard coded for now.
-    lineStr <- strrep("=", 80)
-
-    results = list()
-
-    #cellType="microglia"; region="CaH"
-    for (cellType in cell_type_list) {
-        logger::log_info(lineStr)
-        logger::log_info(paste(
-            "Learning donor age model from expression for cell type:",
-            cellType
-        ))
-        logger::log_info(lineStr)
-
-        regions = unique (dge$samples[dge$samples$cell_type == cellType, ]$region)
-        model = all_models[all_models$cell_type == cellType, ]
-
-        for (region in regions) {
-            logger::log_info(paste("  Testing region:", region))
-
-            #subset to the cell type and region
-            dge_sub = dge[, dge$samples$cell_type == cellType &
-                              dge$samples$region == region]
-
-            #collapse to one observation per donor
-            dge_sub <- collapse_by_donor(dge_sub,
-                                         donor_col = donor_col,
-                                         keep_cols = retained_features)
-
-            #filtering samples by library size - not predicting very small samples.
-            r <- bican.mccarroll.differentialexpression::filter_by_libsize(
-                dge_sub,
-                threshold_sd = 1.96,
-                bins = 50,
-                strTitlePrefix = cellType
-            )
-            dge_sub <- r$dge
-
-            #test the model
-            result <- predict_age_from_dge(dge_sub, model, prior.count = 1)
-            result <- cbind(cell_type = cellType, region = region, result)
-            results[[paste(cellType, region, sep = "_")]] = result
-        }
-    }
-
-    results = do.call(rbind, results)
-
-    if (!is.null(out_region_predictions_file))
-        write.table(
-            results,
-            file = out_region_predictions_file,
-            sep = "\t",
-            quote = FALSE,
-            row.names = FALSE
-        )
-
-    #compute metrics per region
-    metrics = get_age_prediction_metrics(results)
-
-    if (!is.null(out_region_pdf_file))
-        pdf(out_region_pdf_file)
-
-    for (cellType in cell_type_list) {
-        m = model_metrics[model_metrics$cell_type == cellType &
-                              model_metrics$set == "Held-out donors", ]
-        titleStr <- paste(
-            "Region specific predictions for ",
-            cellType,
-            " (on held-out donors)\n",
-            "Overall model metrics: r = ",
-            sprintf("%.3f", m$r),
-            ", MedAE = ",
-            sprintf("%.3f", m$median_abs_error),
-            ", MAE = ",
-            sprintf("%.3f", m$mean_abs_error),
-            sep = ""
-        )
-
-
-        p1 = plot_age_predictions_by_region(
-            results,
-            cellType = cellType,
-            titleStr = titleStr,
-            facet_col = "region",
-            metrics_df = metrics
-        )
-        print (p1)
-        res_mat <- compute_residual_matrix(results, cellType = cellType)
-        if (ncol(res_mat) >= 2) {
-            p2 <- plot_residual_pair_scatter(res_mat, cellType)
-            print (p2)
-            p3 <- plot_residual_corr_heatmap(res_mat, cellType)
-            ComplexHeatmap::draw(p3, heatmap_legend_side = "right")
-        }
-    }
-
-    if (!is.null(out_region_pdf_file))
-        dev.off()
-}
+# This function uses a joint across region average model to try and predict age in each region separately.
+# I'm starting to think this is a not good idea.
+# test_donor_age_predictions_region_data <- function(data_dir, data_name,
+#                                                    model_file_dir,
+#                                                    result_dir,
+#                                                    contig_yaml_file = NULL,
+#                                                    reduced_gtf_file = NULL,
+#                                                    retained_features = c("donor", "age"),
+#                                                    donor_col = "donor",
+#                                                    age_col = "age",
+#                                                    out_region_pdf_file = NULL,
+#                                                    out_celltype_pdf_file = NULL,
+#                                                    out_region_predictions_file = NULL) {
+#     #validate the output directory exists
+#     if (!dir.exists(result_dir)) {
+#         stop("Result directory does not exist: ", result_dir)
+#     }
+#
+#     #Load the model coefficients.
+#     all_models = load_models(model_file_dir)
+#     model_metrics = load_model_metrics(model_file_dir)
+#
+#     #load the DGEList and prepare the data
+#     d = bican.mccarroll.differentialexpression::prepare_data_for_differential_expression(data_dir,
+#                                                                                          data_name,
+#                                                                                          randVars = c(),
+#                                                                                          fixedVars = c())
+#     dge = d$dge
+#
+#     #filter to autosomes, so we don't learn sex / age biases
+#     dge = filter_dge_to_autosomes (dge, contig_yaml_file, reduced_gtf_file)
+#
+#     #validate all model genes in DGE
+#     model_genes = unique(all_models$feature)
+#     missing_genes = setdiff(model_genes, rownames(dge$counts))
+#     if (length(missing_genes) > 0) {
+#         stop(
+#             "The following model genes are missing from the DGEList counts matrix: ",
+#             paste(missing_genes, collapse = ", ")
+#         )
+#     }
+#
+#     cell_type_list = unique(dge$samples$cell_type)
+#     #cell_type_list="microglia" #hard coded for now.
+#     lineStr <- strrep("=", 80)
+#
+#     results = list()
+#
+#     #cellType="microglia"; region="CaH"
+#     for (cellType in cell_type_list) {
+#         logger::log_info(lineStr)
+#         logger::log_info(paste(
+#             "Learning donor age model from expression for cell type:",
+#             cellType
+#         ))
+#         logger::log_info(lineStr)
+#
+#         regions = unique (dge$samples[dge$samples$cell_type == cellType, ]$region)
+#         model = all_models[all_models$cell_type == cellType, ]
+#
+#         for (region in regions) {
+#             logger::log_info(paste("  Testing region:", region))
+#
+#             #subset to the cell type and region
+#             dge_sub = dge[, dge$samples$cell_type == cellType &
+#                               dge$samples$region == region]
+#
+#             #collapse to one observation per donor
+#             dge_sub <- collapse_by_donor(dge_sub,
+#                                          donor_col = donor_col,
+#                                          keep_cols = retained_features)
+#
+#             #filtering samples by library size - not predicting very small samples.
+#             r <- bican.mccarroll.differentialexpression::filter_by_libsize(
+#                 dge_sub,
+#                 threshold_sd = 1.96,
+#                 bins = 50,
+#                 strTitlePrefix = cellType
+#             )
+#             dge_sub <- r$dge
+#
+#             #test the model
+#             result <- predict_age_from_dge(dge_sub, model, prior.count = 1)
+#             result <- cbind(cell_type = cellType, region = region, result)
+#             results[[paste(cellType, region, sep = "_")]] = result
+#         }
+#     }
+#
+#     results = do.call(rbind, results)
+#
+#     if (!is.null(out_region_predictions_file))
+#         write.table(
+#             results,
+#             file = out_region_predictions_file,
+#             sep = "\t",
+#             quote = FALSE,
+#             row.names = FALSE
+#         )
+#
+#     #compute metrics per region
+#     metrics = get_age_prediction_metrics(results)
+#
+#     if (!is.null(out_region_pdf_file))
+#         pdf(out_region_pdf_file)
+#
+#     for (cellType in cell_type_list) {
+#         m = model_metrics[model_metrics$cell_type == cellType &
+#                               model_metrics$set == "Held-out donors", ]
+#         titleStr <- paste(
+#             "Region specific predictions for ",
+#             cellType,
+#             " (on held-out donors)\n",
+#             "Overall model metrics: r = ",
+#             sprintf("%.3f", m$r),
+#             ", MedAE = ",
+#             sprintf("%.3f", m$median_abs_error),
+#             ", MAE = ",
+#             sprintf("%.3f", m$mean_abs_error),
+#             sep = ""
+#         )
+#
+#
+#         p1 = plot_age_predictions_by_region(
+#             results,
+#             cellType = cellType,
+#             titleStr = titleStr,
+#             facet_col = "region",
+#             metrics_df = metrics
+#         )
+#         print (p1)
+#         res_mat <- compute_residual_matrix(results, cellType = cellType)
+#         if (ncol(res_mat) >= 2) {
+#             p2 <- plot_residual_pair_scatter(res_mat, cellType)
+#             print (p2)
+#             p3 <- plot_residual_corr_heatmap(res_mat, cellType)
+#             ComplexHeatmap::draw(p3, heatmap_legend_side = "right")
+#         }
+#     }
+#
+#     if (!is.null(out_region_pdf_file))
+#         dev.off()
+# }
 
 # Compare residuals across cell types
 compare_age_residuals_celltype <- function (model_file_dir,
@@ -189,9 +191,10 @@ compare_age_residuals_celltype <- function (model_file_dir,
         per_page = 4,
         facet_font_size = 8
     )
+
     p3 <- plot_residual_corr_heatmap(res_mat, cellType = NULL, annotate_cells = TRUE)
 
-    p4 <- compare_age_model_features(model_file_dir)
+    p4 <- compare_age_model_features(model_file_dir, cellTypeListFile= cellTypeListFile)
 
     if (!is.null(out_celltype_pdf_file))
         pdf (out_celltype_pdf_file)
@@ -1624,14 +1627,6 @@ plot_age_predictions_by_region <- function(results,
 
 
 
-# compute_residual_matrix <- function(results, cellType) {
-#     df <- results[results$cell_type == cellType, ]
-#     stopifnot(all(c("donor","region","age","pred") %in% names(df)))
-#     df$resid <- df$pred - df$age
-#     #create a matrix of the residuals
-#     M <- with(df, tapply(pred - age, list(donor, region), I))
-#     as.matrix(M)  # donors x regions
-# }
 
 # if there's more than one observation for the grouping, aggregate using mean or median
 compute_residual_matrix <- function(results,
@@ -1743,110 +1738,110 @@ plot_residual_pair_scatter <- function(res_mat, cellType) {
 }
 
 # 2. Scatter plots with annotated correlations, paged if too many pairs
-plot_residual_pair_scatter_paged <- function(res_mat,
-                                             cellType = NULL,
-                                             per_page = 12,
-                                             facet_font_size = 10,
-                                             ncol = NULL) {
-    stopifnot(is.matrix(res_mat))
-    regs  <- colnames(res_mat)
-    prs   <- if (length(regs) >= 2)
-        utils::combn(regs, 2, simplify = FALSE)
-    else
-        list()
-    if (!length(prs))
-        stop("Need >=2 regions (columns) in res_mat")
-
-    # build subplots
-    make_panel <- function(name, x, y) {
-        keep <- is.finite(x) & is.finite(y)
-        if (sum(keep) < 2)
-            return(NULL)
-        x <- x[keep]
-        y <- y[keep]
-        r <- cor(x, y)
-        rng <- range(c(x, y))
-        pad <- diff(rng) * 0.1
-        lim <- c(rng[1] - pad, rng[2] + pad)
-
-        ggplot(data.frame(x, y), aes(x, y)) +
-            geom_abline(
-                intercept = 0,
-                slope = 1,
-                color = "black",
-                linetype = "dashed"
-            ) +
-            geom_point(size = 2,
-                       alpha = 0.7,
-                       color = "steelblue") +
-            geom_smooth(
-                method = "lm",
-                formula = y ~ x,
-                se = FALSE,
-                linewidth = 0.6,
-                color = "red"
-            ) +
-            annotate(
-                "text",
-                x = -Inf,
-                y = Inf,
-                label = sprintf("r = %.2f", r),
-                hjust = -0.1,
-                vjust = 1.2,
-                size = 3.2
-            ) +
-            ggtitle(name) +
-            coord_cartesian(xlim = lim, ylim = lim) +
-            labs(x = "Residual in cell type A", y = "Residual in cell type B") +
-            theme_classic(base_size = 12) +
-            theme(plot.title = element_text(size = facet_font_size, hjust = 0.5))
-    }
-
-    plots <- list()
-    for (p in prs) {
-        name <- paste(p[1], "vs", p[2])
-        pan  <- make_panel(name, res_mat[, p[1]], res_mat[, p[2]])
-        if (!is.null(pan))
-            plots[[length(plots) + 1]] <- pan
-    }
-    if (!length(plots))
-        stop("No valid pairs after filtering")
-
-    # paging with cowplot
-    if (is.null(ncol))
-        ncol <- ceiling(sqrt(per_page))
-    nrow <- ceiling(per_page / ncol)
-    blanks <- function(n)
-        replicate(n, ggplot() + theme_void(), simplify = FALSE)
-
-    page_title <- "Age Prediction residuals (predicted - actual)"
-    if (!is.null(cellType))
-        page_title <- paste(cellType, page_title, sep = "\n")
-
-    pages <- list()
-    for (s in seq(1, length(plots), by = per_page)) {
-        page_plots <- plots[s:min(s + per_page - 1, length(plots))]
-        if (length(page_plots) < per_page)
-            page_plots <- c(page_plots, blanks(per_page - length(page_plots)))
-
-        grid <- cowplot::plot_grid(plotlist = page_plots,
-                                   ncol = ncol,
-                                   nrow = nrow)
-        pg <- cowplot::ggdraw() +
-            cowplot::draw_label(
-                page_title,
-                x = 0,
-                y = 1,
-                hjust = 0,
-                vjust = 1,
-                size = 14
-            ) +
-            cowplot::draw_plot(grid, y = 0, height = 0.94)
-        pages[[length(pages) + 1]] <- pg
-    }
-
-    pages
-}
+# plot_residual_pair_scatter_paged <- function(res_mat,
+#                                              cellType = NULL,
+#                                              per_page = 12,
+#                                              facet_font_size = 10,
+#                                              ncol = NULL) {
+#     stopifnot(is.matrix(res_mat))
+#     regs  <- colnames(res_mat)
+#     prs   <- if (length(regs) >= 2)
+#         utils::combn(regs, 2, simplify = FALSE)
+#     else
+#         list()
+#     if (!length(prs))
+#         stop("Need >=2 regions (columns) in res_mat")
+#
+#     # build subplots
+#     make_panel <- function(name, x, y) {
+#         keep <- is.finite(x) & is.finite(y)
+#         if (sum(keep) < 2)
+#             return(NULL)
+#         x <- x[keep]
+#         y <- y[keep]
+#         r <- cor(x, y)
+#         rng <- range(c(x, y))
+#         pad <- diff(rng) * 0.1
+#         lim <- c(rng[1] - pad, rng[2] + pad)
+#
+#         ggplot(data.frame(x, y), aes(x, y)) +
+#             geom_abline(
+#                 intercept = 0,
+#                 slope = 1,
+#                 color = "black",
+#                 linetype = "dashed"
+#             ) +
+#             geom_point(size = 2,
+#                        alpha = 0.7,
+#                        color = "steelblue") +
+#             geom_smooth(
+#                 method = "lm",
+#                 formula = y ~ x,
+#                 se = FALSE,
+#                 linewidth = 0.6,
+#                 color = "red"
+#             ) +
+#             annotate(
+#                 "text",
+#                 x = -Inf,
+#                 y = Inf,
+#                 label = sprintf("r = %.2f", r),
+#                 hjust = -0.1,
+#                 vjust = 1.2,
+#                 size = 3.2
+#             ) +
+#             ggtitle(name) +
+#             coord_cartesian(xlim = lim, ylim = lim) +
+#             labs(x = "Residual in cell type A", y = "Residual in cell type B") +
+#             theme_classic(base_size = 12) +
+#             theme(plot.title = element_text(size = facet_font_size, hjust = 0.5))
+#     }
+#
+#     plots <- list()
+#     for (p in prs) {
+#         name <- paste(p[1], "vs", p[2])
+#         pan  <- make_panel(name, res_mat[, p[1]], res_mat[, p[2]])
+#         if (!is.null(pan))
+#             plots[[length(plots) + 1]] <- pan
+#     }
+#     if (!length(plots))
+#         stop("No valid pairs after filtering")
+#
+#     # paging with cowplot
+#     if (is.null(ncol))
+#         ncol <- ceiling(sqrt(per_page))
+#     nrow <- ceiling(per_page / ncol)
+#     blanks <- function(n)
+#         replicate(n, ggplot() + theme_void(), simplify = FALSE)
+#
+#     page_title <- "Age Prediction residuals (predicted - actual)"
+#     if (!is.null(cellType))
+#         page_title <- paste(cellType, page_title, sep = "\n")
+#
+#     pages <- list()
+#     for (s in seq(1, length(plots), by = per_page)) {
+#         page_plots <- plots[s:min(s + per_page - 1, length(plots))]
+#         if (length(page_plots) < per_page)
+#             page_plots <- c(page_plots, blanks(per_page - length(page_plots)))
+#
+#         grid <- cowplot::plot_grid(plotlist = page_plots,
+#                                    ncol = ncol,
+#                                    nrow = nrow)
+#         pg <- cowplot::ggdraw() +
+#             cowplot::draw_label(
+#                 page_title,
+#                 x = 0,
+#                 y = 1,
+#                 hjust = 0,
+#                 vjust = 1,
+#                 size = 14
+#             ) +
+#             cowplot::draw_plot(grid, y = 0, height = 0.94)
+#         pages[[length(pages) + 1]] <- pg
+#     }
+#
+#     pages
+# }
 
 
 
@@ -1854,148 +1849,148 @@ plot_residual_pair_scatter_paged <- function(res_mat,
 # method: "pearson" or "spearman"
 # cluster: TRUE = hierarchical clustering rows/cols; FALSE = keep input order
 # annotate_cells: TRUE = show correlation values in heatmap cells; FALSE = no annotation
-plot_residual_corr_heatmap <- function(res_mat,
-                                       cellType = NULL,
-                                       annotate_cells = TRUE) {
-    stopifnot(is.matrix(res_mat))
-    C <- cor(res_mat, use = "pairwise.complete.obs")  # regions x regions
-
-    col_fun <- circlize::colorRamp2(c(-1, 0, 1), c("#3b4cc0", "white", "#b40426"))
-
-    column_title <- "Age Prediction residuals (predicted - actual)"
-    if (!is.null(cellType))
-        column_title <- paste(cellType, column_title, sep = "\n")
-
-    # optional cell annotation
-    cf <- if (isTRUE(annotate_cells)) {
-        function(j, i, x, y, width, height, fill) {
-            grid::grid.text(sprintf("%.2f", C[i, j]), x, y, gp = grid::gpar(fontsize = 12))
-        }
-    } else
-        NULL
-
-    ComplexHeatmap::Heatmap(
-        C,
-        name = "r",
-        col = col_fun,
-        cluster_rows = TRUE,
-        cluster_columns = TRUE,
-        row_title = NULL,
-        column_title = column_title,
-        show_row_dend = TRUE,
-        show_column_dend = TRUE,
-        row_names_gp = grid::gpar(fontsize = 9),
-        column_names_gp = grid::gpar(fontsize = 9),
-        heatmap_legend_param = list(at = c(-1, -0.5, 0, 0.5, 1), title = "Correlation"),
-        cell_fun = cf
-    )
-}
-
-
+# plot_residual_corr_heatmap <- function(res_mat,
+#                                        cellType = NULL,
+#                                        annotate_cells = TRUE) {
+#     stopifnot(is.matrix(res_mat))
+#     C <- cor(res_mat, use = "pairwise.complete.obs")  # regions x regions
+#
+#     col_fun <- circlize::colorRamp2(c(-1, 0, 1), c("#3b4cc0", "white", "#b40426"))
+#
+#     column_title <- "Age Prediction residuals (predicted - actual)"
+#     if (!is.null(cellType))
+#         column_title <- paste(cellType, column_title, sep = "\n")
+#
+#     # optional cell annotation
+#     cf <- if (isTRUE(annotate_cells)) {
+#         function(j, i, x, y, width, height, fill) {
+#             grid::grid.text(sprintf("%.2f", C[i, j]), x, y, gp = grid::gpar(fontsize = 12))
+#         }
+#     } else
+#         NULL
+#
+#     ComplexHeatmap::Heatmap(
+#         C,
+#         name = "r",
+#         col = col_fun,
+#         cluster_rows = TRUE,
+#         cluster_columns = TRUE,
+#         row_title = NULL,
+#         column_title = column_title,
+#         show_row_dend = TRUE,
+#         show_column_dend = TRUE,
+#         row_names_gp = grid::gpar(fontsize = 9),
+#         column_names_gp = grid::gpar(fontsize = 9),
+#         heatmap_legend_param = list(at = c(-1, -0.5, 0, 0.5, 1), title = "Correlation"),
+#         cell_fun = cf
+#     )
+# }
 
 
-get_age_prediction_metrics <- function(results) {
-    groups <- split(results, list(results$cell_type, results$region), drop = TRUE)
 
-    rows <- lapply(groups, function(df) {
-        m <- compute_age_metrics(df$pred, df$age)  # named numeric
-        data.frame(
-            cell_type = df$cell_type[1],
-            region    = df$region[1],
-            as.list(m),
-            row.names = NULL,
-            check.names = FALSE
-        )
-    })
 
-    r = do.call(rbind, rows)
-    rownames (r) <- NULL
-    r = r[order(r$cell_type, r$region), ]
+# get_age_prediction_metrics <- function(results) {
+#     groups <- split(results, list(results$cell_type, results$region), drop = TRUE)
+#
+#     rows <- lapply(groups, function(df) {
+#         m <- compute_age_metrics(df$pred, df$age)  # named numeric
+#         data.frame(
+#             cell_type = df$cell_type[1],
+#             region    = df$region[1],
+#             as.list(m),
+#             row.names = NULL,
+#             check.names = FALSE
+#         )
+#     })
+#
+#     r = do.call(rbind, rows)
+#     rownames (r) <- NULL
+#     r = r[order(r$cell_type, r$region), ]
+#
+#     return (r)
+# }
 
-    return (r)
-}
+# load_model_metrics <- function (model_file_dir) {
+#     model_files = list.files(model_file_dir,
+#                              pattern = "donor_age_model_metrics*",
+#                              full.names = TRUE)
+#
+#     #x=model_files[1]
+#     parseOne <- function (x) {
+#         a = read.table(
+#             x,
+#             header = TRUE,
+#             sep = "\t",
+#             stringsAsFactors = FALSE
+#         )
+#
+#         return (a)
+#     }
+#
+#     all_models = lapply(model_files, parseOne)
+#     logger::log_info(paste("Loaded model metrics for "),
+#                      length(all_models),
+#                      " cell types")
+#     all_models = do.call(rbind, all_models)
+#     return(all_models)
+#
+#     # Some ad-hoc plots.
+#     #plot (all_models[all_models$set=="Cross-validation",]$median_abs_error, all_models[all_models$set=="Held-out donors",]$median_abs_error, xlab="Cross Validation", ylab="Held-out donors", main="median absolute error", )
+#     #abline(0,1, col="red")
+#
+#     #plot (all_models[all_models$set=="Cross-validation",]$r, all_models[all_models$set=="Held-out donors",]$r, xlab="Cross Validation", ylab="Held-out donors", main="correlation")
+#     #abline(0,1, col="red")
+#
+#     #z=data.frame(cell_type=all_models[all_models$set=="Cross-validation",]$cell_type, cv=all_models[all_models$set=="Cross-validation",]$r, ho=all_models[all_models$set=="Held-out donors",]$r)
+#     #z$abs=abs(z$cv-z$ho)
+#     #z=z[order(z$abs, decreasing = T),]
+#
+# }
 
-load_model_metrics <- function (model_file_dir) {
-    model_files = list.files(model_file_dir,
-                             pattern = "donor_age_model_metrics*",
-                             full.names = TRUE)
-
-    #x=model_files[1]
-    parseOne <- function (x) {
-        a = read.table(
-            x,
-            header = TRUE,
-            sep = "\t",
-            stringsAsFactors = FALSE
-        )
-
-        return (a)
-    }
-
-    all_models = lapply(model_files, parseOne)
-    logger::log_info(paste("Loaded model metrics for "),
-                     length(all_models),
-                     " cell types")
-    all_models = do.call(rbind, all_models)
-    return(all_models)
-
-    # Some ad-hoc plots.
-    #plot (all_models[all_models$set=="Cross-validation",]$median_abs_error, all_models[all_models$set=="Held-out donors",]$median_abs_error, xlab="Cross Validation", ylab="Held-out donors", main="median absolute error", )
-    #abline(0,1, col="red")
-
-    #plot (all_models[all_models$set=="Cross-validation",]$r, all_models[all_models$set=="Held-out donors",]$r, xlab="Cross Validation", ylab="Held-out donors", main="correlation")
-    #abline(0,1, col="red")
-
-    #z=data.frame(cell_type=all_models[all_models$set=="Cross-validation",]$cell_type, cv=all_models[all_models$set=="Cross-validation",]$r, ho=all_models[all_models$set=="Held-out donors",]$r)
-    #z$abs=abs(z$cv-z$ho)
-    #z=z[order(z$abs, decreasing = T),]
-
-}
-
-load_models <- function (model_file_dir) {
-    model_files = list.files(model_file_dir,
-                             pattern = "donor_age_model_coefficients_*",
-                             full.names = TRUE)
-
-    #x=model_files[1]
-    parseOne <- function (x) {
-        a = read.table(
-            x,
-            header = TRUE,
-            sep = "\t",
-            stringsAsFactors = FALSE
-        )
-        return (a)
-    }
-
-    all_models = lapply(model_files, parseOne)
-    logger::log_info(paste("Loaded model coefficients for "),
-                     length(all_models),
-                     " cell types")
-    all_models = do.call(rbind, all_models)
-    return(all_models)
-}
-
-load_model_predictions <- function (model_file_dir) {
-    model_files = list.files(model_file_dir,
-                             pattern = "donor_age_predictions*",
-                             full.names = TRUE)
-
-    #x=model_files[1]
-    parseOne <- function (x) {
-        a = read.table(
-            x,
-            header = TRUE,
-            sep = "\t",
-            stringsAsFactors = FALSE
-        )
-        return (a)
-    }
-
-    all_models = lapply(model_files, parseOne)
-    logger::log_info(paste("Loaded model predictions for "),
-                     length(all_models),
-                     " cell types")
-    all_models = do.call(rbind, all_models)
-    return(all_models)
-}
+# load_models <- function (model_file_dir) {
+#     model_files = list.files(model_file_dir,
+#                              pattern = "donor_age_model_coefficients_*",
+#                              full.names = TRUE)
+#
+#     #x=model_files[1]
+#     parseOne <- function (x) {
+#         a = read.table(
+#             x,
+#             header = TRUE,
+#             sep = "\t",
+#             stringsAsFactors = FALSE
+#         )
+#         return (a)
+#     }
+#
+#     all_models = lapply(model_files, parseOne)
+#     logger::log_info(paste("Loaded model coefficients for "),
+#                      length(all_models),
+#                      " cell types")
+#     all_models = do.call(rbind, all_models)
+#     return(all_models)
+# }
+#
+# load_model_predictions <- function (model_file_dir) {
+#     model_files = list.files(model_file_dir,
+#                              pattern = "donor_age_predictions*",
+#                              full.names = TRUE)
+#
+#     #x=model_files[1]
+#     parseOne <- function (x) {
+#         a = read.table(
+#             x,
+#             header = TRUE,
+#             sep = "\t",
+#             stringsAsFactors = FALSE
+#         )
+#         return (a)
+#     }
+#
+#     all_models = lapply(model_files, parseOne)
+#     logger::log_info(paste("Loaded model predictions for "),
+#                      length(all_models),
+#                      " cell types")
+#     all_models = do.call(rbind, all_models)
+#     return(all_models)
+# }

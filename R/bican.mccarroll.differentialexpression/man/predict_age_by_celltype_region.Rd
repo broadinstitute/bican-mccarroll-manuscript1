@@ -29,8 +29,7 @@ predict_age_by_celltype_region(
 \item{data_name}{Name of the dataset object to load (passed through to
 \code{prepare_data_for_differential_expression()}).}
 
-\item{result_dir}{Output directory for text artifacts produced by
-\code{\link{write_age_outputs_all}}. Must already exist.}
+\item{result_dir}{Output directory for covariates, metrics, and predictions/residuals.}
 
 \item{age_de_results_dir}{Directory containing per-cell-type or per-(cell type, region)
 age differential expression results used by \code{\link{get_age_de_results}} and
@@ -74,13 +73,4 @@ combinations.
 }
 \details{
 Combinations may be skipped due to insufficient genes after filtering.
-
-
-Output file basenames are derived from \code{outPDFFile} using \code{\link{get_output_basename}}.
-
-Regions are discovered per cell type as:
-\code{unique(dge$samples$region[dge$samples$cell_type == cellType])} (with \code{NA} removed).
-Each (cell type, region) pair is fit by calling \code{\link{predict_age_celltype}} with
-\code{region} set. The \code{region} value is propagated into outputs via
-\code{\link{extract_age_outputs}}.
 }

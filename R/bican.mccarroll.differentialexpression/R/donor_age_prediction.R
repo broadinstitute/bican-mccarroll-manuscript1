@@ -12,22 +12,22 @@
 # source("R/age_model_fit_core.R", local=TRUE)
 #
 #
-# #data dir
+# # data dir
 # data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metacells/LEVEL_2"
 # data_name="donor_rxn_DGEList"
 #
-# #age DE results dir
+# # age DE results dir
 # age_de_results_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results/LEVEL_2/sex_age/cell_type"
 # result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/age_prediction/age_prediction_alpha_0"
 # outPDFFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/age_prediction/age_prediction_alpha_0/age_prediction_results_alpha0.pdf"
-#
-# #filtering to autosomal genes
+
+# # filtering to autosomal genes
 # contig_yaml_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.contig_groups.yaml"
 # reduced_gtf_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.reduced.gtf"
 #
 # donor_col = "donor"
 # age_col = "age"
-# seed =12345; fdr_threshold=0.05; optimize_alpha=FALSE; alpha_fixed=0
+# seed =12345; fdr_threshold=0.05; optimize_alpha=FALSE; alpha_fixed=0; min_donors=50; mc_repeats=200
 #
 #
 # # Region specific DE results and output.
@@ -61,8 +61,7 @@
 #'   \code{bican.mccarroll.differentialexpression::prepare_data_for_differential_expression()}.
 #' @param data_name Name of the dataset object to load (passed through to
 #'   \code{prepare_data_for_differential_expression()}).
-#' @param result_dir Output directory for text artifacts produced by
-#'   \code{\link{write_age_outputs_all}}. Must already exist.
+#' @param result_dir Output directory for covariates, metrics, and predictions/residuals
 #' @param age_de_results_dir Directory containing per-cell-type age differential expression
 #'   results used by \code{\link{get_age_de_results}} and \code{\link{predict_age_celltype}}.
 #' @param outPDFFile Optional path to a PDF file. If provided, QC plots generated during
@@ -83,9 +82,6 @@
 #'   Monte Carlo residual summaries inside \code{\link{predict_age_celltype}}.
 #' @param min_donors Minimum number of donors required to fit a model for a given cell type.
 #'
-#' @details
-#' Output file basenames are derived from \code{outPDFFile} using \code{\link{get_output_basename}}.
-#' The following helper functions are used internally:
 #' @importFrom logger log_info
 #' @importFrom grDevices pdf dev.off
 #'
@@ -188,8 +184,7 @@ predict_age_by_celltype<-function (data_dir, data_name, result_dir, age_de_resul
 #'   \code{bican.mccarroll.differentialexpression::prepare_data_for_differential_expression()}.
 #' @param data_name Name of the dataset object to load (passed through to
 #'   \code{prepare_data_for_differential_expression()}).
-#' @param result_dir Output directory for text artifacts produced by
-#'   \code{\link{write_age_outputs_all}}. Must already exist.
+#' @param result_dir Output directory for covariates, metrics, and predictions/residuals.
 #' @param age_de_results_dir Directory containing per-cell-type or per-(cell type, region)
 #'   age differential expression results used by \code{\link{get_age_de_results}} and
 #'   \code{\link{predict_age_celltype}}.
@@ -210,15 +205,6 @@ predict_age_by_celltype<-function (data_dir, data_name, result_dir, age_de_resul
 #' @param mc_repeats Integer; number of repeated stratified 80/20 splits used for the final
 #'   Monte Carlo residual summaries inside \code{\link{predict_age_celltype}}.
 #' @param min_donors Minimum number of donors required to fit a model for a given cell type.
-#'
-#' @details
-#' Output file basenames are derived from \code{outPDFFile} using \code{\link{get_output_basename}}.
-#'
-#' Regions are discovered per cell type as:
-#' \code{unique(dge$samples$region[dge$samples$cell_type == cellType])} (with \code{NA} removed).
-#' Each (cell type, region) pair is fit by calling \code{\link{predict_age_celltype}} with
-#' \code{region} set. The \code{region} value is propagated into outputs via
-#' \code{\link{extract_age_outputs}}.
 #'
 #' @importFrom logger log_info
 #' @importFrom grDevices pdf dev.off
@@ -503,6 +489,11 @@ predict_age_celltype <- function(cellType, dge, retained_features = c("donor", "
         return(NULL)
     }
 
+    #check that there are a minimum number of donors to fit the model
+    if (!has_min_donors(dge_cell, min_donors = min_donors, context = cellType)) {
+        return(NULL)
+    }
+
     # Outer holdout split (80/20)
     n_bins <- 5
     d <- make_holdout_stratified(dge_cell, age_col = "age", donor_col = "donor",
@@ -542,7 +533,8 @@ predict_age_celltype <- function(cellType, dge, retained_features = c("donor", "
     metrics_test <- compute_age_metrics(test_set_predictions$pred, test_set_predictions$age)
 
     # Final repeated-split OOF residual computation on full dataset
-    logger::log_info("Computing final repeated-split OOF residuals on all donors (full dataset).")
+    str=paste0("Computing final repeated-split OOF residuals on all donors [",ncol(dge_cell),"].")
+    logger::log_info(str)
 
     final_repeat <- compute_final_residuals_repeated_splits(
         dge_cell,
@@ -633,6 +625,39 @@ has_min_features <- function(dge, min_features = 2L, context = NULL) {
 
     TRUE
 }
+
+#' Check that a DGEList has enough features for model fitting
+#'
+#' Internal guard to ensure that downstream modeling steps (e.g. glmnet)
+#' have a sufficient number of features. Intended to be used to short-circuit
+#' model fitting for cell types with too few genes after filtering.
+#'
+#' @param dge A \code{DGEList}.
+#' @param min_donors Integer; minimum number of features (rows) required.
+#' @param context Optional character string used in log messages
+#'   (e.g. cell type name).
+#'
+#' @return Logical; \code{TRUE} if \code{nrow(dge) >= min_features}, otherwise
+#'   \code{FALSE}.
+#'
+#' @keywords internal
+has_min_donors <- function(dge, min_donors = 50L, context = NULL) {
+    stopifnot("DGEList" %in% class(dge))
+
+    if (ncol(dge) < min_donors) {
+        msg <- paste0(
+            "Skipping model fit: only ", ncol(dge),
+            " donors available (need >= ", min_donors, ")."
+        )
+        if (!is.null(context)) {
+            msg <- paste0(context, ": ", msg)
+        }
+        logger::log_warn(msg)
+        return(FALSE)
+    }
+    TRUE
+}
+
 
 
 ########################
@@ -1254,21 +1279,26 @@ collapse_by_donor <- function(dge, donor_col = "donor", keep_cols = character(0)
     dge_out
 }
 
-get_age_de_results<-function (cellType, age_de_results_dir, fdr_threshold=0.05) {
-    if (is.null(age_de_results_dir))
-        return (NULL)
-
-    f=list.files(path=age_de_results_dir, pattern="age", full.names = TRUE)
-    expectedFileName=paste(cellType, "age_DE_results.txt", sep="_")
-    f=grep(expectedFileName, f, value=TRUE)
-    if (length(f)!=1) {
-        stop("Did not find exactly one DE results file for cell type ", cellType, " in directory ", age_de_results_dir)
-    }
-    de_results=utils::read.table(f, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
-    de_results=de_results[de_results$adj.P.Val<=fdr_threshold,]
-    return (de_results)
-}
-
+#' Load age DE results for a given cell type and region
+#'
+#' Loads differential expression results from a specified directory
+#' for a given cell type and region. Filters results to those with adjusted
+#' p-value below a specified FDR threshold.
+#'
+#' The expected encoding of DE results filenames is:
+#' - General age DE results: \code{<cellType>_age_DE_results.txt}
+#' - Region-specific age DE results: \code{<cellType>_age_<region>_DE_results.txt}
+#'
+#' @param cellType Character scalar; cell type name.
+#' @param age_de_results_dir Character scalar; path to directory containing DE results files.
+#' @param region Optional character scalar; region name. If NULL, looks for
+#'  general age DE results file for the cell type. If provided, looks for
+#'  region-specific DE results file.
+#' @param fdr_threshold Numeric scalar; FDR threshold for filtering DE results
+#'  (default 0.05).
+#' @return A data.frame of DE results filtered to adjusted p-value <= fdr_threshold.
+#'  If age_de_results_dir is NULL, returns NULL.
+#'
 get_age_de_results <- function(cellType,
                                age_de_results_dir,
                                region = NULL,
@@ -1307,6 +1337,26 @@ get_age_de_results <- function(cellType,
 }
 
 
+#' Filter an edgeR DGEList to autosomal genes
+#'
+#' Subsets an \code{edgeR::DGEList} to genes annotated as autosomal. Autosomes are
+#' determined from a contig YAML file (contig \eqn{\rightarrow} class mapping),
+#' and genes are identified from a reduced GTF-like TSV containing gene records.
+#'
+#' If either \code{contig_yaml_file} or \code{reduced_gtf_file} is \code{NULL},
+#' the input \code{dge} is returned unchanged.
+#'
+#' @param dge An \code{edgeR::DGEList}. Gene identifiers are expected to be in
+#'   \code{rownames(dge)}.
+#' @param contig_yaml_file Path to a YAML file mapping contig names to contig
+#'   classes. Contigs with value \code{"autosome"} are retained.
+#' @param reduced_gtf_file Path to a tab-delimited file (reduced GTF-like) with
+#'   at least the columns \code{chr}, \code{annotationType}, and \code{gene_name}.
+#'
+#' @return An \code{edgeR::DGEList} containing only rows whose gene names match
+#' autosomal genes in \code{reduced_gtf_file}. Library sizes are preserved
+#' (\code{keep.lib.sizes = TRUE}).
+#' @export
 filter_dge_to_autosomes<-function (dge, contig_yaml_file, reduced_gtf_file) {
     if (is.null(contig_yaml_file) | is.null(reduced_gtf_file)) {
         return (dge)
