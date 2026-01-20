@@ -126,7 +126,7 @@ build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, me
 #' @param force_category_columns A vector of column names in \code{metadata_columns} that should be treated as categorical variables
 #' @param add_counts Logical; if \code{TRUE}, adds a column \code{num_nuclei} with the number of nuclei per donor.
 #' @param outDir Directory to save the covariates files.  Each file will have the matching prefix of the metacell file.
-#'
+#' @export
 build_eQTL_covariates<-function (manifest_file, metacell_dir, cell_metadata_file, metadata_columns, force_category_columns=c(), add_counts=T, outDir) {
     # Read cell metadata
     cell_metadata <- data.table::fread(cell_metadata_file, data.table=F)
