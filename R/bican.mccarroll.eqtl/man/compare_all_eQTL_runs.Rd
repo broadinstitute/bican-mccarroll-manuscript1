@@ -7,7 +7,7 @@
 compare_all_eQTL_runs(
   data_dir,
   outDir,
-  filter_levels = c(0, 1, 2, 3),
+  filter_levels = c(0, 1, 2, 3, 4),
   fdr_threshold = 0.05,
   cache_dir
 )
