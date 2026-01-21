@@ -1,14 +1,15 @@
 # Compare old vs new CPM filtering of differential expression results
 
-#library(ggplot2)
-#library(cowplot)
-#library(ggrepel)
-#library(logger)
+# library(ggplot2)
+# library(cowplot)
+# library(ggrepel)
+# library(logger)
+# library (ComplexHeatmap)
 
 #
 # old_data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression_old_gene_filtering/sex_age/cell_type"
 # new_data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type"
-# # outPDF="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type/compare_feature_selection.pdf"
+# outPDF="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type/compare_feature_selection.pdf"
 # fdr_cutoff=0.05
 # cell_type="microglia"
 
@@ -19,35 +20,86 @@
 
 
 #compare all levels to each other.
-compare_all_age_de_runs<-function (data_dir, outDir, filter_levels=c(0,1,2,3), fdr_cutoff=0.05) {
-    for (base_level in filter_levels) {
-        for (comparison_level in filter_levels) {
-            if (base_level < comparison_level) {
-                old_data_dir=paste(data_dir,"/LEVEL_", base_level, "/sex_age/cell_type", sep="")
-                new_data_dir=paste(data_dir,"/LEVEL_", comparison_level, "/sex_age/cell_type", sep="")
-                outPDF=paste(outDir, "/compare_age_DE_LEVEL_", base_level, "_vs_LEVEL_", comparison_level, ".pdf", sep="")
-                outFile=paste(outDir, "/compare_age_DE_LEVEL_", base_level, "_vs_LEVEL_", comparison_level, ".txt", sep="")
-                logger::log_info(paste0("Comparing age DE results between LEVEL ", base_level, " and LEVEL ", comparison_level, "\n"))
-                z=compare_age_de_runs(old_data_dir=old_data_dir,
-                                    new_data_dir=new_data_dir,
-                                    outPDF=outPDF,
-                                    outFile=outFile,
-                                    fdr_cutoff=fdr_cutoff)
-            }
-        }
-    }
-}
+# compare_all_age_de_runs<-function (data_dir, outDir, filter_levels=c(0,1,2,3), fdr_cutoff=0.05) {
+#     for (base_level in filter_levels) {
+#         for (comparison_level in filter_levels) {
+#             if (base_level < comparison_level) {
+#                 old_data_dir=paste(data_dir,"/LEVEL_", base_level, "/sex_age/cell_type", sep="")
+#                 new_data_dir=paste(data_dir,"/LEVEL_", comparison_level, "/sex_age/cell_type", sep="")
+#                 outPDF=paste(outDir, "/compare_age_DE_LEVEL_", base_level, "_vs_LEVEL_", comparison_level, ".pdf", sep="")
+#                 outFile=paste(outDir, "/compare_age_DE_LEVEL_", base_level, "_vs_LEVEL_", comparison_level, ".txt", sep="")
+#                 logger::log_info(paste0("Comparing age DE results between LEVEL ", base_level, " and LEVEL ", comparison_level, "\n"))
+#                 z=compare_age_de_runs(old_data_dir=old_data_dir,
+#                                     new_data_dir=new_data_dir,
+#                                     outPDF=outPDF,
+#                                     outFile=outFile,
+#                                     fdr_cutoff=fdr_cutoff)
+#             }
+#         }
+#     }
+# }
 
 #compute all the level to level +1 comparisons, merge into a single result dataframe
-compare_all_age_de_runs_trajectories<-function (data_dir, outDir, filter_levels=c(0,1,2,3), fdr_cutoff=0.05) {
+# clustering_min_genes controls how many genes must be found at the base level to form a cluster
+
+#' Compare age differential expression results across filtering trajectories
+#'
+#' Compares age-related differential expression (DE) results across a sequence
+#' of filtering stringency levels, treating the first entry of
+#' \code{filter_levels} as the baseline and comparing it to each subsequent
+#' level. For each adjacent comparison \eqn{(LEVEL_{base}, LEVEL_{k})}, the
+#' function calls \code{compare_age_de_runs()} to compute concordance metrics
+#' across cell types (e.g., logFC and FDR correlations and the fraction of
+#' discoveries retained), then aggregates results across comparisons.
+#'
+#' After aggregating, the function:
+#' \itemize{
+#'   \item Plots per-cell-type discovery trajectories across comparison levels.
+#'   \item Filters to cell types with at least \code{clustering_min_genes}
+#'         significant genes in the baseline run.
+#'   \item Clusters discovery trajectories using \code{cluster_filtering_trajectories()}
+#'         (currently with \code{K = 4}).
+#'   \item Writes a PDF summary containing the trajectory plots and additional
+#'         diagnostics relating discovery reduction to baseline signal.
+#' }
+#'
+#' The function assumes a standardized directory layout for each filtering level:
+#' \preformatted{
+#'   data_dir/LEVEL_<level>/sex_age/cell_type/
+#' }
+#'
+#' Output is written to \code{outDir} as \code{"compare_de_age_all_levels_summary.pdf"}.
+#'
+#' @param data_dir Character scalar. Base directory containing DE results
+#'   organized by filtering level (e.g., \code{LEVEL_0}, \code{LEVEL_1}, ...).
+#' @param outDir Character scalar. Output directory where the summary PDF will
+#'   be written.
+#' @param filter_levels Integer vector. Filtering levels to compare. The first
+#'   value is treated as the baseline level, and each subsequent value is
+#'   compared against it. Default is \code{c(0, 1, 2, 3, 4)}.
+#' @param fdr_cutoff Numeric scalar. False discovery rate (FDR) threshold used
+#'   within \code{compare_age_de_runs()} when computing per-cell-type summaries.
+#'   Default is \code{0.05}.
+#' @param clustering_min_genes Integer scalar. Minimum number of significant
+#'   genes in the baseline run (\code{num_genes_significant_old}) required for a
+#'   cell type to be included in trajectory clustering. Default is \code{100}.
+#'
+#' @export
+compare_all_age_de_runs<-function (data_dir, outDir, filter_levels=c(0,1,2,3,4), fdr_cutoff=0.05, clustering_min_genes=100) {
     base_level=filter_levels[1]
     results=list()
     for (i in 1:(length(filter_levels)-1)) {
         comparison_level=filter_levels[i+1]
-        old_data_dir=paste(data_dir,"/LEVEL_", base_level, "/sex_age/cell_type", sep="")
-        new_data_dir=paste(data_dir,"/LEVEL_", comparison_level, "/sex_age/cell_type", sep="")
+
+        baseline_name=paste0("LEVEL_", base_level)
+        comparison_name=paste0("LEVEL_", comparison_level)
+
+        old_data_dir=paste(data_dir,"/", baseline_name, "/sex_age/cell_type", sep="")
+        new_data_dir=paste(data_dir,"/", comparison_name, "/sex_age/cell_type", sep="")
         logger::log_info(paste0("Comparing age DE results between LEVEL ", base_level, " and LEVEL ", comparison_level, "\n"))
-        z=compare_age_de_runs(old_data_dir=old_data_dir, new_data_dir=new_data_dir, outPDF=NULL, outFile=NULL, fdr_cutoff=fdr_cutoff)
+        z=compare_age_de_runs(old_data_dir=old_data_dir, new_data_dir=new_data_dir,
+                              baseline_name=baseline_name, comparison_name=comparison_name,
+                              outPDF=NULL, outFile=NULL, fdr_cutoff=fdr_cutoff)
         df=z$df
         df$base_level=base_level
         df$comparison_level=comparison_level
@@ -55,29 +107,43 @@ compare_all_age_de_runs_trajectories<-function (data_dir, outDir, filter_levels=
     }
     df=do.call(rbind, results)
 
-    plot_frac_lines(df)
-
     #unknown how many clusters to pick.
-    res <- cluster_filtering_trajectories(df, K = 4)
+    df_filtered=df[df$num_genes_significant_old>=clustering_min_genes, ]
+
+    res <- cluster_filtering_trajectories(df_filtered, K = 4)
     p1<-res$plot_trajectories
     p2<-res$plot_mapping
 
     combined <- cowplot::plot_grid(
         p1,
         p2,
-        nrow       = 2
+        nrow = 2
     )
+    heatmap_plot<-plot_filtering_trajectories_heatmap(df_filtered)
+
+    p2<-plot_frac_lines(df_filtered)
 
     # is the dropoff a result of the number of initial observations?
     # IE: we just barely had power before, and now we don't?
-    plot_reduction_vs_initial(df, cluster_df=res$clusters)
-    plot_reduction_by_parent_type(df)
+    # only compare the maximum level.
+    level=max (df$comparison_level)
+    p3<-plot_reduction_vs_initial(df, cluster_df=res$clusters, comparison_level=level)
+    p4<- plot_reduction_by_parent_type(df, comparison_level=level)
+
+    pdfSummaryFile=paste(outDir,"/compare_de_age_all_levels_summary.pdf", sep="")
+    grDevices::pdf(pdfSummaryFile, width = 11, height = 11)
+    print (combined)
+    print (heatmap_plot)
+    print (p3)
+    print (p4)
+    print (p2)
+    dev.off()
 
 }
 
 
 
-compare_age_de_runs<-function (old_data_dir, new_data_dir, outPDF, outFile=NULL, fdr_cutoff=0.05) {
+compare_age_de_runs<-function (old_data_dir, new_data_dir, baseline_name, comparison_name, outPDF, outFile=NULL, fdr_cutoff=0.05) {
     suffix="_age_DE_results.txt"
     f=list.files(old_data_dir, pattern=suffix, full.names = F)
     cell_types_list=sub(suffix, "", f)
@@ -91,8 +157,19 @@ compare_age_de_runs<-function (old_data_dir, new_data_dir, outPDF, outFile=NULL,
         p=compare_age_de_run(cell_type=cell_type,
                             old_data_dir=old_data_dir,
                             new_data_dir=new_data_dir,
+                            baseline_name=baseline_name,
+                            comparison_name=comparison_name,
                             fdr_cutoff=fdr_cutoff)
-        plot_list[[cell_type]]=p$plot
+
+        plot_page=compose_de_comparison_plot(
+            scatter_effect = p$scatter_effect,
+            scatter_fdr = p$scatter_fdr,
+            venn_plot_genes_tested = p$venn_plot_genes_tested,
+            venn_plot_de_genes = p$venn_plot_de_genes,
+            cell_type = cell_type
+        )
+
+        plot_list[[cell_type]]=plot_page
         df_list[[cell_type]]=p$df
         merged_list[[cell_type]]=p$merged
     }
@@ -133,7 +210,7 @@ compare_age_de_runs<-function (old_data_dir, new_data_dir, outPDF, outFile=NULL,
 
     #plots
     if (!is.null(outPDF)) {
-        pdf(outPDF)
+        pdf(outPDF, width=11, height=11)
         print (z$plot)
         print (p)
         for (pp in plot_list){
@@ -149,6 +226,26 @@ compare_age_de_runs<-function (old_data_dir, new_data_dir, outPDF, outFile=NULL,
     # test_de_inflation(merged_list[["microglia"]], main_prefix = "DE Analysis Age Microglia", pval_col = "P.Value_old", t_col = "t_old")
 
     return (z)
+}
+
+
+compose_de_comparison_plot<-function (scatter_effect, scatter_fdr, venn_plot_genes_tested, venn_plot_de_genes, cell_type) {
+    p1=cowplot::plot_grid(
+        venn_plot_genes_tested,
+        venn_plot_de_genes,
+        scatter_effect,
+        scatter_fdr,
+        rel_heights = c(0.4, 0.6),
+        ncol=2
+    )
+
+    final_plot <- add_supertitle_cowplot(p = p1,
+                                       title = paste("DE Gene Comparison:", cell_type),
+                                       title_size = 16,
+                                       rel_height_title = 0.08
+    )
+
+    return (final_plot)
 }
 
 
@@ -408,6 +505,10 @@ test_de_inflation <- function(
 #'   the DE results file in each directory. The function looks for a file
 #'   starting with \code{cell_type} and ending in
 #'   \code{"_age_DE_results.txt"}.
+#' @param baseline_name Character scalar. Name of the baseline filtering level
+#'  (e.g., \code{"LEVEL_0"}).
+#' @param comparison_name Character scalar. Name of the comparison filtering level
+#'  (e.g., \code{"LEVEL_3"}).
 #' @param fdr_cutoff Numeric scalar. FDR threshold used to classify genes
 #'   as significant or non-significant in the old run when summarizing
 #'   dropped genes. Default is \code{0.05}.
@@ -418,7 +519,10 @@ test_de_inflation <- function(
 compare_age_de_run <- function (cell_type,
                                 old_data_dir,
                                 new_data_dir,
+                                baseline_name=baseline_name,
+                                comparison_name=comparison_name,
                                 fdr_cutoff = 0.05) {
+
     find_de_file <- function(data_dir, cell_type) {
         pattern <- paste0("^", cell_type, "_age_DE_results\\.txt$")
         files <- list.files(data_dir, pattern = pattern, full.names = TRUE)
@@ -597,24 +701,23 @@ compare_age_de_run <- function (cell_type,
         theme_bw(base_size = 14) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-    ## Combined cowplot layout:
-    top_row <- cowplot::plot_grid(
-        p_effect,
-        p_fdr,
-        ncol = 2
-    )
+    # add in the venn diagrams to replicate the eQTL analysis.
+    z=plot_gene_venn(old_de, new_de, text_size=6, title_size=16,
+                     baseline_name=baseline_name, comparison_name=comparison_name,
+                     title="Number of genes tested")
 
-    bottom_row <- cowplot::plot_grid(
-        p_drop_bar,
-        ncol = 1
-    )
+    venn_plot_genes_tested=z$plot
 
-    combined <- cowplot::plot_grid(
-        top_row,
-        bottom_row,
-        ncol = 1,
-        rel_heights = c(1.5, 1)
-    )
+    #how many eQTLs are found in both levels (FDR<0.05)
+    old_de_fdr=old_de[old_de$adj.P.Val < fdr_cutoff, ]
+    new_de_fdr=new_de[new_de$adj.P.Val < fdr_cutoff, ]
+
+    z=plot_gene_venn(old_de_fdr, new_de_fdr, text_size=6, title_size=16,
+                     baseline_name=baseline_name, comparison_name=comparison_name,
+                     title="Number of DE genes discovered")
+
+    venn_plot_de_genes=z$plot
+
 
     df=data.frame(cell_type=cell_type,
                logFC_correlation=logfc_cor,
@@ -625,8 +728,79 @@ compare_age_de_run <- function (cell_type,
                num_genes_significant_old=num_genes_significant_old,
                num_genes_significant_new=num_genes_significant_new)
 
-    result=list(df=df, plot=combined, merged=merged)
+
+    result=list(df=df, scatter_effect=p_effect, scatter_fdr=p_fdr, venn_plot_genes_tested=venn_plot_genes_tested, venn_plot_de_genes=venn_plot_de_genes)
     return (result)
+}
+
+
+#' Venn diagram comparing overlap between two eQTL result sets
+#'
+#' Creates a two-set Venn diagram showing overlap of items defined by
+#' \code{gene_name} (or any pre-filtered subset of rows, e.g. FDR < 0.05).
+#' Also computes union and intersection counts for tracking across runs.
+#'
+#' @param index_dt data.frame for the baseline run.
+#'   Must include a \code{gene_name} column.
+#' @param index_comparison_dt data.frame for the comparison run.
+#'   Must include a \code{gene_name} column.
+#' @param baseline_name character scalar. Label for the baseline dataset.
+#' @param comparison_name character scalar. Label for the comparison dataset.
+#' @param title character scalar. Plot title.
+#' @param text_size numeric scalar. Text size for counts and percentages in the Venn.
+#' @param title_size numeric scalar. Title font size.
+#'
+#' @return A list with:
+#' \describe{
+#' \item{\code{plot}}{A ggplot object (the Venn diagram).}
+#' \item{\code{stats}}{A one-row data.frame with union and intersection counts.}
+#' }
+#'
+#' @importFrom ggvenn ggvenn
+#' @importFrom ggplot2 ggtitle theme element_text
+plot_gene_venn <- function(old_de,
+                           new_de,
+                           baseline_name = "baseline",
+                           comparison_name = "comparison",
+                           title = "Number of genes tested",
+                           text_size = 6,
+                           title_size = 16) {
+    gene_name <- NULL
+
+    genes_baseline <- unique(old_de[["gene"]])
+    genes_comp <- unique(new_de[["gene"]])
+
+    n_intersect <- length(intersect(genes_baseline, genes_comp))
+    n_union <- length(union(genes_baseline, genes_comp))
+
+    stats <- data.frame(
+        baseline_name = baseline_name,
+        comparison_name = comparison_name,
+        n_union = n_union,
+        n_intersect = n_intersect,
+        stringsAsFactors = FALSE
+    )
+
+    sets <- list(
+        baseline = genes_baseline,
+        comparison = genes_comp
+    )
+    names(sets) <- c(baseline_name, comparison_name)
+
+    p <- ggvenn::ggvenn(
+        sets,
+        fill_color = c("#0072B2", "#009E73"),
+        text_size = text_size
+    ) +
+        ggplot2::ggtitle(title) +
+        ggplot2::theme(
+            plot.title = ggplot2::element_text(
+                size = title_size,
+                hjust = 0.5
+            )
+        )
+
+    list(plot = p, stats = stats)
 }
 
 #Can we cluster cell types by how they lose data as we increase filtering stringency?
@@ -773,13 +947,113 @@ cluster_filtering_trajectories <- function(df, K = 4) {
     )
 }
 
-plot_reduction_vs_initial <- function(df, cluster_df) {
+plot_filtering_trajectories_heatmap <- function(df) {
+    ## df must have: cell_type, comparison_level, frac_genes_discovered
+
+    wide <- reshape(
+        df[, c("cell_type", "comparison_level", "frac_genes_discovered")],
+        idvar     = "cell_type",
+        timevar   = "comparison_level",
+        direction = "wide"
+    )
+
+    ## order columns by numeric comparison_level (1, 2, 3, 4, ...)
+    comp_levels <- as.numeric(sub("frac_genes_discovered\\.", "", names(wide)[-1]))
+    col_idx <- order(comp_levels)
+    wide <- wide[, c(1, 1 + col_idx)]
+
+    mat <- as.matrix(wide[, -1])
+    rownames(mat) <- wide$cell_type
+
+    ## hierarchical clustering on rows only
+    row_hc <- stats::hclust(stats::dist(mat))
+
+    ## diverging color scale centered at 1
+    col_fun <- circlize::colorRamp2(
+        c(min(mat, na.rm = TRUE), 1, max(mat, na.rm = TRUE)),
+        c("blue", "white", "red")
+    )
+
+    ComplexHeatmap::Heatmap(
+        mat,
+        name = "frac_genes_discovered",
+        col = col_fun,
+        cluster_rows = row_hc,
+        cluster_columns = FALSE,
+        show_row_names = TRUE,
+        show_column_names = TRUE
+    )
+}
+
+plot_filtering_trajectories_heatmap2 <- function(df) {
+    ## Required columns:
+    ##   cell_type
+    ##   comparison_level
+    ##   num_genes_significant_old   (defines level 0)
+    ##   num_genes_significant_new   (levels 1..)
+
+    df$comparison_level <- as.numeric(df$comparison_level)
+
+    ## Wide matrix for "new" counts
+    wide_new <- reshape(
+        df[, c("cell_type", "comparison_level", "num_genes_significant_new")],
+        idvar     = "cell_type",
+        timevar   = "comparison_level",
+        direction = "wide"
+    )
+
+    ## Order new-level columns numerically
+    levs <- as.numeric(sub("num_genes_significant_new\\.", "", names(wide_new)[-1]))
+    col_idx <- order(levs)
+    wide_new <- wide_new[, c(1, 1 + col_idx)]
+
+    mat_new <- as.matrix(wide_new[, -1, drop = FALSE])
+    rownames(mat_new) <- wide_new$cell_type
+    colnames(mat_new) <- as.character(sort(levs))
+
+    ## Level 0 column from old counts
+    old_by_ct <- tapply(df$num_genes_significant_old, df$cell_type, function(x) x[1])
+    old_by_ct <- old_by_ct[rownames(mat_new)]
+    mat0 <- matrix(old_by_ct, ncol = 1)
+    colnames(mat0) <- "0"
+    rownames(mat0) <- rownames(mat_new)
+
+    ## Combine and normalize per row to [0, 1]
+    mat_counts <- cbind(mat0, mat_new)
+    row_max <- apply(mat_counts, 1, max, na.rm = TRUE)
+    row_max[!is.finite(row_max) | row_max <= 0] <- NA_real_
+    mat_norm <- mat_counts / row_max
+
+    ## Cluster rows only
+    row_hc <- stats::hclust(stats::dist(mat_norm))
+
+    ## Single-hue sequential color scale (low = white, high = blue)
+    col_fun <- circlize::colorRamp2(
+        c(0, 1),
+        c("white", "blue")
+    )
+
+    ComplexHeatmap::Heatmap(
+        mat_norm,
+        name = "frac_of_max",
+        col = col_fun,
+        cluster_rows = row_hc,
+        cluster_columns = FALSE,
+        show_row_names = TRUE,
+        show_column_names = TRUE,
+        column_title = "Comparison level (0 = old)"
+    )
+}
+
+
+
+plot_reduction_vs_initial <- function(df, cluster_df, comparison_level=4) {
 
     ## attach cluster to main df
     df_cl <- merge(df, cluster_df, by = "cell_type")
 
-    ## keep only comparison_level == 3
-    d3 <- df_cl[df_cl$comparison_level == 3, ]
+    ## keep only comparison_level maximum
+    d3 <- df_cl[df_cl$comparison_level == comparison_level, ]
 
     ## log10 of initial number of significant genes
     d3$log10_num_genes_old <- log10(d3$num_genes_significant_old)
@@ -802,7 +1076,7 @@ plot_reduction_vs_initial <- function(df, cluster_df) {
                     linewidth = 0.8) +
         labs(
             x = expression(log[10]("Number of significant genes (before filtering)")),
-            y = "Fraction of genes discovered (level 3)",
+            y = paste0("Fraction of genes discovered (level ",comparison_level, " )"),
             color = "Cluster",
             title = "Reduction vs initial number of discoveries"
         ) +
@@ -810,10 +1084,10 @@ plot_reduction_vs_initial <- function(df, cluster_df) {
 }
 
 
-plot_reduction_by_parent_type <- function(df) {
+plot_reduction_by_parent_type <- function(df, comparison_level=4) {
 
     ## Keep only comparison_level = 3
-    d3 <- df[df$comparison_level == 3, ]
+    d3 <- df[df$comparison_level == comparison_level, ]
 
     ## log10 of original # significant genes
     d3$log10_num_genes_old <- log10(d3$num_genes_significant_old)
@@ -840,11 +1114,32 @@ plot_reduction_by_parent_type <- function(df) {
                     linewidth = 0.8) +
         labs(
             x = expression(log[10]("Number of significant genes (old filtering)")),
-            y = "Fraction of genes discovered (level 3)",
+            y = paste0("Fraction of genes discovered (level ",comparison_level, " )"),
             color = "Parent cell type",
             title = "Reduction vs initial discoveries by parent cell group"
         ) +
         theme_bw()
+}
+
+add_supertitle_cowplot <- function(p,
+                                   title,
+                                   title_size = 16,
+                                   rel_height_title = 0.08) {
+    title_grob <- cowplot::ggdraw() +
+        cowplot::draw_label(
+            title,
+            fontface = "bold",
+            size = title_size,
+            x = 0.5,
+            hjust = 0.5
+        )
+
+    cowplot::plot_grid(
+        title_grob,
+        p,
+        ncol = 1,
+        rel_heights = c(rel_height_title, 1)
+    )
 }
 
 

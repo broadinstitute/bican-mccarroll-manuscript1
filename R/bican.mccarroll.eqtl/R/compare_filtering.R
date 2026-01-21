@@ -64,7 +64,7 @@
 #' @importFrom utils write.table
 #' @import ggrepel
 #' @export
-compare_all_eQTL_runs<-function (data_dir, outDir, filter_levels=c(0,1,2,3), fdr_threshold=0.05, cache_dir) {
+compare_all_eQTL_runs<-function (data_dir, outDir, filter_levels=c(0,1,2,3,4), fdr_threshold=0.05, cache_dir) {
     base_level=filter_levels[1]
     results=list()
     for (i in 1:(length(filter_levels)-1)) {
