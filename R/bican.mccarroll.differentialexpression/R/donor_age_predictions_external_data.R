@@ -1503,40 +1503,40 @@ jaccard_by_celltype <- function(all_models, coef_thresh = 0) {
 }
 
 # Heatmap with optional numeric annotation
-plot_jaccard_heatmap <- function(J,
-                                 title = "Feature overlap (Jaccard Index)",
-                                 annotate_cells = TRUE,
-                                 cluster = TRUE) {
-    stopifnot(
-        requireNamespace("ComplexHeatmap", quietly = TRUE),
-        requireNamespace("circlize", quietly = TRUE),
-        requireNamespace("grid", quietly = TRUE)
-    )
-
-    col_fun <- circlize::colorRamp2(c(0, 0.5, 1), c("#f7fbff", "#6baed6", "#08306b"))
-
-    cf <- if (isTRUE(annotate_cells)) {
-        function(j, i, x, y, w, h, fill) {
-            grid::grid.text(sprintf("%.2f", J[i, j]), x, y, gp = grid::gpar(fontsize = 10))
-        }
-    } else
-        NULL
-
-    ComplexHeatmap::Heatmap(
-        J,
-        name = "Jaccard",
-        col = col_fun,
-        cluster_rows = cluster,
-        cluster_columns = cluster,
-        show_row_dend = cluster,
-        show_column_dend = cluster,
-        row_names_gp = grid::gpar(fontsize = 10),
-        column_names_gp = grid::gpar(fontsize = 10),
-        heatmap_legend_param = list(at = c(0, 0.5, 1)),
-        cell_fun = cf,
-        column_title = title
-    )
-}
+# plot_jaccard_heatmap <- function(J,
+#                                  title = "Feature overlap (Jaccard Index)",
+#                                  annotate_cells = TRUE,
+#                                  cluster = TRUE) {
+#     stopifnot(
+#         requireNamespace("ComplexHeatmap", quietly = TRUE),
+#         requireNamespace("circlize", quietly = TRUE),
+#         requireNamespace("grid", quietly = TRUE)
+#     )
+#
+#     col_fun <- circlize::colorRamp2(c(0, 0.5, 1), c("#f7fbff", "#6baed6", "#08306b"))
+#
+#     cf <- if (isTRUE(annotate_cells)) {
+#         function(j, i, x, y, w, h, fill) {
+#             grid::grid.text(sprintf("%.2f", J[i, j]), x, y, gp = grid::gpar(fontsize = 10))
+#         }
+#     } else
+#         NULL
+#
+#     ComplexHeatmap::Heatmap(
+#         J,
+#         name = "Jaccard",
+#         col = col_fun,
+#         cluster_rows = cluster,
+#         cluster_columns = cluster,
+#         show_row_dend = cluster,
+#         show_column_dend = cluster,
+#         row_names_gp = grid::gpar(fontsize = 10),
+#         column_names_gp = grid::gpar(fontsize = 10),
+#         heatmap_legend_param = list(at = c(0, 0.5, 1)),
+#         cell_fun = cf,
+#         column_title = title
+#     )
+# }
 
 plot_age_predictions_by_region <- function(results,
                                            cellType,
