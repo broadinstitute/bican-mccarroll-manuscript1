@@ -3,7 +3,7 @@
 #library(logger)
 
 #input_file <- "/broad/bican_um1_mccarroll/RNAseq/analysis/cellarium_upload/CAP_freeze_3/CAP_cell_metadata.annotated.txt.gz"
-#filters <- c("brain_region_abbreviation == 'DFC'", "single_cell_assay == '10X-GEMX-3P'", "!any(gex_donor_celltype_outlier, na.rm=TRUE)")
+#filters <- c("brain_region_abbreviation == 'DFC'", "single_cell_assay == '10X-GEMX-3P'")
 #group_cols <- c("donor_external_id", "village")
 #cell_type_col <- "annotation_most_specific"
 #metric_cols <- c("pct_intronic", "frac_contamination")
@@ -49,6 +49,7 @@ filter_df <- function(df, filters=NULL, group_cols=NULL, group_filters=NULL) {
 
 }
 
+
 #' Computes cell type proportions for a given grouping.
 #'
 #' @param df Dataframe containing cell metadata.
@@ -64,26 +65,43 @@ compute_ctp <- function(df, group_cols, cell_type_col) {
     stop(paste("The following columns are missing from the dataframe:", paste(missing_cols, collapse = ", ")))
   }
 
+  # add sample label
+  sample_df <- df |>
+    tidyr::unite(sample_id, all_of(group_cols), sep = "_", remove = FALSE) 
+
+  # extract sample info 
+  sample_info <- sample_df |>
+    dplyr::select(sample_id, all_of(group_cols)) |>
+    dplyr::distinct()
+
   # Compute cell type proportions
-  ctp_df <- df |>
-    dplyr::group_by(across(all_of(group_cols)), !!rlang::sym(cell_type_col)) |>
+  ctp_df <- sample_df |>
+    tidyr::unite(sample_id, all_of(group_cols), sep = "_", remove = FALSE) |>
+    dplyr::group_by(sample_id, !!rlang::sym(cell_type_col)) |>
     dplyr::summarise(n_nuclei = dplyr::n(), .groups = 'drop') |>
-    dplyr::group_by(across(all_of(group_cols))) |>
-    dplyr::mutate(total_nuclei = sum(n_nuclei),
-           fraction_nuclei = n_nuclei / total_nuclei) |>
-    dplyr::ungroup()
+    dplyr::group_by(sample_id) |>
+    dplyr::mutate(
+      total_nuclei = sum(n_nuclei),
+      fraction_nuclei = n_nuclei / total_nuclei
+    ) |>
+    dplyr::ungroup() |>
+    tidyr::complete(sample_id, !!rlang::sym(cell_type_col), fill=list(n_nuclei = 0, fraction_nuclei = 0))
 
   nuclei_counts <- ctp_df |>
-    dplyr::select(all_of(group_cols), total_nuclei) |>
+    dplyr::select(sample_id, total_nuclei) |>
     dplyr::distinct() |>
+    na.omit() |>
     dplyr::mutate(log10_nuclei = log10(total_nuclei)) |>
     dplyr::mutate(z_log10_nuclei = as.numeric(scale(log10_nuclei))) |>
-    dplyr::select(-total_nuclei, -log10_nuclei)
+    dplyr::select(-log10_nuclei) 
 
-  sample_df <- ctp_df |>
-    dplyr::left_join(nuclei_counts, by = group_cols)
+  final_df <- ctp_df |>
+    dplyr::select(-total_nuclei) |>
+    dplyr::left_join(sample_info, by ="sample_id") |>
+    dplyr::left_join(nuclei_counts, by = "sample_id") |>
+    select(sample_id, all_of(group_cols), everything())
 
-  return(sample_df)
+  return(final_df)
 }
 
 
@@ -105,7 +123,8 @@ compute_mean_cell_type_metrics <- function(df, group_cols, cell_type_col, metric
 
   # Compute mean metrics
   mean_metrics_df <- df |>
-    dplyr::group_by(across(all_of(group_cols)), !!rlang::sym(cell_type_col)) |>
+    tidyr::unite(sample_id, all_of(group_cols), sep = "_", remove = FALSE) |>
+    dplyr::group_by(sample_id, !!rlang::sym(cell_type_col)) |>
     dplyr::summarise(
       across(
         all_of(metric_cols),
@@ -146,7 +165,7 @@ compute_ctp_and_metrics <- function(df, group_cols, cell_type_col, metric_cols =
 
     combined_df <- dplyr::full_join(
       ctp_df, mean_metrics_df,
-      by=c(group_cols, cell_type_col)
+      by=c("sample_id", cell_type_col)
     )
 
     return(combined_df)
