@@ -99,7 +99,7 @@ compute_ctp <- function(df, group_cols, cell_type_col) {
     dplyr::select(-total_nuclei) |>
     dplyr::left_join(sample_info, by ="sample_id") |>
     dplyr::left_join(nuclei_counts, by = "sample_id") |>
-    select(sample_id, all_of(group_cols), everything())
+    dplyr::select(sample_id, all_of(group_cols), everything())
 
   return(final_df)
 }
