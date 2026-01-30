@@ -81,7 +81,8 @@
 #' @param mc_repeats Integer; number of repeated stratified 80/20 splits used for the final
 #'   Monte Carlo residual summaries inside \code{\link{predict_age_celltype}}.
 #' @param min_donors Minimum number of donors required to fit a model for a given cell type.
-#'
+#' @param donor_age_range Optional numeric vector of length 2 giving the minimum and maximum age in decades.
+#' @param n_cores Integer; number of CPU cores to use for Monte Carlo Cross Validation
 #' @importFrom logger log_info
 #' @importFrom grDevices pdf dev.off
 #'
@@ -91,7 +92,8 @@ predict_age_by_celltype<-function (data_dir, data_name, result_dir, age_de_resul
                                   donor_col = "donor", age_col = "age",
                                   seed =42, fdr_threshold=0.05,
                                   optimize_alpha=FALSE, alpha_fixed=0.5,
-                                  mc_repeats=200, min_donors=50) {
+                                  mc_repeats=200, min_donors=50,
+                                  donor_age_range=c(), n_cores=1) {
 
     #validate the output directory exists
     if (!dir.exists(result_dir)) {
@@ -104,6 +106,10 @@ predict_age_by_celltype<-function (data_dir, data_name, result_dir, age_de_resul
 
     #filter the genes to autosomal only
     dge=filter_dge_to_autosomes (dge, contig_yaml_file, reduced_gtf_file)
+
+    #filter to age if requested.
+    dge=filter_dge_to_donor_age(dge, donor_age_range)
+
 
     cell_type_list=unique(dge$samples$cell_type)
     #cell_type_list="microglia" #hard coded for now.
@@ -130,7 +136,8 @@ predict_age_by_celltype<-function (data_dir, data_name, result_dir, age_de_resul
                                donor_col = donor_col, age_de_results_dir=age_de_results_dir,
                                region=NULL, fdr_threshold=fdr_threshold,
                                optimize_alpha=optimize_alpha, alpha_fixed=alpha_fixed,
-                               mc_repeats=mc_repeats, min_donors=min_donors, seed=seed)
+                               mc_repeats=mc_repeats, min_donors=min_donors,
+                               seed=seed, n_cores=n_cores)
 
         # gracefully skip cell types that short-circuit (e.g. too few genes)
         if (is.null(r)) {
@@ -205,7 +212,8 @@ predict_age_by_celltype<-function (data_dir, data_name, result_dir, age_de_resul
 #' @param mc_repeats Integer; number of repeated stratified 80/20 splits used for the final
 #'   Monte Carlo residual summaries inside \code{\link{predict_age_celltype}}.
 #' @param min_donors Minimum number of donors required to fit a model for a given cell type.
-#'
+#' @param donor_age_range Optional numeric vector of length 2 giving the minimum and maximum age in decades.
+#' @param n_cores Integer; number of CPU cores to use for Monte Carlo Cross Validation
 #' @importFrom logger log_info
 #' @importFrom grDevices pdf dev.off
 #'
@@ -216,7 +224,8 @@ predict_age_by_celltype_region <- function(data_dir, data_name, result_dir, age_
                                            donor_col = "donor", age_col = "age",
                                            seed = 42, fdr_threshold = 0.05,
                                            optimize_alpha = FALSE, alpha_fixed = 0.5,
-                                           mc_repeats = 200, min_donors=50) {
+                                           mc_repeats = 200, min_donors=50,
+                                           donor_age_range=c(), n_cores=1) {
 
     if (!dir.exists(result_dir)) {
         dir.create(result_dir, recursive = TRUE)
@@ -228,6 +237,9 @@ predict_age_by_celltype_region <- function(data_dir, data_name, result_dir, age_
 
     #filter the genes to autosomal only
     dge=filter_dge_to_autosomes (dge, contig_yaml_file, reduced_gtf_file)
+
+    #filter to age if requested.
+    dge=filter_dge_to_donor_age(dge, donor_age_range)
 
     cell_type_list <- unique(dge$samples$cell_type)
     lineStr <- strrep("=", 80)
@@ -272,7 +284,8 @@ predict_age_by_celltype_region <- function(data_dir, data_name, result_dir, age_
                 alpha_fixed = alpha_fixed,
                 mc_repeats = mc_repeats,
                 min_donors=min_donors,
-                seed = seed
+                seed = seed,
+                n_cores=n_cores
             )
 
             if (is.null(r)) {
@@ -421,7 +434,7 @@ age_prediction_qc_plots<-function (r, cellType, region=NULL) {
 #'   If the donor-level dataset has fewer donors, the function returns \code{NULL}.
 #' @param seed Integer random seed used for the outer holdout split, inner CV fold
 #'   construction, Monte Carlo repeated splits, and the final refit for external prediction.
-#'
+#' @param n_cores Integer; number of parallel cores to use for Monte Carlo cross fold validation.
 #' @return A list with components:
 #' \itemize{
 #'   \item \code{cell_type}: cell type name.
@@ -457,7 +470,7 @@ predict_age_celltype <- function(cellType, dge, retained_features = c("donor", "
                                  fdr_threshold = 0.05,
                                  optimize_alpha = FALSE, alpha_fixed = 0.5,
                                  mc_repeats = 100, min_donors=50,
-                                 seed = 1) {
+                                 seed = 1, n_cores=1) {
 
     if (optimize_alpha) {
         logger::log_info("Optimizing alpha via grid search.")
@@ -558,7 +571,7 @@ predict_age_celltype <- function(cellType, dge, retained_features = c("donor", "
     str=paste0("Computing final repeated-split OOF residuals on all donors [",ncol(dge_cell),"].")
     logger::log_info(str)
 
-    final_repeat <- compute_final_residuals_repeated_splits(
+    final_repeat <- compute_final_residuals_repeated_splits_parallel(
         dge_cell,
         age_col = "age",
         donor_col = "donor",
@@ -568,7 +581,8 @@ predict_age_celltype <- function(cellType, dge, retained_features = c("donor", "
         optimize_alpha = optimize_alpha,
         alpha_fixed = alpha_fixed,
         seed = seed,
-        verbose_every = mc_repeats / 10
+        verbose_every = mc_repeats / 10,
+        n_cores=n_cores,
     )
 
     # Final model for external prediction (fit on ALL donors; no OOF)
@@ -1594,6 +1608,18 @@ filter_dge_to_autosomes<-function (dge, contig_yaml_file, reduced_gtf_file) {
     autosomal_genes=unique (gtf$gene_name)
     dge_filtered=dge[rownames(dge)%in%autosomal_genes, , keep.lib.sizes = TRUE]
     logger::log_info("Filtered from {nrow(dge)} to {nrow(dge_filtered)} genes")
+    return (dge_filtered)
+}
+
+filter_dge_to_donor_age<-function (dge, donor_age_range) {
+    if (is.null(donor_age_range)) {
+        return (dge)
+    }
+
+    logger::log_info("Filtering DGEList to donors with ages in range [{donor_age_range[1]}, {donor_age_range[2]}] decades")
+    idx=dge$samples$age>=donor_age_range[1] & dge$samples$age<=donor_age_range[2]
+    dge_filtered=dge[, idx, keep.lib.sizes = TRUE]
+    logger::log_info("Filtered from {ncol(dge)} to {ncol(dge_filtered)} pseudobulked donor samples")
     return (dge_filtered)
 }
 

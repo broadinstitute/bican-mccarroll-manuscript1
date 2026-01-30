@@ -613,125 +613,6 @@ train_enet_cv_optimize_alpha <- function(dge_train, k_fold_index = NULL,
 #' }
 #'
 #' @export
-# compute_final_residuals_repeated_splits <- function(dge_cell,
-#                                                     age_col = "age",
-#                                                     donor_col = "donor",
-#                                                     n_bins = 5,
-#                                                     test_prop = 0.20,
-#                                                     n_repeats = 100,
-#                                                     optimize_alpha = FALSE,
-#                                                     alpha_fixed = 0.5,
-#                                                     alpha_grid = seq(0, 1, by = 0.1),
-#                                                     seed = 1,
-#                                                     prior.count = 1,
-#                                                     verbose_every = 10) {
-#
-#     stopifnot("DGEList" %in% class(dge_cell))
-#     stopifnot(test_prop > 0, test_prop < 1)
-#     stopifnot(n_repeats >= 1)
-#
-#     oof_list <- vector("list", n_repeats)
-#     metrics_list <- vector("list", n_repeats)
-#
-#     for (mc_iter in seq_len(n_repeats)) {
-#
-#         seed_i <- seed + mc_iter - 1L
-#
-#         if (!is.null(verbose_every) && verbose_every > 0 && (mc_iter %% verbose_every == 0)) {
-#             logger::log_info(paste("Repeated split", mc_iter, "of", n_repeats))
-#         }
-#
-#         h <- make_holdout_stratified(dge_cell,
-#                                      age_col = age_col,
-#                                      donor_col = donor_col,
-#                                      test_prop = test_prop,
-#                                      n_bins = n_bins,
-#                                      seed = seed_i)
-#
-#         dge_train <- h$dge_train
-#         dge_test <- h$dge_test
-#
-#         if (optimize_alpha) {
-#             fit_obj <- train_enet_cv_optimize_alpha(
-#                 dge_train,
-#                 k_fold_index = NULL,
-#                 age_col = age_col,
-#                 donor_col = donor_col,
-#                 alpha_grid = alpha_grid,
-#                 compute_oof = FALSE,
-#                 seed = seed_i
-#             )
-#         } else {
-#             fit_obj <- train_enet_cv(
-#                 dge_train,
-#                 k_fold_index = NULL,
-#                 age_col = age_col,
-#                 donor_col = donor_col,
-#                 alpha_fixed = alpha_fixed,
-#                 compute_oof = FALSE,
-#                 seed = seed_i
-#             )
-#         }
-#
-#         pred_df <- predict_age_from_dge(dge_test, fit_obj$final_model, prior.count = prior.count)
-#         pred_df[["mc_iter"]] <- mc_iter
-#         pred_df[["resid"]] <- pred_df[["pred"]] - pred_df[["age"]]
-#
-#         oof_list[[mc_iter]] <- pred_df[, c("donor", "age", "pred", "resid", "mc_iter")]
-#
-#         m <- compute_age_metrics(pred_df$pred, pred_df$age)
-#         metrics_list[[mc_iter]] <- cbind(mc_iter = mc_iter, m)
-#     }
-#
-#     oof_all <- do.call(rbind, oof_list)
-#     per_repeat_metrics <- do.call(rbind, metrics_list)
-#
-#     age_unique <- unique(dge_cell$samples[, c(donor_col, age_col), drop = FALSE])
-#     colnames(age_unique) <- c("donor", "age")
-#     age_unique$donor <- as.character(age_unique$donor)
-#     age_unique$age <- as.numeric(age_unique$age)
-#
-#     split_counts <- aggregate(mc_iter ~ donor, data = oof_all, FUN = length)
-#     colnames(split_counts)[2] <- "n_oof"
-#
-#     pred_mean <- aggregate(pred ~ donor, data = oof_all, FUN = mean)
-#     colnames(pred_mean)[2] <- "pred_mean"
-#
-#     resid_mean <- aggregate(resid ~ donor, data = oof_all, FUN = mean)
-#     colnames(resid_mean)[2] <- "resid_mean"
-#
-#     resid_median <- aggregate(resid ~ donor, data = oof_all, FUN = stats::median)
-#     colnames(resid_median)[2] <- "resid_median"
-#
-#     resid_sd <- aggregate(resid ~ donor, data = oof_all, FUN = stats::sd)
-#     colnames(resid_sd)[2] <- "resid_sd"
-#
-#     donor_summary <- merge(age_unique, split_counts, by = "donor", all.x = TRUE)
-#     donor_summary <- merge(donor_summary, pred_mean, by = "donor", all.x = TRUE)
-#     donor_summary <- merge(donor_summary, resid_mean, by = "donor", all.x = TRUE)
-#     donor_summary <- merge(donor_summary, resid_median, by = "donor", all.x = TRUE)
-#     donor_summary <- merge(donor_summary, resid_sd, by = "donor", all.x = TRUE)
-#
-#     avg_pred_metrics <- compute_age_metrics(donor_summary$pred_mean, donor_summary$age)
-#
-#     list(
-#         donor_oof_predictions = oof_all,
-#         donor_residual_summary = donor_summary,
-#         per_repeat_metrics = per_repeat_metrics,
-#         avg_pred_metrics = avg_pred_metrics,
-#         params = list(
-#             test_prop = test_prop,
-#             n_bins = n_bins,
-#             n_repeats = n_repeats,
-#             optimize_alpha = optimize_alpha,
-#             alpha_fixed = alpha_fixed,
-#             alpha_grid = alpha_grid,
-#             seed = seed,
-#             prior.count = prior.count
-#         )
-#     )
-# }
-
 compute_final_residuals_repeated_splits <- function(dge_cell,
                                                     age_col = "age",
                                                     donor_col = "donor",
@@ -744,6 +625,7 @@ compute_final_residuals_repeated_splits <- function(dge_cell,
                                                     seed = 1,
                                                     prior.count = 1,
                                                     verbose_every = 10) {
+
     stopifnot("DGEList" %in% class(dge_cell))
     stopifnot(test_prop > 0, test_prop < 1)
     stopifnot(n_repeats >= 1)
@@ -910,6 +792,219 @@ compute_final_residuals_repeated_splits <- function(dge_cell,
         )
     )
 }
+
+
+compute_final_residuals_repeated_splits_parallel <- function(dge_cell,
+                                                             age_col = "age",
+                                                             donor_col = "donor",
+                                                             n_bins = 5,
+                                                             test_prop = 0.20,
+                                                             n_repeats = 100,
+                                                             optimize_alpha = FALSE,
+                                                             alpha_fixed = 0.5,
+                                                             alpha_grid = seq(0, 1, by = 0.1),
+                                                             seed = 1,
+                                                             prior.count = 1,
+                                                             verbose_every = 10,
+                                                             n_cores = 1) {
+    stopifnot("DGEList" %in% class(dge_cell))
+    stopifnot(test_prop > 0, test_prop < 1)
+    stopifnot(n_repeats >= 1)
+    stopifnot(is.numeric(n_cores), length(n_cores) == 1, n_cores >= 1)
+
+    one_repeat <- function(mc_iter) {
+
+        seed_i <- seed + mc_iter - 1L
+
+        if (n_cores == 1 &&
+            !is.null(verbose_every) && verbose_every > 0 &&
+            (mc_iter %% verbose_every == 0)) {
+            logger::log_info(paste("Repeated split", mc_iter, "of", n_repeats))
+        }
+
+        h <- make_holdout_stratified(dge_cell,
+                                     age_col = age_col,
+                                     donor_col = donor_col,
+                                     test_prop = test_prop,
+                                     n_bins = n_bins,
+                                     seed = seed_i)
+
+        dge_train <- h$dge_train
+        dge_test <- h$dge_test
+
+        if (optimize_alpha) {
+            fit_obj <- train_enet_cv_optimize_alpha(
+                dge_train,
+                k_fold_index = NULL,
+                age_col = age_col,
+                donor_col = donor_col,
+                alpha_grid = alpha_grid,
+                compute_oof = FALSE,
+                seed = seed_i
+            )
+        } else {
+            fit_obj <- train_enet_cv(
+                dge_train,
+                k_fold_index = NULL,
+                age_col = age_col,
+                donor_col = donor_col,
+                alpha_fixed = alpha_fixed,
+                compute_oof = FALSE,
+                seed = seed_i
+            )
+        }
+
+        pred_df <- predict_age_from_dge(dge_test, fit_obj$final_model, prior.count = prior.count)
+        pred_df[["mc_iter"]] <- mc_iter
+        pred_df[["resid"]] <- pred_df[["pred"]] - pred_df[["age"]]
+        pred_df <- pred_df[, c("donor", "age", "pred", "resid", "mc_iter")]
+
+        m <- compute_age_metrics(pred_df$pred, pred_df$age)
+        met_df <- cbind(mc_iter = mc_iter, m)
+
+        list(pred_df = pred_df, met_df = met_df)
+    }
+
+    idx <- seq_len(n_repeats)
+
+    if (n_cores > 1) {
+        logger::log_info(paste0("Running MC CV with [", n_cores, "] cores"))
+        res_list <- parallel::mclapply(idx, one_repeat, mc.cores = n_cores)
+    } else {
+        res_list <- lapply(idx, one_repeat)
+    }
+
+    oof_all <- do.call(rbind, lapply(res_list, `[[`, "pred_df"))
+    per_repeat_metrics <- do.call(rbind, lapply(res_list, `[[`, "met_df"))
+
+    age_unique <- unique(dge_cell$samples[, c(donor_col, age_col), drop = FALSE])
+    colnames(age_unique) <- c("donor", "age")
+    age_unique$donor <- as.character(age_unique$donor)
+    age_unique$age <- as.numeric(age_unique$age)
+
+    split_counts <- aggregate(mc_iter ~ donor, data = oof_all, FUN = length)
+    colnames(split_counts)[2] <- "n_oof"
+
+    pred_mean <- aggregate(pred ~ donor, data = oof_all, FUN = mean)
+    colnames(pred_mean)[2] <- "pred_mean"
+
+    resid_mean <- aggregate(resid ~ donor, data = oof_all, FUN = mean)
+    colnames(resid_mean)[2] <- "resid_mean"
+
+    resid_median <- aggregate(resid ~ donor, data = oof_all, FUN = stats::median)
+    colnames(resid_median)[2] <- "resid_median"
+
+    resid_sd <- aggregate(resid ~ donor, data = oof_all, FUN = stats::sd)
+    colnames(resid_sd)[2] <- "resid_sd"
+
+    donor_summary <- merge(age_unique, split_counts, by = "donor", all.x = TRUE)
+    donor_summary <- merge(donor_summary, pred_mean, by = "donor", all.x = TRUE)
+    donor_summary <- merge(donor_summary, resid_mean, by = "donor", all.x = TRUE)
+    donor_summary <- merge(donor_summary, resid_median, by = "donor", all.x = TRUE)
+    donor_summary <- merge(donor_summary, resid_sd, by = "donor", all.x = TRUE)
+
+    avg_pred_metrics <- compute_age_metrics(donor_summary$pred_mean, donor_summary$age)
+
+    gam_out <- add_gam_bias_correction(
+        donor_summary,
+        age_col = "age",
+        pred_col = "pred_mean",
+        k = 5
+    )
+
+    donor_summary <- gam_out$donor_summary
+    gam_fit_df <- gam_out$gam_fit_df
+    gam_model <- gam_out$gam_model
+
+    #logging the entire function if multi-core
+    if (n_cores > 1)
+        logger::log_info("Completed all {n_repeats} repeated splits.")
+
+    list(
+        donor_oof_predictions = oof_all,
+        donor_residual_summary = donor_summary,
+        per_repeat_metrics = per_repeat_metrics,
+        avg_pred_metrics = avg_pred_metrics,
+        gam_fit_df = gam_fit_df,
+        gam_model = gam_model,
+        params = list(
+            test_prop = test_prop,
+            n_bins = n_bins,
+            n_repeats = n_repeats,
+            optimize_alpha = optimize_alpha,
+            alpha_fixed = alpha_fixed,
+            alpha_grid = alpha_grid,
+            seed = seed,
+            prior.count = prior.count,
+            verbose_every = verbose_every,
+            n_cores = n_cores
+        )
+    )
+}
+
+
+
+# A helper function to fit a GAM to donor summary data (pred_mean ~ s(age))
+add_gam_bias_correction <- function(donor_summary,
+                                    age_col = "age",
+                                    pred_col = "pred_mean",
+                                    k = 5) {
+    stopifnot(is.data.frame(donor_summary))
+    stopifnot(age_col %in% colnames(donor_summary))
+    stopifnot(pred_col %in% colnames(donor_summary))
+
+    if (!requireNamespace("mgcv", quietly = TRUE)) {
+        stop("Please install mgcv")
+    }
+
+    age_vec <- donor_summary[[age_col]]
+    pred_vec <- donor_summary[[pred_col]]
+
+    keep <- is.finite(age_vec) & is.finite(pred_vec)
+    if (!all(keep)) {
+        stop("Non-finite age/pred values present; cannot fit GAM correction")
+    }
+
+    df_gam <- donor_summary[, c(age_col, pred_col), drop = FALSE]
+    colnames(df_gam) <- c("age", "pred_mean")
+
+    s <- mgcv::s
+
+    gam_model <- mgcv::gam(
+        pred_mean ~ s(age, k = k, bs = "cr"),
+        data = df_gam,
+        family = mgcv::scat(),
+        method = "REML"
+    )
+
+    gam_pred_at_donors <- stats::predict(gam_model, newdata = data.frame(age = age_vec))
+    bias_at_donors <- gam_pred_at_donors - age_vec
+
+    donor_summary[["pred_mean_corrected"]] <- pred_vec - bias_at_donors
+    donor_summary[["resid_mean_corrected"]] <- pred_vec - gam_pred_at_donors
+
+    age_min_obs <- min(age_vec)
+    age_max_obs <- max(age_vec)
+
+    age_grid <- seq(from = floor(age_min_obs * 10) / 10,
+                    to   = ceiling(age_max_obs * 10) / 10,
+                    by   = 0.1)
+
+    gam_pred_grid <- stats::predict(gam_model, newdata = data.frame(age = age_grid))
+
+    gam_fit_df <- data.frame(
+        age = age_grid,
+        gam_pred = gam_pred_grid,
+        stringsAsFactors = FALSE
+    )
+
+    list(
+        donor_summary = donor_summary,
+        gam_fit_df = gam_fit_df,
+        gam_model = gam_model
+    )
+}
+
 
 
 compute_age_expression_correlation<-function (X_all, age) {
