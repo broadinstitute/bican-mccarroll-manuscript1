@@ -81,7 +81,8 @@
 #' @param mc_repeats Integer; number of repeated stratified 80/20 splits used for the final
 #'   Monte Carlo residual summaries inside \code{\link{predict_age_celltype}}.
 #' @param min_donors Minimum number of donors required to fit a model for a given cell type.
-#'
+#' @param donor_age_range Optional numeric vector of length 2 giving the minimum and maximum age in decades.
+#' @param n_cores Integer; number of CPU cores to use for Monte Carlo Cross Validation
 #' @importFrom logger log_info
 #' @importFrom grDevices pdf dev.off
 #'
@@ -91,7 +92,8 @@ predict_age_by_celltype<-function (data_dir, data_name, result_dir, age_de_resul
                                   donor_col = "donor", age_col = "age",
                                   seed =42, fdr_threshold=0.05,
                                   optimize_alpha=FALSE, alpha_fixed=0.5,
-                                  mc_repeats=200, min_donors=50) {
+                                  mc_repeats=200, min_donors=50,
+                                  donor_age_range=c(), n_cores=1) {
 
     #validate the output directory exists
     if (!dir.exists(result_dir)) {
@@ -104,6 +106,10 @@ predict_age_by_celltype<-function (data_dir, data_name, result_dir, age_de_resul
 
     #filter the genes to autosomal only
     dge=filter_dge_to_autosomes (dge, contig_yaml_file, reduced_gtf_file)
+
+    #filter to age if requested.
+    dge=filter_dge_to_donor_age(dge, donor_age_range)
+
 
     cell_type_list=unique(dge$samples$cell_type)
     #cell_type_list="microglia" #hard coded for now.
@@ -130,7 +136,8 @@ predict_age_by_celltype<-function (data_dir, data_name, result_dir, age_de_resul
                                donor_col = donor_col, age_de_results_dir=age_de_results_dir,
                                region=NULL, fdr_threshold=fdr_threshold,
                                optimize_alpha=optimize_alpha, alpha_fixed=alpha_fixed,
-                               mc_repeats=mc_repeats, min_donors=min_donors, seed=seed)
+                               mc_repeats=mc_repeats, min_donors=min_donors,
+                               seed=seed, n_cores=n_cores)
 
         # gracefully skip cell types that short-circuit (e.g. too few genes)
         if (is.null(r)) {
@@ -205,7 +212,8 @@ predict_age_by_celltype<-function (data_dir, data_name, result_dir, age_de_resul
 #' @param mc_repeats Integer; number of repeated stratified 80/20 splits used for the final
 #'   Monte Carlo residual summaries inside \code{\link{predict_age_celltype}}.
 #' @param min_donors Minimum number of donors required to fit a model for a given cell type.
-#'
+#' @param donor_age_range Optional numeric vector of length 2 giving the minimum and maximum age in decades.
+#' @param n_cores Integer; number of CPU cores to use for Monte Carlo Cross Validation
 #' @importFrom logger log_info
 #' @importFrom grDevices pdf dev.off
 #'
@@ -216,7 +224,8 @@ predict_age_by_celltype_region <- function(data_dir, data_name, result_dir, age_
                                            donor_col = "donor", age_col = "age",
                                            seed = 42, fdr_threshold = 0.05,
                                            optimize_alpha = FALSE, alpha_fixed = 0.5,
-                                           mc_repeats = 200, min_donors=50) {
+                                           mc_repeats = 200, min_donors=50,
+                                           donor_age_range=c(), n_cores=1) {
 
     if (!dir.exists(result_dir)) {
         dir.create(result_dir, recursive = TRUE)
@@ -228,6 +237,9 @@ predict_age_by_celltype_region <- function(data_dir, data_name, result_dir, age_
 
     #filter the genes to autosomal only
     dge=filter_dge_to_autosomes (dge, contig_yaml_file, reduced_gtf_file)
+
+    #filter to age if requested.
+    dge=filter_dge_to_donor_age(dge, donor_age_range)
 
     cell_type_list <- unique(dge$samples$cell_type)
     lineStr <- strrep("=", 80)
@@ -272,7 +284,8 @@ predict_age_by_celltype_region <- function(data_dir, data_name, result_dir, age_
                 alpha_fixed = alpha_fixed,
                 mc_repeats = mc_repeats,
                 min_donors=min_donors,
-                seed = seed
+                seed = seed,
+                n_cores=n_cores
             )
 
             if (is.null(r)) {
@@ -288,8 +301,15 @@ predict_age_by_celltype_region <- function(data_dir, data_name, result_dir, age_
                 region = as.character(region)
             )
 
-            plot_list <- age_prediction_qc_plots(r, cellType)
-            plot_list$mc_donor_pred_plot <- plot_mc_donor_predictions(outputs_list[[key]]$donor_predictions)
+            plot_list <- age_prediction_qc_plots(r, cellType, region=region)
+
+            # plot_list$mc_donor_pred_plot <- plot_mc_donor_predictions(
+            #     outputs_list[[key]]$donor_predictions,
+            #     gam_fit_df = outputs_list[[key]]$gam_fit_df)
+
+            plot_list$mc_donor_pred_plot <- plot_mc_donor_predictions_report(
+                outputs_list[[key]]$donor_predictions,
+                gam_fit_df = outputs_list[[key]]$gam_fit_df)
 
             for (p in plot_list) {
                 if (!is.null(p)) {
@@ -321,15 +341,30 @@ predict_age_by_celltype_region <- function(data_dir, data_name, result_dir, age_
 
 
 
-age_prediction_qc_plots<-function (r, cellType) {
+age_prediction_qc_plots<-function (r, cellType, region=NULL) {
     age_dist_plot <- plot_age_hist_stacked(r$dge_train, r$dge_test, r$cellType)
-    pred_age_plot_train <- plot_age_predictions(r$cv_model$donor_age_predictions, cellType, titleStr=paste("TRAIN", cellType, "\n"))
-    pred_age_plot_test <- plot_age_predictions(r$test_set_predictions, cellType, titleStr=paste("TEST", cellType, "\n [20% held out data]"))
+
+    #Region aware title
+    title_celltype_str<-cellType
+    if (!is.null(region)) {
+        title_celltype_str<-paste0(cellType, " [", region, "]")
+    }
+
+    pred_age_plot_train <- plot_age_predictions(r$cv_model$donor_age_predictions, cellType, titleStr=paste("TRAIN", title_celltype_str, "\n"))
+    pred_age_plot_test <- plot_age_predictions(r$test_set_predictions, cellType, titleStr=paste("TEST", title_celltype_str, "\n [20% held out data]"))
+
+    #Region aware title
+    perf_plot_title_str=NULL
+    if (!is.null(region))
+        perf_plot_title_str = paste("Performance", paste0(cellType, " [", region, "]"))
+
+
     perf_plot<-plot_model_performance(
         cv_metrics = r$cv_model$overall_metrics,
         per_fold_metrics = r$cv_model$per_fold_metrics,
         test_metrics = r$test_set_metrics,
-        cellType = cellType
+        cellType = cellType,
+        str_title=perf_plot_title_str
     )
 
     p=cowplot::plot_grid(pred_age_plot_train, pred_age_plot_test, age_dist_plot, perf_plot, ncol=2)
@@ -399,7 +434,7 @@ age_prediction_qc_plots<-function (r, cellType) {
 #'   If the donor-level dataset has fewer donors, the function returns \code{NULL}.
 #' @param seed Integer random seed used for the outer holdout split, inner CV fold
 #'   construction, Monte Carlo repeated splits, and the final refit for external prediction.
-#'
+#' @param n_cores Integer; number of parallel cores to use for Monte Carlo cross fold validation.
 #' @return A list with components:
 #' \itemize{
 #'   \item \code{cell_type}: cell type name.
@@ -435,7 +470,7 @@ predict_age_celltype <- function(cellType, dge, retained_features = c("donor", "
                                  fdr_threshold = 0.05,
                                  optimize_alpha = FALSE, alpha_fixed = 0.5,
                                  mc_repeats = 100, min_donors=50,
-                                 seed = 1) {
+                                 seed = 1, n_cores=1) {
 
     if (optimize_alpha) {
         logger::log_info("Optimizing alpha via grid search.")
@@ -536,7 +571,7 @@ predict_age_celltype <- function(cellType, dge, retained_features = c("donor", "
     str=paste0("Computing final repeated-split OOF residuals on all donors [",ncol(dge_cell),"].")
     logger::log_info(str)
 
-    final_repeat <- compute_final_residuals_repeated_splits(
+    final_repeat <- compute_final_residuals_repeated_splits_parallel(
         dge_cell,
         age_col = "age",
         donor_col = "donor",
@@ -546,7 +581,8 @@ predict_age_celltype <- function(cellType, dge, retained_features = c("donor", "
         optimize_alpha = optimize_alpha,
         alpha_fixed = alpha_fixed,
         seed = seed,
-        verbose_every = mc_repeats / 10
+        verbose_every = mc_repeats / 10,
+        n_cores=n_cores,
     )
 
     # Final model for external prediction (fit on ALL donors; no OOF)
@@ -576,6 +612,7 @@ predict_age_celltype <- function(cellType, dge, retained_features = c("donor", "
 
     final_oof_predictions <- final_repeat$donor_residual_summary
     final_oof_metrics <- final_repeat$avg_pred_metrics
+    gam_fit_df <- final_repeat$gam_fit_df
 
     list(
         cell_type = cellType,
@@ -588,7 +625,8 @@ predict_age_celltype <- function(cellType, dge, retained_features = c("donor", "
         age_de_results = age_de_results,
         final_cv_model = final_cv_model,
         final_oof_predictions = final_oof_predictions,
-        final_oof_metrics = final_oof_metrics
+        final_oof_metrics = final_oof_metrics,
+        gam_fit_df = gam_fit_df
     )
 }
 
@@ -729,8 +767,16 @@ plot_age_hist_stacked <- function(dge_train, dge_test, cellType = NULL) {
 }
 
 
-plot_model_performance <- function(cv_metrics, per_fold_metrics, test_metrics, cellType = NULL) {
+plot_model_performance <- function(cv_metrics, per_fold_metrics, test_metrics, cellType = NULL, str_title = NULL) {
     stopifnot(is.data.frame(cv_metrics), is.data.frame(per_fold_metrics), is.data.frame(test_metrics))
+
+    #format the title string
+    if (is.null(str_title)) {
+        str_title = paste0(
+            "Performance",
+            if (!is.null(cellType)) paste0(" (", cellType, ")")
+        )
+    }
 
     # Long per-fold metrics
     df_folds <- tidyr::pivot_longer(per_fold_metrics,
@@ -794,10 +840,7 @@ plot_model_performance <- function(cv_metrics, per_fold_metrics, test_metrics, c
             "Held-out donors" = 21           # circle with border
         )) +
         labs(
-            title = paste0(
-                "Performance",
-                if (!is.null(cellType)) paste0(" (", cellType, ")")
-            ),
+            title = str_title,
             x = NULL, y = NULL
         ) +
         theme_classic(base_size = 12) +
@@ -951,69 +994,185 @@ plot_model_vs_de <- function(final_model, age_de_results, cellType = NULL, featu
         theme_classic(base_size = 12)
 }
 
-
+#' Plot donor-level Monte Carlo age predictions with optional bias curve overlay
+#'
+#' Plots donor chronological age (x) against either:
+#' \itemize{
+#'   \item \code{pred_mean}: donor mean out-of-fold prediction (default), or
+#'   \item \code{pred_mean_corrected}: bias-corrected prediction (post hoc)
+#' }
+#'
+#' When \code{gam_fit_df} is provided and \code{y_var = "pred_mean"}, the bias
+#' curve (evaluated on an age grid) is overlaid as a red line to visualize the
+#' age-dependent regression-to-the-mean bias. The curve itself is not intended
+#' for interpretation.
+#'
+#' Error bars reflect Monte Carlo variability of out-of-fold predictions across
+#' repeated splits (\code{resid_sd}) and remain valid after deterministic mean
+#' shifts. Therefore, error bars are drawn when \code{resid_sd} is available for
+#' both supported y-variables.
+#'
+#' @param donor_predictions data.frame with one row per donor. Must contain
+#'   \code{age}, \code{pred_mean}. If \code{y_var = "pred_mean_corrected"}, must
+#'   contain \code{pred_mean_corrected}. If \code{resid_sd} is present, it is used
+#'   for error bars. Also expects \code{cell_type} and \code{region} (single
+#'   unique values) for the plot title.
+#' @param gam_fit_df Optional data.frame with columns \code{age} and
+#'   \code{gam_pred}. Only used to overlay the bias curve when
+#'   \code{y_var = "pred_mean"}.
+#' @param y_var Either \code{"pred_mean"} (default) or \code{"pred_mean_corrected"}.
+#' @param color_var Column in \code{donor_predictions} to map to point color.
+#'   Defaults to \code{"resid_mean"}.
+#' @param legend_title Legend title for the color scale. Defaults to \code{"Residuals"}.
+#' @param alpha_points Alpha for points.
+#' @param errorbar_width Width for \code{geom_errorbar()}.
+#'
+#' @return A ggplot object.
+#'
 plot_mc_donor_predictions <- function(donor_predictions,
+                                      gam_fit_df = NULL,
+                                      y_var = "pred_mean",
+                                      color_var = "resid_mean",
+                                      legend_title = "Residuals",
                                       alpha_points = 0.8,
                                       errorbar_width = 0.1) {
 
     # Silence R CMD CHECK notes
-    cell_type <- region <- age <- pred_mean <- resid_mean <- resid_sd <- NULL
+    cell_type <- region <- age <- resid_sd <- NULL
+    pred_mean <- pred_mean_corrected <- resid_mean <- resid_mean_corrected <- gam_pred <- NULL
+
+    stopifnot(is.data.frame(donor_predictions))
+
+    allowed_y <- c("pred_mean", "pred_mean_corrected")
+    if (!(y_var %in% allowed_y)) {
+        stop("y_var must be one of: ", paste(allowed_y, collapse = ", "))
+    }
+
+    if (!("age" %in% colnames(donor_predictions))) {
+        stop("donor_predictions must contain column 'age'")
+    }
+    if (!("pred_mean" %in% colnames(donor_predictions))) {
+        stop("donor_predictions must contain column 'pred_mean'")
+    }
+    if (!(y_var %in% colnames(donor_predictions))) {
+        stop("y_var not found in donor_predictions: ", y_var)
+    }
+    if (!(color_var %in% colnames(donor_predictions))) {
+        stop("color_var not found in donor_predictions: ", color_var)
+    }
 
     ct <- unique(donor_predictions$cell_type)
     rg <- unique(donor_predictions$region)
-
-    stopifnot(length(ct) == 1, length(rg) == 1)
+    if (length(ct) != 1 || length(rg) != 1) {
+        stop("donor_predictions must have exactly one unique cell_type and one unique region")
+    }
 
     title_str <- paste0(
-        "Monte Carlo OOF donor age predictions\n",
+        "Monte Carlo CV donor age predictions\n",
         "Cell type: ", ct,
         if (!is.na(rg)) paste0(" | Region: ", rg) else ""
     )
 
-    # ------------------------------------------------------------------
-    # Shared axis limits
-    # ------------------------------------------------------------------
-    rng <- range(
-        c(donor_predictions$age, donor_predictions$pred_mean),
-        na.rm = TRUE
+    y_lab <- switch(
+        y_var,
+        pred_mean = "Predicted age (MC mean)",
+        pred_mean_corrected = "Predicted age (MC mean corrected)",
+        y_var
     )
 
+    rng <- range(c(donor_predictions$age, donor_predictions[[y_var]]), na.rm = TRUE)
     pad <- 0.05 * diff(rng)
     lims <- c(rng[1] - pad, rng[2] + pad)
 
-    ggplot(donor_predictions,
-           aes(x = age, y = pred_mean, color = resid_mean)) +
+    p <- ggplot2::ggplot(
+        donor_predictions,
+        ggplot2::aes(x = age, y = .data[[y_var]], color = .data[[color_var]])
+    )
 
-        geom_errorbar(
-            aes(ymin = pred_mean - resid_sd,
-                ymax = pred_mean + resid_sd),
+    if ("resid_sd" %in% colnames(donor_predictions)) {
+        df_err <- donor_predictions
+        df_err$ymin <- df_err[[y_var]] - df_err$resid_sd
+        df_err$ymax <- df_err[[y_var]] + df_err$resid_sd
+
+        p <- p + ggplot2::geom_errorbar(
+            data = df_err,
+            ggplot2::aes(x = age, ymin = ymin, ymax = ymax),
+            inherit.aes = FALSE,
             width = errorbar_width,
             alpha = 0.4
-        ) +
+        )
+    }
 
-        geom_point(size = 2, alpha = alpha_points) +
-
-        geom_abline(intercept = 0, slope = 1,
-                    linetype = 2, linewidth = 0.8) +
-
-        scale_color_gradient2(
+    p <- p +
+        ggplot2::geom_point(size = 2, alpha = alpha_points) +
+        ggplot2::scale_color_gradient2(
             low = "steelblue",
             mid = "grey80",
             high = "firebrick",
             midpoint = 0,
-            name = "Residual (pred - age)"
+            name = legend_title
         ) +
-
-        coord_equal(xlim = lims, ylim = lims) +
-
-        labs(
+        ggplot2::geom_abline(intercept = 0, slope = 1, linetype = 2, linewidth = 0.8) +
+        ggplot2::coord_equal(xlim = lims, ylim = lims) +
+        ggplot2::labs(
             x = "Chronological age",
-            y = "Predicted age (MC mean)",
+            y = y_lab,
             title = title_str
         ) +
+        ggplot2::theme_bw(base_size = 10)
 
-        theme_bw()
+    if (y_var == "pred_mean" && !is.null(gam_fit_df)) {
+        stopifnot(is.data.frame(gam_fit_df))
+        stopifnot(all(c("age", "gam_pred") %in% colnames(gam_fit_df)))
+
+        df_line <- gam_fit_df[order(gam_fit_df$age), c("age", "gam_pred")]
+        p <- p + ggplot2::geom_line(
+            data = df_line,
+            ggplot2::aes(x = age, y = gam_pred),
+            inherit.aes = FALSE,
+            color = "red",
+            linewidth = 0.9
+        )
+    }
+
+    p
 }
+
+
+#convenience wrapper for plotting both raw and bias-corrected predictions side-by-side
+plot_mc_donor_predictions_report <- function(donor_predictions,
+                                             gam_fit_df) {
+
+    # Silence R CMD CHECK notes
+    resid_mean <- resid_mean_corrected <- NULL
+
+    p_raw <- plot_mc_donor_predictions(
+        donor_predictions,
+        gam_fit_df = gam_fit_df,
+        y_var = "pred_mean",
+        color_var = "resid_mean",
+        legend_title = "Residuals"
+    ) +
+        ggplot2::labs(subtitle = "Raw predictions (with age-dependent bias)")
+
+    p_corr <- plot_mc_donor_predictions(
+        donor_predictions,
+        gam_fit_df = NULL,
+        y_var = "pred_mean_corrected",
+        color_var = "resid_mean_corrected",
+        legend_title = "Residuals"
+    ) +
+        ggplot2::labs(subtitle = "Bias-corrected predictions")
+
+    cowplot::plot_grid(
+        p_raw,
+        p_corr,
+        ncol = 1,
+        nrow = 2,
+        align = "v"
+    )
+}
+
 
 
 
@@ -1063,6 +1222,60 @@ get_output_basename <- function(pdf_file, default = "age_prediction_results") {
     sub("\\.pdf$", "", basename(pdf_file))
 }
 
+# extract_age_outputs <- function(r, cellType, region = NA_character_) {
+#
+#     meta_cols <- c("cell_type", "region")
+#
+#     # -----------------------------
+#     # Donor predictions (MC OOF)
+#     # -----------------------------
+#     preds <- r$final_oof_predictions[
+#         , c("donor", "age", "n_oof", "pred_mean",
+#             "resid_mean", "resid_median", "resid_sd"),
+#         drop = FALSE
+#     ]
+#
+#     preds$cell_type <- cellType
+#     preds$region <- region
+#     preds <- preds[, c(meta_cols, setdiff(colnames(preds), meta_cols)), drop = FALSE]
+#
+#     # -----------------------------
+#     # Model coefficients (ALL donors; external prediction)
+#     # -----------------------------
+#     coefs <- r$final_cv_model$final_model
+#     coefs$cell_type <- cellType
+#     coefs$region <- region
+#     coefs <- coefs[, c(meta_cols, setdiff(colnames(coefs), meta_cols)), drop = FALSE]
+#
+#     # -----------------------------
+#     # Summary metrics
+#     # -----------------------------
+#     mets <- rbind(
+#         cbind(set = "Final MC OOF (all donors; mean pred)", r$final_oof_metrics),
+#         cbind(set = "Inner CV OOF (80% train)", r$cv_model$overall_metrics),
+#         cbind(set = "Outer holdout (20% donors)", r$test_set_metrics)
+#     )
+#
+#     mets$cell_type <- cellType
+#     mets$region <- region
+#     mets <- mets[, c(meta_cols, setdiff(colnames(mets), meta_cols)), drop = FALSE]
+#
+#     # -----------------------------
+#     # Per-fold metrics (inner CV)
+#     # -----------------------------
+#     fold_mets <- r$cv_model$per_fold_metrics
+#     fold_mets$cell_type <- cellType
+#     fold_mets$region <- region
+#     fold_mets <- fold_mets[, c(meta_cols, setdiff(colnames(fold_mets), meta_cols)), drop = FALSE]
+#
+#     list(
+#         donor_predictions  = preds,
+#         model_coefficients = coefs,
+#         model_metrics      = mets,
+#         per_fold_metrics   = fold_mets
+#     )
+# }
+
 extract_age_outputs <- function(r, cellType, region = NA_character_) {
 
     meta_cols <- c("cell_type", "region")
@@ -1070,9 +1283,19 @@ extract_age_outputs <- function(r, cellType, region = NA_character_) {
     # -----------------------------
     # Donor predictions (MC OOF)
     # -----------------------------
+    base_cols <- c(
+        "donor", "age", "n_oof", "pred_mean",
+        "resid_mean", "resid_median", "resid_sd"
+    )
+
+    # New/optional correction columns (preferred names)
+    corr_cols <- intersect(
+        c("pred_mean_corrected", "resid_mean_corrected"),
+        names(r$final_oof_predictions)
+    )
+
     preds <- r$final_oof_predictions[
-        , c("donor", "age", "n_oof", "pred_mean",
-            "resid_mean", "resid_median", "resid_sd"),
+        , c(base_cols, corr_cols),
         drop = FALSE
     ]
 
@@ -1081,7 +1304,7 @@ extract_age_outputs <- function(r, cellType, region = NA_character_) {
     preds <- preds[, c(meta_cols, setdiff(colnames(preds), meta_cols)), drop = FALSE]
 
     # -----------------------------
-    # Model coefficients (ALL donors; external prediction)
+    # Model coefficients
     # -----------------------------
     coefs <- r$final_cv_model$final_model
     coefs$cell_type <- cellType
@@ -1109,13 +1332,27 @@ extract_age_outputs <- function(r, cellType, region = NA_character_) {
     fold_mets$region <- region
     fold_mets <- fold_mets[, c(meta_cols, setdiff(colnames(fold_mets), meta_cols)), drop = FALSE]
 
+    # -----------------------------
+    # GAM fit curve df (age grid) for plotting
+    # -----------------------------
+    gam_fit_df <- NULL
+    if (!is.null(r$gam_fit_df)) {
+        gam_fit_df <- r$gam_fit_df
+    } else if (!is.null(r$final_oof_gam_fit_df)) {
+        gam_fit_df <- r$final_oof_gam_fit_df
+    } else if (!is.null(r$final_repeat$gam_fit_df)) {
+        gam_fit_df <- r$final_repeat$gam_fit_df
+    }
+
     list(
         donor_predictions  = preds,
         model_coefficients = coefs,
         model_metrics      = mets,
-        per_fold_metrics   = fold_mets
+        per_fold_metrics   = fold_mets,
+        gam_fit_df         = gam_fit_df
     )
 }
+
 
 write_age_outputs_all <- function(outputs, result_dir, output_basename) {
 
@@ -1371,6 +1608,18 @@ filter_dge_to_autosomes<-function (dge, contig_yaml_file, reduced_gtf_file) {
     autosomal_genes=unique (gtf$gene_name)
     dge_filtered=dge[rownames(dge)%in%autosomal_genes, , keep.lib.sizes = TRUE]
     logger::log_info("Filtered from {nrow(dge)} to {nrow(dge_filtered)} genes")
+    return (dge_filtered)
+}
+
+filter_dge_to_donor_age<-function (dge, donor_age_range) {
+    if (is.null(donor_age_range)) {
+        return (dge)
+    }
+
+    logger::log_info("Filtering DGEList to donors with ages in range [{donor_age_range[1]}, {donor_age_range[2]}] decades")
+    idx=dge$samples$age>=donor_age_range[1] & dge$samples$age<=donor_age_range[2]
+    dge_filtered=dge[, idx, keep.lib.sizes = TRUE]
+    logger::log_info("Filtered from {ncol(dge)} to {ncol(dge_filtered)} pseudobulked donor samples")
     return (dge_filtered)
 }
 
