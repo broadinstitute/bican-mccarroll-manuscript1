@@ -2,3 +2,4 @@
 
 export(gather_de_results)
 export(make_mash_inputs)
+export(parse_de_inputs)

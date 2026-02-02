@@ -258,6 +258,31 @@ find_prefix_matches <- function(full_names, partial_names) {
 
 # parse in many DE inputs, optionally filter by a list of cell types
 # File names are cell type, age, region, DE_results.txt
+
+#' Parse differential expression result tables from a directory
+#'
+#' @description
+#' Read multiple differential expression (DE) result files from a directory,
+#' optionally restrict them to a specified list of cell types, and derive concise,
+#' human-readable condition names from the file names.
+#'
+#' Files are selected using a filename pattern (for example, `"age"`), read with
+#' `read.table()`, and returned as a named list of data frames. Names are simplified
+#' by removing a common suffix and any tokens shared across all inputs.
+#'
+#' @param in_dir Character scalar. Directory containing DE result files.
+#' @param file_pattern Character scalar. Pattern used to select files from
+#'   `in_dir` via `list.files(..., pattern = file_pattern)`.
+#' @param cellTypeListFile Character scalar or `NULL`. Optional path to a text file
+#'   containing one cell type per line. If provided, only files whose basenames
+#'   start with one of the listed cell types (after appending
+#'   `paste0("_", file_pattern)`) are retained. Default `NULL`.
+#'
+#' @return
+#' A named list of data frames, one per retained DE result file. Each data frame
+#' corresponds to a condition or cell type, with names derived from the input file
+#' names after suffix and token simplification.
+#' @export
 parse_de_inputs<-function (in_dir, file_pattern="age", cellTypeListFile=NULL) {
     logger::log_info("Reading DE files from {in_dir} matching pattern '{file_pattern}'")
     #get the list of files from a directory that match some pattern.
@@ -265,7 +290,7 @@ parse_de_inputs<-function (in_dir, file_pattern="age", cellTypeListFile=NULL) {
     d=lapply(f, utils::read.table, sep="\t", header=TRUE,
              stringsAsFactors = FALSE, check.names = FALSE)
 
-    #Set the file names (without directories) for each list element
+    #Set the file names (with5out directories) for each list element
     names(d)=basename(f)
 
     # look for the cell type in the names of the files
