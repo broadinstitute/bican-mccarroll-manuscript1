@@ -10,7 +10,7 @@
 #' Read per-condition (or per-cell-type) differential expression (DE) result tables
 #' from `in_dir`, optionally restrict to a provided list of cell types, and
 #' construct mash-compatible matrices (`Bhat`, `Shat`, `Tstat`, `FDR`, etc.) using
-#' `make_mash_inputs()` with `gene_mode = "union"`.
+#' `make_joint_inputs()` with `gene_mode = "union"`.
 #'
 #' The function then filters the matrices to genes that pass an FDR threshold in
 #' at least one condition (row-wise across the `FDR` matrix).
@@ -47,7 +47,7 @@ gather_de_results<-function (in_dir, file_pattern="age", cellTypeListFile=NULL, 
 
     d=parse_de_inputs(in_dir, file_pattern, cellTypeListFile)
     #make mash inputs
-    inputs_union<-make_mash_inputs(d, coef_col = "logFC", t_col = "t", fdr_col = "adj.P.Val", gene_mode="union")
+    inputs_union<-make_joint_inputs(d, coef_col = "logFC", t_col = "t", fdr_col = "adj.P.Val", gene_mode="union")
     #Filter results to genes that pass an FDR threshold in at least one condition
     idxPassFDRAny<-which(apply(inputs_union$FDR, 1, function (x) any(x<fdrThreshold)))
     #how many genes pass an FDR < 0.05 in any condition?
@@ -118,7 +118,7 @@ gather_de_results<-function (in_dir, file_pattern="age", cellTypeListFile=NULL, 
 #'   and assigned `SE = big_se`).
 #'
 #' @export
-make_mash_inputs <- function(
+make_joint_inputs <- function(
         lst,
         coef_col = "logFC",
         t_col    = "t",
@@ -200,6 +200,7 @@ make_mash_inputs <- function(
 #' @param files A list of file names to process
 #' @return A vector with the same length as the input files containing the name of the file without
 #' the common suffix.
+#' @noRd
 drop_common_suffix <- function(files) {
     # Reverse each filename so suffix becomes a prefix
     rev_files <- sapply(files, function(x) paste0(rev(strsplit(x, NULL)[[1]]), collapse = ""))

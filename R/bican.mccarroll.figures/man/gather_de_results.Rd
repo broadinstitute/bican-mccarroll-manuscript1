@@ -42,7 +42,7 @@ A list of mash input matrices after filtering:
 Read per-condition (or per-cell-type) differential expression (DE) result tables
 from `in_dir`, optionally restrict to a provided list of cell types, and
 construct mash-compatible matrices (`Bhat`, `Shat`, `Tstat`, `FDR`, etc.) using
-`make_mash_inputs()` with `gene_mode = "union"`.
+`make_joint_inputs()` with `gene_mode = "union"`.
 
 The function then filters the matrices to genes that pass an FDR threshold in
 at least one condition (row-wise across the `FDR` matrix).
