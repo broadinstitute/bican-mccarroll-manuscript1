@@ -2,6 +2,7 @@ Package: bican.mccarroll.figures
 Type: Package
 Title: Figures in support of McCarroll BICAN manuscript 1
 Version: 0.1.0
+Imports: logger
 Authors@R: c(
     person(
       "James", "Nemesh",
@@ -13,3 +14,4 @@ Description: Collection of code to generate manuscript figures from raw data.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
+RoxygenNote: 7.3.3
