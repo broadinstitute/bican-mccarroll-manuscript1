@@ -1,6 +1,7 @@
-# age_preds_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/age_prediction/age_prediction_region_alpha_0/age_prediction_results_alpha0_donor_predictions.txt"
-# ctp_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/cell_type_proportions/LEVEL_1/donor_region.cell_type_proportions.txt"
-# cellTypeListFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/metadata/mash_cell_type_list_simple.txt"
+age_preds_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/age_prediction/age_prediction_region_alpha_0/age_prediction_results_alpha0_donor_predictions.txt"
+ctp_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/cell_type_proportions/LEVEL_1/donor_region.cell_type_proportions.txt"
+cellTypeListFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/metadata/mash_cell_type_list_simple.txt"
+cell_type="OPC"
 
 # For each cell type and region, does the predicted age correlate with the OPC % in that region?
 # Compare the predicted age to the chronological age
@@ -9,6 +10,9 @@
 
 correlate_ctp<-function (age_preds_file, ctp_file, cell_type="OPC", cellTypeListFile=NULL) {
     age_preds=read.table(age_preds_file, header=TRUE, sep="\t", stringsAsFactors = FALSE)
+    ap=unique(age_preds[,c("cell_type", "region", "donor", "age", "ctp_fraction", "pred_mean_corrected")])
+
+
     ctp=read.table(ctp_file, header=TRUE, sep="\t", stringsAsFactors = FALSE)
 
     #filter age models to requested cell types
@@ -43,6 +47,33 @@ correlate_ctp<-function (age_preds_file, ctp_file, cell_type="OPC", cellTypeList
 
     plot_cor_pairs_points(cor_df, title = paste0("Correlation of ", cell_type, " CTP with Age Predictions"))
 
+    pdf ("/downloads/steve_plots.pdf", width=9, height=9)
+    for (region in unique(age_preds$region)) {
+        p1<-plot_ctp_fraction_vs_age(
+            age_preds,
+            cell_type_select = "oligodendrocyte",
+            region_select = region,
+            fraction_label = cell_type
+        )
+
+        p2<-plot_ctp_fraction_vs_age(
+            age_preds,
+            cell_type_select = "OPC",
+            region_select = region,
+            fraction_label = cell_type
+        )
+        print (cowplot::plot_grid(p1, p2, nrow=2))
+    }
+
+    dev.off()
+
+    plot_ctp_fraction_vs_age(
+        age_preds,
+        cell_type_select = "oligodendrocyte",
+        region_select = "DFC",
+        fraction_label = cell_type
+    )
+
     #try to residualize OPC fraction with regard to age, then plot against the predicted age residuals.
     res <- calc_opc_age_resid_cor(age_preds)
 
@@ -51,8 +82,96 @@ correlate_ctp<-function (age_preds_file, ctp_file, cell_type="OPC", cellTypeList
     # subset to one group and plot the two vectors that generate the correlation
     plot_one(res, cell_type = "astrocyte", region = "NAC")
 
+    #how are the 90 year old donors being predicted.
+    plot_predicted_age_dist_at_age(age_preds, age_value=9)
+
     return(results)
 }
+
+plot_predicted_age_dist_at_age <- function(
+        age_preds,
+        age_value = 9,
+        geom = c("density", "histogram"),
+        bins = 30,
+        title = NULL,
+        alpha = 0.5,
+        ref_line = TRUE
+) {
+    geom <- match.arg(geom)
+
+    required_cols <- c("cell_type", "region", "age", "pred_mean_corrected", "pred_mean")
+    missing_cols <- setdiff(required_cols, names(age_preds))
+    if (length(missing_cols) > 0) {
+        stop("Missing required columns: ", paste(missing_cols, collapse = ", "))
+    }
+
+    if (!is.numeric(age_value) || length(age_value) != 1) {
+        stop("age_value must be a single numeric value")
+    }
+
+    idx <- is.finite(age_preds$age) &
+        is.finite(age_preds$pred_mean_corrected) &
+        (age_preds$age == age_value)
+
+    df <- age_preds[idx, , drop = FALSE]
+    if (nrow(df) == 0) {
+        stop("No rows matched age == age_value")
+    }
+
+    if (is.null(title)) {
+        title <- paste0("Predicted age distribution at age ", age_value)
+    }
+
+    # Compute symmetric x-axis limits around age_value
+    max_dev <- max(abs(df$pred_mean_corrected - age_value), na.rm = TRUE)
+    x_limits <- c(age_value - max_dev, age_value + max_dev)
+
+    cell_type <- region <- NULL
+
+    p <- ggplot2::ggplot(
+        df,
+        ggplot2::aes(
+            x = pred_mean_corrected,
+            color = region,
+            fill = region
+        )
+    ) +
+        ggplot2::facet_wrap(~ cell_type) +
+        ggplot2::labs(
+            title = title,
+            x = "Predicted age",
+            y = if (geom == "density") "Density" else "Count",
+            color = "Region",
+            fill = "Region"
+        ) +
+        ggplot2::scale_x_continuous(limits = x_limits) +
+        ggplot2::theme_classic()
+
+    if (isTRUE(ref_line)) {
+        p <- p +
+            ggplot2::geom_vline(
+                xintercept = age_value,
+                linetype = "dashed",
+                linewidth = 0.5
+            )
+    }
+
+    if (geom == "density") {
+        p <- p +
+            ggplot2::geom_density(alpha = alpha)
+    } else {
+        p <- p +
+            ggplot2::geom_histogram(
+                bins = bins,
+                position = "identity",
+                alpha = alpha
+            )
+    }
+
+    p
+}
+
+
 
 plot_one<-function (res,cell_type,  region) {
     # subset to one group and plot the two vectors that generate the correlation
@@ -72,6 +191,128 @@ plot_one<-function (res,cell_type,  region) {
         )
 
 }
+
+plot_ctp_fraction_vs_age <- function(
+        age_preds,
+        cell_type_select,
+        region_select,
+        fraction_label,
+        title = NULL,
+        point_size = 2.3,
+        add_cor_labels = TRUE,
+        cor_method = "pearson"
+) {
+    required_cols <- c(
+        "cell_type", "region",
+        "age", "pred_mean_corrected",
+        "ctp_fraction"
+    )
+    missing_cols <- setdiff(required_cols, names(age_preds))
+    if (length(missing_cols) > 0) {
+        stop("Missing required columns: ", paste(missing_cols, collapse = ", "))
+    }
+
+    df <- age_preds[
+        age_preds$cell_type == cell_type_select &
+            age_preds$region == region_select,
+        ,
+        drop = FALSE
+    ]
+
+    if (nrow(df) == 0) {
+        stop("No data for requested cell_type / region combination")
+    }
+
+    if (is.null(title)) {
+        title <- paste0(
+            fraction_label,
+            " fraction vs age and predicted age\n",
+            cell_type_select,
+            " / ",
+            region_select
+        )
+    }
+
+    plot_df <- rbind(
+        data.frame(
+            x = df$age,
+            ctp_fraction = df$ctp_fraction,
+            age_type = "chronological age",
+            stringsAsFactors = FALSE
+        ),
+        data.frame(
+            x = df$pred_mean_corrected,
+            ctp_fraction = df$ctp_fraction,
+            age_type = "predicted age",
+            stringsAsFactors = FALSE
+        )
+    )
+
+    cor_age <- NA_real_
+    cor_pred <- NA_real_
+    n_age <- 0L
+    n_pred <- 0L
+
+    ok_age <- is.finite(df$ctp_fraction) & is.finite(df$age)
+    n_age <- sum(ok_age)
+    if (n_age >= 3) {
+        cor_age <- stats::cor(df$ctp_fraction[ok_age], df$age[ok_age], method = cor_method)
+    }
+
+    ok_pred <- is.finite(df$ctp_fraction) & is.finite(df$pred_mean_corrected)
+    n_pred <- sum(ok_pred)
+    if (n_pred >= 3) {
+        cor_pred <- stats::cor(df$ctp_fraction[ok_pred], df$pred_mean_corrected[ok_pred], method = cor_method)
+    }
+
+    cor_label <- NULL
+    if (isTRUE(add_cor_labels)) {
+        cor_label <- paste0(
+            "cor(CTP, age) = ", sprintf("%.3f", cor_age), " (n=", n_age, ")\n",
+            "cor(CTP, predicted) = ", sprintf("%.3f", cor_pred), " (n=", n_pred, ")"
+        )
+    }
+
+    age_type <- NULL
+
+    p <- ggplot2::ggplot(
+        plot_df,
+        ggplot2::aes(
+            x = x,
+            y = ctp_fraction,
+            color = age_type
+        )
+    ) +
+        ggplot2::geom_point(size = point_size) +
+        ggplot2::geom_smooth(
+            method = "lm",
+            se = FALSE,
+            linewidth = 0.6
+        ) +
+        ggplot2::labs(
+            title = title,
+            x = "Age",
+            y = paste0(fraction_label, " fraction"),
+            color = NULL
+        ) +
+        ggplot2::theme_classic()
+
+    if (isTRUE(add_cor_labels)) {
+        p <- p +
+            ggplot2::annotate(
+                "text",
+                x = -Inf,
+                y = Inf,
+                label = cor_label,
+                hjust = -0.05,
+                vjust = 1.05,
+                size = 3.2
+            )
+    }
+
+    p
+}
+
 
 calc_opc_age_resid_cor <- function(age_preds) {
     required_cols <- c("cell_type", "region", "ctp_fraction", "age", "resid_mean_corrected")
