@@ -62,6 +62,9 @@ analyze_predictions_with_gam_correction <- function(age,
     df2 <- data.frame(age = age, pred = pred2)
     dfr <- data.frame(resid1 = resid1, resid2 = resid2)
 
+    # Make R CMD CHECK Happy
+    intercept <- slope <- NULL
+
     # Bad/realistic predictor plots with LM line in red (as before)
     p1 <- ggplot2::ggplot(df1, ggplot2::aes(x = age, y = pred)) +
         ggplot2::geom_point(alpha = 0.6) +
@@ -119,6 +122,9 @@ analyze_predictions_with_gam_correction <- function(age,
 
     df1$gam_fit <- gam_fit1
     df2$gam_fit <- gam_fit2
+
+    # MAKE R CMD CHECK Happy
+    gam_fit <- pred <- NULL
 
     # Show GAM curve (red)
     p4 <- ggplot2::ggplot(df1, ggplot2::aes(x = age, y = pred)) +

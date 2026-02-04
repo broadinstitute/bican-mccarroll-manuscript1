@@ -3,7 +3,7 @@ Type: Package
 Title: Differential expression analysis for BICAN
 Remotes: github::hasaru-k/GlimmaV2, bioc::edgeR, bioc::limma, bioc::variancePartition, bioc::BiocParallel, bioc::ComplexHeatmap, bioc::BiocIO
 Version: 0.1.0
-Imports: data.table, edgeR, logger, ggplot2, htmlwidgets, Glimma, corrplot, vcd, variancePartition, BiocParallel, cowplot, limma, progress, lme4, ggrepel, mashr, ashr, circlize, ComplexHeatmap, clue, reshape2, ggforce, scales, glmnet, BiocIO, mltools, dplyr, tidyr, yaml, tibble, ggvenn
+Imports: data.table, edgeR, logger, ggplot2, htmlwidgets, Glimma, corrplot, vcd, variancePartition, BiocParallel, cowplot, limma, progress, lme4, ggrepel, mashr, ashr, circlize, ComplexHeatmap, clue, reshape2, ggforce, scales, glmnet, BiocIO, mltools, dplyr, tidyr, yaml, tibble, ggvenn, mgcv
 Authors@R: c(
     person(
       "James", "Nemesh",

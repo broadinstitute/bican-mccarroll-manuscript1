@@ -38,8 +38,6 @@
 #'   \item `P_val` - numeric matrix [genes x conditions] of p-values (if present in inputs).
 #'   \item `FDR` - numeric matrix [genes x conditions] of FDR values.
 #'   \item `missing_mask` - logical matrix [genes x conditions] indicating filled/missing entries.
-#'   \item `idxPassFDRAny` - integer vector of row indices (in the unfiltered union matrices)
-#'         that passed the FDR criterion.
 #' }
 #'
 #' @export
@@ -68,7 +66,7 @@ gather_de_results<-function (in_dir, file_pattern="age", cellTypeListFile=NULL, 
 #' Build Bhat/Shat/Tstat/FDR matrices from per-cell-type DE tables
 #'
 #' @description
-#' Construct matrices for `mashr` from a list of differential expression tables
+#' Construct matrices for `mashr` or clustering from a list of differential expression tables
 #' (one per cell type or condition). You can choose to include the **union** of all
 #' genes seen across tables (filling missing entries with beta = 0 and a very large
 #' SE so they have no influence on mash), or restrict to the **intersection**

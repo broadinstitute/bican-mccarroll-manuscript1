@@ -740,9 +740,9 @@ compare_age_de_run <- function (cell_type,
 #' \code{gene_name} (or any pre-filtered subset of rows, e.g. FDR < 0.05).
 #' Also computes union and intersection counts for tracking across runs.
 #'
-#' @param index_dt data.frame for the baseline run.
+#' @param old_de data.frame for the baseline run.
 #'   Must include a \code{gene_name} column.
-#' @param index_comparison_dt data.frame for the comparison run.
+#' @param new_de data.frame for the comparison run.
 #'   Must include a \code{gene_name} column.
 #' @param baseline_name character scalar. Label for the baseline dataset.
 #' @param comparison_name character scalar. Label for the comparison dataset.

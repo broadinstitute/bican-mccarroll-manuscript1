@@ -249,7 +249,7 @@ coef_matrix_by_group <- function(all_models, group_var) {
     cols <- c("feature", group_var, "coef")
 
     if (data.table::is.data.table(all_models)) {
-        df <- all_models[, ..cols]
+        df <- all_models[, cols, with = FALSE]
     } else {
         df <- all_models[, cols, drop = FALSE]
     }
@@ -354,138 +354,6 @@ plot_coef_corr_heatmap <- function(coef_correlation,
     )
 }
 
-
-# 2. Scatter plots with annotated correlations, paged if too many pairs
-# plot_residual_pair_scatter_paged <- function(res_mat,
-#                                              cellType = NULL,
-#                                              per_page = 12,
-#                                              facet_font_size = 10,
-#                                              ncol = NULL)
-# {
-#     stopifnot(is.matrix(res_mat))
-#     regs <- colnames(res_mat)
-#
-#     prs <- if (length(regs) >= 2)
-#         utils::combn(regs, 2, simplify = FALSE)
-#     else
-#         list()
-#
-#     if (!length(prs))
-#         stop("Need >=2 cell types (columns) in res_mat")
-#
-#     make_panel <- function(title, x, y, xlab, ylab)
-#     {
-#         keep <- is.finite(x) & is.finite(y)
-#         if (sum(keep) < 2)
-#             return(NULL)
-#
-#         x <- x[keep]
-#         y <- y[keep]
-#         r <- stats::cor(x, y)
-#
-#         rng <- range(c(x, y))
-#         pad <- diff(rng) * 0.1
-#         lim <- c(rng[1] - pad, rng[2] + pad)
-#
-#         ggplot2::ggplot(data.frame(x, y), ggplot2::aes(x, y)) +
-#             ggplot2::geom_abline(
-#                 intercept = 0,
-#                 slope = 1,
-#                 color = "black",
-#                 linetype = "dashed"
-#             ) +
-#             ggplot2::geom_point(
-#                 size = 2,
-#                 alpha = 0.7,
-#                 color = "steelblue"
-#             ) +
-#             ggplot2::geom_smooth(
-#                 method = "lm",
-#                 formula = y ~ x,
-#                 se = FALSE,
-#                 linewidth = 0.6,
-#                 color = "red"
-#             ) +
-#             ggplot2::annotate(
-#                 "text",
-#                 x = -Inf,
-#                 y = Inf,
-#                 label = sprintf("r = %.2f", r),
-#                 hjust = -0.1,
-#                 vjust = 1.2,
-#                 size = 3.2
-#             ) +
-#             ggplot2::ggtitle(title) +
-#             ggplot2::coord_cartesian(xlim = lim, ylim = lim) +
-#             ggplot2::labs(x = xlab, y = ylab) +
-#             ggplot2::theme_classic(base_size = 12) +
-#             ggplot2::theme(plot.title = ggplot2::element_text(
-#                 size = facet_font_size,
-#                 hjust = 0.5
-#             ))
-#     }
-#
-#     plots <- list()
-#     for (p in prs) {
-#         x_name <- p[1]
-#         y_name <- p[2]
-#         title  <- paste(x_name, "vs", y_name)
-#
-#         pan <- make_panel(
-#             title = title,
-#             x = res_mat[, x_name],
-#             y = res_mat[, y_name],
-#             xlab = paste("Residual in", x_name),
-#             ylab = paste("Residual in", y_name)
-#         )
-#
-#         if (!is.null(pan))
-#             plots[[length(plots) + 1]] <- pan
-#     }
-#
-#     if (!length(plots))
-#         stop("No valid pairs after filtering")
-#
-#     if (is.null(ncol))
-#         ncol <- ceiling(sqrt(per_page))
-#     nrow <- ceiling(per_page / ncol)
-#
-#     blanks <- function(n)
-#         replicate(n, ggplot2::ggplot() + ggplot2::theme_void(), simplify = FALSE)
-#
-#     page_title <- "Age Prediction residuals (predicted - actual)"
-#     if (!is.null(cellType))
-#         page_title <- paste(cellType, page_title, sep = "\n")
-#
-#     pages <- list()
-#     for (s in seq(1, length(plots), by = per_page)) {
-#         page_plots <- plots[s:min(s + per_page - 1, length(plots))]
-#         if (length(page_plots) < per_page)
-#             page_plots <- c(page_plots, blanks(per_page - length(page_plots)))
-#
-#         grid <- cowplot::plot_grid(
-#             plotlist = page_plots,
-#             ncol = ncol,
-#             nrow = nrow
-#         )
-#
-#         pg <- cowplot::ggdraw() +
-#             cowplot::draw_label(
-#                 page_title,
-#                 x = 0,
-#                 y = 1,
-#                 hjust = 0,
-#                 vjust = 1,
-#                 size = 14
-#             ) +
-#             cowplot::draw_plot(grid, y = 0, height = 0.94)
-#
-#         pages[[length(pages) + 1]] <- pg
-#     }
-#
-#     pages
-# }
-
 plot_residual_pair_scatter_paged <- function(res_mat,
                                              cellType = NULL,
                                              per_page = 12,
@@ -514,7 +382,7 @@ plot_residual_pair_scatter_paged <- function(res_mat,
         cols <- c(donor_id_col, color_var)
 
         if (data.table::is.data.table(donor_meta)) {
-            meta <- unique(donor_meta[, ..cols])
+            meta <- unique(donor_meta[, cols, with = FALSE])
         } else {
             meta <- unique(donor_meta[, cols, drop = FALSE])
         }
@@ -524,8 +392,7 @@ plot_residual_pair_scatter_paged <- function(res_mat,
 
     prs <- utils::combn(regs, 2, simplify = FALSE)
 
-    make_panel <- function(title, x, y, xlab, ylab)
-    {
+    make_panel <- function(title, x, y, xlab, ylab) {
         keep <- is.finite(x) & is.finite(y)
         if (sum(keep) < 2)
             return(NULL)
@@ -556,6 +423,9 @@ plot_residual_pair_scatter_paged <- function(res_mat,
         use_color <- any(is.finite(df$color_value))
         if (is.null(color_title))
             color_title <- color_var
+
+        # Make R CMD CHECK happy
+        intercept <- slope <- color_value<- NULL
 
         p <- ggplot2::ggplot(df, ggplot2::aes(x = x, y = y)) +
             ggplot2::geom_abline(
@@ -725,7 +595,7 @@ jaccard_by_group <- function(all_models, group_var, coef_thresh = 0) {
     sel  <- abs(all_models[["coef"]]) > coef_thresh
 
     if (data.table::is.data.table(all_models)) {
-        df <- all_models[sel, ..cols]
+        df <- all_models[sel, cols, with = FALSE]
     } else {
         df <- all_models[sel, cols, drop = FALSE]
     }

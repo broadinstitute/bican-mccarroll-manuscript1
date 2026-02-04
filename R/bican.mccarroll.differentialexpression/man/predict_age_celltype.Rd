@@ -16,7 +16,8 @@ predict_age_celltype(
   alpha_fixed = 0.5,
   mc_repeats = 100,
   min_donors = 50,
-  seed = 1
+  seed = 1,
+  n_cores = 1
 )
 }
 \arguments{
@@ -60,6 +61,8 @@ If the donor-level dataset has fewer donors, the function returns \code{NULL}.}
 
 \item{seed}{Integer random seed used for the outer holdout split, inner CV fold
 construction, Monte Carlo repeated splits, and the final refit for external prediction.}
+
+\item{n_cores}{Integer; number of parallel cores to use for Monte Carlo cross fold validation.}
 }
 \value{
 A list with components:

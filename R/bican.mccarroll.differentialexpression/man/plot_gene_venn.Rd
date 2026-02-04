@@ -15,6 +15,12 @@ plot_gene_venn(
 )
 }
 \arguments{
+\item{old_de}{data.frame for the baseline run.
+Must include a \code{gene_name} column.}
+
+\item{new_de}{data.frame for the comparison run.
+Must include a \code{gene_name} column.}
+
 \item{baseline_name}{character scalar. Label for the baseline dataset.}
 
 \item{comparison_name}{character scalar. Label for the comparison dataset.}
@@ -24,12 +30,6 @@ plot_gene_venn(
 \item{text_size}{numeric scalar. Text size for counts and percentages in the Venn.}
 
 \item{title_size}{numeric scalar. Title font size.}
-
-\item{index_dt}{data.frame for the baseline run.
-Must include a \code{gene_name} column.}
-
-\item{index_comparison_dt}{data.frame for the comparison run.
-Must include a \code{gene_name} column.}
 }
 \value{
 A list with:

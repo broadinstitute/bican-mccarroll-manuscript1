@@ -19,7 +19,9 @@ predict_age_by_celltype(
   optimize_alpha = FALSE,
   alpha_fixed = 0.5,
   mc_repeats = 200,
-  min_donors = 50
+  min_donors = 50,
+  donor_age_range = c(),
+  n_cores = 1
 )
 }
 \arguments{
@@ -61,6 +63,10 @@ processing are printed to this PDF; otherwise plots are printed to the active de
 Monte Carlo residual summaries inside \code{\link{predict_age_celltype}}.}
 
 \item{min_donors}{Minimum number of donors required to fit a model for a given cell type.}
+
+\item{donor_age_range}{Optional numeric vector of length 2 giving the minimum and maximum age in decades.}
+
+\item{n_cores}{Integer; number of CPU cores to use for Monte Carlo Cross Validation}
 }
 \description{
 Loads a donor-level RNA-seq dataset (as a \code{DGEList}), restricts to autosomal genes,

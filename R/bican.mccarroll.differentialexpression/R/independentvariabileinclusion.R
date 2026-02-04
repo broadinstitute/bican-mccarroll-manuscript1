@@ -73,45 +73,18 @@
 #' @importFrom edgeR DGEList
 #' @export
 runMDSPlots<-function (data_dir, data_name, additionalDonorMetadata=NULL, randVars, fixedVars, max_num_samples=2500, filter_by_libsize_zscore=1.96, cellTypeGroupFile=NULL, outMDSPlotRoot, outPDF, outMDSCoordinatesDir=NULL) {
-    # load the pre-computed DGEList object
-    logger::log_info(paste("Loading DGEList from:", data_dir, "with prefix:", data_name))
-    dge=bican.mccarroll.differentialexpression::loadDGEList(data_dir, prefix = data_name)
 
-    #merge in additional donor metadata
-    if (!is.null(additionalDonorMetadata)) {
-        logger::log_info(sprintf("Merging additional donor metadata from: %s", additionalDonorMetadata))
+    #prepare data for plotting.
+    prep <- prepareMDSPlotData(
+        data_dir = data_dir,
+        data_name = data_name,
+        additionalDonorMetadata = additionalDonorMetadata,
+        randVars = randVars,
+        fixedVars = fixedVars
+    )
+    dge <- prep$dge
+    required_vars <- prep$required_vars
 
-        donor_metadata <- utils::read.table(additionalDonorMetadata, header = TRUE, sep = "\t")
-
-        if ("donor" %in% colnames(donor_metadata)) {
-            m <- match(dge$samples$donor, donor_metadata$donor)
-            for (cn in setdiff(names(donor_metadata), "donor")) {
-                dge$samples[[cn]] <- donor_metadata[[cn]][m]
-            }
-        } else {
-            logger::log_warn("No 'donor' column found in additional metadata; skipping merge.")
-        }
-    }
-
-    #filter to the list of metacells that should be used for MDS
-    idx=which(dge$sample$MDS==T)
-    dge=dge[,idx,keep.lib.sizes=TRUE]
-
-    #validate the variables are present in the data set.
-    required_vars=c(randVars, fixedVars)
-    validateSampleVars(dge, required_vars)
-
-    #scale genetic PCs to unit variance.
-    dge$samples=bican.mccarroll.differentialexpression::scale_PC_cols(dge$samples)
-
-    # I don't want to have repeated features.
-    # Turns out you need norm.factors for logCPM / MDS plot, so can't drop it despite it always being 1.
-    dropFeatures=c("sample_name")
-    dge$samples <- dge$samples[, !colnames(dge$samples) %in% dropFeatures, drop = FALSE]
-
-    #add a log10 library size column
-    #This did not look nice/useful.
-    #dge$samples$lib_log10 <- log10(dge$samples$lib.size)
 
     # MDS plots by cell type
     cell_type_list=unique(dge$samples$cell_type)
@@ -183,6 +156,77 @@ runMDSPlots<-function (data_dir, data_name, additionalDonorMetadata=NULL, randVa
     }
 
     grDevices::dev.off()
+}
+
+#' Prepare DGEList and metadata for MDS/QC plotting
+#'
+#' Loads a precomputed DGEList, optionally merges additional donor metadata,
+#' filters to samples flagged for MDS, validates required metadata variables,
+#' scales genetic PC columns, and drops redundant sample columns.
+#'
+#' This function performs the reusable data preparation steps needed by
+#' \code{\link{runMDSPlots}} and other workflows that want a standardized
+#' "ready for MDS" DGEList.
+#'
+#' @param data_dir Character. Directory containing the precomputed DGEList.
+#' @param data_name Character. Prefix or name used to load the DGEList object.
+#' @param additionalDonorMetadata Character or NULL. Path to a tab-delimited file
+#' containing additional donor metadata to merge into \code{dge$samples}. The file
+#' must have a \code{donor} column; other columns are merged by donor.
+#' @param randVars Character vector. Names of "random" metadata variables for MDS coloring.
+#' @param fixedVars Character vector. Names of "fixed" metadata variables for MDS grouping.
+#'
+#' @return A list with:
+#' \itemize{
+#'   \item \code{dge}: The prepared \code{edgeR::DGEList}.
+#'   \item \code{required_vars}: Character vector of required sample variables (\code{c(randVars, fixedVars)}).
+#' }
+#'
+#' @importFrom logger log_info log_warn
+#' @importFrom utils read.table
+#' @importFrom edgeR DGEList
+#' @export
+prepareMDSPlotData <- function(
+        data_dir,
+        data_name,
+        additionalDonorMetadata = NULL,
+        randVars,
+        fixedVars
+) {
+    logger::log_info(paste("Loading DGEList from:", data_dir, "with prefix:", data_name))
+    dge <- bican.mccarroll.differentialexpression::loadDGEList(data_dir, prefix = data_name)
+
+    # merge in additional donor metadata
+    if (!is.null(additionalDonorMetadata)) {
+        logger::log_info(sprintf("Merging additional donor metadata from: %s", additionalDonorMetadata))
+        donor_metadata <- utils::read.table(additionalDonorMetadata, header = TRUE, sep = "\t")
+
+        if ("donor" %in% colnames(donor_metadata)) {
+            m <- match(dge$samples$donor, donor_metadata$donor)
+            for (cn in setdiff(names(donor_metadata), "donor")) {
+                dge$samples[[cn]] <- donor_metadata[[cn]][m]
+            }
+        } else {
+            logger::log_warn("No 'donor' column found in additional metadata; skipping merge.")
+        }
+    }
+
+    # filter to the list of metacells that should be used for MDS
+    idx <- which(dge$sample$MDS == TRUE)
+    dge <- dge[, idx, keep.lib.sizes = TRUE]
+
+    # validate required vars are present
+    required_vars <- c(randVars, fixedVars)
+    validateSampleVars(dge, required_vars)
+
+    # scale genetic PCs to unit variance
+    dge$samples <- bican.mccarroll.differentialexpression::scale_PC_cols(dge$samples)
+
+    # drop repeated/redundant features (keep norm.factors)
+    dropFeatures <- c("sample_name")
+    dge$samples <- dge$samples[, !colnames(dge$samples) %in% dropFeatures, drop = FALSE]
+
+    list(dge = dge, required_vars = required_vars)
 }
 
 #' @title Generate and Save Glimma MDS Plots

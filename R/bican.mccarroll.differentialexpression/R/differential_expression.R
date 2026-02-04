@@ -555,6 +555,9 @@ continuous_by_factor_differential_expression <- function(
         fv <- setdiff(fv, interaction_var)
     }
 
+    #TODO: is this reasonable here? - get rid of fixed effects with only 1 level.
+    fv <- drop_single_level_rand_effects(fv, metadata = samp, verbose = verbose)
+
     fv <- setdiff(fv, c(continuous_var, paste0(continuous_var, ":", interaction_var)))  # ensure no global cont or interaction
     fv <- unique(c(fv, cont_cols))                                                      # add explicit slope cols
     rv <- prune_random_effects_insufficient_replication(randVars, data = samp)

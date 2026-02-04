@@ -34,8 +34,6 @@ A list of mash input matrices after filtering:
   \item `P_val` - numeric matrix [genes x conditions] of p-values (if present in inputs).
   \item `FDR` - numeric matrix [genes x conditions] of FDR values.
   \item `missing_mask` - logical matrix [genes x conditions] indicating filled/missing entries.
-  \item `idxPassFDRAny` - integer vector of row indices (in the unfiltered union matrices)
-        that passed the FDR criterion.
 }
 }
 \description{
