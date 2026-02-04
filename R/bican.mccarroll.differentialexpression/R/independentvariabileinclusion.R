@@ -85,7 +85,6 @@ runMDSPlots<-function (data_dir, data_name, additionalDonorMetadata=NULL, randVa
     dge <- prep$dge
     required_vars <- prep$required_vars
 
-
     # MDS plots by cell type
     cell_type_list=unique(dge$samples$cell_type)
     plotList=list()
@@ -140,6 +139,7 @@ runMDSPlots<-function (data_dir, data_name, additionalDonorMetadata=NULL, randVa
     # exclude donor!
     correlation_vars <- setdiff(required_vars, "donor")
     corr_matrix <- getVariableCorrelation(dge$samples, cols_to_test = correlation_vars)
+    print (plotVariableCorrelation(corr_matrix))
 
     #loop over individual cell type library size filtering plots.
     if (length(plotList) > 0) {
@@ -397,11 +397,13 @@ getVariableCorrelation <- function(df, cols_to_test=c()) {
         }
     }
 
-    # Plot the matrix
-    corrplot::corrplot(corr_matrix, method = "circle", type = "upper", tl.col = "black", tl.srt = 45, na.label = "NA")
-
     return(corr_matrix)
 }
+
+plotVariableCorrelation<-function (corr_matrix) {
+    corrplot::corrplot(corr_matrix, method = "circle", type = "upper", tl.col = "black", tl.srt = 45, na.label = "NA")
+}
+
 
 #' Validate that required sample variables are present
 #'
