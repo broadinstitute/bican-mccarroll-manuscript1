@@ -110,7 +110,6 @@ predict_age_by_celltype<-function (data_dir, data_name, result_dir, age_de_resul
     #filter to age if requested.
     dge=filter_dge_to_donor_age(dge, donor_age_range)
 
-
     cell_type_list=unique(dge$samples$cell_type)
     #cell_type_list="microglia" #hard coded for now.
     lineStr <- strrep("=", 80)
@@ -157,7 +156,6 @@ predict_age_by_celltype<-function (data_dir, data_name, result_dir, age_de_resul
             if (!is.null(p))
                 print(p)
         }
-
 
     }
 
@@ -1037,10 +1035,6 @@ plot_mc_donor_predictions <- function(donor_predictions,
                                       alpha_points = 0.8,
                                       errorbar_width = 0.1) {
 
-    # Silence R CMD CHECK notes
-    cell_type <- region <- age <- resid_sd <- NULL
-    pred_mean <- pred_mean_corrected <- resid_mean <- resid_mean_corrected <- gam_pred <- NULL
-
     stopifnot(is.data.frame(donor_predictions))
 
     allowed_y <- c("pred_mean", "pred_mean_corrected")
@@ -1083,6 +1077,9 @@ plot_mc_donor_predictions <- function(donor_predictions,
     rng <- range(c(donor_predictions$age, donor_predictions[[y_var]]), na.rm = TRUE)
     pad <- 0.05 * diff(rng)
     lims <- c(rng[1] - pad, rng[2] + pad)
+
+    # MAKE R CMD CHECK happy (ggplot NSE)
+    age <- ymin <- ymax <- gam_pred <- NULL
 
     p <- ggplot2::ggplot(
         donor_predictions,

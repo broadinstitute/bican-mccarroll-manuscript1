@@ -1,7 +1,7 @@
-age_preds_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/age_prediction/age_prediction_region_alpha_0/age_prediction_results_alpha0_donor_predictions.txt"
-ctp_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/cell_type_proportions/LEVEL_1/donor_region.cell_type_proportions.txt"
-cellTypeListFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/metadata/mash_cell_type_list_simple.txt"
-cell_type="OPC"
+# age_preds_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/age_prediction/age_prediction_region_alpha_0/age_prediction_results_alpha0_donor_predictions.txt"
+# ctp_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/cell_type_proportions/LEVEL_1/donor_region.cell_type_proportions.txt"
+# cellTypeListFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/metadata/mash_cell_type_list_simple.txt"
+# cell_type="OPC"
 
 # For each cell type and region, does the predicted age correlate with the OPC % in that region?
 # Compare the predicted age to the chronological age
@@ -84,8 +84,6 @@ correlate_ctp<-function (age_preds_file, ctp_file, cell_type="OPC", cellTypeList
 
     #how are the 90 year old donors being predicted.
     plot_predicted_age_dist_at_age(age_preds, age_value=9)
-
-    return(results)
 }
 
 plot_predicted_age_dist_at_age <- function(
@@ -126,7 +124,7 @@ plot_predicted_age_dist_at_age <- function(
     max_dev <- max(abs(df$pred_mean_corrected - age_value), na.rm = TRUE)
     x_limits <- c(age_value - max_dev, age_value + max_dev)
 
-    cell_type <- region <- NULL
+    cell_type <- region <- pred_mean_corrected <- NULL
 
     p <- ggplot2::ggplot(
         df,
@@ -176,6 +174,9 @@ plot_predicted_age_dist_at_age <- function(
 plot_one<-function (res,cell_type,  region) {
     # subset to one group and plot the two vectors that generate the correlation
     one <- res$resid_df[res$resid_df$cell_type == cell_type & res$resid_df$region == region, , drop = FALSE]
+
+    # Make R CMD CHECK Happy
+    resid_mean_corrected <- ctp_age_resid <- NULL
 
     ggplot2::ggplot(
         one,
@@ -273,7 +274,7 @@ plot_ctp_fraction_vs_age <- function(
         )
     }
 
-    age_type <- NULL
+    age_type <- x <- y <- ctp_fraction <- NULL
 
     p <- ggplot2::ggplot(
         plot_df,
@@ -515,7 +516,7 @@ plot_cor_pairs_points <- function(
         stop("Missing required columns: ", paste(missing_cols, collapse = ", "))
     }
 
-    cell_type <- region <- NULL
+    cell_type <- region <- cor_ctp_age<- cor_ctp_pred_mean_corrected <- NULL
 
     p <- ggplot2::ggplot(
         cor_df,
@@ -569,15 +570,16 @@ plot_opc_age_resid_cor <- function(
         title = NULL,
         point_size = 2.3,
         dodge_width = 0.6,
-        add_zero_line = TRUE
-) {
+        add_zero_line = TRUE) {
+
     required_cols <- c("cell_type", "region", "cor_resid")
     missing_cols <- setdiff(required_cols, names(summary_df))
     if (length(missing_cols) > 0) {
         stop("Missing required columns: ", paste(missing_cols, collapse = ", "))
     }
 
-    cell_type <- region <- NULL
+    #Make R CMD CHECK Happy
+    cell_type <- region <- cor_resid <- NULL
 
     p <- ggplot2::ggplot(
         summary_df,
