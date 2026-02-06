@@ -3,6 +3,7 @@
 export(compare_all_eQTL_runs)
 export(compare_eqtl_runs)
 export(compare_eqtl_runs_ctr)
+export(filter_metacells_to_subpopulation)
 export(plot_effect_sizes)
 import(ggrepel)
 importFrom(cowplot,draw_label)

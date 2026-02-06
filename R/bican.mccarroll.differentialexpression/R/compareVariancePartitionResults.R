@@ -53,14 +53,12 @@ compareTwoVariancePartitionRuns<-function (data_dir, data_name, cell_type, runOn
     a=a[both,]
     b=b[both,]
 
-    feature_correlation_heatmap=plotVariableCorrelation(data_dir, data_name, cell_type, a, b)
-
     corPlot=plotCorrelationBarPlot(a, b, runOneName, runTwoName)
     scatterPlots=plot_scatter_correlations(a, b, runOneName, runTwoName, plots_per_page = 4)
 
     if (!is.null(outPDF)) {
         pdf(outPDF)
-        print (feature_correlation_heatmap)
+
         print(corPlot)
         for (page in scatterPlots) {
             print(page)
@@ -102,31 +100,31 @@ compareTwoVariancePartitionRuns<-function (data_dir, data_name, cell_type, runOn
 
 }
 
-plotVariableCorrelation<-function (data_dir, data_name, cell_type, a, b) {
-    if (is.null(data_dir) | is.null(data_name) | is.null (cell_type)) {
-        logger::log_warn("data_dir, data_name, or cell_type is NULL. Can't generate feature correlation heatmap.")
-        return (NULL)
-    }
-
-    dge=bican.mccarroll.differentialexpression::loadDGEList(data_dir, prefix = data_name)
-    dge=dge[,dge$samples$cell_type == cell_type]
-    required_vars=union(colnames(a), colnames(b))
-    required_vars=intersect(required_vars, colnames(dge$samples))
-
-    fString=paste(required_vars, collapse = " + ")
-    f<-stats::formula(paste("~", fString, sep=" "))
-    C<- variancePartition::canCorPairs(formula=f, data=dge$samples)
-
-    base_plot_function <- function() {
-        variancePartition::plotCorrMatrix(C)
-    }
-
-    # Capture the Base R plot using ggdraw
-    p_base <- cowplot::ggdraw(base_plot_function)
-
-    return (p_base)
-
-}
+# plotVariableCorrelation<-function (data_dir, data_name, cell_type, a, b) {
+#     if (is.null(data_dir) | is.null(data_name) | is.null (cell_type)) {
+#         logger::log_warn("data_dir, data_name, or cell_type is NULL. Can't generate feature correlation heatmap.")
+#         return (NULL)
+#     }
+#
+#     dge=bican.mccarroll.differentialexpression::loadDGEList(data_dir, prefix = data_name)
+#     dge=dge[,dge$samples$cell_type == cell_type]
+#     required_vars=union(colnames(a), colnames(b))
+#     required_vars=intersect(required_vars, colnames(dge$samples))
+#
+#     fString=paste(required_vars, collapse = " + ")
+#     f<-stats::formula(paste("~", fString, sep=" "))
+#     C<- variancePartition::canCorPairs(formula=f, data=dge$samples)
+#
+#     base_plot_function <- function() {
+#         variancePartition::plotCorrMatrix(C)
+#     }
+#
+#     # Capture the Base R plot using ggdraw
+#     p_base <- cowplot::ggdraw(base_plot_function)
+#
+#     return (p_base)
+#
+# }
 
 plotCorrelationBarPlot<-function (a, b, runOneName, runTwoName) {
     # Get the list of common columns

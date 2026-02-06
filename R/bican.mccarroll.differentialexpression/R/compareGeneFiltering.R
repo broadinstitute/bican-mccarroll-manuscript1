@@ -19,29 +19,6 @@
 #compare_all_age_de_runs(data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results", outDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/compare_results_by_level")
 
 
-#compare all levels to each other.
-# compare_all_age_de_runs<-function (data_dir, outDir, filter_levels=c(0,1,2,3), fdr_cutoff=0.05) {
-#     for (base_level in filter_levels) {
-#         for (comparison_level in filter_levels) {
-#             if (base_level < comparison_level) {
-#                 old_data_dir=paste(data_dir,"/LEVEL_", base_level, "/sex_age/cell_type", sep="")
-#                 new_data_dir=paste(data_dir,"/LEVEL_", comparison_level, "/sex_age/cell_type", sep="")
-#                 outPDF=paste(outDir, "/compare_age_DE_LEVEL_", base_level, "_vs_LEVEL_", comparison_level, ".pdf", sep="")
-#                 outFile=paste(outDir, "/compare_age_DE_LEVEL_", base_level, "_vs_LEVEL_", comparison_level, ".txt", sep="")
-#                 logger::log_info(paste0("Comparing age DE results between LEVEL ", base_level, " and LEVEL ", comparison_level, "\n"))
-#                 z=compare_age_de_runs(old_data_dir=old_data_dir,
-#                                     new_data_dir=new_data_dir,
-#                                     outPDF=outPDF,
-#                                     outFile=outFile,
-#                                     fdr_cutoff=fdr_cutoff)
-#             }
-#         }
-#     }
-# }
-
-#compute all the level to level +1 comparisons, merge into a single result dataframe
-# clustering_min_genes controls how many genes must be found at the base level to form a cluster
-
 #' Compare age differential expression results across filtering trajectories
 #'
 #' Compares age-related differential expression (DE) results across a sequence
@@ -73,7 +50,8 @@
 #' @param data_dir Character scalar. Base directory containing DE results
 #'   organized by filtering level (e.g., \code{LEVEL_0}, \code{LEVEL_1}, ...).
 #' @param outDir Character scalar. Output directory where the summary PDF will
-#'   be written.
+#'   be written. If \code{NULL}, no output file is written and the aggregated
+#'   data frame is returned.
 #' @param filter_levels Integer vector. Filtering levels to compare. The first
 #'   value is treated as the baseline level, and each subsequent value is
 #'   compared against it. Default is \code{c(0, 1, 2, 3, 4)}.
@@ -83,9 +61,13 @@
 #' @param clustering_min_genes Integer scalar. Minimum number of significant
 #'   genes in the baseline run (\code{num_genes_significant_old}) required for a
 #'   cell type to be included in trajectory clustering. Default is \code{100}.
+#'   Only used if \code{outDir} is not \code{NULL}.
+#' @param num_clusters Integer scalar. Number of clusters to use in
+#'  \code{cluster_filtering_trajectories()}. Default is \code{4}.  Only used
+#'  if \code{outDir} is not \code{NULL}.
 #'
 #' @export
-compare_all_age_de_runs<-function (data_dir, outDir, filter_levels=c(0,1,2,3,4), fdr_cutoff=0.05, clustering_min_genes=100) {
+compare_all_age_de_runs<-function (data_dir, outDir=NULL, filter_levels=c(0,1,2,3,4), fdr_cutoff=0.05, clustering_min_genes=100, num_clusters=4) {
     base_level=filter_levels[1]
     results=list()
     for (i in 1:(length(filter_levels)-1)) {
@@ -94,23 +76,38 @@ compare_all_age_de_runs<-function (data_dir, outDir, filter_levels=c(0,1,2,3,4),
         baseline_name=paste0("LEVEL_", base_level)
         comparison_name=paste0("LEVEL_", comparison_level)
 
+        #only emit the per-comparison PDF if outDir is specified, otherwise just return the data frame at the end.
+        outPDF=NULL
+        if (!is.null(outDir))
+            outPDF=paste(outDir, "/compare_age_DE_", baseline_name, "_vs_", comparison_name, ".pdf", sep="")
+
         old_data_dir=paste(data_dir,"/", baseline_name, "/sex_age/cell_type", sep="")
         new_data_dir=paste(data_dir,"/", comparison_name, "/sex_age/cell_type", sep="")
         logger::log_info(paste0("Comparing age DE results between LEVEL ", base_level, " and LEVEL ", comparison_level, "\n"))
+
         z=compare_age_de_runs(old_data_dir=old_data_dir, new_data_dir=new_data_dir,
                               baseline_name=baseline_name, comparison_name=comparison_name,
-                              outPDF=NULL, outFile=NULL, fdr_cutoff=fdr_cutoff)
+                              outPDF=outPDF, outFile=NULL, fdr_cutoff=fdr_cutoff)
         df=z$df
         df$base_level=base_level
         df$comparison_level=comparison_level
         results[[i]]=df
     }
+
     df=do.call(rbind, results)
+
+    if (is.null(outDir)) {
+        return (df)
+    }
+
+    #outDir isn't null, write the output
+    dataSummaryFile=paste(outDir,"/compare_de_age_all_levels_summary.txt", sep="")
+    write.table (df, file=dataSummaryFile, sep="\t", quote=FALSE, row.names=FALSE)
 
     #unknown how many clusters to pick.
     df_filtered=df[df$num_genes_significant_old>=clustering_min_genes, ]
+    res <- cluster_filtering_trajectories(df_filtered, K = num_clusters)
 
-    res <- cluster_filtering_trajectories(df_filtered, K = 4)
     p1<-res$plot_trajectories
     p2<-res$plot_mapping
 
@@ -130,19 +127,40 @@ compare_all_age_de_runs<-function (data_dir, outDir, filter_levels=c(0,1,2,3,4),
     p3<-plot_reduction_vs_initial(df, cluster_df=res$clusters, comparison_level=level)
     p4<- plot_reduction_by_parent_type(df, comparison_level=level)
 
+
     pdfSummaryFile=paste(outDir,"/compare_de_age_all_levels_summary.pdf", sep="")
     grDevices::pdf(pdfSummaryFile, width = 11, height = 11)
+    on.exit(grDevices::dev.off(), add = TRUE)
+
+    #print all the plots to the PDF, which auto-closes.
     print (combined)
     print (heatmap_plot)
     print (p3)
     print (p4)
     print (p2)
-    dev.off()
 
 }
 
 
-
+#' Compare age differential expression results across runs
+#'
+#' Compare age-related differential expression results between an old and a new
+#' analysis run across multiple cell types. Generates summary plots and an
+#' aggregated results table, with optional PDF and tab-delimited output.
+#'
+#' @param old_data_dir Directory containing age DE result files from the old run.
+#' @param new_data_dir Directory containing age DE result files from the new run.
+#' @param baseline_name Name of the baseline group used in the DE analysis.
+#' @param comparison_name Name of the comparison group used in the DE analysis.
+#' @param outPDF Path to a PDF file for saving plots. If NULL, no PDF is written.
+#' @param outFile Path to a tab-delimited file for saving the summary table.
+#'   If NULL, no file is written.
+#' @param fdr_cutoff FDR threshold used to define significant genes.
+#'
+#' @return A list containing summary statistics and plots produced by
+#'   \code{plot_summary()}.
+#'
+#' @export
 compare_age_de_runs<-function (old_data_dir, new_data_dir, baseline_name, comparison_name, outPDF, outFile=NULL, fdr_cutoff=0.05) {
     suffix="_age_DE_results.txt"
     f=list.files(old_data_dir, pattern=suffix, full.names = F)
@@ -613,8 +631,8 @@ compare_age_de_run <- function (cell_type,
                  size = 4) +
         labs(
             title = paste0("Age logFC: ", cell_type),
-            x = "logFC (old filtering)",
-            y = "logFC (strict filtering)"
+            x = paste0("logFC ", baseline_name, ""),
+            y = paste0("logFC ", comparison_name, "")
         ) +
         coord_fixed(xlim = lim_logfc, ylim = lim_logfc) +
         theme_bw()
@@ -625,7 +643,7 @@ compare_age_de_run <- function (cell_type,
 
     num_genes_significant_old=sum(merged$adj.P.Val_old < fdr_cutoff, na.rm=TRUE)
     num_genes_significant_new=sum(merged$adj.P.Val_new < fdr_cutoff, na.rm=TRUE)
-    strTitleSuffix=paste(num_genes_significant_old, " significant old; ", num_genes_significant_new, " new", sep="")
+    strTitleSuffix=paste(num_genes_significant_old, " significant ", baseline_name, "; ", num_genes_significant_new, " ", comparison_name, " ", sep="")
 
     fdr_cor <- cor(merged$neg_log10_fdr_old,
                    merged$neg_log10_fdr_new,
@@ -660,9 +678,11 @@ compare_age_de_run <- function (cell_type,
                  size = 4) +
         labs(
             title = paste0("Age FDR: ", cell_type, "\n", strTitleSuffix),
-            x = expression(-log[10]("FDR (old) filtering")),
-            y = expression(-log[10]("FDR (strict filtering)"))
+            x = paste0("-log10(FDR) ", baseline_name, ""),
+            y = paste0("-log10(FDR) ", comparison_name, "")
         ) +
+
+
         coord_fixed(xlim = lim_fdr, ylim = lim_fdr) +
         theme_bw()
 
@@ -827,6 +847,28 @@ plot_frac_lines <- function(df) {
         theme_bw()
 }
 
+#' Cluster filtering-response trajectories
+#'
+#' Given per-cell-type discovery fractions across filtering comparison levels,
+#' cluster the discovery trajectories using k-means and return convenience objects
+#' for plotting and downstream summaries.
+#'
+#' @param df Data frame with columns `cell_type`, `comparison_level`, and
+#'   `frac_genes_discovered`. Each row represents one cell type at one comparison level.
+#' @param K Integer scalar. Number of k-means clusters.
+#'
+#' @return A list with elements:
+#'   \itemize{
+#'     \item `plot_trajectories`: ggplot of per-cell-type trajectories with cluster mean
+#'       trajectories overlaid.
+#'     \item `plot_mapping`: ggplot mapping each cell type to its cluster.
+#'     \item `clusters`: data frame mapping `cell_type` to `cluster`.
+#'     \item `mean_trajectories`: data frame of mean trajectories per cluster.
+#'     \item `wide_matrix`: numeric matrix used for clustering (rows = cell types,
+#'       columns = comparison levels).
+#'   }
+#'
+#' @export
 cluster_filtering_trajectories <- function(df, K = 4) {
     ## df must have: cell_type, comparison_level, frac_genes_discovered
 
@@ -947,6 +989,17 @@ cluster_filtering_trajectories <- function(df, K = 4) {
     )
 }
 
+#' Heatmap of filtering-response trajectories
+#'
+#' Convert per-cell-type discovery fractions across comparison levels into a wide matrix
+#' and draw a heatmap with hierarchical clustering of cell types.
+#'
+#' @param df Data frame with columns `cell_type`, `comparison_level`, and
+#'   `frac_genes_discovered`. Each row represents one cell type at one comparison level.
+#'
+#' @return A `ComplexHeatmap::Heatmap` object.
+#'
+#' @export
 plot_filtering_trajectories_heatmap <- function(df) {
     ## df must have: cell_type, comparison_level, frac_genes_discovered
 

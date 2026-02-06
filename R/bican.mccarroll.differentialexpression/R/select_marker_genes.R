@@ -298,7 +298,7 @@ simplify_dge_for_marker_genes<-function (dge, donor_col = "donor") {
         dge_cell <- dge[, dge$samples$cell_type == cellType, keep.lib.sizes = TRUE]
 
         # Collapse multiple samples per donor
-        dge_cell <- collapse_by_donor(dge_cell, donor_col = donor_col, keep_cols = c(donor_col, "cell_type", "imputed_sex"))
+        dge_cell <- collapse_by_donor(dge_cell, donor_col = donor_col, keep_cols = c(donor_col, "cell_type"))
         dge_list[[cellType]] <- dge_cell
 
     }
