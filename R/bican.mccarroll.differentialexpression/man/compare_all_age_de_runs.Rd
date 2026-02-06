@@ -6,10 +6,11 @@
 \usage{
 compare_all_age_de_runs(
   data_dir,
-  outDir,
+  outDir = NULL,
   filter_levels = c(0, 1, 2, 3, 4),
   fdr_cutoff = 0.05,
-  clustering_min_genes = 100
+  clustering_min_genes = 100,
+  num_clusters = 4
 )
 }
 \arguments{
@@ -17,7 +18,8 @@ compare_all_age_de_runs(
 organized by filtering level (e.g., \code{LEVEL_0}, \code{LEVEL_1}, ...).}
 
 \item{outDir}{Character scalar. Output directory where the summary PDF will
-be written.}
+be written. If \code{NULL}, no output file is written and the aggregated
+data frame is returned.}
 
 \item{filter_levels}{Integer vector. Filtering levels to compare. The first
 value is treated as the baseline level, and each subsequent value is
@@ -29,7 +31,12 @@ Default is \code{0.05}.}
 
 \item{clustering_min_genes}{Integer scalar. Minimum number of significant
 genes in the baseline run (\code{num_genes_significant_old}) required for a
-cell type to be included in trajectory clustering. Default is \code{100}.}
+cell type to be included in trajectory clustering. Default is \code{100}.
+Only used if \code{outDir} is not \code{NULL}.}
+
+\item{num_clusters}{Integer scalar. Number of clusters to use in
+\code{cluster_filtering_trajectories()}. Default is \code{4}.  Only used
+if \code{outDir} is not \code{NULL}.}
 }
 \description{
 Compares age-related differential expression (DE) results across a sequence
