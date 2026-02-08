@@ -126,8 +126,15 @@
 #' @param outPDF Optional path to output PDF file for plots.
 #' @param result_dir Directory to save the differential expression results.
 #' @param n_cores Integer. Number of cores for parallel processing.
+#' @param cpm_cutoff Numeric. CPM cutoff for filtering lowly expressed genes. Default is 1.
+#' fraction_samples observations must have this CPM cutoff.
+#' @param fraction_samples Numeric. Fraction of samples that must meet the CPM cutoff
+#' for a gene to be retained. Default is 0.1 (10 percent of samples)
 #' @export
-differential_expression <- function(data_dir, data_name, randVars, fixedVars, contrast_file, interaction_var=NULL, absolute_effects=FALSE, cellTypeListFile=NULL, outPDF=NULL, result_dir, n_cores = parallel::detectCores() - 2) {
+differential_expression <- function(data_dir, data_name, randVars, fixedVars, contrast_file,
+                                    interaction_var=NULL, absolute_effects=FALSE, cellTypeListFile=NULL,
+                                    outPDF=NULL, result_dir, n_cores = parallel::detectCores() - 2,
+                                    cpm_cutoff = 1, fraction_samples = 0.1) {
     #validate the output directory exists
     if (!dir.exists(result_dir)) {
         logger::log_info(paste("Creating result directory:", result_dir))
@@ -138,7 +145,7 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
     }
 
     #load the DGEList and prepare the data
-    d=bican.mccarroll.differentialexpression::prepare_data_for_differential_expression(data_dir, data_name, randVars, fixedVars)
+    d=bican.mccarroll.differentialexpression::prepare_data_for_differential_expression(data_dir, data_name, randVars, fixedVars, interaction_var=interaction_var)
     dge=d$dge; fixedVars=d$fixedVars; randVars=d$randVars
 
     dge=filter_dgelist_by_celltype_list(dge, cellTypeListFile)
@@ -171,7 +178,7 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
         #filter to the top 75% of highly expressed genes as a first pass.
         dge_cell<-filter_top_expressed_genes(dge_cell, gene_filter_frac = 0.75, verbose = TRUE)
         #filter to cpm cutoff of 1.
-        r2=plot_logCPM_density_quantiles(dge_cell, cpm_cutoff = 1, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5, min_samples=1, fraction_samples=0.1)
+        r2=plot_logCPM_density_quantiles(dge_cell, cpm_cutoff = cpm_cutoff, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5, min_samples=1, fraction_samples=fraction_samples)
         dge_cell=r2$filtered_dge
 
         #run differential expression
@@ -555,9 +562,7 @@ continuous_by_factor_differential_expression <- function(
         fv <- setdiff(fv, interaction_var)
     }
 
-    #TODO: is this reasonable here? - get rid of fixed effects with only 1 level.
     fv <- drop_single_level_rand_effects(fv, metadata = samp, verbose = verbose)
-
     fv <- setdiff(fv, c(continuous_var, paste0(continuous_var, ":", interaction_var)))  # ensure no global cont or interaction
     fv <- unique(c(fv, cont_cols))                                                      # add explicit slope cols
     rv <- prune_random_effects_insufficient_replication(randVars, data = samp)
@@ -686,7 +691,9 @@ categorical_by_categorical_differential_expression <- function(
     levC <- levels(samp$combo)
 
     # --- fixed/random effects ---
-    fv <- setdiff(unique(fixedVars), c(factor_var, interaction_var, paste0(factor_var, ":", interaction_var)))
+    # TODO: is this reasonable to put here?
+    fv <- drop_single_level_rand_effects(fixedVars, metadata = samp, verbose = verbose)
+    fv <- setdiff(unique(fv), c(factor_var, interaction_var, paste0(factor_var, ":", interaction_var)))
     fv <- c("combo", fv)
 
     rv <- prune_random_effects_insufficient_replication(randVars, data = samp)
@@ -1225,6 +1232,72 @@ filter_high_weight_genes <- function(vobj, dge, quantile_threshold = 0.999, max_
 
     tested_genes[keep_idx]
 }
+
+#TODO: new version of filtering with extra diagnostics.  Remove old version once sure this is good.
+filter_high_weight_genes <- function(vobj, dge, quantile_threshold = 0.999, max_threshold = 1e10, verbose = TRUE) {
+    stopifnot(!is.null(vobj), !is.null(vobj$E), !is.null(vobj$weights))
+
+    tested_genes <- rownames(vobj$E)
+    weights <- vobj$weights
+
+    # If weights have rownames, enforce ordering to tested_genes
+    if (!is.null(rownames(weights))) {
+        weights <- weights[tested_genes, , drop = FALSE]
+    } else {
+        if (nrow(weights) != length(tested_genes)) {
+            stop("weights rows do not match tested genes and have no rownames to align.")
+        }
+    }
+
+    # row-wise max, tolerate all-NA rows
+    max_w <- apply(weights, 1, function(x) if (all(is.na(x))) NA_real_ else max(x, na.rm = TRUE))
+    finite_idx <- is.finite(max_w)
+    if (!any(finite_idx)) stop("No finite weights to compute threshold.")
+
+    thr <- stats::quantile(max_w[finite_idx], quantile_threshold, na.rm = TRUE)
+    if (thr > max_threshold) {
+        thr <- max_threshold
+    }
+
+    keep_idx <- finite_idx & (max_w < thr)
+
+    if (verbose) {
+        n_filtered <- sum(!keep_idx)
+        n_total <- length(keep_idx)
+        pct_filtered <- 100 * n_filtered / n_total
+
+        message(sprintf(
+            "Filtering %d of %d genes (%.2f%%) with extreme weights (quantile %.3f -> %.2e)",
+            n_filtered, n_total, pct_filtered, quantile_threshold, thr
+        ))
+
+        # Regime diagnostics (no behavior change)
+        wmax <- max(weights, na.rm = TRUE)
+        n_at_max <- sum(finite_idx & (abs(max_w - wmax) < 1e-8))
+        pct_at_max <- 100 * n_at_max / sum(finite_idx)
+
+        message(sprintf(
+            "Weight regime: max(weight)=%.2e; genes with max_w at global max: %d of %d (%.2f%%)",
+            wmax, n_at_max, sum(finite_idx), pct_at_max
+        ))
+
+        # Heuristic interpretation: many filtered at low cap vs few at huge cap
+        if (pct_filtered >= 5 && thr < 1e3) {
+            message(sprintf(
+                "NOTE: Many genes filtered (%.2f%%) at a low threshold (%.2e). This pattern is consistent with capped/saturated weights and likely upstream depth/detection imbalance.",
+                pct_filtered, thr
+            ))
+        } else if (pct_filtered <= 1 && thr >= 1e5) {
+            message(sprintf(
+                "NOTE: Few genes filtered (%.2f%%) but at a very high threshold (%.2e), consistent with isolated off-trend genes.",
+                pct_filtered, thr
+            ))
+        }
+    }
+
+    tested_genes[keep_idx]
+}
+
 
 
 #' Decide whether to skip a dream fit for a small or unstable subset

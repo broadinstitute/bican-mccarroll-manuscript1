@@ -15,7 +15,9 @@ differential_expression(
   cellTypeListFile = NULL,
   outPDF = NULL,
   result_dir,
-  n_cores = parallel::detectCores() - 2
+  n_cores = parallel::detectCores() - 2,
+  cpm_cutoff = 1,
+  fraction_samples = 0.1
 )
 }
 \arguments{
@@ -40,6 +42,12 @@ differential_expression(
 \item{result_dir}{Directory to save the differential expression results.}
 
 \item{n_cores}{Integer. Number of cores for parallel processing.}
+
+\item{cpm_cutoff}{Numeric. CPM cutoff for filtering lowly expressed genes. Default is 1.
+fraction_samples observations must have this CPM cutoff.}
+
+\item{fraction_samples}{Numeric. Fraction of samples that must meet the CPM cutoff
+for a gene to be retained. Default is 0.1 (10 percent of samples)}
 }
 \description{
 This uses a means model (~0 + fixedVars) and a random effects model for the specified random variables.

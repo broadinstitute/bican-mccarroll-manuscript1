@@ -9,6 +9,7 @@ prepare_data_for_differential_expression(
   data_name,
   randVars,
   fixedVars,
+  interaction_var = NULL,
   force_as_factor = c("imputed_sex")
 )
 }
@@ -20,6 +21,9 @@ prepare_data_for_differential_expression(
 \item{randVars}{Character vector. Names of random metadata variables for MDS coloring.}
 
 \item{fixedVars}{Character vector. Names of fixed metadata variables for MDS grouping.}
+
+\item{interaction_var}{Character. Optional. Name of variable to include as an interaction term
+if running differential expression.  Optional, not used for VariancePartition.}
 
 \item{force_as_factor}{Character vector. Optional. Column names to force as factors.  Important when
 there are encodings of categorical variables that use numeric values.  Default is c("imputed_sex") which

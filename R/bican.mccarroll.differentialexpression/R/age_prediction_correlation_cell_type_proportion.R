@@ -2,17 +2,15 @@
 # ctp_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/cell_type_proportions/LEVEL_1/donor_region.cell_type_proportions.txt"
 # cellTypeListFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/metadata/mash_cell_type_list_simple.txt"
 # cell_type="OPC"
+# out_ctp_pdf="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/age_prediction/age_prediction_region_alpha_0/age_prediction_opc_ctp_correlation_plots.pdf"
 
 # For each cell type and region, does the predicted age correlate with the OPC % in that region?
 # Compare the predicted age to the chronological age
 # Also compare the z-score (pred age) and z-score (chron age)
 # I think the comparisons should remain "within" region, but allow any cell type age prediction to predict OPC.
 
-correlate_ctp<-function (age_preds_file, ctp_file, cell_type="OPC", cellTypeListFile=NULL) {
+correlate_ctp<-function (age_preds_file, ctp_file, cell_type="OPC", cellTypeListFile=NULL, out_ctp_pdf=NULL) {
     age_preds=read.table(age_preds_file, header=TRUE, sep="\t", stringsAsFactors = FALSE)
-    ap=unique(age_preds[,c("cell_type", "region", "donor", "age", "ctp_fraction", "pred_mean_corrected")])
-
-
     ctp=read.table(ctp_file, header=TRUE, sep="\t", stringsAsFactors = FALSE)
 
     #filter age models to requested cell types
@@ -40,14 +38,15 @@ correlate_ctp<-function (age_preds_file, ctp_file, cell_type="OPC", cellTypeList
     age_preds[,"ctp_fraction"]=ctp$fraction_nuclei[idx]*100
 
     #add z-score scalings. - these should be by cell type / region
-    age_preds=add_zscores(age_preds)
+    age_preds=add_age_preds_zscores(age_preds)
 
     #get correlations
     cor_df <- calc_group_correlations(age_preds)
 
+    pdf (out_ctp_pdf, width=9, height=9)
+
     plot_cor_pairs_points(cor_df, title = paste0("Correlation of ", cell_type, " CTP with Age Predictions"))
 
-    pdf ("/downloads/steve_plots.pdf", width=9, height=9)
     for (region in unique(age_preds$region)) {
         p1<-plot_ctp_fraction_vs_age(
             age_preds,
@@ -394,7 +393,7 @@ calc_opc_age_resid_cor <- function(age_preds) {
 }
 
 
-add_zscores<-function (age_preds) {
+add_age_preds_zscores<-function (age_preds) {
     z_by_group <- function(x) {
         as.numeric(scale(x))
     }

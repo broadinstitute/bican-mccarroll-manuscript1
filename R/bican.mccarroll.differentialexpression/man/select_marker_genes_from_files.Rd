@@ -47,4 +47,7 @@ Wrapper around \code{\link{select_marker_genes}} that loads a DGEList from disk
 Marker genes are identified per target cell type by comparing donor-matched CPM
 values against every other cell type, then selecting the worst-case comparator
 per gene (maximizing donor failures; ties broken by lowest median fold change).
+
+This implementation is tied closely to the BICAN data preparation pipeline for
+comparing cell types to find marker genes.
 }

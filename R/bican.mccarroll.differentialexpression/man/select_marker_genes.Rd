@@ -2,19 +2,26 @@
 % Please edit documentation in R/select_marker_genes.R
 \name{select_marker_genes}
 \alias{select_marker_genes}
-\title{Select marker genes for each cell type (DGEList interface)}
+\title{Select marker genes by annotation group (DGEList interface)}
 \usage{
 select_marker_genes(
   dgeList,
+  annotation_column = "cell_type",
   high_expression_threshold = 10,
   fold_change = 10,
   markerGeneReportFile = NULL
 )
 }
 \arguments{
-\item{dgeList}{An \code{edgeR::DGEList} with one observation per donor/cell type
-(or an object accepted by \code{simplify_dge_for_marker_genes()}), and with
-\code{dgeList$samples$cell_type} and \code{dgeList$samples$donor} present.}
+\item{dgeList}{An \code{edgeR::DGEList} with one observation per donor and
+annotation group (or an object accepted by
+\code{simplify_dge_for_marker_genes()}), and with
+\code{dgeList$samples[[annotation_column]]} and
+\code{dgeList$samples$donor} present.}
+
+\item{annotation_column}{Character scalar giving the name of the column in
+\code{dgeList$samples} that defines annotation groups (default:
+\code{"cell_type"}).}
 
 \item{high_expression_threshold}{CPM threshold used to define "expressed in
 target" for donor-level metrics.}
@@ -26,12 +33,13 @@ count a donor as passing the fold-change criterion.}
 is written.}
 }
 \value{
-A data frame of marker-gene candidates across all target cell types.
-  The returned data frame includes at least:
+A data frame of marker-gene candidates across all target annotation
+  values. The returned data frame includes at least:
   \itemize{
     \item \code{gene}
-    \item \code{target_cell_type}
-    \item \code{closest_cell_type} (worst-case comparator)
+    \item \code{annotation_column}
+    \item \code{target_annotation}
+    \item \code{closest_annotation} (worst-case comparator)
     \item \code{median_cpm_target}
     \item \code{median_fold_change_across_donors}
     \item \code{n_donors_expr}
@@ -41,18 +49,22 @@ A data frame of marker-gene candidates across all target cell types.
   }
 }
 \description{
-Identifies marker genes for each cell type in a donor-collapsed \code{edgeR}
-\code{DGEList}. For a given target cell type and gene, CPM values are compared
-against each other cell type using only donors present in both cell types.
+Identifies marker genes for each annotation group in a donor-collapsed
+\code{edgeR} \code{DGEList}. For a given target annotation value and gene,
+CPM values are compared against each other annotation value using only donors
+present in both groups.
+}
+\details{
 Donor-level pass/fail metrics are computed using:
 \itemize{
   \item target CPM > \code{high_expression_threshold}
   \item (target CPM / other CPM) > \code{fold_change}
 }
-The worst-case comparator cell type is selected per gene by maximizing the
-number of failing donors; ties are broken by the lowest median fold change.
-}
-\details{
+
+For each gene, the worst-case comparator annotation is selected by maximizing
+the number of failing donors; ties are broken by the lowest median fold change
+across donors.
+
 If \code{markerGeneReportFile} is provided, the results are written as a
 tab-delimited file with a leading comment line beginning with \code{#} that
 records \code{high_expression_threshold} and \code{fold_change}.
