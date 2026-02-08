@@ -1233,6 +1233,72 @@ filter_high_weight_genes <- function(vobj, dge, quantile_threshold = 0.999, max_
     tested_genes[keep_idx]
 }
 
+#TODO: new version of filtering with extra diagnostics.  Remove old version once sure this is good.
+filter_high_weight_genes <- function(vobj, dge, quantile_threshold = 0.999, max_threshold = 1e10, verbose = TRUE) {
+    stopifnot(!is.null(vobj), !is.null(vobj$E), !is.null(vobj$weights))
+
+    tested_genes <- rownames(vobj$E)
+    weights <- vobj$weights
+
+    # If weights have rownames, enforce ordering to tested_genes
+    if (!is.null(rownames(weights))) {
+        weights <- weights[tested_genes, , drop = FALSE]
+    } else {
+        if (nrow(weights) != length(tested_genes)) {
+            stop("weights rows do not match tested genes and have no rownames to align.")
+        }
+    }
+
+    # row-wise max, tolerate all-NA rows
+    max_w <- apply(weights, 1, function(x) if (all(is.na(x))) NA_real_ else max(x, na.rm = TRUE))
+    finite_idx <- is.finite(max_w)
+    if (!any(finite_idx)) stop("No finite weights to compute threshold.")
+
+    thr <- stats::quantile(max_w[finite_idx], quantile_threshold, na.rm = TRUE)
+    if (thr > max_threshold) {
+        thr <- max_threshold
+    }
+
+    keep_idx <- finite_idx & (max_w < thr)
+
+    if (verbose) {
+        n_filtered <- sum(!keep_idx)
+        n_total <- length(keep_idx)
+        pct_filtered <- 100 * n_filtered / n_total
+
+        message(sprintf(
+            "Filtering %d of %d genes (%.2f%%) with extreme weights (quantile %.3f -> %.2e)",
+            n_filtered, n_total, pct_filtered, quantile_threshold, thr
+        ))
+
+        # Regime diagnostics (no behavior change)
+        wmax <- max(weights, na.rm = TRUE)
+        n_at_max <- sum(finite_idx & (abs(max_w - wmax) < 1e-8))
+        pct_at_max <- 100 * n_at_max / sum(finite_idx)
+
+        message(sprintf(
+            "Weight regime: max(weight)=%.2e; genes with max_w at global max: %d of %d (%.2f%%)",
+            wmax, n_at_max, sum(finite_idx), pct_at_max
+        ))
+
+        # Heuristic interpretation: many filtered at low cap vs few at huge cap
+        if (pct_filtered >= 5 && thr < 1e3) {
+            message(sprintf(
+                "NOTE: Many genes filtered (%.2f%%) at a low threshold (%.2e). This pattern is consistent with capped/saturated weights and likely upstream depth/detection imbalance.",
+                pct_filtered, thr
+            ))
+        } else if (pct_filtered <= 1 && thr >= 1e5) {
+            message(sprintf(
+                "NOTE: Few genes filtered (%.2f%%) but at a very high threshold (%.2e), consistent with isolated off-trend genes.",
+                pct_filtered, thr
+            ))
+        }
+    }
+
+    tested_genes[keep_idx]
+}
+
+
 
 #' Decide whether to skip a dream fit for a small or unstable subset
 #'
