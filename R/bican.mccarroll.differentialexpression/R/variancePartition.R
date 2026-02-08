@@ -403,13 +403,15 @@ plot_magnitude_ecdf <- function(varPart,
 #' @param data_name               Character. Prefix or name used to load the DGEList object.
 #' @param randVars               Character vector. Names of random metadata variables for MDS coloring.
 #' @param fixedVars              Character vector. Names of fixed metadata variables for MDS grouping.
+#' @param interaction_var       Character. Optional. Name of variable to include as an interaction term
+#' if running differential expression.  Optional, not used for VariancePartition.
 #' @param force_as_factor Character vector. Optional. Column names to force as factors.  Important when
 #' there are encodings of categorical variables that use numeric values.  Default is c("imputed_sex") which
 #' is useful for the BICAN data, but this can be altered as needed.
 #' @return A list containing the DGEList object, fixed variables, and random variables.
 #'
 #' @export
-prepare_data_for_differential_expression<-function (data_dir, data_name, randVars, fixedVars, force_as_factor=c("imputed_sex")) {
+prepare_data_for_differential_expression<-function (data_dir, data_name, randVars, fixedVars, interaction_var=NULL, force_as_factor=c("imputed_sex")) {
     # load the pre-computed DGEList object
     logger::log_info(paste("Loading DGEList from:", data_dir, "with prefix:", data_name))
     dge=bican.mccarroll.differentialexpression::loadDGEList(data_dir, prefix = data_name)
@@ -445,6 +447,13 @@ prepare_data_for_differential_expression<-function (data_dir, data_name, randVar
 
     #Subset to complete cases
     old_metacell_count=dim(dge$samples)[1]
+    if (!is.null(interaction_var))
+        required_vars=c(required_vars, interaction_var)
+
+    #convert empty strings to NA in the metadata, so they can be dropped by complete cases
+    dge$samples[dge$samples == ""] <- NA
+
+    #subset to complete cases for required variables.
     dge=subset_dge_to_complete_cases(dge, required_vars)
     new_metacell_count=dim(dge$samples)[1]
     logger::log_info(paste("Subsetted DGEList from", old_metacell_count, "to", new_metacell_count, "metacells based on complete cases for variables:", paste(required_vars, collapse = ", ")))

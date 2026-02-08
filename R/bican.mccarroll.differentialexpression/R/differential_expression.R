@@ -126,8 +126,15 @@
 #' @param outPDF Optional path to output PDF file for plots.
 #' @param result_dir Directory to save the differential expression results.
 #' @param n_cores Integer. Number of cores for parallel processing.
+#' @param cpm_cutoff Numeric. CPM cutoff for filtering lowly expressed genes. Default is 1.
+#' fraction_samples observations must have this CPM cutoff.
+#' @param fraction_samples Numeric. Fraction of samples that must meet the CPM cutoff
+#' for a gene to be retained. Default is 0.1 (10 percent of samples)
 #' @export
-differential_expression <- function(data_dir, data_name, randVars, fixedVars, contrast_file, interaction_var=NULL, absolute_effects=FALSE, cellTypeListFile=NULL, outPDF=NULL, result_dir, n_cores = parallel::detectCores() - 2) {
+differential_expression <- function(data_dir, data_name, randVars, fixedVars, contrast_file,
+                                    interaction_var=NULL, absolute_effects=FALSE, cellTypeListFile=NULL,
+                                    outPDF=NULL, result_dir, n_cores = parallel::detectCores() - 2,
+                                    cpm_cutoff = 1, fraction_samples = 0.1) {
     #validate the output directory exists
     if (!dir.exists(result_dir)) {
         logger::log_info(paste("Creating result directory:", result_dir))
@@ -138,7 +145,7 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
     }
 
     #load the DGEList and prepare the data
-    d=bican.mccarroll.differentialexpression::prepare_data_for_differential_expression(data_dir, data_name, randVars, fixedVars)
+    d=bican.mccarroll.differentialexpression::prepare_data_for_differential_expression(data_dir, data_name, randVars, fixedVars, interaction_var=interaction_var)
     dge=d$dge; fixedVars=d$fixedVars; randVars=d$randVars
 
     dge=filter_dgelist_by_celltype_list(dge, cellTypeListFile)
@@ -171,7 +178,7 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
         #filter to the top 75% of highly expressed genes as a first pass.
         dge_cell<-filter_top_expressed_genes(dge_cell, gene_filter_frac = 0.75, verbose = TRUE)
         #filter to cpm cutoff of 1.
-        r2=plot_logCPM_density_quantiles(dge_cell, cpm_cutoff = 1, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5, min_samples=1, fraction_samples=0.1)
+        r2=plot_logCPM_density_quantiles(dge_cell, cpm_cutoff = cpm_cutoff, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5, min_samples=1, fraction_samples=fraction_samples)
         dge_cell=r2$filtered_dge
 
         #run differential expression
@@ -555,9 +562,7 @@ continuous_by_factor_differential_expression <- function(
         fv <- setdiff(fv, interaction_var)
     }
 
-    #TODO: is this reasonable here? - get rid of fixed effects with only 1 level.
     fv <- drop_single_level_rand_effects(fv, metadata = samp, verbose = verbose)
-
     fv <- setdiff(fv, c(continuous_var, paste0(continuous_var, ":", interaction_var)))  # ensure no global cont or interaction
     fv <- unique(c(fv, cont_cols))                                                      # add explicit slope cols
     rv <- prune_random_effects_insufficient_replication(randVars, data = samp)
@@ -686,7 +691,9 @@ categorical_by_categorical_differential_expression <- function(
     levC <- levels(samp$combo)
 
     # --- fixed/random effects ---
-    fv <- setdiff(unique(fixedVars), c(factor_var, interaction_var, paste0(factor_var, ":", interaction_var)))
+    # TODO: is this reasonable to put here?
+    fv <- drop_single_level_rand_effects(fixedVars, metadata = samp, verbose = verbose)
+    fv <- setdiff(unique(fv), c(factor_var, interaction_var, paste0(factor_var, ":", interaction_var)))
     fv <- c("combo", fv)
 
     rv <- prune_random_effects_insufficient_replication(randVars, data = samp)
