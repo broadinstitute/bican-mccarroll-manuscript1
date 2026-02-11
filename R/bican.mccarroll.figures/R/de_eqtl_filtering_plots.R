@@ -1,13 +1,36 @@
 library (ggplot2)
+library (svglite)
 
 
+
+#########################################
+# EQTL GENE DISCOCVERY AND FILTERING PLOTS
+#########################################
+
+eqtl_filtering_plot<-function (data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results",
+                              outDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
+                              filter_levels=c(0,1,2,3,4), fdr_threshold=0.05,
+                              cellTypeListFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/metadata/cell_types_for_de_filtering_plot.txt",
+                              data_cache_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache") {
+
+    eqtl_cache_dir=paste(data_cache_dir, "eqtl_filtering_plot", sep="/")
+    bican.mccarroll.eqtl::compare_all_eQTL_runs(data_dir=data_dir, outDir=NULL, filter_levels=filter_levels, fdr_threshold=fdr_threshold, cache_dir=eqtl_cache_dir)
+
+}
+
+
+#########################################
+# DE GENE DISCOVERY AND FILTERING PLOTS
+#########################################
+
+# This produces the change in the number of DE genes discovered at each level of filtering
 de_filtering_plot<-function (
         data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results",
         data_name="donor_rxn_DGEList",
         data_cache_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache",
         cellTypeListFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/metadata/cell_types_for_de_filtering_plot.txt",
         outDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
-        clustering_min_genes=150, num_clusters=4) {
+        clustering_min_genes=150, num_clusters=3) {
 
     #if the expected cache file is present, use it instead of rebuilding the data.
     cache_file <- file.path(data_cache_dir, "de_filtering_plot_cache.txt")
@@ -31,7 +54,6 @@ de_filtering_plot<-function (
     }
 
     df_filtered=df[df$num_genes_significant_old>=clustering_min_genes, ]
-    #df_filtered=df
 
     # Steve has asked to include level 0 - this is a temporary hack until that's approved as the
     # best way to visualize data.
@@ -45,23 +67,59 @@ de_filtering_plot<-function (
     }
 
     #I need a plot of the initial number of discoveries.
-    z=df_filtered[df_filtered$base_level==0 & df_filtered$comparison_level==1, c("cell_type", "num_genes_significant_old")]
-    p_num_de_genes<-plot_num_de_genes(z)
+    #z=df_filtered[df_filtered$base_level==0 & df_filtered$comparison_level==1, c("cell_type", "num_genes_significant_old")]
+    #p_num_de_genes<-plot_num_de_genes(z)
 
+    #plot
 
-    p1<-res$plot_trajectories
-    p1 <- p1 + ggplot2::labs(title = "Change in DE results with filtering") +
-        ggplot2::xlab("Filtering level")
+}
 
-    p2<-res$plot_mapping
+# Plot specific cell type examples of LEVEL 3 vs LEVEL 4 filtering
+# to demonstrate that the effect sizes don't change much, but we lose power due to smaller numbers of observations
+plot_de_filtering_examples<-function (cell_type_list=c("astrocyte", "microglia", "MSN_D1", "glutamatergic_IT"),
+                                      baseline_data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results/LEVEL_3/sex_age/cell_type",
+                                      comparison_data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results/LEVEL_4/sex_age/cell_type",
+                                      baseline_name="LEVEL 3", comparison_name="LEVEL 4",
+                                      outDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository") {
 
-    #additional idea: instead of plotting all of the curves at once, use the K-means
-    #to generate facets and plot each set of cell types within that cluster as a group, and
-    #label the cell types within the facet.
+    make_celltype_row <- function(p_left, p_right, label, strip_size = 14) {
+        p_left  <- p_left  + ggplot2::labs(title = NULL) +
+            ggplot2::theme(plot.margin = ggplot2::margin(0, 0, 0, 0))
+        p_right <- p_right + ggplot2::labs(title = NULL) +
+            ggplot2::theme(plot.margin = ggplot2::margin(0, 0, 0, 0))
 
-    heatmap_plot<-bican.mccarroll.differentialexpression::plot_filtering_trajectories_heatmap(df2)
+        panels <- cowplot::plot_grid(p_left, p_right, ncol = 2, align = "hv", axis = "tblr")
 
+        strip <- cowplot::ggdraw() +
+            cowplot::draw_label(label, fontface = "bold", size = strip_size, x = 0.5)
 
+        # Small strip on top, panels below; strip gets very little height
+        cowplot::plot_grid(strip, panels, ncol = 1, rel_heights = c(0.1, 1))
+    }
+
+    plot_list <- list()
+    for (cell_type in cell_type_list) {
+        z <- bican.mccarroll.differentialexpression::compare_age_de_run(
+            cell_type = cell_type,
+            old_data_dir = baseline_data_dir,
+            new_data_dir = comparison_data_dir,
+            baseline_name = baseline_name,
+            comparison_name = comparison_name,
+            fdr_cutoff = 0.05
+        )
+
+        ct_lab <- gsub("_", " ", cell_type, fixed = TRUE)
+        plot_list[[cell_type]] <- make_celltype_row(z$scatter_effect, z$scatter_fdr, ct_lab)
+    }
+
+    # If you have N plots, give each row less vertical real estate by increasing output height,
+    # or explicitly control rel_heights:
+    combined_plot <- cowplot::plot_grid(plotlist = plot_list, ncol = 2)
+
+    ggplot2::ggsave(
+        filename = file.path(outDir, "de_filtering_cell_type_examples.svg"),
+        plot = combined_plot, device = "svg", width = 12, height = 6  # try smaller height first
+    )
 
 }
 

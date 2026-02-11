@@ -25,3 +25,7 @@ Read one or more metacell matrices from `inDir` and write filtered versions to
 `outDir`, keeping only the `gene_symbol` column and donor columns listed in
 `donorListFile` that are present in each file.
 }
+\details{
+Input files are matched by the pattern `metacells\\.txt\\.gz$`. Output is
+written compressed (gz) to `outDir` using the input basenames.
+}

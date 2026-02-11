@@ -47,7 +47,8 @@
 #' @param data_dir Character scalar. Base directory containing \code{LEVEL_<n>}
 #'   subdirectories.
 #' @param outDir Character scalar. Output directory for per-comparison PDFs and
-#'   summary statistics files.
+#'   summary statistics files.  If the output directory is NULL, this
+#'   function returns the combined summary statistics dataframe.
 #' @param filter_levels Integer vector. Filtering levels to compare. The first
 #'   element is used as the baseline level; each subsequent element is compared
 #'   against the baseline.
@@ -64,7 +65,7 @@
 #' @importFrom utils write.table
 #' @import ggrepel
 #' @export
-compare_all_eQTL_runs<-function (data_dir, outDir, filter_levels=c(0,1,2,3,4), fdr_threshold=0.05, cache_dir) {
+compare_all_eQTL_runs<-function (data_dir, outDir=NULL, filter_levels=c(0,1,2,3,4), fdr_threshold=0.05, cache_dir) {
     base_level=filter_levels[1]
     results=list()
     for (i in 1:(length(filter_levels)-1)) {
@@ -79,12 +80,16 @@ compare_all_eQTL_runs<-function (data_dir, outDir, filter_levels=c(0,1,2,3,4), f
         results[[i]]=df
     }
     df=do.call(rbind, results)
+
+    if (is.null(outDir))
+        return (df)
+
     #Save file summary statistics across all runs for trend plotting.
     write.table(df, file=paste(outDir,"/compare_eQTL_all_levels_stats.txt", sep=""), sep="\t", quote=F, row.names=F)
 
     #summary plots
-    #cross level summary stat plots
-    z <- cluster_filtering_trajectories(df, value_col = "yield", K = 4, title="Change in number of eGenes discovered compared to baseline")
+    #across level summary stat plots
+    z <- eqtl_cluster_filtering_trajectories(df, value_col = "yield", K = 4, title="Change in number of eGenes discovered compared to baseline")
 
     p11<-plot_reduction_vs_initial(df, cluster_df=z$clusters, baseline_name = "LEVEL_0",
                               comparison_name = "LEVEL_3", y_col = "yield", x_col = "n_union_egenes", , point_size=3)
@@ -1330,8 +1335,43 @@ plot_summary <- function(df,
 }
 
 
-#inFile=paste(outDir,"/compare_eQTL_all_levels_stats.txt", sep=""); df=read.table(inFile, header=T, stringsAsFactors=F, sep="\t")
-cluster_filtering_trajectories <- function(df,
+#' Cluster and visualize eQTL filtering response trajectories
+#'
+#' Given a long-format table of responses across a set of comparisons (e.g.
+#' filtering levels), this function reshapes the data into a wide matrix of
+#' trajectories (one row per \code{id}, one column per comparison), performs
+#' k-means clustering on these trajectories, and returns plots and cluster
+#' assignments.
+#'
+#' The primary plot shows per-\code{id} trajectories colored by cluster, with
+#' the cluster mean trajectory overlaid as a dashed line. A second plot maps
+#' each \code{id} to its assigned cluster.
+#'
+#' @param df data.frame in long format containing one row per
+#' \code{id_cols} combination per comparison.
+#' @param value_col Character scalar giving the column in \code{df} containing
+#' numeric values to cluster (e.g. an effect size, statistic, or residual).
+#' @param K Integer number of clusters for k-means.
+#' @param comparison_col Character scalar giving the column in \code{df}
+#' defining the ordered comparison axis (default \code{"comparison_name"}).
+#' @param id_cols Character vector of columns used to define a composite ID
+#' (e.g. \code{c("cell_type","region")}).
+#' @param id_sep Character separator used to join \code{id_cols} into a single
+#' \code{id} string.
+#' @param drop_incomplete Logical. If \code{TRUE}, drop rows with missing
+#' \code{id}, comparison, or value, and (after reshaping) drop \code{id}s with
+#' any missing comparison values.
+#' @param seed Integer seed for k-means initialization.
+#' @param xlab Character x-axis label for the trajectories plot.
+#' @param ylab Character y-axis label for the trajectories plot. If \code{NULL},
+#' defaults to \code{value_col}.
+#' @param title Character title for the trajectories plot. If \code{NULL},
+#' defaults to \code{"Filtering response clusters (K = <K>)"}.
+#' @param ylim Optional numeric length-2 vector giving y-axis limits (applied
+#' via \code{coord_cartesian}).
+#'
+#' @export
+eqtl_cluster_filtering_trajectories <- function(df,
                                            value_col,
                                            K = 4,
                                            comparison_col = "comparison_name",

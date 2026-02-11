@@ -3,6 +3,8 @@
 export(compare_all_eQTL_runs)
 export(compare_eqtl_runs)
 export(compare_eqtl_runs_ctr)
+export(eqtl_cluster_filtering_trajectories)
+export(filter_covariates_to_subpopulation)
 export(filter_metacells_to_subpopulation)
 export(plot_effect_sizes)
 import(ggrepel)
