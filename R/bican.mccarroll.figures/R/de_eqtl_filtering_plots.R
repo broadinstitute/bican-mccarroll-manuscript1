@@ -13,8 +13,20 @@ eqtl_filtering_plot<-function (data_dir="/broad/bican_um1_mccarroll/RNAseq/analy
                               cellTypeListFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/metadata/cell_types_for_de_filtering_plot.txt",
                               data_cache_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache") {
 
-    eqtl_cache_dir=paste(data_cache_dir, "eqtl_filtering_plot", sep="/")
-    bican.mccarroll.eqtl::compare_all_eQTL_runs(data_dir=data_dir, outDir=NULL, filter_levels=filter_levels, fdr_threshold=fdr_threshold, cache_dir=eqtl_cache_dir)
+
+    #if the expected cache file is present, use it instead of rebuilding the data.
+    cache_file <- file.path(data_cache_dir, "eqtl_filtering_plot_cache.txt")
+    if (file.exists(cache_file)) {
+        logger::log_info("Using cached data from {cache_file}")
+        df=read.table(cache_file, header=TRUE, sep="\t", stringsAsFactors=FALSE)
+    } else { # process the data as usual, write to the cache
+        #clustering_min_genes and num_clusters don't do anything when outDir is NULL
+        logger::log_info("No cached data from {cache_file} regenerating data from sources.  This can be extremely slow.")
+        eqtl_cache_dir=paste(data_cache_dir, "eqtl_filtering_plot", sep="/")
+        df= bican.mccarroll.eqtl::compare_all_eQTL_runs(data_dir=data_dir, outDir=NULL, filter_levels=filter_levels, fdr_threshold=fdr_threshold, cache_dir=eqtl_cache_dir)
+        write.table(df, file=cache_file, sep="\t", row.names=FALSE, quote=FALSE)
+    }
+
 
 }
 
