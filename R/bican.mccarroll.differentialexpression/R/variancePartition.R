@@ -424,7 +424,7 @@ prepare_data_for_differential_expression<-function (data_dir, data_name, randVar
         logger::log_info("Converting num_nuclei to Z-score of log10(num_nuceli) and adding to fixed effects")
         dge$samples$z_log10_nuclei <- as.numeric (scale(log10(dge$samples$num_nuclei)))
         #remove the original num_nuclei column
-        dge$samples$num_nuclei <- NULL
+        #dge$samples$num_nuclei <- NULL
         fixedVars=c("z_log10_nuclei", fixedVars)
     }
 

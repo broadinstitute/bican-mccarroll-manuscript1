@@ -877,10 +877,14 @@ compute_final_residuals_repeated_splits_parallel <- function(dge_cell,
     oof_all <- do.call(rbind, lapply(res_list, `[[`, "pred_df"))
     per_repeat_metrics <- do.call(rbind, lapply(res_list, `[[`, "met_df"))
 
-    age_unique <- unique(dge_cell$samples[, c(donor_col, age_col), drop = FALSE])
-    colnames(age_unique) <- c("donor", "age")
+    #added in additional features needed for downstream analyses (e.g. tracking number of DGE features, nuclei, UMIs per donor)
+    age_unique <- unique(dge_cell$samples[, c(donor_col, age_col, "num_nuclei", "lib.size"), drop = FALSE])
+    colnames(age_unique) <- c("donor", "age", "num_nuclei", "num_umis")
     age_unique$donor <- as.character(age_unique$donor)
     age_unique$age <- as.numeric(age_unique$age)
+
+    #track number of DGE features.
+    age_unique$num_features <- nrow(dge_cell$counts)
 
     split_counts <- aggregate(mc_iter ~ donor, data = oof_all, FUN = length)
     colnames(split_counts)[2] <- "n_oof"
