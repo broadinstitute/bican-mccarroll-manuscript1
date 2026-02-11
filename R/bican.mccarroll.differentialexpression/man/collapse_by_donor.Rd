@@ -4,7 +4,12 @@
 \alias{collapse_by_donor}
 \title{Collapse counts in a DGEList to one column per donor}
 \usage{
-collapse_by_donor(dge, donor_col = "donor", keep_cols = character(0))
+collapse_by_donor(
+  dge,
+  donor_col = "donor",
+  keep_cols = character(0),
+  sum_cols = character(0)
+)
 }
 \arguments{
 \item{dge}{A \code{DGEList} containing raw counts and a \code{samples} data.frame.}

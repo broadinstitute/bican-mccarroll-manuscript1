@@ -485,7 +485,7 @@ predict_age_celltype <- function(cellType, dge, retained_features = c("donor", "
     }
 
     # Collapse multiple samples per donor
-    dge_cell <- collapse_by_donor(dge_cell, donor_col = donor_col, keep_cols = retained_features)
+    dge_cell <- collapse_by_donor(dge_cell, donor_col = donor_col, keep_cols = retained_features, sum_cols="num_nuclei")
 
     # Filtering samples by library size
     r <- bican.mccarroll.differentialexpression::filter_by_libsize(
@@ -582,6 +582,8 @@ predict_age_celltype <- function(cellType, dge, retained_features = c("donor", "
         verbose_every = mc_repeats / 10,
         n_cores=n_cores,
     )
+
+
 
     # Final model for external prediction (fit on ALL donors; no OOF)
     logger::log_info("Fitting final model on all donors for external prediction.")
@@ -1219,59 +1221,6 @@ get_output_basename <- function(pdf_file, default = "age_prediction_results") {
     sub("\\.pdf$", "", basename(pdf_file))
 }
 
-# extract_age_outputs <- function(r, cellType, region = NA_character_) {
-#
-#     meta_cols <- c("cell_type", "region")
-#
-#     # -----------------------------
-#     # Donor predictions (MC OOF)
-#     # -----------------------------
-#     preds <- r$final_oof_predictions[
-#         , c("donor", "age", "n_oof", "pred_mean",
-#             "resid_mean", "resid_median", "resid_sd"),
-#         drop = FALSE
-#     ]
-#
-#     preds$cell_type <- cellType
-#     preds$region <- region
-#     preds <- preds[, c(meta_cols, setdiff(colnames(preds), meta_cols)), drop = FALSE]
-#
-#     # -----------------------------
-#     # Model coefficients (ALL donors; external prediction)
-#     # -----------------------------
-#     coefs <- r$final_cv_model$final_model
-#     coefs$cell_type <- cellType
-#     coefs$region <- region
-#     coefs <- coefs[, c(meta_cols, setdiff(colnames(coefs), meta_cols)), drop = FALSE]
-#
-#     # -----------------------------
-#     # Summary metrics
-#     # -----------------------------
-#     mets <- rbind(
-#         cbind(set = "Final MC OOF (all donors; mean pred)", r$final_oof_metrics),
-#         cbind(set = "Inner CV OOF (80% train)", r$cv_model$overall_metrics),
-#         cbind(set = "Outer holdout (20% donors)", r$test_set_metrics)
-#     )
-#
-#     mets$cell_type <- cellType
-#     mets$region <- region
-#     mets <- mets[, c(meta_cols, setdiff(colnames(mets), meta_cols)), drop = FALSE]
-#
-#     # -----------------------------
-#     # Per-fold metrics (inner CV)
-#     # -----------------------------
-#     fold_mets <- r$cv_model$per_fold_metrics
-#     fold_mets$cell_type <- cellType
-#     fold_mets$region <- region
-#     fold_mets <- fold_mets[, c(meta_cols, setdiff(colnames(fold_mets), meta_cols)), drop = FALSE]
-#
-#     list(
-#         donor_predictions  = preds,
-#         model_coefficients = coefs,
-#         model_metrics      = mets,
-#         per_fold_metrics   = fold_mets
-#     )
-# }
 
 extract_age_outputs <- function(r, cellType, region = NA_character_) {
 
@@ -1281,7 +1230,7 @@ extract_age_outputs <- function(r, cellType, region = NA_character_) {
     # Donor predictions (MC OOF)
     # -----------------------------
     base_cols <- c(
-        "donor", "age", "n_oof", "pred_mean",
+        "donor", "age", "num_features", "num_nuclei", "num_umis", "n_oof", "pred_mean",
         "resid_mean", "resid_median", "resid_sd"
     )
 
@@ -1512,6 +1461,105 @@ collapse_by_donor <- function(dge, donor_col = "donor", keep_cols = character(0)
     dge_out$samples <- samples_out
     dge_out
 }
+
+collapse_by_donor <- function(dge, donor_col = "donor",
+                              keep_cols = character(0),
+                              sum_cols  = character(0)) {
+    stopifnot(is.list(dge), !is.null(dge$counts), !is.null(dge$samples),
+              donor_col %in% colnames(dge$samples))
+
+    smp <- dge$samples
+    donors <- as.character(smp[[donor_col]])
+    if (anyNA(donors)) stop("donor_col has NA values.")
+    f <- factor(donors)
+
+    # donor indicator (samples x donors)
+    X <- model.matrix(~ 0 + f)
+    colnames(X) <- levels(f)
+
+    # sum counts across samples of each donor (genes x donors)
+    C <- as.matrix(dge$counts) %*% X
+    storage.mode(C) <- "integer"
+
+    # helper: initialize an NA vector matching the class of x
+    init_na_like <- function(x, n) {
+        if (is.integer(x))            return(rep(NA_integer_, n))
+        if (is.numeric(x))            return(rep(NA_real_, n))
+        if (is.logical(x))            return(rep(NA, n))
+        return(rep(NA_character_, n)) # character or factor handled as character
+    }
+
+    # build samples data.frame with keep_cols and validate uniqueness per donor
+    if (length(keep_cols)) {
+        missing <- setdiff(keep_cols, colnames(smp))
+        if (length(missing)) stop("keep_cols not found in dge$samples: ", paste(missing, collapse = ", "))
+
+        nD <- nlevels(f)
+        out_list <- vector("list", length(keep_cols))
+        names(out_list) <- keep_cols
+
+        for (j in seq_along(keep_cols)) {
+            colname <- keep_cols[j]
+            colj <- smp[[colname]]
+            if (is.factor(colj)) colj <- as.character(colj)
+
+            v <- init_na_like(colj, nD)
+            names(v) <- levels(f)
+
+            for (d in levels(f)) {
+                vals <- unique(colj[f == d])
+                vals <- vals[!is.na(vals)]
+                if (length(vals) != 1) {
+                    stop(sprintf("Column '%s' not unique within donor '%s': values = {%s}",
+                                 colname, d, paste(utils::head(vals, 10), collapse = ", ")))
+                }
+                v[d] <- vals
+            }
+            out_list[[j]] <- v
+        }
+        samples_keep <- as.data.frame(out_list, stringsAsFactors = FALSE, row.names = levels(f))
+    } else {
+        samples_keep <- data.frame(row.names = levels(f))
+    }
+
+    # add donor-wise sums for selected numeric columns
+    if (length(sum_cols)) {
+        missing <- setdiff(sum_cols, colnames(smp))
+        if (length(missing)) stop("sum_cols not found in dge$samples: ", paste(missing, collapse = ", "))
+
+        for (colname in sum_cols) {
+            x <- smp[[colname]]
+            if (!is.numeric(x)) {
+                stop("sum_cols must be numeric; column '", colname, "' has class ", class(x)[1], ".")
+            }
+            if (anyNA(x)) {
+                stop("sum_cols column '", colname, "' contains NA values.")
+            }
+
+            summed <- as.numeric(crossprod(x, X))
+            names(summed) <- colnames(X)
+
+            samples_keep[[colname]] <- summed[rownames(samples_keep)]
+        }
+    }
+
+    # required edgeR-like fields
+    lib.size <- colSums(C)
+    samples_out <- data.frame(
+        group = 1L,
+        lib.size = lib.size,
+        norm.factors = rep(1, length(lib.size)),
+        samples_keep,
+        row.names = colnames(C),
+        check.names = FALSE
+    )
+
+    dge_out <- dge
+    dge_out$counts  <- C
+    dge_out$samples <- samples_out
+    dge_out
+}
+
 
 #' Load age DE results for a given cell type and region
 #'
