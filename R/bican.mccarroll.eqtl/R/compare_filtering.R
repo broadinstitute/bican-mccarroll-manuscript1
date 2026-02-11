@@ -11,14 +11,8 @@
 # all_pairs_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_0/MSN__CaH/MSN__CaH.cis_qtl_pairs.txt.gz"
 # all_pairs_file_comparison="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_2/MSN__CaH/MSN__CaH.cis_qtl_pairs.txt.gz"
 
-# baseline_name="LEVEL_0"
-# comparison_name="LEVEL_2"
-
-
-# For the full pipeline run.
-#cache_dir="/downloads/eqtl_cache"
-#fdr_threshold=0.05;filter_levels=c(0,1,2,3)
-#outDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/compare_filtering"
+# baseline_name="LEVEL_3"
+# comparison_name="LEVEL_4"
 
 #Looking at a pair of eQTL results at different filter levels, comparisons:
 #1. Number of eQTLs found in the baseline and comparison levels at FDR<0.05.
@@ -43,6 +37,10 @@
 #' performs pairwise comparisons between the first level (baseline) and each
 #' subsequent level. For each comparison, summary statistics are collected and
 #' written to a tab-delimited file in \code{outDir}.
+#'
+#' If an output directory is set, this will emit PDFs both for within-level
+#' pair comparisons as well as a full cross-level summary reports and PDFs.
+#' If null, this function will return only the summary level dataframe.
 #'
 #' @param data_dir Character scalar. Base directory containing \code{LEVEL_<n>}
 #'   subdirectories.
@@ -73,12 +71,17 @@ compare_all_eQTL_runs<-function (data_dir, outDir=NULL, filter_levels=c(0,1,2,3,
         baseline_data_dir=paste(data_dir,"/LEVEL_", base_level, sep="")
         comparison_data_dir=paste(data_dir,"/LEVEL_", comparison_level, sep="")
         logger::log_info(paste0("Comparing eQTL results between LEVEL ", base_level, " and LEVEL ", comparison_level, "\n"))
-        outPDF=paste(outDir, "/compare_eQTL_LEVEL_", base_level, "_vs_LEVEL_", comparison_level, ".pdf", sep="")
-        outSummaryPDF=paste(outDir, "/compare_eQTL_LEVEL_", base_level, "_vs_LEVEL_", comparison_level, ".summary.pdf", sep="")
-        outFile=paste(outDir, "/compare_eQTL_LEVEL_", base_level, "_vs_LEVEL_", comparison_level, ".txt", sep="")
+        outPDF=NULL;outSummaryPDF=NULL;outFile=NULL
+        if (!is.null(outDir)) {
+            outPDF=paste(outDir, "/compare_eQTL_LEVEL_", base_level, "_vs_LEVEL_", comparison_level, ".pdf", sep="")
+            outSummaryPDF=paste(outDir, "/compare_eQTL_LEVEL_", base_level, "_vs_LEVEL_", comparison_level, ".summary.pdf", sep="")
+            outFile=paste(outDir, "/compare_eQTL_LEVEL_", base_level, "_vs_LEVEL_", comparison_level, ".txt", sep="")
+        }
+
         df=compare_eqtl_runs_ctr(baseline_data_dir, comparison_data_dir, fdr_threshold=fdr_threshold, outPDF=outPDF, outSummaryPDF=outSummaryPDF, outFile=outFile, cache_dir=cache_dir)
         results[[i]]=df
     }
+
     df=do.call(rbind, results)
 
     if (is.null(outDir))
