@@ -41,3 +41,8 @@ performs pairwise comparisons between the first level (baseline) and each
 subsequent level. For each comparison, summary statistics are collected and
 written to a tab-delimited file in \code{outDir}.
 }
+\details{
+If an output directory is set, this will emit PDFs both for within-level
+pair comparisons as well as a full cross-level summary reports and PDFs.
+If null, this function will return only the summary level dataframe.
+}

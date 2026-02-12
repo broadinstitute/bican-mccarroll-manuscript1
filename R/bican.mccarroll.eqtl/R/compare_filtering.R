@@ -385,6 +385,54 @@ compare_eqtl_runs<-function (cell_type="MSN", region="CaH", baseline_name, compa
 
 }
 
+#' Compare index-level eQTL results between two conditions
+#'
+#' @description
+#' Generates summary plots and statistics comparing eQTL results between a
+#' baseline and comparison dataset. This includes:
+#' \itemize{
+#'   \item Venn diagrams of genes tested in each condition.
+#'   \item Venn diagrams of significant eGenes (FDR < threshold).
+#'   \item Scatter plots of absolute effect sizes for significant eGenes.
+#'   \item Scatter plots comparing eGene q-values.
+#'   \item QQ and histogram plots assessing p-value inflation in each dataset.
+#' }
+#'
+#' @param index_dt Data frame containing baseline eQTL results.
+#' @param index_comparison_dt Data frame containing comparison eQTL results.
+#' @param baseline_name Character scalar used for labeling baseline plots.
+#' @param comparison_name Character scalar used for labeling comparison plots.
+#' @param fdr_threshold Numeric scalar. FDR cutoff used to define significant
+#'   eGenes. Default is \code{0.05}.
+#'
+#' @details
+#' Significant eGenes are defined as rows with \code{qval < fdr_threshold}.
+#' Effect size comparisons use absolute slopes and are computed over the union
+#' of significant eGenes across both datasets.
+#'
+#' P-value inflation is assessed using the \code{pval_beta} column in each
+#' dataset.
+#'
+#' This function delegates plotting and statistical summaries to helper
+#' functions including \code{plot_gene_venn()},
+#' \code{plot_egene_effect_scatter()},
+#' \code{plot_egene_qval_compare()},
+#' \code{test_eqtl_pval_inflation()}, and
+#' \code{make_compare_index_eqtls_stats_df()}.
+#'
+#' @return
+#' A named list containing:
+#' \describe{
+#'   \item{venn_plot_genes_tested}{Venn diagram of genes tested.}
+#'   \item{venn_plot_eGenes}{Venn diagram of significant eGenes.}
+#'   \item{effect_size_scatter_plot}{Scatter plot of absolute effect sizes.}
+#'   \item{qval_scatter_plot}{Scatter plot comparing q-values.}
+#'   \item{pval_inflation_plots_baseline}{QQ + histogram plot for baseline.}
+#'   \item{pval_inflation_plots_comparison}{QQ + histogram plot for comparison.}
+#'   \item{stats_df}{Data frame summarizing comparison statistics.}
+#' }
+#'
+#' @export
 compare_index_eqtls<-function (index_dt, index_comparison_dt, baseline_name, comparison_name, fdr_threshold=0.05) {
     #how many total genes tested? (barplot 1)
     z=plot_gene_venn(index_dt, index_comparison_dt, text_size=6, title_size=16,
@@ -751,7 +799,6 @@ plot_egene_effect_scatter <- function(index_dt,
         df = df
     )
 }
-
 
 #' Compare eGene q-values between baseline and comparison runs
 #'
@@ -1924,6 +1971,46 @@ build_sign_cache_paths <- function(index_file,
     )
 }
 
+
+#' Get or build augmented index tables for a sign test (with caching)
+#'
+#' @description
+#' Loads cached "augmented" index tables for a sign test when available, or
+#' rebuilds them from the provided baseline and comparison index files plus the
+#' corresponding SNP/gene pair tables. Augmentation adds a cross-experiment slope
+#' column (currently \code{slope_cross}) used by downstream sign-test logic.
+#'
+#' The cache is keyed by the inputs via \code{build_sign_cache_paths()}, and is
+#' written to \code{cache_dir}. Set \code{force = TRUE} to rebuild even if cached
+#' files exist.
+#'
+#' @param index_file Character scalar. Path to the baseline index file.
+#' @param index_file_comparison Character scalar. Path to the comparison index file.
+#' @param all_pairs_file Character scalar. Path to the baseline SNP/gene pairs file.
+#' @param all_pairs_file_comparison Character scalar. Path to the comparison SNP/gene
+#'   pairs file.
+#' @param cache_dir Character scalar. Directory where cached augmented index files
+#'   will be stored.
+#' @param force Logical scalar. If \code{TRUE}, rebuild the augmented index tables
+#'   even if cached files exist. Default \code{FALSE}.
+#'
+#' @details
+#' On a cache hit (and \code{force = FALSE}), this function reads the cached
+#' augmented index files via \code{read_index_file()} and returns them. On a cache
+#' miss (or \code{force = TRUE}), it reads the source files, computes cross slopes
+#' via \code{add_cross_slopes_for_sign_test()}, writes the augmented index tables
+#' to cache, and returns the augmented result.
+#'
+#' The returned index tables are expected to include a \code{slope_cross} column.
+#'
+#' @return
+#' A named list with elements:
+#' \describe{
+#'   \item{index_dt}{Baseline augmented index table.}
+#'   \item{index_comparison_dt}{Comparison augmented index table.}
+#' }
+#'
+#' @export
 get_or_build_augmented_indices_for_sign <- function(index_file,
                                                     index_file_comparison,
                                                     all_pairs_file,
@@ -2054,7 +2141,18 @@ make_compare_index_eqtls_stats_df <- function(stats_genes_tested,
 # I/O functions
 #################################
 
-
+#' Read an eqtl index file
+#'
+#' Read an index table from disk and return a data.frame containing only the
+#' requested columns that are present in the file.
+#'
+#' @param index_file Path to the index file (passed to data.table::fread()).
+#' @param colsToKeep Character vector of column names to keep (silently ignores
+#'   names not present in the file).
+#'
+#' @return A data.frame.
+#'
+#' @export
 read_index_file<-function (index_file, colsToKeep=c("gene_name", "variant_id", "slope", "slope_cross", "pval_nominal", "pval_beta", "qval")) {
     index_dt <- data.table::fread(index_file)
 
@@ -2066,13 +2164,19 @@ read_index_file<-function (index_file, colsToKeep=c("gene_name", "variant_id", "
     index_dt
 }
 
+#' Read an eqtl all-pairs file
+#'
+#' Read an all-pairs table from disk and return a data.frame containing only the
+#' requested columns that are present in the file.
+#'
+#' @param all_pairs_file Path to the all-pairs file (passed to data.table::fread()).
+#' @param colsToKeep Character vector of column names to keep (silently ignores
+#'   names not present in the file).
+#'
+#' @return A data.frame.
+#'
+#' @export
 read_all_pairs_file<-function (all_pairs_file, colsToKeep=c("phenotype_id", "variant_id", "slope", "pval_nominal")) {
-    # cmd <- sprintf(
-    #     "gzip -cd %s | grep -v -E '^[[:space:]]*#'",
-    #     shQuote(all_pairs_file)
-    # )
-    # all_pairs <- data.table::fread(cmd = cmd)
-
     #simplified!
     all_pairs <- data.table::fread(all_pairs_file)
 

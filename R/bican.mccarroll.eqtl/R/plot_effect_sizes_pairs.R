@@ -124,7 +124,8 @@ plot_one_pair <- function(paths,
     eff <- build_pair_effect_table(
         ref_dt = ref,
         all_pairs_A = ap_A,
-        all_pairs_B = ap_B
+        all_pairs_B = ap_B,
+        value_col = "slope"
     )
 
     plot_pair_effects(
@@ -219,6 +220,17 @@ cell_type_pairs <- function(cell_types) {
 # -----------------------------
 # Helpers: data filtering / selection
 # -----------------------------
+
+#' Filter significant rows from an index table
+#'
+#' Filter an index table by q-value (FDR) threshold.
+#'
+#' @param index_dt A data.frame or data.table with required columns.
+#' @param fdr_threshold Numeric scalar. Rows with qval < fdr_threshold are kept.
+#'
+#' @return A data.table containing only significant rows.
+#'
+#' @export
 filter_significant_index <- function(index_dt, fdr_threshold) {
     # MAKE R CMD CHECK happy (data.table NSE)
     qval <- NULL
@@ -234,6 +246,17 @@ filter_significant_index <- function(index_dt, fdr_threshold) {
     dt[qval < fdr_threshold]
 }
 
+#' Select reference variant per gene from two significant sets
+#'
+#' Combine two significant tables and choose a single "reference" variant per
+#' gene by ordering on q-value (ascending) and absolute slope (descending).
+#'
+#' @param sig_A Significant rows for set A (data.frame or data.table).
+#' @param sig_B Significant rows for set B (data.frame or data.table).
+#'
+#' @return A data.table with columns gene_name, variant_id, source_cell, qval, slope.
+#'
+#' @export
 select_reference_pairs <- function(sig_A, sig_B) {
 
     # MAKE R CMD CHECK happy (data.table NSE)
@@ -261,24 +284,55 @@ select_reference_pairs <- function(sig_A, sig_B) {
     ref[, c("gene_name", "variant_id", "source_cell", "qval", "slope"), with = FALSE]
 }
 
-build_pair_effect_table <- function(ref_dt, all_pairs_A, all_pairs_B) {
+#' Build a paired effect table for reference variants
+#'
+#' For each (gene_name, variant_id) in a reference table, pull a value column
+#' from two all-pairs tables and return it as value_A and value_B.
+#'
+#' @param ref_dt A data.frame or data.table containing columns gene_name and variant_id.
+#' @param all_pairs_A All-pairs table for set A (data.frame or data.table).
+#' @param all_pairs_B All-pairs table for set B (data.frame or data.table).
+#' @param value_col Name of the column in all_pairs_* to extract (e.g. "slope").
+#'
+#' @return A data.table with columns gene_name, variant_id, and
+#'   paste0(value_col, "_A") / paste0(value_col, "_B").
+#'
+#' @export
+build_pair_effect_table <- function(ref_dt,
+                                    all_pairs_A,
+                                    all_pairs_B,
+                                    value_col = "slope") {
+    stopifnot(is.character(value_col), length(value_col) == 1L, nzchar(value_col))
 
     ref <- data.table::as.data.table(ref_dt)[, c("gene_name", "variant_id"), with = FALSE]
     if (nrow(ref) == 0) {
-        return(data.table::data.table(
+        out <- data.table::data.table(
             gene_name = character(0),
-            variant_id = character(0),
-            slope_A = numeric(0),
-            slope_B = numeric(0)
-        ))
+            variant_id = character(0)
+        )
+        out[[paste0(value_col, "_A")]] <- numeric(0)
+        out[[paste0(value_col, "_B")]] <- numeric(0)
+        return(out)
     }
 
     apA <- data.table::as.data.table(all_pairs_A)
     apB <- data.table::as.data.table(all_pairs_B)
 
-    need_ap <- c("phenotype_id", "variant_id", "slope")
-    apA <- apA[, intersect(need_ap, names(apA)), with = FALSE]
-    apB <- apB[, intersect(need_ap, names(apB)), with = FALSE]
+    need_ap <- c("phenotype_id", "variant_id", value_col)
+    haveA <- intersect(need_ap, names(apA))
+    haveB <- intersect(need_ap, names(apB))
+
+    if (!("variant_id" %in% haveA) || !(value_col %in% haveA)) {
+        stop("all_pairs_A must contain columns: variant_id and ", value_col,
+             " (and optionally phenotype_id)")
+    }
+    if (!("variant_id" %in% haveB) || !(value_col %in% haveB)) {
+        stop("all_pairs_B must contain columns: variant_id and ", value_col,
+             " (and optionally phenotype_id)")
+    }
+
+    apA <- apA[, haveA, with = FALSE]
+    apB <- apB[, haveB, with = FALSE]
 
     if ("phenotype_id" %in% names(apA)) {
         data.table::setnames(apA, "phenotype_id", "gene_name")
@@ -287,15 +341,17 @@ build_pair_effect_table <- function(ref_dt, all_pairs_A, all_pairs_B) {
         data.table::setnames(apB, "phenotype_id", "gene_name")
     }
 
-    data.table::setnames(apA, "slope", "slope_A")
-    data.table::setnames(apB, "slope", "slope_B")
+    # Rename the value column to value_A / value_B
+    data.table::setnames(apA, value_col, paste0(value_col, "_A"))
+    data.table::setnames(apB, value_col, paste0(value_col, "_B"))
 
-    # Left joins: preserve row count of ref, fill missing slopes as NA
+    # Left joins: preserve row count of ref, fill missing values as NA
     m1 <- merge(ref, apA, by = c("gene_name", "variant_id"), all.x = TRUE, sort = FALSE)
     m2 <- merge(m1, apB, by = c("gene_name", "variant_id"), all.x = TRUE, sort = FALSE)
 
     m2
 }
+
 
 compute_pair_metrics <- function(effect_dt) {
 
@@ -347,7 +403,22 @@ compute_pair_metrics <- function(effect_dt) {
 # -----------------------------
 # Helpers: plotting
 # -----------------------------
-plot_pair_effects <- function(effect_dt, cell_type_A, cell_type_B, region) {
+
+#' Plot paired effect sizes for two cell types
+#'
+#' Scatter plot of slope estimates in two cell types for matched (gene, variant)
+#' pairs, with basic annotations.
+#'
+#' @param effect_dt A data.frame or data.table containing columns slope_A and slope_B.
+#' @param cell_type_A Character scalar. Label for cell type A (used in titles/axes).
+#' @param cell_type_B Character scalar. Label for cell type B (used in titles/axes).
+#' @param region Character scalar. Label for region (used in title).
+#' @param annot_size Numeric scalar. Size of the annotation text passed to ggplot2::annotate().
+#'
+#' @return A ggplot2 plot object.
+#'
+#' @export
+plot_pair_effects <- function(effect_dt, cell_type_A, cell_type_B, region, annot_size = 3.5) {
 
     slope_A <- slope_B <- NULL
 
@@ -361,6 +432,8 @@ plot_pair_effects <- function(effect_dt, cell_type_A, cell_type_B, region) {
                 y = paste0(cell_type_B, " slope")
             )
     }
+
+    effect_dt <- data.table::as.data.table(effect_dt)
 
     if (nrow(effect_dt) == 0) {
         return(base_empty_plot("No genes after filtering/joining"))
@@ -376,7 +449,7 @@ plot_pair_effects <- function(effect_dt, cell_type_A, cell_type_B, region) {
         return(base_empty_plot("No complete cases (all slopes missing on at least one axis)"))
     }
 
-    r_lab <- if (is.finite(metrics$pearson_r)) sprintf("Pearson r = %.3f", metrics$pearson_r) else "Pearson r = NA"
+    r_lab <- if (is.finite(metrics$pearson_r)) sprintf("r = %.3f", metrics$pearson_r) else "r = NA"
     sign_lab <- paste0(
         "Sign agree = ", metrics$sign_pct_txt,
         " (", metrics$n_agree_sign, "/", metrics$n_tested_sign, ")"
@@ -404,7 +477,7 @@ plot_pair_effects <- function(effect_dt, cell_type_A, cell_type_B, region) {
             hjust = 0,
             vjust = 1,
             label = annot_lab,
-            size = 3.5
+            size = annot_size
         ) +
         ggplot2::theme_bw() +
         ggplot2::labs(
@@ -413,6 +486,87 @@ plot_pair_effects <- function(effect_dt, cell_type_A, cell_type_B, region) {
             y = paste0(cell_type_B, " slope")
         )
 }
+
+#' Plot paired -log10(p) values for two cell types
+#'
+#' Scatter plot of -log10 nominal p-values in two cell types for matched
+#' (gene, variant) pairs, with a Pearson correlation annotation.
+#'
+#' @param effect_dt A data.frame or data.table containing columns pval_nominal_A and pval_nominal_B.
+#' @param cell_type_A Character scalar. Label for cell type A (used in titles/axes).
+#' @param cell_type_B Character scalar. Label for cell type B (used in titles/axes).
+#' @param region Character scalar. Label for region (used in title).
+#' @param annot_size Numeric scalar. Size of the annotation text passed to ggplot2::annotate().
+#'
+#' @return A ggplot2 plot object.
+#'
+#' @export
+plot_pair_pvals <- function(effect_dt, cell_type_A, cell_type_B, region, annot_size = 3.5) {
+
+    pval_nominal_A <- pval_nominal_B <- xA <- xB <- NULL
+
+    base_empty_plot <- function(subtitle) {
+        ggplot2::ggplot() +
+            ggplot2::theme_bw() +
+            ggplot2::labs(
+                title = paste0(cell_type_A, " vs ", cell_type_B, " (", region, ")"),
+                subtitle = subtitle,
+                x = paste0(cell_type_A, " -log10(p)"),
+                y = paste0(cell_type_B, " -log10(p)")
+            )
+    }
+
+    effect_dt <- data.table::as.data.table(effect_dt)
+
+    if (nrow(effect_dt) == 0) {
+        return(base_empty_plot("No genes after filtering/joining"))
+    }
+
+    plot_dt <- data.table::copy(effect_dt)
+
+    # -log10(p); keep non-finite as NA and drop later
+    plot_dt[, xA := -log10(pval_nominal_A)]
+    plot_dt[, xB := -log10(pval_nominal_B)]
+
+    plot_dt <- plot_dt[
+        stats::complete.cases(plot_dt[, c("xA", "xB"), with = FALSE]) &
+            is.finite(xA) & is.finite(xB)
+    ]
+
+    if (nrow(plot_dt) == 0) {
+        return(base_empty_plot("No complete cases (all p-values missing/invalid on at least one axis)"))
+    }
+
+    r_val <- NA_real_
+    if (nrow(plot_dt) > 1) {
+        r_val <- stats::cor(plot_dt$xA, plot_dt$xB, use = "complete.obs", method = "pearson")
+    }
+    r_lab <- if (is.finite(r_val)) sprintf("r = %.3f", r_val) else "r = NA"
+
+    xr <- range(plot_dt$xA, plot_dt$xB, finite = TRUE)
+    x_min <- xr[1]
+    x_max <- xr[2]
+
+    ggplot2::ggplot(plot_dt, ggplot2::aes(x = xA, y = xB)) +
+        ggplot2::geom_point(size = 0.8, alpha = 0.7) +
+        ggplot2::geom_abline(intercept = 0, slope = 1, linewidth = 0.6) +
+        ggplot2::annotate(
+            geom = "text",
+            x = x_min,
+            y = x_max,
+            hjust = 0,
+            vjust = 1,
+            label = r_lab,
+            size = annot_size
+        ) +
+        ggplot2::theme_bw() +
+        ggplot2::labs(
+            title = paste0(cell_type_A, " vs ", cell_type_B, " (", region, ")"),
+            x = paste0(cell_type_A, " -log10(p)"),
+            y = paste0(cell_type_B, " -log10(p)")
+        )
+}
+
 
 .print_plot_grid <- function(plotlist, nrow, ncol) {
     if (length(plotlist) == 0) {

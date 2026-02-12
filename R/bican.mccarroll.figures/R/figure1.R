@@ -23,8 +23,8 @@ figure1_feature_correlation<-function (
     #make feature names nice!
     pretty_map <- get_pretty_feature_names(correlation_vars)
 
-    colnames(corr_matrix) <- pretty_map[colnames(corr_matrix)]
-    rownames(corr_matrix) <- pretty_map[rownames(corr_matrix)]
+    colnames(corr_matrix) <- as.vector(pretty_map[colnames(corr_matrix)])
+    rownames(corr_matrix) <- as.vector(pretty_map[rownames(corr_matrix)])
 
     if (!is.null(outDir)) {
         output_svg <- file.path(outDir, "figure1_feature_correlation.svg")
@@ -32,8 +32,60 @@ figure1_feature_correlation<-function (
         on.exit(dev.off(), add = TRUE)
     }
 
-    corrplot::corrplot(corr_matrix, method = "circle", type = "upper", tl.col = "black", tl.srt = 45, na.label = "NA")
+    #corrplot::corrplot(corr_matrix, method = "circle", type = "upper", tl.col = "black", tl.srt = 45, na.label = "NA")
 
+    groups <- list(
+        donor  = c("Imputed sex", "Biobank", "Age", "PC1", "PC2", "PC3", "PC4", "PC5", "Toxicology group", "HBCAC status", "PMI (hours)"),
+        sample = c("Region", "Single-cell assay"),
+        cell   = c("Percent intronic", "Fraction contamination")
+    )
+
+    setdiff(colnames(corr_matrix), as.vector(unlist (groups)))
+
+    plot_corrplot_with_group_rects(corr_matrix, groups)
+
+}
+
+plot_corrplot_grouped <- function(corr_matrix,
+                                  groups,
+                                  method = "circle",
+                                  type = "upper",
+                                  tl.col = "black",
+                                  tl.srt = 45,
+                                  na.label = "NA") {
+    stopifnot(is.matrix(corr_matrix))
+    stopifnot(!is.null(colnames(corr_matrix)), !is.null(rownames(corr_matrix)))
+    stopifnot(identical(colnames(corr_matrix), rownames(corr_matrix)))
+    stopifnot(is.list(groups), length(groups) > 0)
+
+    # Flatten variables in the desired order (donor -> sample -> cell)
+    ord <- unlist(groups, use.names = FALSE)
+
+    # Basic checks
+    if (anyDuplicated(ord)) {
+        dup <- unique(ord[duplicated(ord)])
+        stop("Variables appear in multiple groups: ", paste(dup, collapse = ", "))
+    }
+    missing <- setdiff(ord, colnames(corr_matrix))
+    if (length(missing) > 0) {
+        stop("These group variables are not in corr_matrix: ", paste(missing, collapse = ", "))
+    }
+    extra <- setdiff(colnames(corr_matrix), ord)
+    if (length(extra) > 0) {
+        stop("corr_matrix contains variables not present in groups: ", paste(extra, collapse = ", "))
+    }
+
+    cm <- corr_matrix[ord, ord, drop = FALSE]
+
+    corrplot::corrplot(cm,
+                       method = method,
+                       type = type,
+                       tl.col = tl.col,
+                       tl.srt = tl.srt,
+                       na.label = na.label
+    )
+
+    invisible(cm)
 }
 
 

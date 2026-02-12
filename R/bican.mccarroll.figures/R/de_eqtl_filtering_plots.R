@@ -9,7 +9,7 @@ library (svglite)
 
 eqtl_filtering_plot<-function (data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results",
                               outDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
-                              filter_levels=c(0,1,2,3,4), fdr_threshold=0.05,
+                              filter_levels=c(0,1,2,3,4), fdr_threshold=0.05, clustering_min_genes=0, num_clusters=3,
                               cellTypeListFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/metadata/cell_types_for_de_filtering_plot.txt",
                               data_cache_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache") {
 
@@ -28,6 +28,232 @@ eqtl_filtering_plot<-function (data_dir="/broad/bican_um1_mccarroll/RNAseq/analy
     }
 
 
+    cell_types_to_use <- read.table(cellTypeListFile, header=FALSE, stringsAsFactors=FALSE)[,1]
+    df <- df[df$cell_type %in% cell_types_to_use, ]
+    missing=setdiff(cell_types_to_use, df$cell_type)
+    if (length(missing)>0) {
+        missing_list=paste(missing, collapse=', ')
+        logger::log_warn("The following cell types were requested but not found in the data: {missing_list}")
+    }
+
+    #change the baseline name and comparison name to match the DE analysis
+    df$baseline_level <- gsub("LEVEL_", "", df$baseline_name)
+    df$comparison_level <- gsub("LEVEL_", "", df$comparison_name)
+
+    df_filtered=df[df$n_baseline_only_egenes>=clustering_min_genes, ]
+
+
+    # Steve has asked to include level 0 - this is a temporary hack until that's approved as the
+    # best way to visualize data.
+    df2=.add_baseline_comparison_level_eqtl (df_filtered)
+    res <- bican.mccarroll.eqtl::eqtl_cluster_filtering_trajectories(df, value_col = "yield", K = 4, title="Change in number of eGenes discovered compared to baseline")
+    #res <- bican.mccarroll.differentialexpression::cluster_filtering_trajectories(df2, K = num_clusters)
+    p<- make_filtering_cluster_panels(df2, res$clusters, legend_scale=0.8)
+
+    if (!is.null(outDir)) {
+        output_svg <- file.path(outDir, "de_filtering_plot.svg")
+        ggplot2::ggsave(filename = output_svg, plot = p, device = "svg", width = 8, height = 8)
+    }
+
+
+}
+
+plot_eqtl_filtering_examples<-function (cell_type_list=c("astrocyte", "microglia", "MSN_D1", "OPC"),
+                                        region="CaH",
+                                        baseline_data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_3",
+                                        comparison_data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_4",
+                                        baseline_name="LEVEL 3", comparison_name="LEVEL 4",
+                                        outDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
+                                        data_cache_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache") {
+
+    #this is slightly different than other internal functions with the same names to tune
+    #these particular plots.
+    make_celltype_row <- function(p_left, p_right, label, strip_size = 14, gutter = 8) {
+        p_left  <- p_left  + ggplot2::labs(title = NULL) +
+            ggplot2::theme(plot.margin = ggplot2::margin(0, gutter, 0, 0))  # add right margin
+
+        p_right <- p_right + ggplot2::labs(title = NULL) +
+            ggplot2::theme(plot.margin = ggplot2::margin(0, 0, 0, gutter))  # optional: add left margin
+
+        panels <- cowplot::plot_grid(p_left, p_right, ncol = 2, align = "hv", axis = "tblr")
+
+        strip <- cowplot::ggdraw() +
+            cowplot::draw_label(label, fontface = "bold", size = strip_size, x = 0.5)
+
+        cowplot::plot_grid(strip, panels, ncol = 1, rel_heights = c(0.1, 1))
+    }
+
+    df=get_all_eqtl_filtering_example_data(cell_type_list=cell_type_list, region=region, baseline_data_dir=baseline_data_dir,
+                                         comparison_data_dir=comparison_data_dir, baseline_name=baseline_name,
+                                         comparison_name=comparison_name, data_cache_dir=data_cache_dir)
+
+    plot_list <- list()
+    for (ct in cell_type_list) {
+
+        d=df[df$cell_type == ct,]
+
+        p1<-bican.mccarroll.eqtl::plot_pair_effects(
+            effect_dt = d,
+            cell_type_A = baseline_name,
+            cell_type_B = comparison_name,
+            region = region,
+            annot_size=2.5
+        )
+
+        p2<-bican.mccarroll.eqtl::plot_pair_pvals(
+            effect_dt = d,
+            cell_type_A = baseline_name,
+            cell_type_B = comparison_name,
+            region = region,
+            annot_size=2.5
+        )
+
+        #bind plots together
+        ct_lab <- gsub("_", " ", ct, fixed = TRUE)
+        plot_list[[ct]] <- make_celltype_row(p1, p2, ct_lab)
+    }
+
+    #make one big plot and save as SVG
+    # If you have N plots, give each row less vertical real estate by increasing output height,
+    # or explicitly control rel_heights:
+    combined_plot <- cowplot::plot_grid(plotlist = plot_list, ncol = 2)
+
+    ggplot2::ggsave(
+        filename = file.path(outDir, "eqtl_filtering_cell_type_examples.svg"),
+        plot = combined_plot, device = "svg", width = 12, height = 6
+    )
+
+
+
+}
+
+get_all_eqtl_filtering_example_data<-function (cell_type_list=c("astrocyte", "microglia", "MSN_D1", "OPC"),
+                                        region="CaH",
+                                        baseline_data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_3",
+                                        comparison_data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_4",
+                                        baseline_name="LEVEL 3", comparison_name="LEVEL 4",
+                                        data_cache_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache") {
+
+
+    df_list <- list()
+    for (cell_type in cell_type_list) {
+        logger::log_info("Getting data for cell type {cell_type} for eQTL filtering example plot")
+        df_list[[cell_type]] <- get_eqtl_filtering_example_data(cell_type=cell_type, region=region, baseline_data_dir=baseline_data_dir,
+                                                               comparison_data_dir=comparison_data_dir, baseline_name=baseline_name,
+                                                                    comparison_name=comparison_name, data_cache_dir=data_cache_dir)
+    }
+    df_all <- do.call(rbind, df_list)
+
+    #will need to be a data table later.
+    data.table::setDT(df_all)
+    return(df_all)
+}
+
+get_eqtl_filtering_example_data<-function (cell_type="astrocyte", region="CaH",
+                                       baseline_data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_3",
+                                       comparison_data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_4",
+                                       baseline_name="LEVEL 3", comparison_name="LEVEL 4",
+                                       file_separator="__", fdr_threshold=0.05,
+                                       data_cache_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache") {
+
+
+    cache_name<-paste0(paste("eqtl_filtering_example_cache_", cell_type, region, baseline_name, comparison_name, sep="_"),".txt")
+    cache_name<-gsub(" ", "_", cache_name, fixed=TRUE)
+    cache_file <- file.path(data_cache_dir, cache_name)
+
+    if (file.exists(cache_file)) {
+        logger::log_info("Using cached data from {cache_file}")
+        df=read.table(cache_file, header=TRUE, sep="\t", stringsAsFactors=FALSE)
+        return (df)
+    }
+    logger::log_info("No cached data file found {cache_file}")
+
+    index_file=paste0(baseline_data_dir,"/", cell_type, file_separator, region, "/", cell_type, file_separator, region, ".cis_qtl_ann.txt.gz")
+    index_file_comparison=paste0(comparison_data_dir,"/", cell_type, file_separator, region, "/", cell_type, file_separator, region, ".cis_qtl_ann.txt.gz")
+    all_pairs_file=paste0(baseline_data_dir,"/", cell_type, file_separator, region, "/", cell_type, file_separator, region, ".cis_qtl_pairs.txt.gz")
+    all_pairs_file_comparison=paste0(comparison_data_dir,"/", cell_type, file_separator, region, "/", cell_type, file_separator, region, ".cis_qtl_pairs.txt.gz")
+
+    idx_A <- bican.mccarroll.eqtl::read_index_file(index_file, colsToKeep = c("gene_name", "variant_id", "slope", "qval", "pval_nominal"))
+    idx_B <- bican.mccarroll.eqtl::read_index_file(index_file_comparison, colsToKeep = c("gene_name", "variant_id", "slope", "qval", "pval_nominal"))
+    ap_A <- bican.mccarroll.eqtl::read_all_pairs_file(all_pairs_file, colsToKeep = c("phenotype_id", "variant_id", "slope", "pval_nominal"))
+    ap_B <- bican.mccarroll.eqtl::read_all_pairs_file(all_pairs_file_comparison, colsToKeep = c("phenotype_id", "variant_id", "slope", "pval_nominal"))
+
+    sig_A <- bican.mccarroll.eqtl::filter_significant_index(idx_A, fdr_threshold = fdr_threshold)
+    sig_B <- bican.mccarroll.eqtl::filter_significant_index(idx_B, fdr_threshold = fdr_threshold)
+
+    ref <- bican.mccarroll.eqtl::select_reference_pairs(sig_A = sig_A, sig_B = sig_B)
+
+    eff <- bican.mccarroll.eqtl::build_pair_effect_table(
+        ref_dt = ref,
+        all_pairs_A = ap_A,
+        all_pairs_B = ap_B,
+        value_col = "slope"
+    )
+
+    pvals<-bican.mccarroll.eqtl::build_pair_effect_table(
+        ref_dt = ref,
+        all_pairs_A = ap_A,
+        all_pairs_B = ap_B,
+        value_col = "pval_nominal"
+    )
+
+    df=.merge_eqtl_effects_and_pvals(
+        eff = eff,
+        pvals = pvals,
+        cell_type = cell_type,
+        region = region,
+        baseline_name = baseline_name,
+        comparison_name = comparison_name
+    )
+
+    write.table(df, file=cache_file, sep="\t", row.names=FALSE, quote=FALSE)
+    return (df)
+
+
+}
+
+.merge_eqtl_effects_and_pvals <- function(eff,
+                                         pvals,
+                                         cell_type,
+                                         region,
+                                         baseline_name,
+                                         comparison_name) {
+
+    key_cols <- c("gene_name", "variant_id")
+
+    if (!all(key_cols %in% names(eff))) {
+        stop("eff must contain: gene_name, variant_id")
+    }
+    if (!all(key_cols %in% names(pvals))) {
+        stop("pvals must contain: gene_name, variant_id")
+    }
+
+    eff_dt <- data.table::as.data.table(eff)
+    pval_dt <- data.table::as.data.table(pvals)
+
+    merged <- merge(
+        eff_dt,
+        pval_dt,
+        by = key_cols,
+        all.x = TRUE,
+        sort = FALSE
+    )
+
+    # Add fixed metadata columns
+    merged[, cell_type := cell_type]
+    merged[, region := region]
+    merged[, baseline_name := baseline_name]
+    merged[, comparison_name := comparison_name]
+
+    # Put metadata first
+    meta_cols <- c("cell_type", "region",
+                   "baseline_name", "comparison_name",
+                   key_cols)
+    other_cols <- setdiff(names(merged), meta_cols)
+
+    merged <- merged[, c(meta_cols, other_cols), with = FALSE]
+
+    merged
 }
 
 
@@ -69,7 +295,7 @@ de_filtering_plot<-function (
 
     # Steve has asked to include level 0 - this is a temporary hack until that's approved as the
     # best way to visualize data.
-    df2=.add_baseline_comparison_level (df_filtered)
+    df2=.add_baseline_comparison_level_de (df_filtered)
     res <- bican.mccarroll.differentialexpression::cluster_filtering_trajectories(df2, K = num_clusters)
     p<- make_filtering_cluster_panels(df2, res$clusters, legend_scale=0.8)
 
@@ -247,7 +473,7 @@ make_filtering_cluster_panels <- function(
 }
 
 
-.add_baseline_comparison_level <- function(df) {
+.add_baseline_comparison_level_de <- function(df) {
     ## Expect exactly one non-zero comparison level per (cell_type, base_level)
     ## Baseline rows are copied from comparison_level == 1
 
@@ -270,3 +496,22 @@ make_filtering_cluster_panels <- function(
     rbind(baseline, df)
 }
 
+.add_baseline_comparison_level_eqtl <- function(df) {
+    ## Expect exactly one non-zero comparison level per (cell_type, base_level)
+    ## Baseline rows are copied from comparison_level == 1
+
+    df_lvl1 <- df[df$comparison_level == 1, , drop = FALSE]
+
+    baseline <- df_lvl1
+
+    baseline$comparison_level <- 0
+
+    baseline$egene_jaccard_index <- 1
+    baseline$abs_slope_cor_val <- 1
+    baseline$qvalue_cor_val <- 1
+    baseline$yield <- 1
+
+    baseline$num_genes_significant_new <- baseline$num_genes_significant_old
+
+    rbind(baseline, df)
+}
