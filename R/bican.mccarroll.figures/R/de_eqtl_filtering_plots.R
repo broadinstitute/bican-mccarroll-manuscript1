@@ -1,5 +1,5 @@
-library (ggplot2)
-library (svglite)
+# library (ggplot2)
+# library (svglite)
 
 
 
@@ -480,10 +480,22 @@ plot_de_filtering_examples<-function (cell_type_list=c("astrocyte", "microglia",
                                       baseline_name="LEVEL 3", comparison_name="LEVEL 4",
                                       outDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository") {
 
-    make_celltype_row <- function(p_left, p_right, label, strip_size = 14) {
-        p_left  <- p_left  + ggplot2::labs(title = NULL) +
+    make_celltype_row <- function(p_left, p_right, label, strip_size = 14,
+                                  axis_title_size = 9,
+                                  axis_text_size = 7) {
+
+        axis_theme <- ggplot2::theme(
+            axis.title = ggplot2::element_text(size = axis_title_size)
+        )
+
+        p_left  <- p_left  +
+            ggplot2::labs(title = NULL) +
+            axis_theme +
             ggplot2::theme(plot.margin = ggplot2::margin(0, 0, 0, 0))
-        p_right <- p_right + ggplot2::labs(title = NULL) +
+
+        p_right <- p_right +
+            ggplot2::labs(title = NULL) +
+            axis_theme +
             ggplot2::theme(plot.margin = ggplot2::margin(0, 0, 0, 0))
 
         panels <- cowplot::plot_grid(p_left, p_right, ncol = 2, align = "hv", axis = "tblr")
@@ -491,7 +503,6 @@ plot_de_filtering_examples<-function (cell_type_list=c("astrocyte", "microglia",
         strip <- cowplot::ggdraw() +
             cowplot::draw_label(label, fontface = "bold", size = strip_size, x = 0.5)
 
-        # Small strip on top, panels below; strip gets very little height
         cowplot::plot_grid(strip, panels, ncol = 1, rel_heights = c(0.1, 1))
     }
 
@@ -516,7 +527,7 @@ plot_de_filtering_examples<-function (cell_type_list=c("astrocyte", "microglia",
 
     ggplot2::ggsave(
         filename = file.path(outDir, "de_filtering_cell_type_examples.svg"),
-        plot = combined_plot, device = "svg", width = 12, height = 6  # try smaller height first
+        plot = combined_plot, device = "svg", width = 14, height = 7  # try smaller height first
     )
 
 }

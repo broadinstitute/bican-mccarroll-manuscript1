@@ -64,7 +64,7 @@ plot_sample_covariate_correlations<-function (
     rownames(corr_matrix) <- as.vector(pretty_map[rownames(corr_matrix)])
 
     groups <- list(
-        donor  = c("Imputed sex", "Biobank", "Age", "PC1", "PC2", "PC3", "PC4", "PC5", "Toxicology group", "HBCAC status", "PMI (hours)"),
+        donor  = c("Imputed sex", "Biobank", "Age", "Genetic PC1", "Genetic PC2", "Genetic PC3", "Genetic PC4", "Genetic PC5", "Toxicology group", "HBCAC status", "PMI (hours)"),
         sample = c("Region", "Single-cell assay"),
         cell   = c("Percent intronic", "Fraction contamination")
     )
@@ -138,11 +138,11 @@ get_pretty_feature_names <- function(vars) {
         pmi_hr              = "PMI (hours)",
         pct_intronic        = "Percent intronic",
         frac_contamination  = "Fraction contamination",
-        PC1                 = "PC1",
-        PC2                 = "PC2",
-        PC3                 = "PC3",
-        PC4                 = "PC4",
-        PC5                 = "PC5"
+        PC1                 = "Genetic PC1",
+        PC2                 = "Genetic PC2",
+        PC3                 = "Genetic PC3",
+        PC4                 = "Genetic PC4",
+        PC5                 = "Genetic PC5"
     )
 
     pretty <- manual_map[vars]

@@ -655,11 +655,11 @@ compare_age_de_run <- function (cell_type,
     x_range_fdr <- range(merged$neg_log10_fdr_old, na.rm = TRUE)
     y_range_fdr <- range(merged$neg_log10_fdr_new, na.rm = TRUE)
 
-    x_pos_fdr <- x_range_fdr[1L] + 0.02 * diff(x_range_fdr)
-    y_pos_fdr <- y_range_fdr[2L] - 0.02 * diff(y_range_fdr)
-
     lim_fdr <- range(c(merged$neg_log10_fdr_old, merged$neg_log10_fdr_new),
                      na.rm = TRUE)
+
+    x_pos_fdr <- lim_fdr[1L] + 0.02 * diff(lim_fdr)
+    y_pos_fdr <- lim_fdr[2L] - 0.02 * diff(lim_fdr)
 
     #Make R CMD CHECK happy
     neg_log10_fdr_old<-neg_log10_fdr_new<-NULL
@@ -677,11 +677,9 @@ compare_age_de_run <- function (cell_type,
                  size = 4) +
         labs(
             title = paste0("Age FDR: ", cell_type, "\n", strTitleSuffix),
-            x = paste0("-log10(FDR) ", baseline_name, ""),
-            y = paste0("-log10(FDR) ", comparison_name, "")
+            x = paste0("log10(BH-adjusted p-value) ", baseline_name, ""),
+            y = paste0("log10(BH-adjusted p-value) ", comparison_name, "")
         ) +
-
-
         coord_fixed(xlim = lim_fdr, ylim = lim_fdr) +
         theme_bw()
 

@@ -301,16 +301,12 @@ predict_age_by_celltype_region <- function(data_dir, data_name, result_dir, age_
 
             plot_list <- age_prediction_qc_plots(r, cellType, region=region)
 
-            # plot_list$mc_donor_pred_plot <- plot_mc_donor_predictions(
-            #     outputs_list[[key]]$donor_predictions,
-            #     gam_fit_df = outputs_list[[key]]$gam_fit_df)
-
             plot_list$mc_donor_pred_plot <- plot_mc_donor_predictions_report(
                 outputs_list[[key]]$donor_predictions,
-                gam_fit_df = outputs_list[[key]]$gam_fit_df)
+                gam_fit_df = outputs_list[[key]]$gam_fit_df)$combined_plot
 
             for (p in plot_list) {
-                if (!is.null(p)) {
+                if (!is.null(p) & !is.null(outPDFFile)) {
                     print(p)
                 }
             }
@@ -1028,7 +1024,7 @@ plot_model_vs_de <- function(final_model, age_de_results, cellType = NULL, featu
 #' @param errorbar_width Width for \code{geom_errorbar()}.
 #'
 #' @return A ggplot object.
-#'
+#' @export
 plot_mc_donor_predictions <- function(donor_predictions,
                                       gam_fit_df = NULL,
                                       y_var = "pred_mean",
@@ -1138,7 +1134,41 @@ plot_mc_donor_predictions <- function(donor_predictions,
 }
 
 
-#convenience wrapper for plotting both raw and bias-corrected predictions side-by-side
+#' Generate a donor-level prediction report with raw and bias-corrected panels
+#'
+#' This function produces a two-panel report summarizing donor-level model
+#' predictions before and after age-bias correction. The top panel displays
+#' raw predicted values (which may exhibit age-dependent bias), and the
+#' bottom panel displays bias-corrected predictions. In both panels,
+#' points are colored by residuals to visualize model deviation patterns.
+#'
+#' The input data should be for a single grouping the model was trained on,
+#' for example cell type and region.
+#'
+#' Internally, the function calls \code{plot_mc_donor_predictions()} twice:
+#' once using the original predicted values and GAM fit (for raw predictions),
+#' and once using the bias-corrected predictions without overlaying the GAM fit.
+#' The two plots are then vertically stacked using \code{cowplot::plot_grid()}.
+#'
+#' @param donor_predictions A data.frame containing donor-level predictions
+#'   and residuals. Must contain columns \code{pred_mean},
+#'   \code{pred_mean_corrected}, \code{resid_mean}, and
+#'   \code{resid_mean_corrected}, along with any additional columns required
+#'   by \code{plot_mc_donor_predictions()}.
+#' @param gam_fit_df A data.frame containing fitted GAM values for overlay
+#'   in the raw prediction panel. This is passed directly to
+#'   \code{plot_mc_donor_predictions()}. Set to \code{NULL} if no GAM fit
+#'   should be shown.
+#'
+#' @return A named list containing:
+#'   \itemize{
+#'     \item \code{raw_plot}: The ggplot object showing raw predictions.
+#'     \item \code{corrected_plot}: The ggplot object showing bias-corrected predictions.
+#'     \item \code{combined_plot}: A vertically stacked ggplot object containing both panels.
+#'   }
+#'
+#'
+#' @export
 plot_mc_donor_predictions_report <- function(donor_predictions,
                                              gam_fit_df) {
 
@@ -1163,13 +1193,18 @@ plot_mc_donor_predictions_report <- function(donor_predictions,
     ) +
         ggplot2::labs(subtitle = "Bias-corrected predictions")
 
-    cowplot::plot_grid(
+    p_both=cowplot::plot_grid(
         p_raw,
         p_corr,
         ncol = 1,
         nrow = 2,
         align = "v"
     )
+
+    result=list(raw_plot=p_raw,
+                corrected_plot=p_corr,
+                combined_plot=p_both)
+    return (result)
 }
 
 
