@@ -6,7 +6,7 @@
 \usage{
 compare_all_eQTL_runs(
   data_dir,
-  outDir,
+  outDir = NULL,
   filter_levels = c(0, 1, 2, 3, 4),
   fdr_threshold = 0.05,
   cache_dir
@@ -17,7 +17,8 @@ compare_all_eQTL_runs(
 subdirectories.}
 
 \item{outDir}{Character scalar. Output directory for per-comparison PDFs and
-summary statistics files.}
+summary statistics files.  If the output directory is NULL, this
+function returns the combined summary statistics dataframe.}
 
 \item{filter_levels}{Integer vector. Filtering levels to compare. The first
 element is used as the baseline level; each subsequent element is compared
@@ -39,4 +40,9 @@ Iterates over a set of filtering levels (e.g., LEVEL_0, LEVEL_1, ...) and
 performs pairwise comparisons between the first level (baseline) and each
 subsequent level. For each comparison, summary statistics are collected and
 written to a tab-delimited file in \code{outDir}.
+}
+\details{
+If an output directory is set, this will emit PDFs both for within-level
+pair comparisons as well as a full cross-level summary reports and PDFs.
+If null, this function will return only the summary level dataframe.
 }

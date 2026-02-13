@@ -41,8 +41,10 @@
 #'   \code{\link{select_marker_genes}} (also written to \code{markerGeneReportFile}).
 #'
 #' @export
+#' @inheritParams find_marker_genes
 select_marker_genes_from_files<-function (data_dir, data_name, cellTypeListFile=NULL, markerGeneReportFile,
-                                          high_expression_threshold=10, fold_change=10) {
+                                          high_expression_threshold=10, fold_change=10,
+                                          method = c("one_vs_all", "target_vs_outgroup")) {
 
     #validate the outputs are writable
     validate_writable_file(markerGeneReportFile)
@@ -54,7 +56,9 @@ select_marker_genes_from_files<-function (data_dir, data_name, cellTypeListFile=
     #perform the test, write the output.
     marker_gene_df<-select_marker_genes (dge, annotation_column = "cell_type",
                                          high_expression_threshold=high_expression_threshold,
-                                         fold_change=fold_change, markerGeneReportFile=markerGeneReportFile)
+                                         fold_change=fold_change, method=method,
+                                         markerGeneReportFile=markerGeneReportFile)
+
 }
 
 #' Select marker genes by annotation group (DGEList interface)
@@ -109,10 +113,12 @@ select_marker_genes_from_files<-function (data_dir, data_name, cellTypeListFile=
 #'   }
 #'
 #' @export
+#' @inheritParams find_marker_genes
 select_marker_genes <- function(dgeList,
                                 annotation_column = "cell_type",
                                 high_expression_threshold = 10,
                                 fold_change = 10,
+                                method = c("one_vs_all", "target_vs_outgroup"),
                                 markerGeneReportFile = NULL) {
     dge <- simplify_dge_for_marker_genes(dgeList)
 
@@ -140,7 +146,8 @@ select_marker_genes <- function(dgeList,
             targetAnnotation = targetAnnotation,
             annotation_column = annotation_column,
             high_expression_threshold = high_expression_threshold,
-            fold_change = fold_change
+            fold_change = fold_change,
+            method = method
         )
 
         outputs_list[[targetAnnotation]] <- marker_genes
@@ -162,58 +169,83 @@ select_marker_genes <- function(dgeList,
 
 
 
-.validate_find_marker_genes_inputs <- function(dge,
-                                               targetAnnotation,
-                                               annotation_column,
-                                               high_expression_threshold,
-                                               fold_change) {
-    if (is.null(dge) || is.null(dge$counts) || is.null(dge$samples)) {
-        stop("dge must be a DGEList with $counts and $samples.", call. = FALSE)
-    }
-    if (!("donor" %in% colnames(dge$samples))) {
-        stop("dge$samples must contain a 'donor' column.", call. = FALSE)
-    }
-    if (length(annotation_column) != 1 || is.na(annotation_column) || !nzchar(annotation_column)) {
-        stop("annotation_column must be a single, non-empty string.", call. = FALSE)
-    }
-    if (!(annotation_column %in% colnames(dge$samples))) {
-        stop("dge$samples must contain annotation_column='", annotation_column, "'.", call. = FALSE)
-    }
-    if (length(targetAnnotation) != 1 || is.na(targetAnnotation) || !nzchar(targetAnnotation)) {
-        stop("targetAnnotation must be a single, non-empty string.", call. = FALSE)
-    }
-    if (!is.numeric(high_expression_threshold) || length(high_expression_threshold) != 1 ||
-        is.na(high_expression_threshold) || high_expression_threshold < 0) {
-        stop("high_expression_threshold must be a single non-negative number.", call. = FALSE)
-    }
-    if (!is.numeric(fold_change) || length(fold_change) != 1 ||
-        is.na(fold_change) || fold_change <= 0) {
-        stop("fold_change must be a single positive number.", call. = FALSE)
-    }
-
-    ann <- as.character(dge$samples[[annotation_column]])
-    idx_target <- which(ann == targetAnnotation)
-    if (length(idx_target) == 0) {
-        stop("No samples found with ", annotation_column, " == ", targetAnnotation, ".", call. = FALSE)
-    }
-
-    invisible(TRUE)
-}
-
-# dge is already collapsed to one observation per donor/cell_type.
-# This returns a named integer vector mapping donor -> column index.
-.donor_index <- function(donors) {
-    donors <- as.character(donors)
-    idx <- match(unique(donors), donors)
-    names(idx) <- donors[idx]
-    idx
-}
-
+#' Identify marker genes for a target annotation using donor-level comparisons
+#'
+#' This function identifies genes that robustly distinguish a specified
+#' `targetAnnotation` from other annotation values in a donor-collapsed
+#' `edgeR::DGEList`. Expression is evaluated per donor using CPM, and genes are
+#' ranked based on the number of donors that satisfy both a minimum expression
+#' threshold in the target group and a minimum fold-change relative to a
+#' comparator group.
+#'
+#' Two comparison strategies are supported via the `method` argument:
+#'
+#' \itemize{
+#'   \item \strong{`"one_vs_all"`}: For each non-target annotation value, the
+#'   target group is compared pairwise against that annotation within donors.
+#'   For each gene, the "worst" comparison (the one with the greatest number of
+#'   failing donors, breaking ties by lowest median fold-change) is selected.
+#'   This emphasizes genes that remain well separated even from their closest
+#'   competing annotation.
+#'
+#'   \item \strong{`"target_vs_outgroup"`}: For each donor, raw counts from all
+#'   non-target annotations are summed to form a single aggregated outgroup.
+#'   A temporary DGEList is constructed with per-donor ingroup and outgroup
+#'   counts, CPM is recomputed, and a single comparison (ingroup vs aggregated
+#'   outgroup) is performed. This corresponds to a conventional in-group versus
+#'   pooled out-group marker analysis.
+#' }
+#'
+#' In both methods, genes are summarized by the median fold-change across
+#' donors and the number of donors passing expression and fold-change
+#' thresholds. Results are sorted by decreasing number of passing donors and
+#' decreasing median fold-change.
+#'
+#' @param dge A donor-collapsed \code{edgeR::DGEList} with one column per
+#'   donor/annotation combination. The \code{samples} slot must contain
+#'   columns for \code{donor} and \code{annotation_column}.
+#' @param targetAnnotation A single annotation value identifying the target
+#'   group.
+#' @param annotation_column Character scalar giving the column in
+#'   \code{dge$samples} that defines annotation labels. Default is
+#'   \code{"cell_type"}.
+#' @param high_expression_threshold Minimum CPM required in the target group
+#'   (per donor) to count as expressed. Default is 10.
+#' @param fold_change Minimum fold-change (target / comparator) required per
+#'   donor to count as passing. Default is 10.
+#' @param method Character scalar specifying the comparison strategy. Must be
+#'   one of \code{"one_vs_all"} or \code{"target_vs_outgroup"}.
+#'
+#' @return A data.frame with one row per gene containing:
+#'   \itemize{
+#'     \item \code{gene}: Gene identifier.
+#'     \item \code{annotation_column}: Name of the annotation column used.
+#'     \item \code{target_annotation}: The target annotation value.
+#'     \item \code{closest_annotation}: The most challenging comparator
+#'       (for \code{"one_vs_all"}) or \code{"outgroup"} (for
+#'       \code{"target_vs_outgroup"}).
+#'     \item \code{median_cpm_target}: Median CPM across donors in the target
+#'       group.
+#'     \item \code{median_fold_change_across_donors}: Median fold-change across
+#'       donors.
+#'     \item \code{n_donors_expr}: Number of donors with target CPM above the
+#'       expression threshold.
+#'     \item \code{n_donors_fc_pass}: Number of donors exceeding the
+#'       fold-change threshold.
+#'     \item \code{n_donors_pass}: Number of donors satisfying both criteria.
+#'     \item \code{n_donors_fail}: Number of donors failing one or both
+#'       criteria.
+#'   }
+#'
+#' @export
 find_marker_genes <- function(dge,
                               targetAnnotation,
                               annotation_column = "cell_type",
                               high_expression_threshold = 10,
-                              fold_change = 10) {
+                              fold_change = 10,
+                              method = c("one_vs_all", "target_vs_outgroup")) {
+    method <- match.arg(method)
+
     .validate_find_marker_genes_inputs(
         dge,
         targetAnnotation = targetAnnotation,
@@ -222,6 +254,37 @@ find_marker_genes <- function(dge,
         fold_change = fold_change
     )
 
+    if (method == "one_vs_all") {
+        return(.find_marker_genes_one_vs_all(
+            dge = dge,
+            targetAnnotation = targetAnnotation,
+            annotation_column = annotation_column,
+            high_expression_threshold = high_expression_threshold,
+            fold_change = fold_change
+        ))
+    }
+
+    if (method == "target_vs_outgroup") {
+        return(.find_marker_genes_target_vs_outgroup(
+            dge = dge,
+            targetAnnotation = targetAnnotation,
+            annotation_column = annotation_column,
+            high_expression_threshold = high_expression_threshold,
+            fold_change = fold_change
+        ))
+    }
+
+    stop("Unknown method.", call. = FALSE)
+}
+
+#############################
+# MARKER GENE FINDER MAIN METHODS
+##############################
+.find_marker_genes_one_vs_all <- function(dge,
+                                          targetAnnotation,
+                                          annotation_column,
+                                          high_expression_threshold,
+                                          fold_change) {
     samp <- dge$samples
     ann <- as.character(samp[[annotation_column]])
 
@@ -229,7 +292,6 @@ find_marker_genes <- function(dge,
 
     idx_target <- which(ann == targetAnnotation)
     cpm_target <- cpm_mat[, idx_target, drop = FALSE]
-
     median_cpm_target <- apply(cpm_target, 1, stats::median, na.rm = TRUE)
 
     other_ann_values <- setdiff(unique(ann), targetAnnotation)
@@ -244,48 +306,23 @@ find_marker_genes <- function(dge,
         idx_other <- which(ann == ct)
         if (length(idx_other) == 0) next
 
-        # Extract CPM matrix for the other annotation value, keeping one column per donor
+        # Kept for compatibility if donor is duplicated within a ct (should not happen in your intended input).
         donors_other <- as.character(samp$donor[idx_other])
         idx_other_by_donor <- .donor_index(donors_other)
         cpm_other <- cpm_mat[, idx_other[idx_other_by_donor], drop = FALSE]
 
-        # Restrict to donors present in both the target and comparison groups
         common_donors <- intersect(colnames(cpm_target), colnames(cpm_other))
         if (length(common_donors) == 0) next
 
         tmat <- cpm_target[, common_donors, drop = FALSE]
         omat <- cpm_other[, common_donors, drop = FALSE]
 
-        # Compute per-donor fold change and pass/fail status for each gene
-        ratio <- tmat / omat
-        ratio[omat == 0 & tmat > 0] <- Inf
-        ratio[omat == 0 & tmat == 0] <- NA_real_
-
-        # Donors with sufficient absolute expression in target
-        expr_pass <- tmat > high_expression_threshold
-
-        # Donors with sufficient fold change
-        fc_pass <- ratio > fold_change
-
-        # Donors passing both criteria
-        pass <- expr_pass & fc_pass
-        fail <- !pass
-
-        # Summarize per-gene statistics for this target/other comparison
-        per_ct[[ct]] <- data.frame(
-            gene = rownames(cpm_mat),
-            other_annotation = ct,
-            median_fc = apply(ratio, 1, function(x) {
-                x <- x[!is.na(x)]
-                if (length(x) == 0) return(NA_real_)
-                xf <- x[is.finite(x)]
-                if (length(xf) > 0) stats::median(xf, na.rm = TRUE) else Inf
-            }),
-            n_donors_expr = apply(expr_pass, 1, function(x) sum(x, na.rm = TRUE)),
-            n_donors_fc_pass = apply(fc_pass, 1, function(x) sum(x, na.rm = TRUE)),
-            n_donors_pass = apply(pass, 1, function(x) sum(x, na.rm = TRUE)),
-            n_donors_fail = apply(fail, 1, function(x) sum(x, na.rm = TRUE)),
-            stringsAsFactors = FALSE
+        per_ct[[ct]] <- .summarize_marker_comparison(
+            tmat = tmat,
+            omat = omat,
+            high_expression_threshold = high_expression_threshold,
+            fold_change = fold_change,
+            other_annotation = ct
         )
     }
 
@@ -294,8 +331,7 @@ find_marker_genes <- function(dge,
         stop("No target/other comparisons had overlapping donors.", call. = FALSE)
     }
 
-    # Select the worst-case comparison per gene:
-    # maximize number of failing donors, tie-break by lowest median fold change
+    # Worst-case per gene: maximize failing donors, tie-break by lowest median fold change.
     all_ct <- all_ct[with(all_ct, order(gene, -n_donors_fail, median_fc)), ]
     worst <- all_ct[!duplicated(all_ct$gene), ]
 
@@ -320,6 +356,241 @@ find_marker_genes <- function(dge,
     df
 }
 
+.find_marker_genes_target_vs_outgroup <- function(dge,
+                                                  targetAnnotation,
+                                                  annotation_column,
+                                                  high_expression_threshold,
+                                                  fold_change) {
+    dge_tmp <- .build_target_vs_outgroup_dge_tmp(
+        dge = dge,
+        targetAnnotation = targetAnnotation,
+        annotation_column = annotation_column
+    )
+
+    mats <- .split_target_vs_outgroup_mats_from_dge_tmp(
+        dge_tmp = dge_tmp,
+        annotation_column = annotation_column
+    )
+
+    cmp <- .summarize_marker_comparison(
+        tmat = mats$tmat,
+        omat = mats$omat,
+        high_expression_threshold = high_expression_threshold,
+        fold_change = fold_change,
+        other_annotation = "outgroup"
+    )
+
+    median_cpm_target <- apply(mats$tmat, 1, stats::median, na.rm = TRUE)
+
+    df <- data.frame(
+        gene = cmp$gene,
+        annotation_column = annotation_column,
+        target_annotation = targetAnnotation,
+        closest_annotation = "outgroup",
+        median_cpm_target = as.numeric(median_cpm_target[match(cmp$gene, names(median_cpm_target))]),
+        median_fold_change_across_donors = as.numeric(cmp$median_fc),
+        n_donors_expr = as.integer(cmp$n_donors_expr),
+        n_donors_fc_pass = as.integer(cmp$n_donors_fc_pass),
+        n_donors_pass = as.integer(cmp$n_donors_pass),
+        n_donors_fail = as.integer(cmp$n_donors_fail),
+        stringsAsFactors = FALSE
+    )
+
+    df <- df[
+        with(df, order(-n_donors_pass, -median_fold_change_across_donors)),
+    ]
+
+    df
+}
+
+###########################
+# MARKER GENE FINDER HELPER FUNCTIONS
+###########################
+
+# Helper: summarize a single target/comparator comparison given prepared CPM matrices.
+# tmat and omat must be genes x donors with identical colnames (donors) and same ordering.
+.summarize_marker_comparison <- function(tmat,
+                                         omat,
+                                         high_expression_threshold,
+                                         fold_change,
+                                         other_annotation) {
+    if (ncol(tmat) != ncol(omat) || nrow(tmat) != nrow(omat)) {
+        stop("tmat and omat must have the same dimensions.", call. = FALSE)
+    }
+    if (!identical(colnames(tmat), colnames(omat))) {
+        stop("tmat and omat must have identical column names in the same order.", call. = FALSE)
+    }
+    if (!identical(rownames(tmat), rownames(omat))) {
+        stop("tmat and omat must have identical row names in the same order.", call. = FALSE)
+    }
+
+    ratio <- tmat / omat
+    ratio[omat == 0 & tmat > 0] <- Inf
+    ratio[omat == 0 & tmat == 0] <- NA_real_
+
+    expr_pass <- tmat > high_expression_threshold
+    fc_pass <- ratio > fold_change
+    pass <- expr_pass & fc_pass
+    fail <- !pass
+
+    data.frame(
+        gene = rownames(tmat),
+        other_annotation = other_annotation,
+        median_fc = apply(ratio, 1, function(x) {
+            x <- x[!is.na(x)]
+            if (length(x) == 0) return(NA_real_)
+            xf <- x[is.finite(x)]
+            if (length(xf) > 0) stats::median(xf, na.rm = TRUE) else Inf
+        }),
+        n_donors_expr = apply(expr_pass, 1, function(x) sum(x, na.rm = TRUE)),
+        n_donors_fc_pass = apply(fc_pass, 1, function(x) sum(x, na.rm = TRUE)),
+        n_donors_pass = apply(pass, 1, function(x) sum(x, na.rm = TRUE)),
+        n_donors_fail = apply(fail, 1, function(x) sum(x, na.rm = TRUE)),
+        stringsAsFactors = FALSE
+    )
+}
+
+.split_target_vs_outgroup_mats_from_dge_tmp <- function(dge_tmp,
+                                                        annotation_column) {
+    if (is.null(dge_tmp$samples) || !(annotation_column %in% colnames(dge_tmp$samples))) {
+        stop("Temporary DGEList is missing annotation_column in samples.", call. = FALSE)
+    }
+    if (!("donor" %in% colnames(dge_tmp$samples))) {
+        stop("Temporary DGEList is missing 'donor' in samples.", call. = FALSE)
+    }
+
+    ann2 <- as.character(dge_tmp$samples[[annotation_column]])
+    idx_in <- which(ann2 == "ingroup")
+    idx_out <- which(ann2 == "outgroup")
+
+    if (length(idx_in) == 0 || length(idx_out) == 0) {
+        stop("Temporary DGEList must contain both ingroup and outgroup samples.", call. = FALSE)
+    }
+    if (length(idx_in) != length(idx_out)) {
+        stop("Temporary DGEList must have the same number of ingroup and outgroup samples.", call. = FALSE)
+    }
+
+    cpm_tmp <- edgeR::cpm(dge_tmp, log = FALSE)
+
+    tmat <- cpm_tmp[, idx_in, drop = FALSE]
+    omat <- cpm_tmp[, idx_out, drop = FALSE]
+
+    colnames(tmat) <- as.character(dge_tmp$samples$donor[idx_in])
+    colnames(omat) <- as.character(dge_tmp$samples$donor[idx_out])
+
+    common_donors <- intersect(colnames(tmat), colnames(omat))
+    if (length(common_donors) == 0) {
+        stop("No donors had both ingroup and outgroup after construction.", call. = FALSE)
+    }
+
+    tmat <- tmat[, common_donors, drop = FALSE]
+    omat <- omat[, common_donors, drop = FALSE]
+
+    list(
+        tmat = tmat,
+        omat = omat
+    )
+}
+
+.build_target_vs_outgroup_dge_tmp <- function(dge,
+                                              targetAnnotation,
+                                              annotation_column) {
+    samp <- dge$samples
+    ann <- as.character(samp[[annotation_column]])
+    donors <- as.character(samp$donor)
+
+    counts <- dge$counts
+    genes <- rownames(counts)
+    if (is.null(genes)) {
+        stop("dge$counts must have rownames (gene identifiers).", call. = FALSE)
+    }
+
+    elig <- .get_eligible_donors_target_vs_outgroup(
+        ann = ann,
+        donors = donors,
+        targetAnnotation = targetAnnotation
+    )
+
+    keep_donors <- elig$keep_donors
+    target_col_by_donor <- elig$target_col_by_donor
+
+    counts_target <- counts[, target_col_by_donor, drop = FALSE]
+    colnames(counts_target) <- keep_donors
+
+    counts_outgroup <- matrix(0, nrow = nrow(counts), ncol = length(keep_donors))
+    rownames(counts_outgroup) <- genes
+    colnames(counts_outgroup) <- keep_donors
+
+    for (i in seq_along(keep_donors)) {
+        d <- keep_donors[i]
+        idx_d <- which(donors == d)
+        idx_o <- idx_d[ann[idx_d] != targetAnnotation]
+        counts_outgroup[, i] <- rowSums(counts[, idx_o, drop = FALSE])
+    }
+
+    tmp_counts <- cbind(counts_target, counts_outgroup)
+    tmp_colnames <- c(
+        paste(keep_donors, "ingroup", sep = "_"),
+        paste(keep_donors, "outgroup", sep = "_")
+    )
+    colnames(tmp_counts) <- tmp_colnames
+
+    tmp_samples <- data.frame(
+        donor = rep(keep_donors, times = 2),
+        stringsAsFactors = FALSE
+    )
+    tmp_samples[[annotation_column]] <- rep(c("ingroup", "outgroup"), each = length(keep_donors))
+
+    edgeR::DGEList(counts = tmp_counts, samples = tmp_samples)
+}
+
+.get_eligible_donors_target_vs_outgroup <- function(ann,
+                                                    donors,
+                                                    targetAnnotation) {
+    donors <- as.character(donors)
+    ann <- as.character(ann)
+
+    donor_levels <- unique(donors)
+
+    keep_donors <- character(0)
+    target_col_by_donor <- integer(0)
+
+    for (d in donor_levels) {
+        idx_d <- which(donors == d)
+        if (length(idx_d) == 0) next
+
+        idx_t <- idx_d[ann[idx_d] == targetAnnotation]
+        idx_o <- idx_d[ann[idx_d] != targetAnnotation]
+
+        if (length(idx_t) != 1) next
+        if (length(idx_o) < 1) next
+
+        keep_donors <- c(keep_donors, d)
+        target_col_by_donor <- c(target_col_by_donor, idx_t)
+    }
+
+    if (length(keep_donors) == 0) {
+        stop("No donors had both a target sample and at least one outgroup sample.", call. = FALSE)
+    }
+
+    list(
+        keep_donors = keep_donors,
+        target_col_by_donor = target_col_by_donor
+    )
+}
+
+# This returns a named integer vector mapping donor -> column index.
+# (Kept for compatibility; in donor-collapsed inputs this is typically a no-op.)
+.donor_index <- function(donors) {
+    donors <- as.character(donors)
+    idx <- match(unique(donors), donors)
+    names(idx) <- donors[idx]
+    idx
+}
+
+######################
+# OTHER HELPERS
+######################
 
 #simplify the original dge to metacells summarized by donor and cell type.
 #also return the cpm matrix.
@@ -354,122 +625,33 @@ simplify_dge_for_marker_genes<-function (dge, donor_col = "donor") {
     return (dge)
 }
 
+write_marker_genes <- function(df, file,
+                               high_expression_threshold,
+                               fold_change) {
+    con <- file(file, open = "wt")
+    on.exit(close(con), add = TRUE)
 
-plot_marker_gene <- function(gene, target_cell_type, dge, marker_df) {
-    if (!requireNamespace("edgeR", quietly = TRUE)) {
-        stop("edgeR is required.", call. = FALSE)
-    }
-    if (!requireNamespace("ggplot2", quietly = TRUE)) {
-        stop("ggplot2 is required.", call. = FALSE)
-    }
-    if (is.null(dge) || is.null(dge$counts) || is.null(dge$samples)) {
-        stop("dge must be a DGEList with $counts and $samples.", call. = FALSE)
-    }
-    if (!all(c("cell_type", "donor") %in% colnames(dge$samples))) {
-        stop("dge$samples must contain 'cell_type' and 'donor'.", call. = FALSE)
-    }
-
-    gene <- as.character(gene)
-    target_cell_type <- as.character(target_cell_type)
-
-    hit <- marker_df[marker_df$gene == gene & marker_df$target_cell_type == target_cell_type, , drop = FALSE]
-    if (nrow(hit) == 0) {
-        stop("No row in marker_df matches gene='", gene, "' and target_cell_type='", target_cell_type, "'.", call. = FALSE)
-    }
-    if (nrow(hit) > 1) {
-        hit <- hit[1, , drop = FALSE]
-    }
-
-    other_cell_type <- as.character(hit$closest_cell_type)
-
-    samp <- dge$samples
-    idx_t <- which(as.character(samp$cell_type) == target_cell_type)
-    idx_o <- which(as.character(samp$cell_type) == other_cell_type)
-
-    if (length(idx_t) == 0) stop("No samples found for target_cell_type='", target_cell_type, "'.", call. = FALSE)
-    if (length(idx_o) == 0) stop("No samples found for worst_other_cell_type='", other_cell_type, "'.", call. = FALSE)
-
-    cpm_mat <- edgeR::cpm(dge, log = FALSE)
-
-    if (!(gene %in% rownames(cpm_mat))) {
-        stop("Gene '", gene, "' not found in rownames(edgeR::cpm(dge)).", call. = FALSE)
-    }
-
-    donors_t <- as.character(samp$donor[idx_t])
-    donors_o <- as.character(samp$donor[idx_o])
-
-    # If input is properly collapsed, donors are unique per cell type; the match(unique(.), .) keeps one col per donor.
-    idx_t1 <- idx_t[match(unique(donors_t), donors_t)]
-    idx_o1 <- idx_o[match(unique(donors_o), donors_o)]
-
-    t_donors <- as.character(samp$donor[idx_t1])
-    o_donors <- as.character(samp$donor[idx_o1])
-
-    t_vals <- cpm_mat[gene, idx_t1]
-    o_vals <- cpm_mat[gene, idx_o1]
-    names(t_vals) <- t_donors
-    names(o_vals) <- o_donors
-
-    common_donors <- intersect(names(t_vals), names(o_vals))
-    if (length(common_donors) == 0) {
-        stop("No overlapping donors between target and worst other cell type for this gene.", call. = FALSE)
-    }
-
-    plot_df <- data.frame(
-        donor = common_donors,
-        cpm_other = as.numeric(o_vals[common_donors]),
-        cpm_target = as.numeric(t_vals[common_donors]),
-        stringsAsFactors = FALSE
+    # Write parameter header
+    writeLines(
+        paste0(
+            "# high_expression_threshold=", high_expression_threshold,
+            ", fold_change=", fold_change
+        ),
+        con
     )
 
-    title_str <- paste0(gene, ": ", target_cell_type, " vs ", other_cell_type)
-    subtitle_str <- paste0(
-        "n_pass=", as.integer(hit$n_donors_pass),
-        ", median_fc=", format(as.numeric(hit$median_fold_change_across_donors), digits = 4, scientific = FALSE)
+    # Write the table (tab-delimited, with column names)
+    utils::write.table(
+        df,
+        file = con,
+        sep = "\t",
+        row.names = FALSE,
+        col.names = TRUE,
+        quote = FALSE
     )
 
-    # Shared axis limits (log10 scale, CPM values)
-    # Log10 axes cannot include zeros; floor CPM at a small positive value for plotting only.
-    vals_pos <- c(plot_df$cpm_other, plot_df$cpm_target)
-    vals_pos <- vals_pos[is.finite(vals_pos) & vals_pos > 0]
-
-    eps <- if (length(vals_pos) == 0) 1e-3 else min(vals_pos) / 10
-
-    plot_df$cpm_other_plot  <- pmax(plot_df$cpm_other,  eps)
-    plot_df$cpm_target_plot <- pmax(plot_df$cpm_target, eps)
-
-    lims <- range(plot_df$cpm_other_plot, plot_df$cpm_target_plot, na.rm = TRUE)
-
-    # Use the target-cell-type samples to get one lib.size per donor (since the data are one row per donor/cell type).
-    lib_df <- data.frame(
-        donor = as.character(samp$donor[idx_t]),
-        lib_size = as.numeric(samp$lib.size[idx_t]),
-        stringsAsFactors = FALSE
-    )
-
-    plot_df <- merge(plot_df, lib_df, by = "donor", all.x = TRUE, sort = FALSE)
-    plot_df$log10_lib_size <- log10(plot_df$lib_size)
-
-    # MAKE R CMD CHECK Happy
-    cpm_other_plot <- cpm_target_plot <- log10_lib_size <- NULL
-
-    ggplot2::ggplot(plot_df, ggplot2::aes(x = cpm_other_plot, y = cpm_target_plot, color = log10_lib_size)) +
-        ggplot2::geom_point() +
-        ggplot2::geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
-        ggplot2::scale_x_continuous(trans = "log10", limits = lims) +
-        ggplot2::scale_y_continuous(trans = "log10", limits = lims) +
-        ggplot2::coord_equal() +
-        ggplot2::labs(
-            title = title_str,
-            subtitle = subtitle_str,
-            x = paste0(other_cell_type, " CPM (log10 scale)"),
-            y = paste0(target_cell_type, " CPM (log10 scale)"),
-            color = "log10(lib.size)"
-        ) +
-        ggplot2::theme_classic()
-
+    invisible(TRUE)
 }
-
 
 validate_writable_file <- function(x) {
     if (is.null(x)) {
@@ -503,89 +685,39 @@ validate_writable_file <- function(x) {
     invisible(TRUE)
 }
 
-write_marker_genes <- function(df, file,
-                               high_expression_threshold,
-                               fold_change) {
-    con <- file(file, open = "wt")
-    on.exit(close(con), add = TRUE)
+.validate_find_marker_genes_inputs <- function(dge,
+                                               targetAnnotation,
+                                               annotation_column,
+                                               high_expression_threshold,
+                                               fold_change) {
+    if (is.null(dge) || is.null(dge$counts) || is.null(dge$samples)) {
+        stop("dge must be a DGEList with $counts and $samples.", call. = FALSE)
+    }
+    if (!("donor" %in% colnames(dge$samples))) {
+        stop("dge$samples must contain a 'donor' column.", call. = FALSE)
+    }
+    if (length(annotation_column) != 1 || is.na(annotation_column) || !nzchar(annotation_column)) {
+        stop("annotation_column must be a single, non-empty string.", call. = FALSE)
+    }
+    if (!(annotation_column %in% colnames(dge$samples))) {
+        stop("dge$samples must contain annotation_column.", call. = FALSE)
+    }
+    if (length(targetAnnotation) != 1 || is.na(targetAnnotation) || !nzchar(targetAnnotation)) {
+        stop("targetAnnotation must be a single, non-empty string.", call. = FALSE)
+    }
+    if (!is.numeric(high_expression_threshold) || length(high_expression_threshold) != 1 ||
+        is.na(high_expression_threshold) || high_expression_threshold < 0) {
+        stop("high_expression_threshold must be a single non-negative number.", call. = FALSE)
+    }
+    if (!is.numeric(fold_change) || length(fold_change) != 1 ||
+        is.na(fold_change) || fold_change <= 0) {
+        stop("fold_change must be a single positive number.", call. = FALSE)
+    }
 
-    # Write parameter header
-    writeLines(
-        paste0(
-            "# high_expression_threshold=", high_expression_threshold,
-            ", fold_change=", fold_change
-        ),
-        con
-    )
-
-    # Write the table (tab-delimited, with column names)
-    utils::write.table(
-        df,
-        file = con,
-        sep = "\t",
-        row.names = FALSE,
-        col.names = TRUE,
-        quote = FALSE
-    )
-
-    invisible(TRUE)
+    ann <- as.character(dge$samples[[annotation_column]])
+    if (!(targetAnnotation %in% ann)) {
+        stop("targetAnnotation not present in annotation_column.", call. = FALSE)
+    }
 }
 
 
-# adhocSteve<-function (dge) {
-#     dge=prepare_data_for_marker_genes (data_dir, data_name,  cellTypeListFile=NULL, donor_col = "donor")
-#     dge_sst=dge[,dge$samples$cell_type=="GABA_SST"]
-#
-#     cpm_mat <- edgeR::cpm(dge_sst, log = FALSE)
-#     apoe <- as.numeric(cpm_mat["APOE", ])
-#
-#     plot_df <- data.frame(
-#         APOE_CPM = apoe,
-#         sex = factor(
-#             dge_sst$samples$imputed_sex,
-#             levels = c(1, 2),
-#             labels = c("Male", "Female")
-#         ),
-#         stringsAsFactors = FALSE
-#     )
-#
-#     plot_df <- plot_df[is.finite(plot_df$APOE_CPM) & !is.na(plot_df$sex), , drop = FALSE]
-#
-#     # Floor zeros for plotting only (do NOT use this for the test)
-#     vals_pos <- plot_df$APOE_CPM[plot_df$APOE_CPM > 0]
-#     eps <- if (length(vals_pos) == 0) 1e-3 else min(vals_pos) / 10
-#
-#     plot_df$APOE_CPM_plot <- pmax(plot_df$APOE_CPM, eps)
-#
-#     wilcox_res <- stats::wilcox.test(APOE_CPM ~ sex, data = plot_df)
-#
-#     ggplot2::ggplot(plot_df, ggplot2::aes(x = sex, y = APOE_CPM_plot)) +
-#         ggplot2::geom_boxplot(outlier.shape = NA) +
-#         ggplot2::geom_jitter(width = 0.15, height = 0, alpha = 0.6) +
-#         ggplot2::scale_y_continuous(trans = "log10") +
-#         ggplot2::labs(
-#             title = "APOE expression in GABA_SST",
-#             subtitle = paste0(
-#                 "Wilcoxon p=",
-#                 format(wilcox_res$p.value, digits = 3, scientific = TRUE),
-#                 "; n(Male)=", sum(plot_df$sex == "Male"),
-#                 ", n(Female)=", sum(plot_df$sex == "Female")
-#             ),
-#             x = NULL,
-#             y = "APOE CPM (log10 scale)"
-#         ) +
-#         ggplot2::theme_classic()
-#
-# }
-#
-# adhocSteveB<-function () {
-#     d=bican.mccarroll.differentialexpression::prepare_data_for_differential_expression(data_dir, data_name, randVars=c(), fixedVars=c())
-#     dge=d$dge
-#
-#     #subset to a single region.
-#     z=dge[,dge$samples$region=="DFC"]
-#     counts=z$counts
-#     samp=z$samples[, c("donor", "cell_type")]
-#
-#     dge=edgeR::DGEList(counts=counts, samples=samp)
-# }

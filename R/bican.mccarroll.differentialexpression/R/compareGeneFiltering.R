@@ -532,8 +532,7 @@ test_de_inflation <- function(
 #'   dropped genes. Default is \code{0.05}.
 #'
 #' @return A combined plot.
-#' @keywords internal
-#' @noRd
+#' @export
 compare_age_de_run <- function (cell_type,
                                 old_data_dir,
                                 new_data_dir,

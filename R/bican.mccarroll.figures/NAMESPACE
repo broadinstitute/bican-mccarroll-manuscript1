@@ -3,3 +3,8 @@
 export(gather_de_results)
 export(make_joint_inputs)
 export(parse_de_inputs)
+export(plot_de_filtering_examples)
+export(plot_de_filtering_trajectories)
+export(plot_eqtl_filtering_examples)
+export(plot_eqtl_filtering_trajectories)
+export(plot_sample_covariate_correlations)

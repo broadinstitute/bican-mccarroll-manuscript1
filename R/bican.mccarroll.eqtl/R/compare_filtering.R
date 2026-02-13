@@ -11,14 +11,8 @@
 # all_pairs_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_0/MSN__CaH/MSN__CaH.cis_qtl_pairs.txt.gz"
 # all_pairs_file_comparison="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_2/MSN__CaH/MSN__CaH.cis_qtl_pairs.txt.gz"
 
-# baseline_name="LEVEL_0"
-# comparison_name="LEVEL_2"
-
-
-# For the full pipeline run.
-#cache_dir="/downloads/eqtl_cache"
-#fdr_threshold=0.05;filter_levels=c(0,1,2,3)
-#outDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/compare_filtering"
+# baseline_name="LEVEL_3"
+# comparison_name="LEVEL_4"
 
 #Looking at a pair of eQTL results at different filter levels, comparisons:
 #1. Number of eQTLs found in the baseline and comparison levels at FDR<0.05.
@@ -44,10 +38,15 @@
 #' subsequent level. For each comparison, summary statistics are collected and
 #' written to a tab-delimited file in \code{outDir}.
 #'
+#' If an output directory is set, this will emit PDFs both for within-level
+#' pair comparisons as well as a full cross-level summary reports and PDFs.
+#' If null, this function will return only the summary level dataframe.
+#'
 #' @param data_dir Character scalar. Base directory containing \code{LEVEL_<n>}
 #'   subdirectories.
 #' @param outDir Character scalar. Output directory for per-comparison PDFs and
-#'   summary statistics files.
+#'   summary statistics files.  If the output directory is NULL, this
+#'   function returns the combined summary statistics dataframe.
 #' @param filter_levels Integer vector. Filtering levels to compare. The first
 #'   element is used as the baseline level; each subsequent element is compared
 #'   against the baseline.
@@ -64,7 +63,7 @@
 #' @importFrom utils write.table
 #' @import ggrepel
 #' @export
-compare_all_eQTL_runs<-function (data_dir, outDir, filter_levels=c(0,1,2,3,4), fdr_threshold=0.05, cache_dir) {
+compare_all_eQTL_runs<-function (data_dir, outDir=NULL, filter_levels=c(0,1,2,3,4), fdr_threshold=0.05, cache_dir) {
     base_level=filter_levels[1]
     results=list()
     for (i in 1:(length(filter_levels)-1)) {
@@ -72,19 +71,28 @@ compare_all_eQTL_runs<-function (data_dir, outDir, filter_levels=c(0,1,2,3,4), f
         baseline_data_dir=paste(data_dir,"/LEVEL_", base_level, sep="")
         comparison_data_dir=paste(data_dir,"/LEVEL_", comparison_level, sep="")
         logger::log_info(paste0("Comparing eQTL results between LEVEL ", base_level, " and LEVEL ", comparison_level, "\n"))
-        outPDF=paste(outDir, "/compare_eQTL_LEVEL_", base_level, "_vs_LEVEL_", comparison_level, ".pdf", sep="")
-        outSummaryPDF=paste(outDir, "/compare_eQTL_LEVEL_", base_level, "_vs_LEVEL_", comparison_level, ".summary.pdf", sep="")
-        outFile=paste(outDir, "/compare_eQTL_LEVEL_", base_level, "_vs_LEVEL_", comparison_level, ".txt", sep="")
+        outPDF=NULL;outSummaryPDF=NULL;outFile=NULL
+        if (!is.null(outDir)) {
+            outPDF=paste(outDir, "/compare_eQTL_LEVEL_", base_level, "_vs_LEVEL_", comparison_level, ".pdf", sep="")
+            outSummaryPDF=paste(outDir, "/compare_eQTL_LEVEL_", base_level, "_vs_LEVEL_", comparison_level, ".summary.pdf", sep="")
+            outFile=paste(outDir, "/compare_eQTL_LEVEL_", base_level, "_vs_LEVEL_", comparison_level, ".txt", sep="")
+        }
+
         df=compare_eqtl_runs_ctr(baseline_data_dir, comparison_data_dir, fdr_threshold=fdr_threshold, outPDF=outPDF, outSummaryPDF=outSummaryPDF, outFile=outFile, cache_dir=cache_dir)
         results[[i]]=df
     }
+
     df=do.call(rbind, results)
+
+    if (is.null(outDir))
+        return (df)
+
     #Save file summary statistics across all runs for trend plotting.
     write.table(df, file=paste(outDir,"/compare_eQTL_all_levels_stats.txt", sep=""), sep="\t", quote=F, row.names=F)
 
     #summary plots
-    #cross level summary stat plots
-    z <- cluster_filtering_trajectories(df, value_col = "yield", K = 4, title="Change in number of eGenes discovered compared to baseline")
+    #across level summary stat plots
+    z <- eqtl_cluster_filtering_trajectories(df, value_col = "yield", K = 4, title="Change in number of eGenes discovered compared to baseline")
 
     p11<-plot_reduction_vs_initial(df, cluster_df=z$clusters, baseline_name = "LEVEL_0",
                               comparison_name = "LEVEL_3", y_col = "yield", x_col = "n_union_egenes", , point_size=3)
@@ -377,6 +385,54 @@ compare_eqtl_runs<-function (cell_type="MSN", region="CaH", baseline_name, compa
 
 }
 
+#' Compare index-level eQTL results between two conditions
+#'
+#' @description
+#' Generates summary plots and statistics comparing eQTL results between a
+#' baseline and comparison dataset. This includes:
+#' \itemize{
+#'   \item Venn diagrams of genes tested in each condition.
+#'   \item Venn diagrams of significant eGenes (FDR < threshold).
+#'   \item Scatter plots of absolute effect sizes for significant eGenes.
+#'   \item Scatter plots comparing eGene q-values.
+#'   \item QQ and histogram plots assessing p-value inflation in each dataset.
+#' }
+#'
+#' @param index_dt Data frame containing baseline eQTL results.
+#' @param index_comparison_dt Data frame containing comparison eQTL results.
+#' @param baseline_name Character scalar used for labeling baseline plots.
+#' @param comparison_name Character scalar used for labeling comparison plots.
+#' @param fdr_threshold Numeric scalar. FDR cutoff used to define significant
+#'   eGenes. Default is \code{0.05}.
+#'
+#' @details
+#' Significant eGenes are defined as rows with \code{qval < fdr_threshold}.
+#' Effect size comparisons use absolute slopes and are computed over the union
+#' of significant eGenes across both datasets.
+#'
+#' P-value inflation is assessed using the \code{pval_beta} column in each
+#' dataset.
+#'
+#' This function delegates plotting and statistical summaries to helper
+#' functions including \code{plot_gene_venn()},
+#' \code{plot_egene_effect_scatter()},
+#' \code{plot_egene_qval_compare()},
+#' \code{test_eqtl_pval_inflation()}, and
+#' \code{make_compare_index_eqtls_stats_df()}.
+#'
+#' @return
+#' A named list containing:
+#' \describe{
+#'   \item{venn_plot_genes_tested}{Venn diagram of genes tested.}
+#'   \item{venn_plot_eGenes}{Venn diagram of significant eGenes.}
+#'   \item{effect_size_scatter_plot}{Scatter plot of absolute effect sizes.}
+#'   \item{qval_scatter_plot}{Scatter plot comparing q-values.}
+#'   \item{pval_inflation_plots_baseline}{QQ + histogram plot for baseline.}
+#'   \item{pval_inflation_plots_comparison}{QQ + histogram plot for comparison.}
+#'   \item{stats_df}{Data frame summarizing comparison statistics.}
+#' }
+#'
+#' @export
 compare_index_eqtls<-function (index_dt, index_comparison_dt, baseline_name, comparison_name, fdr_threshold=0.05) {
     #how many total genes tested? (barplot 1)
     z=plot_gene_venn(index_dt, index_comparison_dt, text_size=6, title_size=16,
@@ -743,7 +799,6 @@ plot_egene_effect_scatter <- function(index_dt,
         df = df
     )
 }
-
 
 #' Compare eGene q-values between baseline and comparison runs
 #'
@@ -1330,8 +1385,43 @@ plot_summary <- function(df,
 }
 
 
-#inFile=paste(outDir,"/compare_eQTL_all_levels_stats.txt", sep=""); df=read.table(inFile, header=T, stringsAsFactors=F, sep="\t")
-cluster_filtering_trajectories <- function(df,
+#' Cluster and visualize eQTL filtering response trajectories
+#'
+#' Given a long-format table of responses across a set of comparisons (e.g.
+#' filtering levels), this function reshapes the data into a wide matrix of
+#' trajectories (one row per \code{id}, one column per comparison), performs
+#' k-means clustering on these trajectories, and returns plots and cluster
+#' assignments.
+#'
+#' The primary plot shows per-\code{id} trajectories colored by cluster, with
+#' the cluster mean trajectory overlaid as a dashed line. A second plot maps
+#' each \code{id} to its assigned cluster.
+#'
+#' @param df data.frame in long format containing one row per
+#' \code{id_cols} combination per comparison.
+#' @param value_col Character scalar giving the column in \code{df} containing
+#' numeric values to cluster (e.g. an effect size, statistic, or residual).
+#' @param K Integer number of clusters for k-means.
+#' @param comparison_col Character scalar giving the column in \code{df}
+#' defining the ordered comparison axis (default \code{"comparison_name"}).
+#' @param id_cols Character vector of columns used to define a composite ID
+#' (e.g. \code{c("cell_type","region")}).
+#' @param id_sep Character separator used to join \code{id_cols} into a single
+#' \code{id} string.
+#' @param drop_incomplete Logical. If \code{TRUE}, drop rows with missing
+#' \code{id}, comparison, or value, and (after reshaping) drop \code{id}s with
+#' any missing comparison values.
+#' @param seed Integer seed for k-means initialization.
+#' @param xlab Character x-axis label for the trajectories plot.
+#' @param ylab Character y-axis label for the trajectories plot. If \code{NULL},
+#' defaults to \code{value_col}.
+#' @param title Character title for the trajectories plot. If \code{NULL},
+#' defaults to \code{"Filtering response clusters (K = <K>)"}.
+#' @param ylim Optional numeric length-2 vector giving y-axis limits (applied
+#' via \code{coord_cartesian}).
+#'
+#' @export
+eqtl_cluster_filtering_trajectories <- function(df,
                                            value_col,
                                            K = 4,
                                            comparison_col = "comparison_name",
@@ -1881,6 +1971,46 @@ build_sign_cache_paths <- function(index_file,
     )
 }
 
+
+#' Get or build augmented index tables for a sign test (with caching)
+#'
+#' @description
+#' Loads cached "augmented" index tables for a sign test when available, or
+#' rebuilds them from the provided baseline and comparison index files plus the
+#' corresponding SNP/gene pair tables. Augmentation adds a cross-experiment slope
+#' column (currently \code{slope_cross}) used by downstream sign-test logic.
+#'
+#' The cache is keyed by the inputs via \code{build_sign_cache_paths()}, and is
+#' written to \code{cache_dir}. Set \code{force = TRUE} to rebuild even if cached
+#' files exist.
+#'
+#' @param index_file Character scalar. Path to the baseline index file.
+#' @param index_file_comparison Character scalar. Path to the comparison index file.
+#' @param all_pairs_file Character scalar. Path to the baseline SNP/gene pairs file.
+#' @param all_pairs_file_comparison Character scalar. Path to the comparison SNP/gene
+#'   pairs file.
+#' @param cache_dir Character scalar. Directory where cached augmented index files
+#'   will be stored.
+#' @param force Logical scalar. If \code{TRUE}, rebuild the augmented index tables
+#'   even if cached files exist. Default \code{FALSE}.
+#'
+#' @details
+#' On a cache hit (and \code{force = FALSE}), this function reads the cached
+#' augmented index files via \code{read_index_file()} and returns them. On a cache
+#' miss (or \code{force = TRUE}), it reads the source files, computes cross slopes
+#' via \code{add_cross_slopes_for_sign_test()}, writes the augmented index tables
+#' to cache, and returns the augmented result.
+#'
+#' The returned index tables are expected to include a \code{slope_cross} column.
+#'
+#' @return
+#' A named list with elements:
+#' \describe{
+#'   \item{index_dt}{Baseline augmented index table.}
+#'   \item{index_comparison_dt}{Comparison augmented index table.}
+#' }
+#'
+#' @export
 get_or_build_augmented_indices_for_sign <- function(index_file,
                                                     index_file_comparison,
                                                     all_pairs_file,
@@ -2011,7 +2141,18 @@ make_compare_index_eqtls_stats_df <- function(stats_genes_tested,
 # I/O functions
 #################################
 
-
+#' Read an eqtl index file
+#'
+#' Read an index table from disk and return a data.frame containing only the
+#' requested columns that are present in the file.
+#'
+#' @param index_file Path to the index file (passed to data.table::fread()).
+#' @param colsToKeep Character vector of column names to keep (silently ignores
+#'   names not present in the file).
+#'
+#' @return A data.frame.
+#'
+#' @export
 read_index_file<-function (index_file, colsToKeep=c("gene_name", "variant_id", "slope", "slope_cross", "pval_nominal", "pval_beta", "qval")) {
     index_dt <- data.table::fread(index_file)
 
@@ -2023,13 +2164,19 @@ read_index_file<-function (index_file, colsToKeep=c("gene_name", "variant_id", "
     index_dt
 }
 
+#' Read an eqtl all-pairs file
+#'
+#' Read an all-pairs table from disk and return a data.frame containing only the
+#' requested columns that are present in the file.
+#'
+#' @param all_pairs_file Path to the all-pairs file (passed to data.table::fread()).
+#' @param colsToKeep Character vector of column names to keep (silently ignores
+#'   names not present in the file).
+#'
+#' @return A data.frame.
+#'
+#' @export
 read_all_pairs_file<-function (all_pairs_file, colsToKeep=c("phenotype_id", "variant_id", "slope", "pval_nominal")) {
-    # cmd <- sprintf(
-    #     "gzip -cd %s | grep -v -E '^[[:space:]]*#'",
-    #     shQuote(all_pairs_file)
-    # )
-    # all_pairs <- data.table::fread(cmd = cmd)
-
     #simplified!
     all_pairs <- data.table::fread(all_pairs_file)
 

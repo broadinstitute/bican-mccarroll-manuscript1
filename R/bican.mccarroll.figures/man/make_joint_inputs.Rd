@@ -56,7 +56,7 @@ A list with components:
 }
 }
 \description{
-Construct matrices for `mashr` from a list of differential expression tables
+Construct matrices for `mashr` or clustering from a list of differential expression tables
 (one per cell type or condition). You can choose to include the **union** of all
 genes seen across tables (filling missing entries with beta = 0 and a very large
 SE so they have no influence on mash), or restrict to the **intersection**

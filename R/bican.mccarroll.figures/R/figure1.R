@@ -1,6 +1,43 @@
+# source("R/config.R")
+# set_data_root_dir("/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis")
 
-# feature correlation plot
-figure1_feature_correlation<-function (
+#' Correlation plot of sample covariates used in the model
+#'
+#' Compute pairwise correlations among sample-level covariates used for the
+#' analysis model and draw a publication-formatted correlation plot. This is
+#' intended as a figure-generation wrapper that delegates data preparation and
+#' correlation computation to the analysis package, then applies consistent
+#' labeling, ordering, and output settings for the manuscript.
+#'
+#' The correlation matrix is computed from the `samples` table of a prepared
+#' `DGEList` using `bican.mccarroll.differentialexpression::getVariableCorrelation()`.
+#' Covariate names are mapped to human-readable labels, then reordered into
+#' conceptual groups (for example donor, sample, and cell QC) before plotting
+#' with `corrplot::corrplot()`. When `outDir` is not `NULL`, the plot is written
+#' to an SVG file.
+#'
+#' @param data_dir Directory containing the input objects used by the analysis
+#'   package to prepare plotting data.
+#' @param data_name Basename of the input object (as expected by the analysis
+#'   package) used to load and prepare the `DGEList`.
+#' @param randVars Character vector of random-effect covariate names passed to
+#'   the analysis data-prep step.
+#' @param fixedVars Character vector of fixed-effect covariate names passed to
+#'   the analysis data-prep step.
+#' @param outDir Output directory for the SVG file. If `NULL`, the plot is drawn
+#'   to the active graphics device and no file is written.
+#'
+#' @return This function is called for its side effects and returns `NULL`
+#'   invisibly. The primary outputs are the plotted figure and, optionally, an
+#'   SVG file saved to `outDir`.
+#'
+#' @seealso
+#'   \code{\link[corrplot]{corrplot}}
+#'   \code{\link[bican.mccarroll.differentialexpression]{prepareMDSPlotData}}
+#'   \code{\link[bican.mccarroll.differentialexpression]{getVariableCorrelation}}
+#' @export
+#'
+plot_sample_covariate_correlations<-function (
     data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metacells/LEVEL_3",
     data_name="donor_rxn_DGEList",
     randVars=c("donor", "imputed_sex", "biobank", "single_cell_assay", "region", "hbcac_status", "toxicology_group"),
@@ -23,17 +60,67 @@ figure1_feature_correlation<-function (
     #make feature names nice!
     pretty_map <- get_pretty_feature_names(correlation_vars)
 
-    colnames(corr_matrix) <- pretty_map[colnames(corr_matrix)]
-    rownames(corr_matrix) <- pretty_map[rownames(corr_matrix)]
+    colnames(corr_matrix) <- as.vector(pretty_map[colnames(corr_matrix)])
+    rownames(corr_matrix) <- as.vector(pretty_map[rownames(corr_matrix)])
+
+    groups <- list(
+        donor  = c("Imputed sex", "Biobank", "Age", "PC1", "PC2", "PC3", "PC4", "PC5", "Toxicology group", "HBCAC status", "PMI (hours)"),
+        sample = c("Region", "Single-cell assay"),
+        cell   = c("Percent intronic", "Fraction contamination")
+    )
+
+    setdiff(colnames(corr_matrix), as.vector(unlist (groups)))
 
     if (!is.null(outDir)) {
         output_svg <- file.path(outDir, "figure1_feature_correlation.svg")
         svg(output_svg, width = 8, height = 8)
         on.exit(dev.off(), add = TRUE)
     }
+    cm<-plot_corrplot_grouped(corr_matrix, groups)
+    invisible(cm)
 
-    corrplot::corrplot(corr_matrix, method = "circle", type = "upper", tl.col = "black", tl.srt = 45, na.label = "NA")
+}
 
+plot_corrplot_grouped <- function(corr_matrix,
+                                  groups,
+                                  method = "circle",
+                                  type = "upper",
+                                  tl.col = "black",
+                                  tl.srt = 45,
+                                  na.label = "NA") {
+    stopifnot(is.matrix(corr_matrix))
+    stopifnot(!is.null(colnames(corr_matrix)), !is.null(rownames(corr_matrix)))
+    stopifnot(identical(colnames(corr_matrix), rownames(corr_matrix)))
+    stopifnot(is.list(groups), length(groups) > 0)
+
+    # Flatten variables in the desired order (donor -> sample -> cell)
+    ord <- unlist(groups, use.names = FALSE)
+
+    # Basic checks
+    if (anyDuplicated(ord)) {
+        dup <- unique(ord[duplicated(ord)])
+        stop("Variables appear in multiple groups: ", paste(dup, collapse = ", "))
+    }
+    missing <- setdiff(ord, colnames(corr_matrix))
+    if (length(missing) > 0) {
+        stop("These group variables are not in corr_matrix: ", paste(missing, collapse = ", "))
+    }
+    extra <- setdiff(colnames(corr_matrix), ord)
+    if (length(extra) > 0) {
+        stop("corr_matrix contains variables not present in groups: ", paste(extra, collapse = ", "))
+    }
+
+    cm <- corr_matrix[ord, ord, drop = FALSE]
+
+    corrplot::corrplot(cm,
+                       method = method,
+                       type = type,
+                       tl.col = tl.col,
+                       tl.srt = tl.srt,
+                       na.label = na.label
+    )
+
+    invisible(cm)
 }
 
 

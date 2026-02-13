@@ -9,6 +9,7 @@ select_marker_genes(
   annotation_column = "cell_type",
   high_expression_threshold = 10,
   fold_change = 10,
+  method = c("one_vs_all", "target_vs_outgroup"),
   markerGeneReportFile = NULL
 )
 }
@@ -28,6 +29,9 @@ target" for donor-level metrics.}
 
 \item{fold_change}{Minimum per-donor fold change (target / other) required to
 count a donor as passing the fold-change criterion.}
+
+\item{method}{Character scalar specifying the comparison strategy. Must be
+one of \code{"one_vs_all"} or \code{"target_vs_outgroup"}.}
 
 \item{markerGeneReportFile}{Optional output TSV path. If \code{NULL}, no file
 is written.}
