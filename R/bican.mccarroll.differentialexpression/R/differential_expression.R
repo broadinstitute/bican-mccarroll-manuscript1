@@ -198,23 +198,19 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
         #save the results
         for (contrast in names(z_flat)) {
             out=z_flat[[contrast]]
-            # replace ":" with "_" in contrast name for filenames
-            contrast_name_clean <- gsub(":", "_", contrast, fixed = TRUE)
-            n=paste(cellType, contrast_name_clean, sep="_")
-            outFile <- file.path(result_dir, paste0(n, "_DE_results.txt"))
+            n=make_de_filename(contrast, cellType, interaction_var = interaction_var, absolute_effects = absolute_effects, suffix="DE_results.txt")
+            outFile <- file.path(result_dir, n)
             logger::log_info(paste("Saving results to:", outFile))
             write.table(out, file = outFile, sep = "\t", quote = FALSE, row.names = TRUE, col.names = TRUE)
         }
 
         #make a volcano plot for each contrast
         for (contrast in names(z_flat)) {
-            # replace ":" with "_" in contrast name for filenames
-            contrast_name_clean <- gsub(":", "_", contrast, fixed = TRUE)
-            n=paste(cellType, contrast, sep="_")
+            n=make_de_filename(contrast, cellType, interaction_var = interaction_var, absolute_effects = absolute_effects, suffix="")
             df <- z_flat[[contrast]]
             if (nrow(df) > 0) {
                 p <- make_volcano(df, fdr_thresh = 0.05, lfc_thresh = 0,
-                                  top_n_each = 10, title = paste(cellType, contrast_name_clean))
+                                  top_n_each = 10, title = n)
                 plot_list[[n]] <- p
             }
         }
@@ -319,8 +315,8 @@ differential_expression_region <- function(data_dir, data_name, randVars, fixedV
             #save the results
             for (contrast in names(z_flat)) {
                 out=z_flat[[contrast]]
-                n=paste(cellType, region, contrast, sep="_")
-                outFile <- file.path(result_dir, paste0(n, "_DE_results.txt"))
+                n=paste0(paste(cellType, region, contrast, sep="__"), "_DE_results.txt")
+                outFile <- file.path(result_dir, n)
                 logger::log_info(paste("Saving results to:", outFile))
                 write.table(out, file = outFile, sep = "\t", quote = FALSE, row.names = TRUE, col.names = TRUE)
             }
@@ -350,6 +346,34 @@ differential_expression_region <- function(data_dir, data_name, randVars, fixedV
     }
 
 }
+
+make_de_filename <- function(contrast, cell_type, interaction_var = NULL, absolute_effects = FALSE, suffix="DE_results.txt") {
+    if (is.null(interaction_var)) {
+        return(paste0(cell_type, "__", contrast, "_", suffix))
+    }
+
+    x <- contrast
+
+    # If contrast encodes baseline interaction as "age:regionNAC", strip "region" -> "age:NAC"
+    if (!absolute_effects) {
+        x <- sub(paste0(":", interaction_var), ":", x, fixed = TRUE)  # ":" + interaction_var -> ":"
+    }
+
+    # Convert "age:NAC" -> "age_NAC"; if already "age_NAC" this is a no-op
+    x <- gsub(":", "_", x, fixed = TRUE)
+
+    parts <- strsplit(x, "_", fixed = TRUE)[[1]]
+    if (length(parts) != 2L) {
+        stop(sprintf("Expected exactly two tokens after parsing, got %d from '%s' (parsed as '%s')",
+                     length(parts), contrast, x))
+    }
+
+    contrast_name <- parts[1]
+    interaction_level <- parts[2]
+
+    paste0(cell_type, "__", interaction_level, "__", contrast_name, "_", suffix)
+}
+
 
 flatten_de_results <- function(z) {
     z_flat <- do.call(c, lapply(unname(z), function(x) {
