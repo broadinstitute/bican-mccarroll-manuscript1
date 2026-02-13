@@ -1009,7 +1009,7 @@ time_run_log <- function(expr, label = NULL) {
     msg <- if (is.null(label)) {
         paste0("Time taken: ", round(elapsed_sec, 2), " seconds")
     } else {
-        paste0(label, " – time taken: ", round(elapsed_sec, 2), " seconds")
+        paste0(label, " - time taken: ", round(elapsed_sec, 2), " seconds")
     }
 
     logger::log_info(msg)

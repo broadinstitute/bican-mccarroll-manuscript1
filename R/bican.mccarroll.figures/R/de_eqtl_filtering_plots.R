@@ -7,9 +7,49 @@ library (svglite)
 # EQTL GENE DISCOCVERY AND FILTERING PLOTS
 #########################################
 
-eqtl_filtering_plot<-function (data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results",
+#' Clustered trajectories of eGene yield across eQTL filtering levels
+#'
+#' Generate a summary figure showing how eGene discovery
+#' changes as increasingly stringent filtering is applied across multiple eQTL
+#' runs. The function loads or computes a table of yields across filtering
+#' levels, subsets to a configured set of cell types, clusters cell types by
+#' their yield trajectories, then draws a faceted panel plot suitable for the
+#' manuscript.
+#'
+#' To avoid repeatedly recomputing the underlying summary data, this function
+#' maintains a tab-delimited cache in `data_cache_dir`. When the cache file is
+#' present, it is read and used directly. When missing, the function calls
+#' `bican.mccarroll.eqtl::compare_all_eQTL_runs()` to regenerate the data and
+#' writes the cache before plotting.
+#'
+#' When `outDir` is not `NULL`, the figure is saved as
+#' `eqtl_filtering_plot.svg` in `outDir`. When `outDir` is `NULL`, the plot is
+#' constructed but not saved.
+#'
+#' @param data_dir Directory containing per-level eQTL results used by
+#'   `bican.mccarroll.eqtl::compare_all_eQTL_runs()`.
+#' @param outDir Output directory for the SVG. If `NULL`, no file is written.
+#' @param filter_levels Integer vector of filtering levels to compare.
+#' @param fdr_threshold FDR cutoff used when computing eGene yields.
+#' @param num_clusters Number of clusters to use when grouping cell types by
+#'   trajectory.
+#' @param cellTypeListFile Path to a one-column text file listing cell types to
+#'   include in the plot. Cell types not present in the data are reported via a
+#'   warning.
+#' @param data_cache_dir Directory used to store and read cached intermediate
+#'   data for this figure.
+#'
+#' @return Returns `NULL` invisibly. This function is called for its side
+#'   effects (plot generation and optional SVG export).
+#'
+#' @seealso
+#'   \code{\link[bican.mccarroll.eqtl]{compare_all_eQTL_runs}}
+#'   \code{\link[bican.mccarroll.eqtl]{eqtl_cluster_filtering_trajectories}}
+#' @export
+#' @family sample filtering figures
+plot_eqtl_filtering_trajectories<-function (data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results",
                               outDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
-                              filter_levels=c(0,1,2,3,4), fdr_threshold=0.05, clustering_min_genes=0, num_clusters=3,
+                              filter_levels=c(0,1,2,3,4), fdr_threshold=0.05, num_clusters=4,
                               cellTypeListFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/metadata/cell_types_for_de_filtering_plot.txt",
                               data_cache_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache") {
 
@@ -37,27 +77,81 @@ eqtl_filtering_plot<-function (data_dir="/broad/bican_um1_mccarroll/RNAseq/analy
     }
 
     #change the baseline name and comparison name to match the DE analysis
-    df$baseline_level <- gsub("LEVEL_", "", df$baseline_name)
-    df$comparison_level <- gsub("LEVEL_", "", df$comparison_name)
-
-    df_filtered=df[df$n_baseline_only_egenes>=clustering_min_genes, ]
+    df$baseline_level <- as.numeric(gsub("LEVEL_", "", df$baseline_name))
+    df$comparison_level <- as.numeric(gsub("LEVEL_", "", df$comparison_name))
 
 
     # Steve has asked to include level 0 - this is a temporary hack until that's approved as the
     # best way to visualize data.
     df2=.add_baseline_comparison_level_eqtl (df_filtered)
-    res <- bican.mccarroll.eqtl::eqtl_cluster_filtering_trajectories(df, value_col = "yield", K = 4, title="Change in number of eGenes discovered compared to baseline")
-    #res <- bican.mccarroll.differentialexpression::cluster_filtering_trajectories(df2, K = num_clusters)
-    p<- make_filtering_cluster_panels(df2, res$clusters, legend_scale=0.8)
+
+    res <- bican.mccarroll.eqtl::eqtl_cluster_filtering_trajectories(df2, value_col = "yield",
+                                                                     comparison_col="comparison_level",
+                                                                     K = num_clusters, title="Change in number of eGenes discovered compared to baseline")
+
+    #make compatible with plotting code.
+    clusters=res$clusters
+    colnames(clusters)[1]="cell_type"
+
+    df_plot=data.frame(
+        cell_type=paste(df2$cell_type, df2$region, sep="__"),
+        base_level=as.numeric(df2$baseline_level),
+        comparison_level=as.numeric(df2$comparison_level),
+        frac_genes_discovered=df2$yield
+    )
+
+    if (length(setdiff(df_plot$cell_type, clusters$cell_type)))
+        stop("Data merge issue.")
+
+    if (length(setdiff(clusters$cell_type, df_plot$cell_type)))
+        stop("Data merge issue.")
+
+    p<- make_filtering_cluster_panels(df_plot, clusters, legend_scale=0.8)
 
     if (!is.null(outDir)) {
-        output_svg <- file.path(outDir, "de_filtering_plot.svg")
+        output_svg <- file.path(outDir, "eqtl_filtering_plot.svg")
         ggplot2::ggsave(filename = output_svg, plot = p, device = "svg", width = 8, height = 8)
     }
 
 
 }
 
+#' Example eQTL changes between two analysis levels for selected cell types
+#'
+#' Create a manuscript-formatted figure illustrating how eQTL results differ
+#' between a baseline and comparison analysis level for a small set of cell
+#' types in one region. For each requested cell type, the function draws an
+#' effect-size comparison plot and a corresponding significance comparison plot,
+#' stacks these into a labeled row, and then assembles all rows into a single
+#' combined panel figure.
+#'
+#' The required per-variant summary data are collected via
+#' `get_all_eqtl_filtering_example_data()`, which may use `data_cache_dir` to
+#' speed up repeated calls. Plotting is performed by
+#' `bican.mccarroll.eqtl::plot_pair_effects()` and
+#' `bican.mccarroll.eqtl::plot_pair_pvals()`, followed by layout with `cowplot`.
+#'
+#' The figure is saved as `eqtl_filtering_cell_type_examples.svg` in `outDir`.
+#'
+#' @param cell_type_list Character vector of cell types to include.
+#' @param region Region label to subset the example data.
+#' @param baseline_data_dir Directory containing the baseline-level eQTL results.
+#' @param comparison_data_dir Directory containing the comparison-level eQTL results.
+#' @param baseline_name Label used in plot annotations for the baseline level.
+#' @param comparison_name Label used in plot annotations for the comparison level.
+#' @param outDir Output directory for the SVG file.
+#' @param data_cache_dir Directory used by helper routines to cache intermediate
+#'   data for the example panels.
+#'
+#' @return Returns `NULL` invisibly. This function is called for its side effect
+#'   of writing an SVG file.
+#'
+#' @seealso
+#'   \code{\link[bican.mccarroll.eqtl]{plot_pair_effects}}
+#'   \code{\link[bican.mccarroll.eqtl]{plot_pair_pvals}}
+#'
+#' @export
+#' @family sample filtering figures
 plot_eqtl_filtering_examples<-function (cell_type_list=c("astrocyte", "microglia", "MSN_D1", "OPC"),
                                         region="CaH",
                                         baseline_data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_3",
@@ -262,7 +356,50 @@ get_eqtl_filtering_example_data<-function (cell_type="astrocyte", region="CaH",
 #########################################
 
 # This produces the change in the number of DE genes discovered at each level of filtering
-de_filtering_plot<-function (
+
+#' Clustered trajectories of DE gene discovery across filtering levels
+#'
+#' Generate a summary figure showing how the number of
+#' significantly age-associated genes changes as increasingly stringent filtering
+#' is applied across differential expression runs. The function loads or computes
+#' a table of gene discovery counts across filtering levels, subsets to a
+#' configured list of cell types, filters to cell types with sufficient baseline
+#' discovery for clustering, clusters trajectories, and then draws a faceted
+#' panel plot.
+#'
+#' To avoid repeatedly recomputing the underlying summary data, this function
+#' maintains a tab-delimited cache in `data_cache_dir`. When the cache file is
+#' present, it is read and used directly. When missing, the function calls
+#' `bican.mccarroll.differentialexpression::compare_all_age_de_runs()` to
+#' regenerate the data and writes the cache before plotting.
+#'
+#' When `outDir` is not `NULL`, the figure is saved as `de_filtering_plot.svg` in
+#' `outDir`. When `outDir` is `NULL`, the plot is constructed but not saved.
+#'
+#' @param data_dir Directory containing per-level DE results used by
+#'   `bican.mccarroll.differentialexpression::compare_all_age_de_runs()`.
+#' @param data_name Included for interface symmetry with other figure functions;
+#'   not used by the current implementation.
+#' @param data_cache_dir Directory used to store and read cached intermediate
+#'   data for this figure.
+#' @param cellTypeListFile Path to a one-column text file listing cell types to
+#'   include in the plot. Cell types not present in the data are reported via a
+#'   warning.
+#' @param outDir Output directory for the SVG. If `NULL`, no file is written.
+#' @param clustering_min_genes Minimum baseline discovery required for a cell
+#'   type to be included in clustering and plotting.
+#' @param num_clusters Number of clusters to use when grouping cell types by
+#'   trajectory.
+#'
+#' @return Returns `NULL` invisibly. This function is called for its side
+#'   effects (plot generation and optional SVG export).
+#'
+#' @seealso
+#'   \code{\link[bican.mccarroll.differentialexpression]{compare_all_age_de_runs}}
+#'   \code{\link[bican.mccarroll.differentialexpression]{cluster_filtering_trajectories}}
+#' @export
+#' @family sample filtering figures
+plot_de_filtering_trajectories<-function (
         data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results",
         data_name="donor_rxn_DGEList",
         data_cache_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache",
@@ -312,8 +449,31 @@ de_filtering_plot<-function (
 
 }
 
-# Plot specific cell type examples of LEVEL 3 vs LEVEL 4 filtering
-# to demonstrate that the effect sizes don't change much, but we lose power due to smaller numbers of observations
+#' Example DE changes between two analysis levels for selected cell types
+#'
+#' Create a figure illustrating how differential
+#' expression results differ between a baseline and comparison analysis level
+#' for a small set of cell types. For each requested cell type, the function
+#' computes a paired comparison using
+#' `bican.mccarroll.differentialexpression::compare_age_de_run()`, extracts the
+#' effect-size scatter plot and the FDR scatter plot.
+#'
+#' The figure is saved as `de_filtering_cell_type_examples.svg` in `outDir`.
+#'
+#' @param cell_type_list Character vector of cell types to include.
+#' @param baseline_data_dir Directory containing the baseline-level DE results.
+#' @param comparison_data_dir Directory containing the comparison-level DE results.
+#' @param baseline_name Label used in plot annotations for the baseline level.
+#' @param comparison_name Label used in plot annotations for the comparison level.
+#' @param outDir Output directory for the SVG file.
+#'
+#' @return Returns `NULL` invisibly. This function is called for its side effect
+#'   of writing an SVG file.
+#'
+#' @seealso
+#'   \code{\link[bican.mccarroll.differentialexpression]{compare_age_de_run}}
+#' @family sample filtering figures
+#' @export
 plot_de_filtering_examples<-function (cell_type_list=c("astrocyte", "microglia", "MSN_D1", "glutamatergic_IT"),
                                       baseline_data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results/LEVEL_3/sex_age/cell_type",
                                       comparison_data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results/LEVEL_4/sex_age/cell_type",
@@ -386,6 +546,9 @@ plot_num_de_genes<-function (df) {
 
 }
 
+#this plot requires:
+# df columns: [cell_type, base_level, comparison_level, frac_genes_discovered]
+# clusters_df columns: [cell_type, cluster]
 make_filtering_cluster_panels <- function(
         df,
         clusters_df,

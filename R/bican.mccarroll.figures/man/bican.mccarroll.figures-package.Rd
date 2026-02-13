@@ -4,11 +4,11 @@
 \name{bican.mccarroll.figures-package}
 \alias{bican.mccarroll.figures}
 \alias{bican.mccarroll.figures-package}
-\title{bican.mccarroll.differentialexpression}
+\title{bican.mccarroll.figures}
 \description{
-Tools for differential expression and visualization of single-cell RNA-seq data
-for BICAN. Provides functions for running differential expression using edgeR
-and variancePartition, and visualization using GlimmaV2.
+Functions that use analysis pacakges and render figures for publication.
+Each function is capable of reproducing the analysis from raw data, and in long-running cases
+will cache results.
 }
 \author{
 \strong{Maintainer}: James Nemesh \email{nemesh@broadinstitute.org}

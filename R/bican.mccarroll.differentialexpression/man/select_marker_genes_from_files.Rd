@@ -10,7 +10,8 @@ select_marker_genes_from_files(
   cellTypeListFile = NULL,
   markerGeneReportFile,
   high_expression_threshold = 10,
-  fold_change = 10
+  fold_change = 10,
+  method = c("one_vs_all", "target_vs_outgroup")
 )
 }
 \arguments{
@@ -33,6 +34,9 @@ target" for donor-level pass/fail metrics.}
 
 \item{fold_change}{Minimum per-donor fold change (target / other) required to
 count a donor as passing the fold-change criterion.}
+
+\item{method}{Character scalar specifying the comparison strategy. Must be
+one of \code{"one_vs_all"} or \code{"target_vs_outgroup"}.}
 }
 \value{
 Invisibly returns the marker gene data frame produced by

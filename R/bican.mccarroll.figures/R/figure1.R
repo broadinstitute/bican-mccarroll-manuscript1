@@ -1,6 +1,43 @@
+# source("R/config.R")
+# set_data_root_dir("/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis")
 
-# feature correlation plot
-figure1_feature_correlation<-function (
+#' Correlation plot of sample covariates used in the model
+#'
+#' Compute pairwise correlations among sample-level covariates used for the
+#' analysis model and draw a publication-formatted correlation plot. This is
+#' intended as a figure-generation wrapper that delegates data preparation and
+#' correlation computation to the analysis package, then applies consistent
+#' labeling, ordering, and output settings for the manuscript.
+#'
+#' The correlation matrix is computed from the `samples` table of a prepared
+#' `DGEList` using `bican.mccarroll.differentialexpression::getVariableCorrelation()`.
+#' Covariate names are mapped to human-readable labels, then reordered into
+#' conceptual groups (for example donor, sample, and cell QC) before plotting
+#' with `corrplot::corrplot()`. When `outDir` is not `NULL`, the plot is written
+#' to an SVG file.
+#'
+#' @param data_dir Directory containing the input objects used by the analysis
+#'   package to prepare plotting data.
+#' @param data_name Basename of the input object (as expected by the analysis
+#'   package) used to load and prepare the `DGEList`.
+#' @param randVars Character vector of random-effect covariate names passed to
+#'   the analysis data-prep step.
+#' @param fixedVars Character vector of fixed-effect covariate names passed to
+#'   the analysis data-prep step.
+#' @param outDir Output directory for the SVG file. If `NULL`, the plot is drawn
+#'   to the active graphics device and no file is written.
+#'
+#' @return This function is called for its side effects and returns `NULL`
+#'   invisibly. The primary outputs are the plotted figure and, optionally, an
+#'   SVG file saved to `outDir`.
+#'
+#' @seealso
+#'   \code{\link[corrplot]{corrplot}}
+#'   \code{\link[bican.mccarroll.differentialexpression]{prepareMDSPlotData}}
+#'   \code{\link[bican.mccarroll.differentialexpression]{getVariableCorrelation}}
+#' @export
+#'
+plot_sample_covariate_correlations<-function (
     data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metacells/LEVEL_3",
     data_name="donor_rxn_DGEList",
     randVars=c("donor", "imputed_sex", "biobank", "single_cell_assay", "region", "hbcac_status", "toxicology_group"),
@@ -26,14 +63,6 @@ figure1_feature_correlation<-function (
     colnames(corr_matrix) <- as.vector(pretty_map[colnames(corr_matrix)])
     rownames(corr_matrix) <- as.vector(pretty_map[rownames(corr_matrix)])
 
-    if (!is.null(outDir)) {
-        output_svg <- file.path(outDir, "figure1_feature_correlation.svg")
-        svg(output_svg, width = 8, height = 8)
-        on.exit(dev.off(), add = TRUE)
-    }
-
-    #corrplot::corrplot(corr_matrix, method = "circle", type = "upper", tl.col = "black", tl.srt = 45, na.label = "NA")
-
     groups <- list(
         donor  = c("Imputed sex", "Biobank", "Age", "PC1", "PC2", "PC3", "PC4", "PC5", "Toxicology group", "HBCAC status", "PMI (hours)"),
         sample = c("Region", "Single-cell assay"),
@@ -42,7 +71,13 @@ figure1_feature_correlation<-function (
 
     setdiff(colnames(corr_matrix), as.vector(unlist (groups)))
 
-    plot_corrplot_with_group_rects(corr_matrix, groups)
+    if (!is.null(outDir)) {
+        output_svg <- file.path(outDir, "figure1_feature_correlation.svg")
+        svg(output_svg, width = 8, height = 8)
+        on.exit(dev.off(), add = TRUE)
+    }
+    cm<-plot_corrplot_grouped(corr_matrix, groups)
+    invisible(cm)
 
 }
 
