@@ -2,7 +2,7 @@
 % Please edit documentation in R/donor_age_prediction_residuals.R
 \name{plot_jaccard_overlap_heatmap}
 \alias{plot_jaccard_overlap_heatmap}
-\title{Plot Jaccard overlap heatmap for aging programs}
+\title{Plot Jaccard overlap heatmap for aging programs within a slice}
 \usage{
 plot_jaccard_overlap_heatmap(
   all_models,
@@ -10,7 +10,7 @@ plot_jaccard_overlap_heatmap(
   cell_type = NULL,
   region = NULL,
   coef_thresh = 0,
-  title_label = NULL,
+  title = NULL,
   annotate_cells = TRUE,
   row_fontsize = 16,
   col_fontsize = 16,
@@ -20,14 +20,23 @@ plot_jaccard_overlap_heatmap(
 )
 }
 \arguments{
-\item{coef_thresh}{Numeric threshold applied to coefficients when defining
-gene sets prior to Jaccard computation.}
+\item{all_models}{A data.frame or data.table of model coefficients.
+Must contain columns `cell_type`, `region`, `feature`, and `coef`.}
 
-\item{title_label}{A string appended to the heatmap title to identify
-the subset being plotted (e.g., region or cell type label).}
+\item{mode}{Character scalar. Either `"within_region"` or `"within_cell_type"`.}
 
-\item{annotate_cells}{Logical; if `TRUE`, annotate each heatmap cell
-with the numeric Jaccard coefficient.}
+\item{cell_type}{Character scalar giving the cell type slice when
+`mode = "within_cell_type"`.}
+
+\item{region}{Character scalar giving the region slice when
+`mode = "within_region"`.}
+
+\item{coef_thresh}{Numeric threshold applied to `abs(coef)` when defining gene sets.}
+
+\item{title}{Optional character scalar to use as the heatmap title. If `NULL`,
+a default title derived from `mode` and the slice value is used.}
+
+\item{annotate_cells}{Logical; if `TRUE`, annotate heatmap cells with Jaccard values.}
 
 \item{row_fontsize}{Font size for heatmap row labels.}
 
@@ -35,33 +44,33 @@ with the numeric Jaccard coefficient.}
 
 \item{cell_fontsize}{Font size for numeric cell annotations.}
 
-\item{row_order_names}{Optional character vector of row names specifying the
-desired row order in the heatmap. Names not present in the Jaccard matrix
-are ignored. If provided, row clustering is disabled.}
+\item{row_order_names}{Optional character vector of row names specifying the desired
+row order. Names not present in the Jaccard matrix are ignored. If provided,
+row clustering is disabled.}
 
-\item{column_order_names}{Optional character vector of column names specifying
-the desired column order in the heatmap. Names not present in the Jaccard
-matrix are ignored. If provided, column clustering is disabled.}
-
-\item{all_models_subset}{A data.frame or data.table containing model
-coefficients and grouping variables used to define aging programs.
-Must contain the grouping column specified by `jaccard_group_var`.}
-
-\item{jaccard_group_var}{A single string giving the column name used to
-define groups for overlap comparison (e.g., `"cell_type"` or `"region"`).}
+\item{column_order_names}{Optional character vector of column names specifying the
+desired column order. Names not present in the Jaccard matrix are ignored. If
+provided, column clustering is disabled.}
 }
 \value{
 A list with components:
 \describe{
   \item{jaccard}{Numeric matrix of pairwise Jaccard coefficients.}
-  \item{heatmap}{A `ComplexHeatmap::Heatmap` object representing the overlap.}
+  \item{heatmap}{A `ComplexHeatmap::Heatmap` object. Draw with `ComplexHeatmap::draw()`.}
 }
 }
 \description{
 Compute pairwise Jaccard overlap of aging gene programs across groups
-(e.g., regions or cell types) and generate a heatmap visualization.
+(cell types within a region, or regions within a cell type) and generate a
+heatmap visualization.
 }
 \details{
-This function wraps `jaccard_by_group()` to compute the overlap matrix
-and `plot_jaccard_heatmap()` to generate a `ComplexHeatmap` object.
+Gene sets are defined per group using features with `abs(coef) > coef_thresh`.
+
+
+To render the returned heatmap:
+\preformatted{
+out <- plot_jaccard_overlap_heatmap(...)
+ComplexHeatmap::draw(out$heatmap, heatmap_legend_side = "right")
+}
 }

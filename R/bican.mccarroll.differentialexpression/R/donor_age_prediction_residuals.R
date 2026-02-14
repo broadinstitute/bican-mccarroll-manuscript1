@@ -14,7 +14,7 @@
 # # Restrict the cell correlation analysis to a subset of cell types
 # cellTypeListFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/metadata/mash_cell_type_list_simple.txt"
 # value_var="resid_mean"
-#out_pdf_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/age_prediction/age_prediction_region_alpha_0/age_prediction_region_residual_comparison.pdf"
+# out_pdf_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/age_prediction/age_prediction_region_alpha_0/age_prediction_region_residual_comparison.pdf"
 # out_pdf_file="/downloads/age_prediction_region_residual_comparison.pdf"
 # exclude_donor_age_range=c()
 
@@ -67,7 +67,7 @@
 #' @export
 compare_age_residuals_celltype_region <- function(model_file, prediction_file,
                                                   cellTypeListFile = NULL,
-                                                  value_var="resid_mean",
+                                                  value_var = "resid_mean",
                                                   exclude_donor_age_range = c(),
                                                   out_pdf_file = NULL) {
 
@@ -76,8 +76,9 @@ compare_age_residuals_celltype_region <- function(model_file, prediction_file,
     if (length(exclude_donor_age_range) == 2) {
         age_min <- exclude_donor_age_range[1]
         age_max <- exclude_donor_age_range[2]
-        logger::log_info(paste0(
-            "Excluding donors with age in range [", age_min, ", ", age_max, "] from analysis"
+        logger::log_info(sprintf(
+            "Excluding donors with age in range [%s, %s] from analysis",
+            age_min, age_max
         ))
         model_predictions <- model_predictions[!(
             model_predictions$age >= age_min & model_predictions$age <= age_max
@@ -88,205 +89,337 @@ compare_age_residuals_celltype_region <- function(model_file, prediction_file,
 
     if (!is.null(out_pdf_file))
         grDevices::pdf(out_pdf_file, width = 11, height = 11)
+    on.exit({
+        if (!is.null(out_pdf_file)) grDevices::dev.off()
+    }, add = TRUE)
 
-    # 1) per region: correlate residuals across cell types
     for (current_region in unique(model_predictions$region)) {
         logger::log_info("Processing region: ", current_region)
-        preds_sub  <- model_predictions[model_predictions$region == current_region, ]
-        models_sub <- all_models[all_models$region == current_region, ]
-
-            plot_residuals_for_subset(
-            model_predictions_subset = preds_sub,
-            all_models_subset = models_sub,
-            value_var=value_var,
-            spread_var = "cell_type",
-            jaccard_group_var = "cell_type",
-            title_label = paste0("region [", current_region, "]"),
-            annotate_cells = TRUE,
-            per_page = 4,
-            facet_font_size = 8,
-            coef_thresh = 0
+        out <- plot_residuals_for_subset(
+            model_predictions = model_predictions,
+            all_models = all_models,
+            mode = "within_region",
+            region = current_region,
+            value_var = value_var
         )
+        if (!is.null(out)) {
+            ComplexHeatmap::draw(out$jaccard_heatmap, heatmap_legend_side = "right")
+            ComplexHeatmap::draw(out$corr_heatmap, heatmap_legend_side = "right")
+            ComplexHeatmap::draw(out$coef_corr_heatmap, heatmap_legend_side = "right")
+            for (p in out$scatter_pages) print(p)
+        }
     }
 
-    # 2) per cell type: correlate residuals across regions
     for (current_cell_type in unique(model_predictions$cell_type)) {
         logger::log_info("Processing cell type: ", current_cell_type)
-        preds_sub  <- model_predictions[model_predictions$cell_type == current_cell_type, ]
-        models_sub <- all_models[all_models$cell_type == current_cell_type, ]
-
-        plot_residuals_for_subset(
-            model_predictions_subset = preds_sub,
-            all_models_subset = models_sub,
-            value_var=value_var,
-            spread_var = "region",
-            jaccard_group_var = "region",
-            title_label = paste0("cell_type [", current_cell_type, "]"),
-            annotate_cells = TRUE,
-            per_page = 4,
-            facet_font_size = 8,
-            coef_thresh = 0
+        out <- plot_residuals_for_subset(
+            model_predictions = model_predictions,
+            all_models = all_models,
+            mode = "within_cell_type",
+            cell_type = current_cell_type,
+            value_var = value_var
         )
+        if (!is.null(out)) {
+            ComplexHeatmap::draw(out$jaccard_heatmap, heatmap_legend_side = "right")
+            ComplexHeatmap::draw(out$corr_heatmap, heatmap_legend_side = "right")
+            ComplexHeatmap::draw(out$coef_corr_heatmap, heatmap_legend_side = "right")
+            for (p in out$scatter_pages) print(p)
+        }
     }
 
-    #is there a correlation between the jaccard index of a pair of cell types and their residual correlation?
-
-    #Are residuals more correlated across regions or cell types?  Compute the median for each cell type and median for each region
-    #and plot the distributions.
-
-    if (!is.null(out_pdf_file))
-        grDevices::dev.off()
+    invisible(NULL)
 }
 
-plot_residuals_for_subset <- function(model_predictions_subset,
-                                      all_models_subset,
-                                      value_var="resid_mean",
-                                      spread_var,
-                                      jaccard_group_var,
-                                      title_label,
-                                      annotate_cells = TRUE,
-                                      per_page = 4,
-                                      facet_font_size = 8,
-                                      coef_thresh = 0) {
+#############################
+# PLOTS
+#############################
 
 
+#' Plot residual scatter for one pair of groups within a slice
+#'
+#' Create a single residual-vs-residual scatter plot comparing two groups
+#' (two cell types within a region, or two regions within a cell type).
+#' Points correspond to donors present in both groups (intersection of donors).
+#' The plot includes a y = x reference line, a linear fit, and an annotation of
+#' the Pearson correlation computed on finite donor pairs.
+#'
+#' @param model_predictions A data.frame or data.table of donor-level predictions.
+#'   Must contain columns `donor`, `cell_type`, `region`, `age`, and the column
+#'   specified by `value_var`.
+#' @param mode Character scalar. Either `"within_region"` (compare cell types
+#'   within a fixed region) or `"within_cell_type"` (compare regions within a
+#'   fixed cell type).
+#' @param cell_type Character scalar giving the cell type slice when
+#'   `mode = "within_cell_type"`. Ignored when `mode = "within_region"`.
+#' @param region Character scalar giving the region slice when
+#'   `mode = "within_region"`. Ignored when `mode = "within_cell_type"`.
+#' @param x_group Character scalar giving the first group to plot on the x axis.
+#'   This must be a value of the compared dimension (cell type for
+#'   `"within_region"`, region for `"within_cell_type"`).
+#' @param y_group Character scalar giving the second group to plot on the y axis.
+#' @param value_var Character scalar giving the residual column to plot
+#'   (e.g., `"resid_mean"` or `"resid_mean_corrected"`).
+#' @param donor_id_col Column name for donor IDs in `model_predictions`.
+#' @param color_var Column name in `model_predictions` used to color points
+#'   (default `"age"`).
+#' @param color_title Legend title for the color scale. If `NULL`, defaults to
+#'   `color_var`.
+#' @param point_size Numeric point size.
+#' @param point_alpha Numeric point transparency.
+#' @param lm_linewidth Line width for the linear regression fit.
+#' @param annotate_r_size Text size for the correlation annotation.
+#' @param pad_frac Fraction of the data range used to pad shared x/y limits.
+#'
+#' @return A `ggplot` object, or `NULL` if fewer than two donors are present in
+#'   the intersection after filtering.
+#'
+#' @export
+plot_residual_pair_scatter_one <- function(model_predictions,
+                                           mode = c("within_region", "within_cell_type"),
+                                           cell_type = NULL,
+                                           region = NULL,
+                                           x_group,
+                                           y_group,
+                                           value_var = "resid_mean",
+                                           donor_id_col = "donor",
+                                           color_var = "age",
+                                           color_title = "Donor age",
+                                           point_size = 2,
+                                           point_alpha = 0.7,
+                                           lm_linewidth = 0.6,
+                                           annotate_r_size = 5,
+                                           pad_frac = 0.1) {
 
-    row_fontsize=16
-    col_fontsize=16
-    cell_fontsize=16
+    mode <- match.arg(mode)
+    .require_slice_args(mode, cell_type, region)
+    dims <- .mode_dims(mode)
 
-    # Defensive: need at least 2 groups to compare (2+ cell types in a region, or 2+ regions in a cell type)
-    n_groups <- length(unique(model_predictions_subset[[spread_var]]))
-    if (is.na(n_groups) || n_groups < 2) {
-        logger::log_info(paste0(
-            "Skipping subset ", title_label, ": only ", n_groups, " unique ", spread_var, " present"
-        ))
-        return(invisible(NULL))
+    mp <- .slice_predictions(model_predictions, mode, cell_type, region)
+    if (.warn_if_fewer_than_2_groups(mp, dims$group_var, .default_title_label(mode, cell_type, region))) {
+        return(NULL)
     }
 
+    # Pull the two groups and intersect donors
+    data.table::setDT(mp)
+    dt_x <- mp[get(dims$group_var) == x_group, c(donor_id_col, value_var, color_var), with = FALSE]
+    dt_y <- mp[get(dims$group_var) == y_group, c(donor_id_col, value_var), with = FALSE]
+
+    data.table::setnames(dt_x, c(donor_id_col, value_var, color_var), c("donor", "x", "color_value"))
+    data.table::setnames(dt_y, c(donor_id_col, value_var), c("donor", "y"))
+
+    df <- merge(dt_x, dt_y, by = "donor", all = FALSE, sort = FALSE)
+    if (nrow(df) < 2) {
+        logger::log_warn("Skipping pair plot: <2 donors in intersection for requested groups")
+        return(NULL)
+    }
+
+    # Build a 2-col matrix and reuse the matrix plotter for consistent styling
+    res_mat <- as.matrix(df[, c("x", "y")])
+    rownames(res_mat) <- df[["donor"]]
+    colnames(res_mat) <- c(x_group, y_group)
+
+    donor_meta <- df[, c("donor", "color_value")]
+    data.table::setnames(donor_meta, c("donor", "color_value"), c(donor_id_col, color_var))
+
+    .plot_residual_pair_scatter_one_matrix(
+        res_mat = res_mat,
+        x_name = x_group,
+        y_name = y_group,
+        donor_meta = donor_meta,
+        donor_id_col = donor_id_col,
+        color_var = color_var,
+        color_title = color_title,
+        point_size = point_size,
+        point_alpha = point_alpha,
+        lm_linewidth = lm_linewidth,
+        annotate_r_size = annotate_r_size,
+        pad_frac = pad_frac
+    )
+}
+
+#' Plot residual correlation heatmap within a slice
+#'
+#' Compute the pairwise Pearson correlation matrix of donor residuals across
+#' groups (cell types within a region, or regions within a cell type) and render
+#' the result as a clustered heatmap using `ComplexHeatmap`.
+#'
+#' Correlations are computed with `stats::cor(..., use = "pairwise.complete.obs")`.
+#' The heatmap is clustered on both axes using hierarchical clustering.
+#'
+#' @param model_predictions A data.frame or data.table of donor-level predictions.
+#'   Must contain columns `donor`, `cell_type`, `region`, and the column specified
+#'   by `value_var`.
+#' @param mode Character scalar. Either `"within_region"` or `"within_cell_type"`.
+#' @param cell_type Character scalar giving the cell type slice when
+#'   `mode = "within_cell_type"`.
+#' @param region Character scalar giving the region slice when
+#'   `mode = "within_region"`.
+#' @param value_var Character scalar giving the residual column to correlate
+#'   (e.g., `"resid_mean"` or `"resid_mean_corrected"`).
+#' @param title Optional character scalar to use as the heatmap title. If `NULL`,
+#'   a default title derived from `mode` and the slice value is used.
+#' @param annotate_cells Logical; if `TRUE`, annotate cells with correlation values.
+#' @param row_fontsize Font size for row labels.
+#' @param col_fontsize Font size for column labels.
+#' @param cell_fontsize Font size for cell annotations.
+#'
+#' @return A list with components:
+#' \describe{
+#'   \item{heatmap}{A `ComplexHeatmap::Heatmap` object. Draw with `ComplexHeatmap::draw()`.}
+#'   \item{row_order_names}{Character vector giving the clustered row order.}
+#'   \item{column_order_names}{Character vector giving the clustered column order.}
+#' }
+#'
+#' @details
+#' To render the returned heatmap:
+#' \preformatted{
+#' out <- plot_residual_corr_heatmap(...)
+#' ComplexHeatmap::draw(out$heatmap, heatmap_legend_side = "right")
+#' }
+#'
+#' @export
+plot_residual_corr_heatmap <- function(model_predictions,
+                                       mode = c("within_region", "within_cell_type"),
+                                       cell_type = NULL,
+                                       region = NULL,
+                                       value_var = "resid_mean",
+                                       title = NULL,
+                                       annotate_cells = TRUE,
+                                       row_fontsize = 9,
+                                       col_fontsize = 9,
+                                       cell_fontsize = 9) {
+
+    mode <- match.arg(mode)
+
+    # Slice + choose compared dimension
+    dims <- .mode_dims(mode)
+    .require_slice_args(mode = mode, cell_type = cell_type, region = region)
+
+    mp <- model_predictions
+    if (identical(dims$slice_var, "region")) {
+        mp <- mp[mp$region == region, , drop = FALSE]
+        spread_var <- "cell_type"
+        title_label <- if (is.null(title)) sprintf("Age Prediction residuals (predicted - actual)\nregion [%s]", region) else title
+    } else {
+        mp <- mp[mp$cell_type == cell_type, , drop = FALSE]
+        spread_var <- "region"
+        title_label <- if (is.null(title)) sprintf("Age Prediction residuals (predicted - actual)\ncell type [%s]", cell_type) else title
+    }
+
+    # Need >=2 groups
+    n_groups <- length(unique(mp[[spread_var]]))
+    if (n_groups < 2) {
+        logger::log_warn(sprintf("Only %d unique %s present; returning NULL", n_groups, spread_var))
+        return(NULL)
+    }
+
+    # donor x group residual matrix
     res_mat <- donor_wide_matrix(
-        model_predictions=model_predictions_subset,
+        model_predictions = mp,
         spread_var = spread_var,
         value_var = value_var
     )
 
-    donor_age <- unique(model_predictions_subset[, c("donor", "age")])
-
-    p2 <- plot_residual_pair_scatter_paged(
-        res_mat,
-        cellType = title_label,
-        per_page = per_page,
-        facet_font_size = facet_font_size,
-        donor_meta = donor_age,
-        donor_id_col = "donor",
-        color_var = "age",
-        color_title = "Donor age"
-    )
-
-    p3 <- plot_residual_corr_heatmap(
-        res_mat,
-        cellType = title_label,
+    # Heatmap object (clustered)
+    ht <- .plot_residual_corr_heatmap_matrix(
+        res_mat = res_mat,
+        title = title_label,
         annotate_cells = annotate_cells,
         row_fontsize = row_fontsize,
         col_fontsize = col_fontsize,
         cell_fontsize = cell_fontsize
     )
 
-    # Feature overlap across the dimension actually being compared
-    tmp <- plot_jaccard_overlap_heatmap(
-        all_models_subset = all_models_subset,
-        jaccard_group_var = jaccard_group_var,
-        title_label = title_label,
-        annotate_cells = annotate_cells,
-        coef_thresh = coef_thresh,
-        row_fontsize = row_fontsize,
-        col_fontsize = col_fontsize,
-        cell_fontsize = cell_fontsize
+    # Extract clustered order without drawing to the active device
+    ord <- .get_heatmap_order_names(ht, colnames(res_mat))
+
+    list(
+        heatmap = ht,
+        row_order_names = ord$row_order_names,
+        column_order_names = ord$column_order_names
     )
-
-    J <- tmp$jaccard
-    ht <- tmp$heatmap
-
-    cc <- coef_corr_on_intersect(all_models_subset, group_var = jaccard_group_var)
-
-    ht_c <- plot_coef_corr_heatmap(
-        coef_correlation      = cc$coef_correlation,
-        overlap_gene_counts   = cc$overlap_gene_counts,
-        title = paste0(jaccard_group_var, " coef correlation (intersect genes) ", title_label),
-        annotate_cells = annotate_cells,
-        row_fontsize = row_fontsize,
-        col_fontsize = col_fontsize,
-        cell_fontsize = cell_fontsize
-    )
-
-    ComplexHeatmap::draw(ht, heatmap_legend_side = "right")
-    ComplexHeatmap::draw(p3, heatmap_legend_side = "right")
-    ComplexHeatmap::draw(ht_c, heatmap_legend_side = "right")
-
-    for (p in p2) print(p)
-
-    invisible(list(res_mat = res_mat, corr_heatmap = p3, jaccard = J))
 }
 
-#' Plot Jaccard overlap heatmap for aging programs
+#' Plot Jaccard overlap heatmap for aging programs within a slice
 #'
 #' Compute pairwise Jaccard overlap of aging gene programs across groups
-#' (e.g., regions or cell types) and generate a heatmap visualization.
+#' (cell types within a region, or regions within a cell type) and generate a
+#' heatmap visualization.
 #'
-#' This function wraps `jaccard_by_group()` to compute the overlap matrix
-#' and `plot_jaccard_heatmap()` to generate a `ComplexHeatmap` object.
+#' Gene sets are defined per group using features with `abs(coef) > coef_thresh`.
 #'
-#' @param all_models_subset A data.frame or data.table containing model
-#'   coefficients and grouping variables used to define aging programs.
-#'   Must contain the grouping column specified by `jaccard_group_var`.
-#' @param jaccard_group_var A single string giving the column name used to
-#'   define groups for overlap comparison (e.g., `"cell_type"` or `"region"`).
-#' @param title_label A string appended to the heatmap title to identify
-#'   the subset being plotted (e.g., region or cell type label).
-#' @param annotate_cells Logical; if `TRUE`, annotate each heatmap cell
-#'   with the numeric Jaccard coefficient.
-#' @param coef_thresh Numeric threshold applied to coefficients when defining
-#'   gene sets prior to Jaccard computation.
+#' @param all_models A data.frame or data.table of model coefficients.
+#'   Must contain columns `cell_type`, `region`, `feature`, and `coef`.
+#' @param mode Character scalar. Either `"within_region"` or `"within_cell_type"`.
+#' @param cell_type Character scalar giving the cell type slice when
+#'   `mode = "within_cell_type"`.
+#' @param region Character scalar giving the region slice when
+#'   `mode = "within_region"`.
+#' @param coef_thresh Numeric threshold applied to `abs(coef)` when defining gene sets.
+#' @param title Optional character scalar to use as the heatmap title. If `NULL`,
+#'   a default title derived from `mode` and the slice value is used.
+#' @param annotate_cells Logical; if `TRUE`, annotate heatmap cells with Jaccard values.
 #' @param row_fontsize Font size for heatmap row labels.
 #' @param col_fontsize Font size for heatmap column labels.
 #' @param cell_fontsize Font size for numeric cell annotations.
-#' @param row_order_names Optional character vector of row names specifying the
-#'   desired row order in the heatmap. Names not present in the Jaccard matrix
-#'   are ignored. If provided, row clustering is disabled.
-#' @param column_order_names Optional character vector of column names specifying
-#'   the desired column order in the heatmap. Names not present in the Jaccard
-#'   matrix are ignored. If provided, column clustering is disabled.
+#' @param row_order_names Optional character vector of row names specifying the desired
+#'   row order. Names not present in the Jaccard matrix are ignored. If provided,
+#'   row clustering is disabled.
+#' @param column_order_names Optional character vector of column names specifying the
+#'   desired column order. Names not present in the Jaccard matrix are ignored. If
+#'   provided, column clustering is disabled.
 #'
 #' @return A list with components:
 #' \describe{
 #'   \item{jaccard}{Numeric matrix of pairwise Jaccard coefficients.}
-#'   \item{heatmap}{A `ComplexHeatmap::Heatmap` object representing the overlap.}
+#'   \item{heatmap}{A `ComplexHeatmap::Heatmap` object. Draw with `ComplexHeatmap::draw()`.}
+#' }
+#'
+#' @details
+#' To render the returned heatmap:
+#' \preformatted{
+#' out <- plot_jaccard_overlap_heatmap(...)
+#' ComplexHeatmap::draw(out$heatmap, heatmap_legend_side = "right")
 #' }
 #'
 #' @export
-plot_jaccard_overlap_heatmap <- function(all_models_subset,
-                                         jaccard_group_var,
-                                         title_label,
-                                         annotate_cells = TRUE,
+plot_jaccard_overlap_heatmap <- function(all_models,
+                                         mode = c("within_region", "within_cell_type"),
+                                         cell_type = NULL,
+                                         region = NULL,
                                          coef_thresh = 0,
+                                         title = NULL,
+                                         annotate_cells = TRUE,
                                          row_fontsize = 16,
                                          col_fontsize = 16,
                                          cell_fontsize = 16,
                                          row_order_names = NULL,
                                          column_order_names = NULL) {
 
+    mode <- match.arg(mode)
+    .require_slice_args(mode, cell_type, region)
+    dims <- .mode_dims(mode)
+
+    am <- .slice_models(all_models, mode, cell_type, region)
+
+    # Default title logic matches plot_residual_corr_heatmap:
+    if (is.null(title)) {
+        if (identical(dims$slice_var, "region")) {
+            title <- sprintf("Cell-type gene overlap in aging programs\nregion [%s]", region)
+        } else {
+            title <- sprintf("Region gene overlap in aging programs\ncell type [%s]", cell_type)
+        }
+    }
+
     J <- jaccard_by_group(
-        all_models_subset,
-        group_var = jaccard_group_var,
+        am,
+        group_var = dims$group_var,
         coef_thresh = coef_thresh
     )
 
-    overlap_label <- if (identical(jaccard_group_var, "cell_type")) "Cell-type" else jaccard_group_var
-    strTitle <- paste0(overlap_label, " gene overlap in aging programs ", title_label)
-
     ht <- plot_jaccard_heatmap(
         J,
-        title = strTitle,
+        title = title,
         annotate_cells = annotate_cells,
         row_fontsize = row_fontsize,
         col_fontsize = col_fontsize,
@@ -298,6 +431,191 @@ plot_jaccard_overlap_heatmap <- function(all_models_subset,
     list(jaccard = J, heatmap = ht)
 }
 
+plot_residuals_for_subset <- function(model_predictions,
+                                      all_models,
+                                      mode = c("within_region", "within_cell_type"),
+                                      cell_type = NULL,
+                                      region = NULL,
+                                      value_var = "resid_mean",
+                                      annotate_cells = TRUE,
+                                      per_page = 4,
+                                      facet_font_size = 8,
+                                      coef_thresh = 0,
+                                      corr_title = NULL) {
+
+    mode <- match.arg(mode)
+    .require_slice_args(mode, cell_type, region)
+    dims <- .mode_dims(mode)
+
+    title_label <- .default_title_label(mode, cell_type, region)
+
+    # Build res_mat once for paged scatter (efficient) and for extracting ordering
+    mp_sub <- .slice_predictions(model_predictions, mode, cell_type, region)
+    if (.warn_if_fewer_than_2_groups(mp_sub, dims$group_var, title_label)) {
+        return(invisible(NULL))
+    }
+
+    res_mat <- donor_wide_matrix(
+        model_predictions = mp_sub,
+        spread_var = dims$group_var,
+        value_var = value_var
+    )
+
+    donor_age <- unique(mp_sub[, c("donor", "age")])
+
+    p_scatter_pages <- plot_residual_pair_scatter_paged(
+        res_mat = res_mat,
+        cellType = title_label,
+        per_page = per_page,
+        facet_font_size = facet_font_size,
+        donor_meta = donor_age,
+        donor_id_col = "donor",
+        color_var = "age",
+        color_title = "Donor age"
+    )
+
+    ht_corr_out <- plot_residual_corr_heatmap(
+        model_predictions = mp_sub,
+        mode = mode,
+        cell_type = cell_type,
+        region = region,
+        value_var = value_var,
+        title = corr_title,
+        annotate_cells = annotate_cells,
+        row_fontsize = 16,
+        col_fontsize = 16,
+        cell_fontsize = 16
+    )
+
+    # Pull heatmap + clustered ordering directly from the returned list
+    ht_corr <- NULL
+    row_order_names <- NULL
+    col_order_names <- NULL
+
+    if (!is.null(ht_corr_out)) {
+        ht_corr <- ht_corr_out$heatmap
+        row_order_names <- ht_corr_out$row_order_names
+        col_order_names <- ht_corr_out$column_order_names
+    }
+
+    tmp_j <- plot_jaccard_overlap_heatmap(
+        all_models = all_models,
+        mode = mode,
+        cell_type = cell_type,
+        region = region,
+        coef_thresh = coef_thresh,
+        title = sprintf("Cell-type gene overlap in aging programs\nregion [%s]", region),
+        annotate_cells = annotate_cells,
+        row_fontsize = 16,
+        col_fontsize = 16,
+        cell_fontsize = 16,
+        row_order_names = row_order_names,
+        column_order_names = col_order_names
+    )
+
+
+    cc <- coef_corr_on_intersect(
+        .slice_models(all_models, mode, cell_type, region),
+        group_var = dims$group_var
+    )
+
+    ht_coef <- plot_coef_corr_heatmap(
+        coef_correlation = cc$coef_correlation,
+        overlap_gene_counts = cc$overlap_gene_counts,
+        title = paste0(dims$group_var, " coef correlation (intersect genes) ", title_label),
+        annotate_cells = annotate_cells,
+        row_fontsize = 16,
+        col_fontsize = 16,
+        cell_fontsize = 16
+    )
+
+    # Return objects; caller decides whether to draw/print
+    invisible(list(
+        res_mat = res_mat,
+        scatter_pages = p_scatter_pages,
+        corr_heatmap = ht_corr,
+        jaccard = tmp_j$jaccard,
+        jaccard_heatmap = tmp_j$heatmap,
+        coef_corr_heatmap = ht_coef
+    ))
+}
+
+plot_residual_pair_scatter_paged <- function(res_mat,
+                                             cellType = NULL,
+                                             per_page = 12,
+                                             facet_font_size = 10,
+                                             ncol = NULL,
+                                             donor_meta = NULL,
+                                             donor_id_col = "donor",
+                                             color_var = "age",
+                                             color_title = NULL,
+                                             point_size = 2,
+                                             point_alpha = 0.7,
+                                             lm_linewidth = 0.6,
+                                             annotate_r_size = 5,
+                                             pad_frac = 0.1) {
+    stopifnot(is.matrix(res_mat))
+
+    regs <- colnames(res_mat)
+    if (length(regs) < 2)
+        stop("Need >=2 groups (columns) in res_mat")
+
+    prs <- utils::combn(regs, 2, simplify = FALSE)
+
+    plots <- list()
+    for (pair in prs) {
+        pan <- .plot_residual_pair_scatter_one_matrix(
+            res_mat = res_mat,
+            x_name = pair[1],
+            y_name = pair[2],
+            donor_meta = donor_meta,
+            donor_id_col = donor_id_col,
+            color_var = color_var,
+            color_title = color_title,
+            point_size = point_size,
+            point_alpha = point_alpha,
+            lm_linewidth = lm_linewidth,
+            annotate_r_size = annotate_r_size,
+            pad_frac = pad_frac
+        )
+        if (!is.null(pan))
+            plots[[length(plots) + 1]] <- pan
+    }
+
+    if (!length(plots))
+        stop("No valid pairs after filtering")
+
+    if (is.null(ncol))
+        ncol <- ceiling(sqrt(per_page))
+    nrow <- ceiling(per_page / ncol)
+
+    blanks <- function(n) {
+        replicate(n, ggplot2::ggplot() + ggplot2::theme_void(), simplify = FALSE)
+    }
+
+    page_title <- "Age Prediction residuals (predicted - actual)"
+    if (!is.null(cellType))
+        page_title <- paste(cellType, page_title, sep = "\n")
+
+    pages <- list()
+    for (s in seq(1, length(plots), by = per_page)) {
+        page_plots <- plots[s:min(s + per_page - 1, length(plots))]
+        if (length(page_plots) < per_page)
+            page_plots <- c(page_plots, blanks(per_page - length(page_plots)))
+
+        grid <- cowplot::plot_grid(plotlist = page_plots, ncol = ncol, nrow = nrow)
+
+        pages[[length(pages) + 1]] <- cowplot::ggdraw() +
+            cowplot::draw_label(page_title, x = 0, y = 1, hjust = 0, vjust = 1, size = 14) +
+            cowplot::draw_plot(grid, y = 0, height = 0.94)
+    }
+
+    pages
+}
+
+########################
+# HELPERS
+########################
 
 # Generalized: donors x <spread_var> matrix for a chosen value column
 #' Convert donor-level predictions to a wide residual matrix
@@ -322,7 +640,7 @@ plot_jaccard_overlap_heatmap <- function(all_models_subset,
 #'
 #' @importFrom data.table setDT dcast
 #' @importFrom stats as.formula
-#' @export
+#' @noRd
 donor_wide_matrix <- function(model_predictions, spread_var, value_var) {
     data.table::setDT(model_predictions)
 
@@ -339,29 +657,6 @@ donor_wide_matrix <- function(model_predictions, spread_var, value_var) {
 }
 
 
-# calculate correlation on the model coefficients that overlap in a pair of comparisons.
-# feature x <group_var> matrix of coefficients (NA where a feature is absent)
-coef_matrix_by_group <- function(all_models, group_var) {
-    stopifnot(
-        all(c("feature", "coef") %in% names(all_models)),
-        group_var %in% names(all_models)
-    )
-
-    cols <- c("feature", group_var, "coef")
-
-    if (data.table::is.data.table(all_models)) {
-        df <- all_models[, cols, with = FALSE]
-    } else {
-        df <- all_models[, cols, drop = FALSE]
-    }
-
-    f <- stats::as.formula(paste0("feature ~ ", group_var))
-    wide_dt <- data.table::dcast(data.table::as.data.table(df), f, value.var = "coef")
-
-    mat <- as.matrix(wide_dt[, -1, with = FALSE])
-    rownames(mat) <- wide_dt[["feature"]]
-    mat
-}
 
 # Pairwise correlation across groups, using intersected genes for each pair
 # Returns list(C=cor_matrix, N=overlap_counts)
@@ -390,12 +685,6 @@ coef_corr_on_intersect <- function(all_models, group_var, method = "pearson") {
         overlap_gene_counts = overlap_gene_counts
     )
 }
-
-
-
-#####################
-# PLOTS
-#####################
 
 plot_coef_corr_heatmap <- function(coef_correlation,
                                    overlap_gene_counts,
@@ -452,374 +741,6 @@ plot_coef_corr_heatmap <- function(coef_correlation,
         ),
         cell_fun = cell_fun,
         column_title = title
-    )
-}
-
-
-plot_residual_pair_scatter_paged <- function(res_mat,
-                                             cellType = NULL,
-                                             per_page = 12,
-                                             facet_font_size = 10,
-                                             ncol = NULL,
-                                             donor_meta = NULL,
-                                             donor_id_col = "donor",
-                                             color_var = "age",
-                                             color_title = NULL,
-                                             point_size = 2,
-                                             point_alpha = 0.7,
-                                             lm_linewidth = 0.6,
-                                             annotate_r_size = 5,
-                                             pad_frac = 0.1) {
-    stopifnot(is.matrix(res_mat))
-
-    regs <- colnames(res_mat)
-    if (length(regs) < 2)
-        stop("Need >=2 cell types (columns) in res_mat")
-
-    donors <- rownames(res_mat)
-    if (is.null(donors))
-        stop("res_mat must have rownames containing donor IDs")
-
-    prs <- utils::combn(regs, 2, simplify = FALSE)
-
-    plots <- list()
-    for (pair in prs) {
-        x_name <- pair[1]
-        y_name <- pair[2]
-
-        pan <- plot_residual_pair_scatter_one(
-            res_mat = res_mat,
-            x_name = x_name,
-            y_name = y_name,
-            donor_meta = donor_meta,
-            donor_id_col = donor_id_col,
-            color_var = color_var,
-            color_title = color_title,
-            point_size = point_size,
-            point_alpha = point_alpha,
-            lm_linewidth = lm_linewidth,
-            annotate_r_size = annotate_r_size,
-            pad_frac = pad_frac
-        )
-
-        if (!is.null(pan))
-            plots[[length(plots) + 1]] <- pan
-    }
-
-    if (!length(plots))
-        stop("No valid pairs after filtering")
-
-    if (is.null(ncol))
-        ncol <- ceiling(sqrt(per_page))
-    nrow <- ceiling(per_page / ncol)
-
-    blanks <- function(n) {
-        replicate(n, ggplot2::ggplot() + ggplot2::theme_void(), simplify = FALSE)
-    }
-
-    page_title <- "Age Prediction residuals (predicted - actual)"
-    if (!is.null(cellType))
-        page_title <- paste(cellType, page_title, sep = "\n")
-
-    pages <- list()
-    for (s in seq(1, length(plots), by = per_page)) {
-        page_plots <- plots[s:min(s + per_page - 1, length(plots))]
-        if (length(page_plots) < per_page)
-            page_plots <- c(page_plots, blanks(per_page - length(page_plots)))
-
-        grid <- cowplot::plot_grid(
-            plotlist = page_plots,
-            ncol = ncol,
-            nrow = nrow
-        )
-
-        pg <- cowplot::ggdraw() +
-            cowplot::draw_label(
-                page_title,
-                x = 0,
-                y = 1,
-                hjust = 0,
-                vjust = 1,
-                size = 14
-            ) +
-            cowplot::draw_plot(grid, y = 0, height = 0.94)
-
-        pages[[length(pages) + 1]] <- pg
-    }
-
-    pages
-}
-
-
-#' Plot residual scatter for a single pair of columns
-#'
-#' Create a single residual-vs-residual scatter plot for two columns of a residual
-#' matrix, optionally coloring points by a donor-level metadata variable. The plot
-#' includes a y=x reference line, a linear regression fit, and an annotation of the
-#' Pearson correlation computed on finite x/y pairs. The x and y limits are shared
-#' and padded to enforce a square comparison scale.
-#'
-#' @param res_mat A numeric matrix of residuals with donors in rows and variables
-#'   (e.g., regions or cell types) in columns. Must have `rownames(res_mat)` as
-#'   donor IDs and `colnames(res_mat)` containing `x_name` and `y_name`.
-#' @param x_name A single string giving the column name in `res_mat` to plot on
-#'   the x axis.
-#' @param y_name A single string giving the column name in `res_mat` to plot on
-#'   the y axis.
-#' @param donor_meta Optional data.frame or data.table containing donor-level
-#'   metadata for coloring points. If provided, must include `donor_id_col` and
-#'   `color_var`.
-#' @param donor_id_col Column name in `donor_meta` containing donor IDs.
-#'   Matched to `rownames(res_mat)`.
-#' @param color_var Column name in `donor_meta` used to color points. If no finite
-#'   values are present after merging, points are drawn in a single color.
-#' @param color_title Optional legend title for the color scale. If `NULL`,
-#'   defaults to `color_var`.
-#' @param point_size Point size used for the scatter.
-#' @param point_alpha Point transparency used for the scatter.
-#' @param lm_linewidth Line width for the linear regression fit.
-#' @param annotate_r_size Text size for the correlation annotation.
-#' @param pad_frac Fraction of the data range used to pad the shared x/y limits.
-#'
-#' @return A `ggplot` object, or `NULL` if fewer than two finite (x, y) pairs are
-#'   available after filtering.
-#'
-#' @examples
-#' # res_mat: donors x regions residual matrix
-#' # donor_meta: data.frame with columns donor and age
-#' p <- plot_residual_pair_scatter_one(
-#'     res_mat = res_mat,
-#'     x_name = "CaH",
-#'     y_name = "DFC",
-#'     donor_meta = donor_meta,
-#'     donor_id_col = "donor",
-#'     color_var = "age"
-#' )
-#' if (!is.null(p)) print(p)
-#'
-#' @importFrom ggplot2 ggplot aes geom_point geom_abline geom_smooth annotate
-#' @importFrom ggplot2 coord_cartesian labs theme_classic theme element_text
-#' @importFrom stats cor
-#' @export
-plot_residual_pair_scatter_one <- function(res_mat,
-                                           x_name,
-                                           y_name,
-                                           donor_meta = NULL,
-                                           donor_id_col = "donor",
-                                           color_var = "age",
-                                           color_title = NULL,
-                                           point_size = 2,
-                                           point_alpha = 0.7,
-                                           lm_linewidth = 0.6,
-                                           annotate_r_size = 5,
-                                           pad_frac = 0.1) {
-
-    stopifnot(is.matrix(res_mat))
-    stopifnot(is.character(x_name) && length(x_name) == 1L)
-    stopifnot(is.character(y_name) && length(y_name) == 1L)
-
-    regs <- colnames(res_mat)
-    if (is.null(regs))
-        stop("res_mat must have colnames")
-
-    if (!(x_name %in% regs))
-        stop(sprintf("x_name not found in res_mat colnames: %s", x_name))
-    if (!(y_name %in% regs))
-        stop(sprintf("y_name not found in res_mat colnames: %s", y_name))
-    if (x_name == y_name)
-        stop("x_name and y_name must be different")
-
-    donors <- rownames(res_mat)
-    if (is.null(donors))
-        stop("res_mat must have rownames containing donor IDs")
-
-    meta <- NULL
-    if (!is.null(donor_meta)) {
-        stopifnot(is.data.frame(donor_meta) || data.table::is.data.table(donor_meta))
-        stopifnot(donor_id_col %in% names(donor_meta))
-        stopifnot(color_var %in% names(donor_meta))
-
-        cols <- c(donor_id_col, color_var)
-
-        if (data.table::is.data.table(donor_meta)) {
-            meta <- unique(donor_meta[, cols, with = FALSE])
-        } else {
-            meta <- unique(donor_meta[, cols, drop = FALSE])
-        }
-
-        data.table::setnames(meta, cols, c("donor", "color_value"))
-    }
-
-    x <- res_mat[, x_name]
-    y <- res_mat[, y_name]
-
-    keep <- is.finite(x) & is.finite(y)
-    if (sum(keep) < 2)
-        return(NULL)
-
-    df <- data.frame(
-        donor = donors[keep],
-        x = x[keep],
-        y = y[keep],
-        stringsAsFactors = FALSE
-    )
-
-    if (!is.null(meta)) {
-        df <- merge(df, meta, by = "donor", all.x = TRUE, sort = FALSE)
-    } else {
-        df$color_value <- NA_real_
-    }
-
-    use_color <- any(is.finite(df$color_value))
-    if (is.null(color_title))
-        color_title <- color_var
-
-    r <- stats::cor(df$x, df$y)
-
-    rng <- range(c(df$x, df$y))
-    pad <- diff(rng) * pad_frac
-    lim <- c(rng[1] - pad, rng[2] + pad)
-
-    # R CMD CHECK
-    intercept <- slope <- color_value <- NULL
-
-    p <- ggplot2::ggplot(df, ggplot2::aes(x = x, y = y)) +
-        ggplot2::geom_abline(
-            intercept = 0,
-            slope = 1,
-            color = "black",
-            linetype = "dashed"
-        )
-
-    if (use_color) {
-        p <- p +
-            ggplot2::geom_point(
-                ggplot2::aes(color = color_value),
-                size = point_size,
-                alpha = point_alpha
-            ) +
-            ggplot2::scale_color_viridis_c(name = color_title)
-    } else {
-        p <- p +
-            ggplot2::geom_point(
-                size = point_size,
-                alpha = point_alpha,
-                color = "steelblue"
-            )
-    }
-
-    p +
-        ggplot2::geom_smooth(
-            method = "lm",
-            formula = y ~ x,
-            se = FALSE,
-            linewidth = lm_linewidth,
-            color = "red"
-        ) +
-        ggplot2::annotate(
-            "text",
-            x = -Inf,
-            y = Inf,
-            label = sprintf("r = %.2f", r),
-            hjust = -0.1,
-            vjust = 1.2,
-            size = annotate_r_size
-        ) +
-        ggplot2::coord_cartesian(xlim = lim, ylim = lim) +
-        ggplot2::labs(
-            x = paste("Residual in", x_name),
-            y = paste("Residual in", y_name)
-        ) +
-        ggplot2::theme_classic(base_size = 12) +
-        ggplot2::theme(
-            axis.title = ggplot2::element_text(size = 14),
-            axis.text  = ggplot2::element_text(size = 12)
-        )
-}
-
-
-# m: donors x regions residual matrix (from compute_residual_matrix)
-# method: "pearson" or "spearman"
-# cluster: TRUE = hierarchical clustering rows/cols; FALSE = keep input order
-# annotate_cells: TRUE = show correlation values in heatmap cells; FALSE = no annotation
-
-
-#' Plot heatmap of residual correlations
-#'
-#' Compute the pairwise Pearson correlation matrix from a residual matrix and
-#' display it as a clustered heatmap using `ComplexHeatmap`. Rows and columns
-#' correspond to the variables (e.g., regions or cell types) in `res_mat`.
-#'
-#' Optionally annotates each heatmap cell with the numeric correlation value.
-#'
-#' @param res_mat A numeric matrix of residuals with donors in rows and
-#'   variables (e.g., regions or cell types) in columns.
-#' @param cellType Optional string used to prefix the heatmap title.
-#' @param annotate_cells Logical; if `TRUE`, overlay each heatmap cell with
-#'   the corresponding correlation value rounded to two decimals.
-#' @param row_fontsize Numeric font size for row labels.
-#' @param col_fontsize Numeric font size for column labels.
-#' @param cell_fontsize Numeric font size for correlation annotations inside cells.
-#'
-#' @return A `ComplexHeatmap::Heatmap` object.
-#'
-#' @details
-#' Correlations are computed using `stats::cor()` with
-#' `use = "pairwise.complete.obs"`. Rows and columns are hierarchically
-#' clustered. The color scale is fixed to the range [-1, 1] with blue for
-#' negative correlations, white for zero, and red for positive correlations.
-#'
-#' @examples
-#' # res_mat: donors x regions residual matrix
-#' ht <- plot_residual_corr_heatmap(
-#'     res_mat = res_mat,
-#'     cellType = "astrocyte",
-#'     annotate_cells = TRUE
-#' )
-#' ComplexHeatmap::draw(ht)
-#'
-#' @importFrom stats cor
-#' @importFrom circlize colorRamp2
-#' @importFrom grid grid.text gpar
-#' @importFrom ComplexHeatmap Heatmap
-#' @export
-plot_residual_corr_heatmap <- function(res_mat,
-                                       cellType = NULL,
-                                       annotate_cells = TRUE,
-                                       row_fontsize=9,
-                                       col_fontsize=9,
-                                       cell_fontsize=9) {
-    stopifnot(is.matrix(res_mat))
-    C <- cor(res_mat, use = "pairwise.complete.obs")  # regions x regions
-
-    col_fun <- circlize::colorRamp2(c(-1, 0, 1), c("#3b4cc0", "white", "#b40426"))
-
-    column_title <- "Age Prediction residuals (predicted - actual)"
-    if (!is.null(cellType))
-        column_title <- paste(cellType, column_title, sep = "\n")
-
-    # optional cell annotation
-    cf <- if (isTRUE(annotate_cells)) {
-        function(j, i, x, y, width, height, fill) {
-            grid::grid.text(sprintf("%.2f", C[i, j]), x, y, gp = grid::gpar(fontsize = cell_fontsize))
-        }
-    } else
-        NULL
-
-    ComplexHeatmap::Heatmap(
-        C,
-        name = "r",
-        col = col_fun,
-        cluster_rows = TRUE,
-        cluster_columns = TRUE,
-        row_title = NULL,
-        column_title = column_title,
-        show_row_dend = TRUE,
-        show_column_dend = TRUE,
-        row_names_gp = grid::gpar(fontsize = row_fontsize),
-        column_names_gp = grid::gpar(fontsize = col_fontsize),
-        heatmap_legend_param = list(at = c(-1, -0.5, 0, 0.5, 1), title = "Correlation"),
-        cell_fun = cf
     )
 }
 
@@ -950,30 +871,35 @@ plot_jaccard_heatmap <- function(J,
 }
 
 
-
-
-
-
-
-
-
-
-
-
-donor_celltype_matrix <- function(model_predictions, value_var) {
-    data.table::setDT(model_predictions)
-
-    wide_dt <- data.table::dcast(
-        model_predictions,
-        donor ~ cell_type,
-        value.var = value_var
+# calculate correlation on the model coefficients that overlap in a pair of comparisons.
+# feature x <group_var> matrix of coefficients (NA where a feature is absent)
+coef_matrix_by_group <- function(all_models, group_var) {
+    stopifnot(
+        all(c("feature", "coef") %in% names(all_models)),
+        group_var %in% names(all_models)
     )
 
-    mat <- as.matrix(wide_dt[, -1])
-    rownames(mat) <- wide_dt$donor
+    cols <- c("feature", group_var, "coef")
 
+    if (data.table::is.data.table(all_models)) {
+        df <- all_models[, cols, with = FALSE]
+    } else {
+        df <- all_models[, cols, drop = FALSE]
+    }
+
+    f <- stats::as.formula(paste0("feature ~ ", group_var))
+    wide_dt <- data.table::dcast(data.table::as.data.table(df), f, value.var = "coef")
+
+    mat <- as.matrix(wide_dt[, -1, with = FALSE])
+    rownames(mat) <- wide_dt[["feature"]]
     mat
 }
+
+
+
+####################
+# FILE I/O
+####################
 
 
 load_models <- function (model_file, cellTypeListFile=NULL) {
@@ -1022,414 +948,6 @@ load_model_predictions <- function (prediction_file, cellTypeListFile=NULL) {
     return(all_preds)
 }
 
-################
-# REFACTOR CODE
-################
-
-compare_age_residuals_celltype_region <- function(model_file, prediction_file,
-                                                  cellTypeListFile = NULL,
-                                                  value_var = "resid_mean",
-                                                  exclude_donor_age_range = c(),
-                                                  out_pdf_file = NULL) {
-
-    model_predictions <- load_model_predictions(prediction_file, cellTypeListFile)
-
-    if (length(exclude_donor_age_range) == 2) {
-        age_min <- exclude_donor_age_range[1]
-        age_max <- exclude_donor_age_range[2]
-        logger::log_info(sprintf(
-            "Excluding donors with age in range [%s, %s] from analysis",
-            age_min, age_max
-        ))
-        model_predictions <- model_predictions[!(
-            model_predictions$age >= age_min & model_predictions$age <= age_max
-        ), ]
-    }
-
-    all_models <- load_models(model_file, cellTypeListFile)
-
-    if (!is.null(out_pdf_file))
-        grDevices::pdf(out_pdf_file, width = 11, height = 11)
-    on.exit({
-        if (!is.null(out_pdf_file)) grDevices::dev.off()
-    }, add = TRUE)
-
-    for (current_region in unique(model_predictions$region)) {
-        logger::log_info("Processing region: ", current_region)
-        out <- plot_residuals_for_subset(
-            model_predictions = model_predictions,
-            all_models = all_models,
-            mode = "within_region",
-            region = current_region,
-            value_var = value_var
-        )
-        if (!is.null(out)) {
-            ComplexHeatmap::draw(out$jaccard_heatmap, heatmap_legend_side = "right")
-            ComplexHeatmap::draw(out$corr_heatmap, heatmap_legend_side = "right")
-            ComplexHeatmap::draw(out$coef_corr_heatmap, heatmap_legend_side = "right")
-            for (p in out$scatter_pages) print(p)
-        }
-    }
-
-    for (current_cell_type in unique(model_predictions$cell_type)) {
-        logger::log_info("Processing cell type: ", current_cell_type)
-        out <- plot_residuals_for_subset(
-            model_predictions = model_predictions,
-            all_models = all_models,
-            mode = "within_cell_type",
-            cell_type = current_cell_type,
-            value_var = value_var
-        )
-        if (!is.null(out)) {
-            ComplexHeatmap::draw(out$jaccard_heatmap, heatmap_legend_side = "right")
-            ComplexHeatmap::draw(out$corr_heatmap, heatmap_legend_side = "right")
-            ComplexHeatmap::draw(out$coef_corr_heatmap, heatmap_legend_side = "right")
-            for (p in out$scatter_pages) print(p)
-        }
-    }
-
-    invisible(NULL)
-}
-
-
-plot_residuals_for_subset <- function(model_predictions,
-                                      all_models,
-                                      mode = c("within_region", "within_cell_type"),
-                                      cell_type = NULL,
-                                      region = NULL,
-                                      value_var = "resid_mean",
-                                      annotate_cells = TRUE,
-                                      per_page = 4,
-                                      facet_font_size = 8,
-                                      coef_thresh = 0,
-                                      corr_title = NULL) {
-
-    mode <- match.arg(mode)
-    .require_slice_args(mode, cell_type, region)
-    dims <- .mode_dims(mode)
-
-    title_label <- .default_title_label(mode, cell_type, region)
-
-    # Build res_mat once for paged scatter (efficient) and for extracting ordering
-    mp_sub <- .slice_predictions(model_predictions, mode, cell_type, region)
-    if (.warn_if_fewer_than_2_groups(mp_sub, dims$group_var, title_label)) {
-        return(invisible(NULL))
-    }
-
-    res_mat <- donor_wide_matrix(
-        model_predictions = mp_sub,
-        spread_var = dims$group_var,
-        value_var = value_var
-    )
-
-    donor_age <- unique(mp_sub[, c("donor", "age")])
-
-    p_scatter_pages <- plot_residual_pair_scatter_paged(
-        res_mat = res_mat,
-        cellType = title_label,
-        per_page = per_page,
-        facet_font_size = facet_font_size,
-        donor_meta = donor_age,
-        donor_id_col = "donor",
-        color_var = "age",
-        color_title = "Donor age"
-    )
-
-    ht_corr <- plot_residual_corr_heatmap(
-        model_predictions = model_predictions,
-        mode = mode,
-        cell_type = cell_type,
-        region = region,
-        value_var = value_var,
-        title = corr_title,
-        annotate_cells = annotate_cells,
-        row_fontsize = 16,
-        col_fontsize = 16,
-        cell_fontsize = 16
-    )
-
-    # Extract ordering from correlation heatmap for optional jaccard ordering
-    row_order_names <- NULL
-    col_order_names <- NULL
-
-    if (!is.null(ht_corr)) {
-        ord <- .get_heatmap_order_names(ht_corr, colnames(res_mat))
-        row_order_names <- ord$row_order_names
-        col_order_names <- ord$column_order_names
-    }
-
-    tmp_j <- plot_jaccard_overlap_heatmap(
-        all_models = all_models,
-        mode = mode,
-        cell_type = cell_type,
-        region = region,
-        coef_thresh = coef_thresh,
-        title_label = title_label,
-        annotate_cells = annotate_cells,
-        row_fontsize = 16,
-        col_fontsize = 16,
-        cell_fontsize = 16,
-        row_order_names = row_order_names,
-        column_order_names = col_order_names
-    )
-
-    cc <- coef_corr_on_intersect(
-        .slice_models(all_models, mode, cell_type, region),
-        group_var = dims$group_var
-    )
-
-    ht_coef <- plot_coef_corr_heatmap(
-        coef_correlation = cc$coef_correlation,
-        overlap_gene_counts = cc$overlap_gene_counts,
-        title = paste0(dims$group_var, " coef correlation (intersect genes) ", title_label),
-        annotate_cells = annotate_cells,
-        row_fontsize = 16,
-        col_fontsize = 16,
-        cell_fontsize = 16
-    )
-
-    # Return objects; caller decides whether to draw/print
-    invisible(list(
-        res_mat = res_mat,
-        scatter_pages = p_scatter_pages,
-        corr_heatmap = ht_corr,
-        jaccard = tmp_j$jaccard,
-        jaccard_heatmap = tmp_j$heatmap,
-        coef_corr_heatmap = ht_coef
-    ))
-}
-
-
-plot_residual_pair_scatter_paged <- function(res_mat,
-                                             cellType = NULL,
-                                             per_page = 12,
-                                             facet_font_size = 10,
-                                             ncol = NULL,
-                                             donor_meta = NULL,
-                                             donor_id_col = "donor",
-                                             color_var = "age",
-                                             color_title = NULL,
-                                             point_size = 2,
-                                             point_alpha = 0.7,
-                                             lm_linewidth = 0.6,
-                                             annotate_r_size = 5,
-                                             pad_frac = 0.1) {
-    stopifnot(is.matrix(res_mat))
-
-    regs <- colnames(res_mat)
-    if (length(regs) < 2)
-        stop("Need >=2 groups (columns) in res_mat")
-
-    prs <- utils::combn(regs, 2, simplify = FALSE)
-
-    plots <- list()
-    for (pair in prs) {
-        pan <- .plot_residual_pair_scatter_one_matrix(
-            res_mat = res_mat,
-            x_name = pair[1],
-            y_name = pair[2],
-            donor_meta = donor_meta,
-            donor_id_col = donor_id_col,
-            color_var = color_var,
-            color_title = color_title,
-            point_size = point_size,
-            point_alpha = point_alpha,
-            lm_linewidth = lm_linewidth,
-            annotate_r_size = annotate_r_size,
-            pad_frac = pad_frac
-        )
-        if (!is.null(pan))
-            plots[[length(plots) + 1]] <- pan
-    }
-
-    if (!length(plots))
-        stop("No valid pairs after filtering")
-
-    if (is.null(ncol))
-        ncol <- ceiling(sqrt(per_page))
-    nrow <- ceiling(per_page / ncol)
-
-    blanks <- function(n) {
-        replicate(n, ggplot2::ggplot() + ggplot2::theme_void(), simplify = FALSE)
-    }
-
-    page_title <- "Age Prediction residuals (predicted - actual)"
-    if (!is.null(cellType))
-        page_title <- paste(cellType, page_title, sep = "\n")
-
-    pages <- list()
-    for (s in seq(1, length(plots), by = per_page)) {
-        page_plots <- plots[s:min(s + per_page - 1, length(plots))]
-        if (length(page_plots) < per_page)
-            page_plots <- c(page_plots, blanks(per_page - length(page_plots)))
-
-        grid <- cowplot::plot_grid(plotlist = page_plots, ncol = ncol, nrow = nrow)
-
-        pages[[length(pages) + 1]] <- cowplot::ggdraw() +
-            cowplot::draw_label(page_title, x = 0, y = 1, hjust = 0, vjust = 1, size = 14) +
-            cowplot::draw_plot(grid, y = 0, height = 0.94)
-    }
-
-    pages
-}
-
-
-plot_residual_corr_heatmap <- function(model_predictions,
-                                       mode = c("within_region", "within_cell_type"),
-                                       cell_type = NULL,
-                                       region = NULL,
-                                       value_var = "resid_mean",
-                                       title = NULL,
-                                       annotate_cells = TRUE,
-                                       row_fontsize = 9,
-                                       col_fontsize = 9,
-                                       cell_fontsize = 9) {
-
-    mode <- match.arg(mode)
-    .require_slice_args(mode, cell_type, region)
-    dims <- .mode_dims(mode)
-
-    mp <- .slice_predictions(model_predictions, mode, cell_type, region)
-    if (.warn_if_fewer_than_2_groups(mp, dims$group_var, .default_title_label(mode, cell_type, region))) {
-        return(NULL)
-    }
-
-    res_mat <- donor_wide_matrix(
-        model_predictions = mp,
-        spread_var = dims$group_var,
-        value_var = value_var
-    )
-
-    if (is.null(title)) {
-        title <- paste(
-            .default_title_label(mode, cell_type, region),
-            "Age Prediction residuals (predicted - actual)",
-            sep = "\n"
-        )
-    }
-
-    .plot_residual_corr_heatmap_matrix(
-        res_mat = res_mat,
-        title = title,
-        annotate_cells = annotate_cells,
-        row_fontsize = row_fontsize,
-        col_fontsize = col_fontsize,
-        cell_fontsize = cell_fontsize
-    )
-}
-
-
-plot_residual_pair_scatter_one <- function(model_predictions,
-                                           mode = c("within_region", "within_cell_type"),
-                                           cell_type = NULL,
-                                           region = NULL,
-                                           x_group,
-                                           y_group,
-                                           value_var = "resid_mean",
-                                           donor_id_col = "donor",
-                                           color_var = "age",
-                                           color_title = "Donor age",
-                                           point_size = 2,
-                                           point_alpha = 0.7,
-                                           lm_linewidth = 0.6,
-                                           annotate_r_size = 5,
-                                           pad_frac = 0.1) {
-
-    mode <- match.arg(mode)
-    .require_slice_args(mode, cell_type, region)
-    dims <- .mode_dims(mode)
-
-    mp <- .slice_predictions(model_predictions, mode, cell_type, region)
-    if (.warn_if_fewer_than_2_groups(mp, dims$group_var, .default_title_label(mode, cell_type, region))) {
-        return(NULL)
-    }
-
-    # Pull the two groups and intersect donors
-    data.table::setDT(mp)
-    dt_x <- mp[get(dims$group_var) == x_group, c(donor_id_col, value_var, color_var), with = FALSE]
-    dt_y <- mp[get(dims$group_var) == y_group, c(donor_id_col, value_var), with = FALSE]
-
-    data.table::setnames(dt_x, c(donor_id_col, value_var, color_var), c("donor", "x", "color_value"))
-    data.table::setnames(dt_y, c(donor_id_col, value_var), c("donor", "y"))
-
-    df <- merge(dt_x, dt_y, by = "donor", all = FALSE, sort = FALSE)
-    if (nrow(df) < 2) {
-        logger::log_warn("Skipping pair plot: <2 donors in intersection for requested groups")
-        return(NULL)
-    }
-
-    # Build a 2-col matrix and reuse the matrix plotter for consistent styling
-    res_mat <- as.matrix(df[, c("x", "y")])
-    rownames(res_mat) <- df[["donor"]]
-    colnames(res_mat) <- c(x_group, y_group)
-
-    donor_meta <- df[, c("donor", "color_value")]
-    data.table::setnames(donor_meta, c("donor", "color_value"), c(donor_id_col, color_var))
-
-    .plot_residual_pair_scatter_one_matrix(
-        res_mat = res_mat,
-        x_name = x_group,
-        y_name = y_group,
-        donor_meta = donor_meta,
-        donor_id_col = donor_id_col,
-        color_var = color_var,
-        color_title = color_title,
-        point_size = point_size,
-        point_alpha = point_alpha,
-        lm_linewidth = lm_linewidth,
-        annotate_r_size = annotate_r_size,
-        pad_frac = pad_frac
-    )
-}
-
-plot_jaccard_overlap_heatmap <- function(all_models,
-                                         mode = c("within_region", "within_cell_type"),
-                                         cell_type = NULL,
-                                         region = NULL,
-                                         coef_thresh = 0,
-                                         title_label = NULL,
-                                         annotate_cells = TRUE,
-                                         row_fontsize = 16,
-                                         col_fontsize = 16,
-                                         cell_fontsize = 16,
-                                         row_order_names = NULL,
-                                         column_order_names = NULL) {
-
-    mode <- match.arg(mode)
-    .require_slice_args(mode, cell_type, region)
-    dims <- .mode_dims(mode)
-
-    am <- .slice_models(all_models, mode, cell_type, region)
-
-    if (is.null(title_label)) {
-        title_label <- .default_title_label(mode, cell_type, region)
-    }
-
-    J <- jaccard_by_group(
-        am,
-        group_var = dims$group_var,
-        coef_thresh = coef_thresh
-    )
-
-    overlap_label <- if (identical(dims$group_var, "cell_type")) "Cell-type" else dims$group_var
-    strTitle <- paste0(overlap_label, " gene overlap in aging programs ", title_label)
-
-    ht <- plot_jaccard_heatmap(
-        J,
-        title = strTitle,
-        annotate_cells = annotate_cells,
-        row_fontsize = row_fontsize,
-        col_fontsize = col_fontsize,
-        cell_fontsize = cell_fontsize,
-        row_order_names = row_order_names,
-        column_order_names = column_order_names
-    )
-
-    list(jaccard = J, heatmap = ht)
-}
-
-
-
 #' Plot heatmap of residual correlations
 #'
 #' Compute the pairwise Pearson correlation matrix from a residual matrix and
@@ -1455,20 +973,11 @@ plot_jaccard_overlap_heatmap <- function(all_models,
 #' clustered. The color scale is fixed to the range [-1, 1] with blue for
 #' negative correlations, white for zero, and red for positive correlations.
 #'
-#' @examples
-#' # res_mat: donors x regions residual matrix
-#' ht <- plot_residual_corr_heatmap(
-#'     res_mat = res_mat,
-#'     cellType = "astrocyte",
-#'     annotate_cells = TRUE
-#' )
-#' ComplexHeatmap::draw(ht)
-#'
 #' @importFrom stats cor
 #' @importFrom circlize colorRamp2
 #' @importFrom grid grid.text gpar
 #' @importFrom ComplexHeatmap Heatmap
-#' @export
+#' @noRd
 .plot_residual_corr_heatmap_matrix <- function(res_mat,
                                                title = NULL,
                                                annotate_cells = TRUE,
@@ -1515,8 +1024,6 @@ plot_jaccard_overlap_heatmap <- function(all_models,
     )
 }
 
-
-
 #' Plot residual scatter for a single pair of columns
 #'
 #' Create a single residual-vs-residual scatter plot for two columns of a residual
@@ -1550,23 +1057,10 @@ plot_jaccard_overlap_heatmap <- function(all_models,
 #' @return A `ggplot` object, or `NULL` if fewer than two finite (x, y) pairs are
 #'   available after filtering.
 #'
-#' @examples
-#' # res_mat: donors x regions residual matrix
-#' # donor_meta: data.frame with columns donor and age
-#' p <- plot_residual_pair_scatter_one(
-#'     res_mat = res_mat,
-#'     x_name = "CaH",
-#'     y_name = "DFC",
-#'     donor_meta = donor_meta,
-#'     donor_id_col = "donor",
-#'     color_var = "age"
-#' )
-#' if (!is.null(p)) print(p)
-#'
 #' @importFrom ggplot2 ggplot aes geom_point geom_abline geom_smooth annotate
 #' @importFrom ggplot2 coord_cartesian labs theme_classic theme element_text
 #' @importFrom stats cor
-#' @export
+#' @noRd
 .plot_residual_pair_scatter_one_matrix <- function(res_mat,
                                                    x_name,
                                                    y_name,
@@ -1703,28 +1197,9 @@ plot_jaccard_overlap_heatmap <- function(all_models,
         )
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+#################
+# OTHER HELPERS
+#################
 
 .mode_dims <- function(mode) {
     if (identical(mode, "within_region")) {

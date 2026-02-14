@@ -2,7 +2,7 @@
 % Please edit documentation in R/donor_age_prediction_residuals.R
 \name{plot_residual_pair_scatter_one}
 \alias{plot_residual_pair_scatter_one}
-\title{Plot residual scatter for a single pair of columns}
+\title{Plot residual scatter for one pair of groups within a slice}
 \usage{
 plot_residual_pair_scatter_one(
   model_predictions,
@@ -23,61 +23,55 @@ plot_residual_pair_scatter_one(
 )
 }
 \arguments{
-\item{donor_id_col}{Column name in `donor_meta` containing donor IDs.
-Matched to `rownames(res_mat)`.}
+\item{model_predictions}{A data.frame or data.table of donor-level predictions.
+Must contain columns `donor`, `cell_type`, `region`, `age`, and the column
+specified by `value_var`.}
 
-\item{color_var}{Column name in `donor_meta` used to color points. If no finite
-values are present after merging, points are drawn in a single color.}
+\item{mode}{Character scalar. Either `"within_region"` (compare cell types
+within a fixed region) or `"within_cell_type"` (compare regions within a
+fixed cell type).}
 
-\item{color_title}{Optional legend title for the color scale. If `NULL`,
-defaults to `color_var`.}
+\item{cell_type}{Character scalar giving the cell type slice when
+`mode = "within_cell_type"`. Ignored when `mode = "within_region"`.}
 
-\item{point_size}{Point size used for the scatter.}
+\item{region}{Character scalar giving the region slice when
+`mode = "within_region"`. Ignored when `mode = "within_cell_type"`.}
 
-\item{point_alpha}{Point transparency used for the scatter.}
+\item{x_group}{Character scalar giving the first group to plot on the x axis.
+This must be a value of the compared dimension (cell type for
+`"within_region"`, region for `"within_cell_type"`).}
+
+\item{y_group}{Character scalar giving the second group to plot on the y axis.}
+
+\item{value_var}{Character scalar giving the residual column to plot
+(e.g., `"resid_mean"` or `"resid_mean_corrected"`).}
+
+\item{donor_id_col}{Column name for donor IDs in `model_predictions`.}
+
+\item{color_var}{Column name in `model_predictions` used to color points
+(default `"age"`).}
+
+\item{color_title}{Legend title for the color scale. If `NULL`, defaults to
+`color_var`.}
+
+\item{point_size}{Numeric point size.}
+
+\item{point_alpha}{Numeric point transparency.}
 
 \item{lm_linewidth}{Line width for the linear regression fit.}
 
 \item{annotate_r_size}{Text size for the correlation annotation.}
 
-\item{pad_frac}{Fraction of the data range used to pad the shared x/y limits.}
-
-\item{res_mat}{A numeric matrix of residuals with donors in rows and variables
-(e.g., regions or cell types) in columns. Must have `rownames(res_mat)` as
-donor IDs and `colnames(res_mat)` containing `x_name` and `y_name`.}
-
-\item{x_name}{A single string giving the column name in `res_mat` to plot on
-the x axis.}
-
-\item{y_name}{A single string giving the column name in `res_mat` to plot on
-the y axis.}
-
-\item{donor_meta}{Optional data.frame or data.table containing donor-level
-metadata for coloring points. If provided, must include `donor_id_col` and
-`color_var`.}
+\item{pad_frac}{Fraction of the data range used to pad shared x/y limits.}
 }
 \value{
-A `ggplot` object, or `NULL` if fewer than two finite (x, y) pairs are
-  available after filtering.
+A `ggplot` object, or `NULL` if fewer than two donors are present in
+  the intersection after filtering.
 }
 \description{
-Create a single residual-vs-residual scatter plot for two columns of a residual
-matrix, optionally coloring points by a donor-level metadata variable. The plot
-includes a y=x reference line, a linear regression fit, and an annotation of the
-Pearson correlation computed on finite x/y pairs. The x and y limits are shared
-and padded to enforce a square comparison scale.
-}
-\examples{
-# res_mat: donors x regions residual matrix
-# donor_meta: data.frame with columns donor and age
-p <- plot_residual_pair_scatter_one(
-    res_mat = res_mat,
-    x_name = "CaH",
-    y_name = "DFC",
-    donor_meta = donor_meta,
-    donor_id_col = "donor",
-    color_var = "age"
-)
-if (!is.null(p)) print(p)
-
+Create a single residual-vs-residual scatter plot comparing two groups
+(two cell types within a region, or two regions within a cell type).
+Points correspond to donors present in both groups (intersection of donors).
+The plot includes a y = x reference line, a linear fit, and an annotation of
+the Pearson correlation computed on finite donor pairs.
 }

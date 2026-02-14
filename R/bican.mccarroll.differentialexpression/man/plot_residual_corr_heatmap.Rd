@@ -2,7 +2,7 @@
 % Please edit documentation in R/donor_age_prediction_residuals.R
 \name{plot_residual_corr_heatmap}
 \alias{plot_residual_corr_heatmap}
-\title{Plot heatmap of residual correlations}
+\title{Plot residual correlation heatmap within a slice}
 \usage{
 plot_residual_corr_heatmap(
   model_predictions,
@@ -18,44 +18,53 @@ plot_residual_corr_heatmap(
 )
 }
 \arguments{
-\item{annotate_cells}{Logical; if `TRUE`, overlay each heatmap cell with
-the corresponding correlation value rounded to two decimals.}
+\item{model_predictions}{A data.frame or data.table of donor-level predictions.
+Must contain columns `donor`, `cell_type`, `region`, and the column specified
+by `value_var`.}
 
-\item{row_fontsize}{Numeric font size for row labels.}
+\item{mode}{Character scalar. Either `"within_region"` or `"within_cell_type"`.}
 
-\item{col_fontsize}{Numeric font size for column labels.}
+\item{cell_type}{Character scalar giving the cell type slice when
+`mode = "within_cell_type"`.}
 
-\item{cell_fontsize}{Numeric font size for correlation annotations inside cells.}
+\item{region}{Character scalar giving the region slice when
+`mode = "within_region"`.}
 
-\item{res_mat}{A numeric matrix of residuals with donors in rows and
-variables (e.g., regions or cell types) in columns.}
+\item{value_var}{Character scalar giving the residual column to correlate
+(e.g., `"resid_mean"` or `"resid_mean_corrected"`).}
 
-\item{cellType}{Optional string used to prefix the heatmap title.}
+\item{title}{Optional character scalar to use as the heatmap title. If `NULL`,
+a default title derived from `mode` and the slice value is used.}
+
+\item{annotate_cells}{Logical; if `TRUE`, annotate cells with correlation values.}
+
+\item{row_fontsize}{Font size for row labels.}
+
+\item{col_fontsize}{Font size for column labels.}
+
+\item{cell_fontsize}{Font size for cell annotations.}
 }
 \value{
-A `ComplexHeatmap::Heatmap` object.
+A list with components:
+\describe{
+  \item{heatmap}{A `ComplexHeatmap::Heatmap` object. Draw with `ComplexHeatmap::draw()`.}
+  \item{row_order_names}{Character vector giving the clustered row order.}
+  \item{column_order_names}{Character vector giving the clustered column order.}
+}
 }
 \description{
-Compute the pairwise Pearson correlation matrix from a residual matrix and
-display it as a clustered heatmap using `ComplexHeatmap`. Rows and columns
-correspond to the variables (e.g., regions or cell types) in `res_mat`.
+Compute the pairwise Pearson correlation matrix of donor residuals across
+groups (cell types within a region, or regions within a cell type) and render
+the result as a clustered heatmap using `ComplexHeatmap`.
 }
 \details{
-Optionally annotates each heatmap cell with the numeric correlation value.
+Correlations are computed with `stats::cor(..., use = "pairwise.complete.obs")`.
+The heatmap is clustered on both axes using hierarchical clustering.
 
 
-Correlations are computed using `stats::cor()` with
-`use = "pairwise.complete.obs"`. Rows and columns are hierarchically
-clustered. The color scale is fixed to the range [-1, 1] with blue for
-negative correlations, white for zero, and red for positive correlations.
+To render the returned heatmap:
+\preformatted{
+out <- plot_residual_corr_heatmap(...)
+ComplexHeatmap::draw(out$heatmap, heatmap_legend_side = "right")
 }
-\examples{
-# res_mat: donors x regions residual matrix
-ht <- plot_residual_corr_heatmap(
-    res_mat = res_mat,
-    cellType = "astrocyte",
-    annotate_cells = TRUE
-)
-ComplexHeatmap::draw(ht)
-
 }
