@@ -10,41 +10,6 @@
 # library (cowplot)
 # library (dplyr)
 # source("R/age_model_fit_core.R", local=TRUE)
-#
-#
-# # data dir
-# data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metacells/LEVEL_2"
-# data_name="donor_rxn_DGEList"
-#
-# # age DE results dir
-# age_de_results_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results/LEVEL_2/sex_age/cell_type"
-# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/age_prediction/age_prediction_alpha_0"
-# outPDFFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/age_prediction/age_prediction_alpha_0/age_prediction_results_alpha0.pdf"
-
-# # filtering to autosomal genes
-# contig_yaml_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.contig_groups.yaml"
-# reduced_gtf_file="/broad/mccarroll/software/metadata/individual_reference/GRCh38_ensembl_v43/GRCh38_ensembl_v43.reduced.gtf"
-#
-# donor_col = "donor"
-# age_col = "age"
-# seed =12345; fdr_threshold=0.05; optimize_alpha=FALSE; alpha_fixed=0; min_donors=50; mc_repeats=200
-#
-#
-# # Region specific DE results and output.
-# age_de_results_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results/LEVEL_2/sex_age/cell_type_region_interaction_absolute_effects"
-# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/age_prediction/age_prediction_region_alpha_0"
-# outPDFFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/age_prediction/age_prediction_region_alpha_0/age_prediction_results_alpha0.pdf"
-
-#run Emi's data:
-# data_dir="/broad/mccarroll/dropulation/analysis/cellarium_upload/SNAP200_freeze1/metacells"
-# data_name="donor_rxn_DGEList"
-
-#still use the same set of overall features from BICAN.
-#I don't want to have to revisit this unless neccesary.
-# age_de_results_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type"
-# age_de_results_dir="/broad/mccarroll/dropulation/analysis/SNAP200/differential_expression/sex_age"
-# result_dir="/broad/mccarroll/dropulation/analysis/SNAP200/differential_expression/age_prediction"
-# outPDFFile="/broad/mccarroll/dropulation/analysis/SNAP200/differential_expression/age_prediction/age_prediction_results_snap200_DE_genes.pdf"
 
 
 #' Train donor age prediction models across all cell types and write results
@@ -609,6 +574,10 @@ predict_age_celltype <- function(cellType, dge, retained_features = c("donor", "
     final_oof_predictions <- final_repeat$donor_residual_summary
     final_oof_metrics <- final_repeat$avg_pred_metrics
     gam_fit_df <- final_repeat$gam_fit_df
+
+    #add the cell type and region to the gam_fit_df for later use, and add them as the first columns for easier parsing
+    region_value <- if (is.null(region)) NA_character_ else as.character(region)
+    gam_fit_df <- data.frame(cell_type = cellType, region = region_value, gam_fit_df)
 
     list(
         cell_type = cellType,
@@ -1343,6 +1312,8 @@ write_age_outputs_all <- function(outputs, result_dir, output_basename) {
     model_coefficients <- do.call(rbind, lapply(outputs, function(x) x$model_coefficients))
     model_metrics <- do.call(rbind, lapply(outputs, function(x) x$model_metrics))
     per_fold_metrics <- do.call(rbind, lapply(outputs, function(x) x$per_fold_metrics))
+    gam_fit_dfs <- do.call(rbind, lapply(outputs, function(x) x$gam_fit_df))
+    rownames (gam_fit_dfs)=NULL
 
     #round the outputs.
     #the number of digits to round to
@@ -1363,6 +1334,9 @@ write_age_outputs_all <- function(outputs, result_dir, output_basename) {
     out_fmet <- file.path(result_dir,
                           paste0(output_basename, "_model_per_fold_metrics.txt"))
 
+    out_gam_fit <- file.path(result_dir,
+                          paste0(output_basename, "_gam_fit.txt"))
+
     write.table(donor_predictions, file = out_pred,
                 sep = "\t", quote = FALSE,
                 row.names = FALSE, col.names = TRUE)
@@ -1378,6 +1352,11 @@ write_age_outputs_all <- function(outputs, result_dir, output_basename) {
     write.table(per_fold_metrics, file = out_fmet,
                 sep = "\t", quote = FALSE,
                 row.names = FALSE, col.names = TRUE)
+
+    write.table(gam_fit_dfs, file = out_gam_fit,
+                sep = "\t", quote = FALSE,
+                row.names = FALSE, col.names = TRUE)
+
 
     invisible(list(
         donor_predictions = out_pred,
@@ -1625,12 +1604,15 @@ get_age_de_results <- function(cellType,
         return(NULL)
 
     # Construct expected filename
+    #TODO: this changes to astrocyte__age_DE_results.txt and astrocyte__ic__age_DE_results.txt.
     if (is.null(region)) {
         # e.g. microglia_age_DE_results.txt
-        expectedFileName <- paste(cellType, "age", "DE_results.txt", sep = "_")
+        expectedFileName <- paste(cellType, "__age", "DE_results.txt", sep = "_")
+        #expectedFileName <- paste(cellType, "__age", "_DE_results.txt", sep = "")
     } else {
         # e.g. microglia_age_CaH_DE_results.txt
         expectedFileName <- paste(cellType, "age", region, "DE_results.txt", sep = "_")
+        #expectedFileName <- paste(cellType, "__", region, "__age", "_DE_results.txt", sep = "")
     }
 
     files <- list.files(path = age_de_results_dir, full.names = TRUE)

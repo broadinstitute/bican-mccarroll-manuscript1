@@ -191,8 +191,8 @@ compare_age_residuals_celltype <- function (model_file_dir,
         per_page = 4,
         facet_font_size = 8
     )
-
-    p3 <- plot_residual_corr_heatmap(res_mat, cellType = NULL, annotate_cells = TRUE)
+    #TODO FIX THIS - the method signature is different.
+    #p3 <- plot_residual_corr_heatmap(res_mat, cellType = NULL, annotate_cells = TRUE)
 
     p4 <- compare_age_model_features(model_file_dir, cellTypeListFile= cellTypeListFile)
 
