@@ -4,110 +4,9 @@
 # library(ggplot2)
 # library(ggrepel)
 
-###################################
-# CELL TYPE TESTS MERGED REGIONS
-###################################
-
-# Dropping PMI, HBCAC from model. Not all donors have PMI, PMI does not contribute very much to variance explained.
-# data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
-# data_name="donor_rxn_DGEList"
-# randVars=c("donor", "village")
-# #note: "imputed_sex" moves to a fixed effect!
-# fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "toxicology_group", "single_cell_assay", "region", "biobank")
-# contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_all.txt"
-# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age_toxiciology/cell_type"
-# cellTypeListFile=NULL
-# outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
-# interaction_var=NULL; absolute_effects=FALSE
-
-# Dropping toxicology from model to include additional donors
-# Only running on sex and age to be more donor inclusive.
-# data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
-# data_name="donor_rxn_DGEList"
-# randVars=c("donor", "village")
-# fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "single_cell_assay", "region", "biobank")
-# contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_sex_age.txt"
-# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age/cell_type"
-# outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
-# cellTypeListFile=NULL
-
-
-# Example run - no interaction or absolute effects.
-# bican.mccarroll.differentialexpression::differential_expression(data_dir, data_name, randVars, fixedVars, contrast_file, interaction_var=NULL, absolute_effects=FALSE, cellTypeListFile, outPDF, result_dir)
-
-###################################
-# CELL TYPE PER REGION TESTS - data partitioned by region and fit.
-###################################
-
-# data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
-# data_name="donor_rxn_DGEList"
-# randVars=c("donor", "village")
-# #note: "imputed_sex" moves to a fixed effect!  region will be automatically removed.
-# fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "toxicology_group", "single_cell_assay", "region", "biobank")
-# contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_all.txt"
-# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/sex_age_toxiciology/cell_type_subset_region"
-# result_dir="/downloads/differential_expression/sex_age_toxiciology/cell_type_subset_region"
-# cellTypeListFile=NULL
-# outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
-
-# Example run
-# bican.mccarroll.differentialexpression::differential_expression_region(data_dir, data_name, randVars, fixedVars, contrast_file, cellTypeListFile, outPDF, result_dir)
-
-###################################
-# CELL TYPE REGION INTERACTION TESTS
-###################################
-
-# data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
-# data_name="donor_rxn_DGEList"
-# randVars=c("donor", "village")
-# #note: "imputed_sex" moves to a fixed effect!  region will be automatically removed.
-# fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "toxicology_group", "single_cell_assay", "region", "biobank")
-# contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_all.txt"
-# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_region_interaction_CaH_baseline"
-# result_dir="/downloads/differential_expression/sex_age_toxiciology/cell_type_region_interaction_CaH_baseline"
-# cellTypeListFile=NULL
-# outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
-# interaction_var="region" #set to null to not compute interactions.
-# absolute_effects = FALSE #set to TRUE to compute absolute effects per region (only when interaction_var is not NULL)
-
-# Example run
-# bican.mccarroll.differentialexpression::differential_expression(data_dir, data_name, randVars, fixedVars, contrast_file, interaction_var, absolute_effects, cellTypeListFile, outPDF, result_dir)
-
-###################################
-# CELL TYPE REGION INTERACTION WITH ABSOLUTE EFFECTS
-###################################
-
-# Toxicology
-# data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
-# data_name="donor_rxn_DGEList"
-# randVars=c("donor", "village")
-# #note: "imputed_sex" moves to a fixed effect!  region will be automatically removed.
-# fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "toxicology_group", "single_cell_assay", "region", "biobank")
-# contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_all.txt"
-# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_region_interaction_absolute_effects"
-# result_dir="/downloads/differential_expression/sex_age_toxiciology/cell_type_region_interaction_absolute_effects"
-# cellTypeListFile=NULL
-# outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
-# interaction_var="region" #set to null to not compute interactions.
-# absolute_effects = TRUE #set to TRUE to compute absolute effects per region (only when interaction_var is not NULL)
-
-# No toxicology
-# data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
-# data_name="donor_rxn_DGEList"
-# randVars=c("donor", "village")
-# #note: "imputed_sex" moves to a fixed effect!  region will be automatically removed.
-# fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination", "imputed_sex", "single_cell_assay", "region", "biobank")
-# contrast_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/differential_expression_contrasts_sex_age.txt"
-# result_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/differential_expression/cell_type_results_sex_age_region_interaction_absolute_effects"
-# result_dir="/downloads/differential_expression/sex_age/cell_type_region_interaction_absolute_effects"
-# cellTypeListFile=NULL
-# outPDF=paste(result_dir, "volcano_plots.pdf", sep="/")
-# interaction_var="region" #set to null to not compute interactions.
-# absolute_effects = TRUE #set to TRUE to compute absolute effects per region (only when interaction_var is not NULL)
 
 # Example run with interactions.
 # bican.mccarroll.differentialexpression::differential_expression(data_dir, data_name, randVars, fixedVars, contrast_file, interaction_var, absolute_effects, cellTypeListFile, outPDF, result_dir)
-
 
 
 #' Run differential expression analysis for each cell type in the DGEList.
@@ -159,8 +58,6 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
         return(NULL)
     }
 
-    #cellType=cell_type_list[1]
-    #cellType="GABA_MGE_DFC"
     lineStr <- strrep("=", 80)
 
     plot_list= list()
@@ -198,7 +95,7 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
         #save the results
         for (contrast in names(z_flat)) {
             out=z_flat[[contrast]]
-            n=make_de_filename(contrast, cellType, interaction_var = interaction_var, absolute_effects = absolute_effects, suffix="DE_results.txt")
+            n=make_de_filename(contrast, cellType, interaction_var = interaction_var, dge=dge_cell, absolute_effects = absolute_effects, suffix="DE_results.txt")
             outFile <- file.path(result_dir, n)
             logger::log_info(paste("Saving results to:", outFile))
             write.table(out, file = outFile, sep = "\t", quote = FALSE, row.names = TRUE, col.names = TRUE)
@@ -206,7 +103,7 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
 
         #make a volcano plot for each contrast
         for (contrast in names(z_flat)) {
-            n=make_de_filename(contrast, cellType, interaction_var = interaction_var, absolute_effects = absolute_effects, suffix="")
+            n=make_de_filename(contrast, cellType, interaction_var = interaction_var, dge=dge_cell, absolute_effects = absolute_effects, suffix="")
             df <- z_flat[[contrast]]
             if (nrow(df) > 0) {
                 p <- make_volcano(df, fdr_thresh = 0.05, lfc_thresh = 0,
@@ -347,32 +244,86 @@ differential_expression_region <- function(data_dir, data_name, randVars, fixedV
 
 }
 
-make_de_filename <- function(contrast, cell_type, interaction_var = NULL, absolute_effects = FALSE, suffix="DE_results.txt") {
+# make_de_filename <- function(contrast, cell_type, interaction_var = NULL, absolute_effects = FALSE, suffix="DE_results.txt") {
+#     if (is.null(interaction_var)) {
+#         return(paste0(cell_type, "__", contrast, "_", suffix))
+#     }
+#
+#     x <- contrast
+#
+#     # If contrast encodes baseline interaction as "age:regionNAC", strip "region" -> "age:NAC"
+#     if (!absolute_effects) {
+#         x <- sub(paste0(":", interaction_var), ":", x, fixed = TRUE)  # ":" + interaction_var -> ":"
+#     }
+#
+#     # Convert "age:NAC" -> "age_NAC"; if already "age_NAC" this is a no-op
+#     x <- gsub(":", "_", x, fixed = TRUE)
+#
+#     parts <- strsplit(x, "_", fixed = TRUE)[[1]]
+#     if (length(parts) != 2L) {
+#         stop(sprintf("Expected exactly two tokens after parsing, got %d from '%s' (parsed as '%s')",
+#                      length(parts), contrast, x))
+#     }
+#
+#     contrast_name <- parts[1]
+#     interaction_level <- parts[2]
+#
+#     paste0(cell_type, "__", interaction_level, "__", contrast_name, "_", suffix)
+# }
+
+make_de_filename <- function(contrast,
+                             cell_type,
+                             interaction_var = NULL,
+                             dge = NULL,
+                             absolute_effects = FALSE,
+                             suffix = "DE_results.txt") {
+
     if (is.null(interaction_var)) {
         return(paste0(cell_type, "__", contrast, "_", suffix))
     }
 
+    if (is.null(dge) || is.null(dge$samples) || !(interaction_var %in% colnames(dge$samples))) {
+        stop("When interaction_var is not NULL, dge$samples must contain column '", interaction_var, "'.",
+             call. = FALSE)
+    }
+
+    # Valid interaction levels (factor-safe)
+    iv <- dge$samples[[interaction_var]]
+    valid_levels <- if (is.factor(iv)) levels(iv) else unique(as.character(iv))
+    valid_levels <- valid_levels[!is.na(valid_levels) & nzchar(valid_levels)]
+
     x <- contrast
 
-    # If contrast encodes baseline interaction as "age:regionNAC", strip "region" -> "age:NAC"
+    # Handle encodings like "age:regionNAC" -> "age:NAC" when not absolute effects
     if (!absolute_effects) {
-        x <- sub(paste0(":", interaction_var), ":", x, fixed = TRUE)  # ":" + interaction_var -> ":"
+        x <- sub(paste0(":", interaction_var), ":", x, fixed = TRUE)
     }
 
-    # Convert "age:NAC" -> "age_NAC"; if already "age_NAC" this is a no-op
+    # Normalize ":" -> "_" (so "age:NAC" -> "age_NAC")
     x <- gsub(":", "_", x, fixed = TRUE)
 
-    parts <- strsplit(x, "_", fixed = TRUE)[[1]]
-    if (length(parts) != 2L) {
-        stop(sprintf("Expected exactly two tokens after parsing, got %d from '%s' (parsed as '%s')",
-                     length(parts), contrast, x))
+    # Identify interaction level as a suffix token "_<level>"
+    hits <- valid_levels[vapply(
+        valid_levels,
+        function(lvl) grepl(paste0("_", lvl, "$"), x),
+        logical(1)
+    )]
+
+    if (!length(hits)) {
+        stop("Could not parse interaction level from contrast '", contrast,
+             "' (normalized '", x, "') using interaction_var='", interaction_var, "'.",
+             call. = FALSE)
     }
 
-    contrast_name <- parts[1]
-    interaction_level <- parts[2]
+    # If overlapping suffixes exist, choose the longest match
+    interaction_level <- hits[[ which.max(nchar(hits)) ]]
+
+    # Contrast name is whatever precedes "_<interaction_level>"
+    contrast_name <- sub(paste0("_", interaction_level, "$"), "", x)
 
     paste0(cell_type, "__", interaction_level, "__", contrast_name, "_", suffix)
 }
+
 
 
 flatten_de_results <- function(z) {
