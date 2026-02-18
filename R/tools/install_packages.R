@@ -27,5 +27,7 @@ install_all_packages <- function(
     invisible(NULL)
 }
 
-install_all_packages()
+#install_all_packages()
+#install_all_packages(ref = "jn_differential_expression")
+#Rscript -e 'source("tools/install_packages.R"); install_all_packages(ref="jn_differential_expression")'
 
