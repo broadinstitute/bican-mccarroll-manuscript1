@@ -15,7 +15,6 @@
 #         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
 # )
 
-
 #' Correlation plot of sample covariates used in the model
 #'
 #' Compute pairwise correlations among sample-level covariates used for the
@@ -59,6 +58,10 @@ plot_sample_covariate_correlations<-function (
     fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pmi_hr", "pct_intronic", "frac_contamination"),
     outDir=NULL) {
 
+    paths <- .resolve_age_pred_paths(
+        metacell_dir = metacell_dir,
+        outDir = outDir
+    )
 
     cache_file <- file.path(paths$data_cache_dir, "plot_sample_covariate_correlations_cache.txt")
 
@@ -70,10 +73,7 @@ plot_sample_covariate_correlations<-function (
         logger::log_info(
             "No cached data from {cache_file} regenerating data from sources.  This can take a few minutes"
         )
-        paths <- .resolve_age_pred_paths(
-            metacell_dir = metacell_dir,
-            outDir = outDir
-        )
+
         prep <- bican.mccarroll.differentialexpression::prepareMDSPlotData(
             data_dir = paths$metacell_dir,
             data_name = data_name,

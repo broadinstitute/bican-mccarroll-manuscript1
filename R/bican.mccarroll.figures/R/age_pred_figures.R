@@ -30,7 +30,22 @@
 }
 
 
-
+#' Plot residual age correlation distributions across cell types
+#'
+#' Computes correlations between chronological age and residual predicted age
+#' across cell types, and saves a distribution plot to disk.
+#'
+#' @param cellTypeListFile Path to a text file containing one cell type per line.
+#' @param metacell_dir Directory containing metacell objects.
+#' @param data_name Name of the DGEList object to load.
+#' @param age_de_results_dir Directory containing age differential expression results.
+#' @param contig_yaml_file Path to contig YAML file.
+#' @param reduced_gtf_file Path to reduced GTF file.
+#' @param n_cores Number of cores to use for parallel computation.
+#' @param data_cache_dir Directory for cached intermediate data.
+#' @param outDir Output directory for the generated SVG plot.
+#'
+#' @export
 age_prediction_mean_residual_correlation_plots <- function(
         cellTypeListFile = NULL,
         metacell_dir = NULL,
@@ -62,7 +77,7 @@ age_prediction_mean_residual_correlation_plots <- function(
     model_predictions <- results$donor_predictions
 
     r <- bican.mccarroll.differentialexpression::compute_residual_age_correlations(
-        age_preds = model_predictions
+        model_predictions = model_predictions
     )
 
     p <- bican.mccarroll.differentialexpression::plot_residual_age_correlation_distributions(r) +
@@ -82,7 +97,23 @@ age_prediction_mean_residual_correlation_plots <- function(
     invisible(NULL)
 }
 
-
+#' Plot age prediction error summaries
+#'
+#' Summarizes age prediction performance across cell types and generates
+#' mean absolute error plots for the full dataset and the youngest 20% subset.
+#' Plots are saved to disk.
+#'
+#' @param cellTypeListFile Path to a text file containing one cell type per line.
+#' @param metacell_dir Directory containing metacell objects.
+#' @param data_name Name of the DGEList object to load.
+#' @param age_de_results_dir Directory containing age differential expression results.
+#' @param contig_yaml_file Path to contig YAML file.
+#' @param reduced_gtf_file Path to reduced GTF file.
+#' @param n_cores Number of cores to use for parallel computation.
+#' @param data_cache_dir Directory for cached intermediate data.
+#' @param outDir Output directory for generated SVG plots.
+#'
+#' @export
 age_prediction_error_plots <- function(
         cellTypeListFile = NULL,
         metacell_dir = NULL,
@@ -689,6 +720,23 @@ age_prediction_uncorrected_residual_pairwise_scatter_region <- function(
     invisible(final)
 }
 
+#' Plot age prediction errors and predictor-specific error summaries
+#'
+#' Summarizes age prediction performance across cell types and generates SVG plots
+#' of mean absolute error overall and by key predictors (e.g., number of DE genes,
+#' nuclei, and UMIs), including fits for all data and the youngest 20%.
+#'
+#' @param cellTypeListFile Path to a text file containing one cell type per line.
+#' @param metacell_dir Directory containing metacell objects.
+#' @param data_name Name of the DGEList object to load.
+#' @param age_de_results_dir Directory containing age differential expression results.
+#' @param contig_yaml_file Path to contig YAML file.
+#' @param reduced_gtf_file Path to reduced GTF file.
+#' @param n_cores Number of cores to use for parallel computation.
+#' @param data_cache_dir Directory for cached intermediate data.
+#' @param outDir Output directory for the generated SVG plots.
+#'
+#' @export
 age_prediction_examples <- function(
         cell_type_list = c("astrocyte", "OPC", "microglia", "MSN_D1"),
         region = "CaH",
