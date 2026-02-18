@@ -541,7 +541,7 @@ compare_age_de_run <- function (cell_type,
                                 fdr_cutoff = 0.05) {
 
     find_de_file <- function(data_dir, cell_type) {
-        pattern <- paste0("^", cell_type, "_age_DE_results\\.txt$")
+        pattern <- paste0("^", cell_type, "__age_DE_results\\.txt$")
         files <- list.files(data_dir, pattern = pattern, full.names = TRUE)
         if (length(files) == 0L) {
             stop("No DE file found in ", data_dir, " for cell_type = ", cell_type)

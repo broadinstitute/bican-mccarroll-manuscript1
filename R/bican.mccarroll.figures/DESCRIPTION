@@ -2,7 +2,8 @@ Package: bican.mccarroll.figures
 Type: Package
 Title: Figures in support of McCarroll BICAN manuscript 1
 Version: 0.1.0
-Imports: logger
+Imports: bican.mccarroll.differentialexpression, bican.mccarroll.eqtl, logger, ggplot2, svglite, ComplexHeatmap, corrplot, cowplot, data.table
+Suggests: 
 Authors@R: c(
     person(
       "James", "Nemesh",
@@ -13,5 +14,5 @@ Authors@R: c(
 Description: Collection of code to generate manuscript figures from raw data.
 License: MIT + file LICENSE
 Encoding: UTF-8
-LazyData: true
+LazyData: false
 RoxygenNote: 7.3.3

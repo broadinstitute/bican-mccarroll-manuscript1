@@ -5,15 +5,11 @@
 \title{Clustered trajectories of DE gene discovery across filtering levels}
 \usage{
 plot_de_filtering_trajectories(
-  data_dir =
-    "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results",
+  data_dir = NULL,
   data_name = "donor_rxn_DGEList",
-  data_cache_dir =
-    "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache",
-  cellTypeListFile =
-    "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/metadata/cell_types_for_de_filtering_plot.txt",
-  outDir =
-    "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
+  data_cache_dir = NULL,
+  cellTypeListFile = NULL,
+  outDir = NULL,
   clustering_min_genes = 150,
   num_clusters = 3
 )

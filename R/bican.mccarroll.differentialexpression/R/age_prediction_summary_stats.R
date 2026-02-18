@@ -1,5 +1,5 @@
-library (ggplot2)
-library (cowplot)
+# library (ggplot2)
+# library (cowplot)
 
 age_preds_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/age_prediction/age_prediction_region_alpha_0/age_prediction_results_alpha0_donor_predictions.txt"
 cell_type_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/metadata/cell_types_for_prs_test.txt"
@@ -29,69 +29,187 @@ cell_type_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis
 #' filtered to those cell types.
 #' @param out_summary_file Character scalar. Path for writing a tab-delimited
 #' summary table of model-level metrics (one row per cell type x region).
+#' @param out_pdf_file Optional character scalar. If provided, summary plots
+#' are written to this PDF.
 #'
-#' @return A named list with:
+#' @return The list returned by \code{\link{summarize_age_prediction_results}}.
+#'
+#' @export
+summarize_age_prediction_results_file <- function(age_preds_file,
+                                                  cell_type_file = NULL,
+                                                  out_summary_file,
+                                                  out_pdf_file = NULL) {
+    age_preds <- utils::read.table(
+        age_preds_file, header = TRUE, sep = "\t", stringsAsFactors = FALSE
+    )
+
+    cell_types <- NULL
+    if (!is.null(cell_type_file)) {
+        cell_types <- utils::read.table(
+            cell_type_file, header = FALSE, sep = "\t", stringsAsFactors = FALSE
+        )$V1
+        cell_types <- as.character(cell_types)
+    }
+
+    res <- summarize_age_prediction_results(
+        age_preds = age_preds,
+        cell_types = cell_types
+    )
+
+    utils::write.table(
+        res$metrics_df, file = out_summary_file, sep = "\t",
+        quote = FALSE, row.names = FALSE, col.names = TRUE
+    )
+
+    if (!is.null(out_pdf_file)) {
+        y_axis_label_mae <- cowplot::ggdraw() +
+            cowplot::draw_label("Mean AE (decades)", angle = 90, size = 13)
+
+        combined <- cowplot::plot_grid(
+            y_axis_label_mae,
+            cowplot::plot_grid(
+                res$plots$p_feat_mae,
+                res$plots$p_nuc_mae,
+                res$plots$p_umi_mae,
+                ncol = 1
+            ),
+            ncol = 2, rel_widths = c(0.05, 1)
+        )
+
+        y_axis_label_y20 <- cowplot::ggdraw() +
+            cowplot::draw_label("Mean AE in youngest 20% (decades)", angle = 90, size = 13)
+
+        combined_y20 <- cowplot::plot_grid(
+            y_axis_label_y20,
+            cowplot::plot_grid(
+                res$plots$p_feat_y20,
+                res$plots$p_nuc_y20,
+                res$plots$p_umi_y20,
+                ncol = 1
+            ),
+            ncol = 2, rel_widths = c(0.05, 1)
+        )
+
+        grDevices::pdf(out_pdf_file, width = 10, height = 7)
+        on.exit(grDevices::dev.off(), add = TRUE)
+
+        print(res$plots$p_mae)
+        print(res$plots$p_mae_y20)
+        print(combined)
+        print(combined_y20)
+    }
+
+    res
+}
+
+#' Summarize age-prediction model performance and covariate associations
+#'
+#' This function analyzes per-donor age prediction results without performing
+#' any file I/O. It optionally restricts to a user-specified set of cell types,
+#' computes model-level error metrics for each cell type by region, generates
+#' summary plots, and fits simple regression models relating prediction error
+#' to model size / data size covariates.
+#'
+#' @param age_preds data.frame containing per-donor predictions and metadata.
+#' @param cell_types Optional character vector of cell types to keep. If
+#' provided, \code{age_preds} is filtered to those cell types.
+#'
+#' @details
+#' The returned \code{plots} element contains individual plots:
 #' \describe{
-#'   \item{age_preds}{data.frame of per-donor predictions (possibly filtered).}
-#'   \item{metrics_df}{data.frame of model-level error metrics and covariates.}
-#'   \item{fit_all}{List returned by \code{\link{fit_age_mae_regression}} for \code{mae}.}
-#'   \item{fit_y20}{List returned by \code{\link{fit_age_mae_regression}} for \code{mae_young20}.}
 #'   \item{p_mae}{Heatmap of \code{mae}.}
 #'   \item{p_mae_y20}{Heatmap of \code{mae_young20}.}
-#'   \item{combined}{Combined (cowplot) panel of MAE vs predictors.}
-#'   \item{combined_y20}{Combined (cowplot) panel of MAE in youngest 20\% vs predictors.}
+#'   \item{p_feat_mae}{MAE vs \code{num_features}.}
+#'   \item{p_nuc_mae}{MAE vs \code{num_nuclei}.}
+#'   \item{p_umi_mae}{MAE vs \code{num_umis}.}
+#'   \item{p_feat_y20}{MAE in youngest 20\% vs \code{num_features}.}
+#'   \item{p_nuc_y20}{MAE in youngest 20\% vs \code{num_nuclei}.}
+#'   \item{p_umi_y20}{MAE in youngest 20\% vs \code{num_umis}.}
 #' }
 #'
-#' @import ggplot2 cowplot
+#' Combined panels are intended to be constructed by the file I/O wrapper.
+#'
 #' @export
-summarize_age_prediction_results<-function (age_preds_file, cell_type_file=NULL, out_summary_file) {
+summarize_age_prediction_results <- function(age_preds, cell_types = NULL) {
+    stopifnot(is.data.frame(age_preds))
 
-    age_preds=read.table(age_preds_file, header=TRUE, sep="\t", stringsAsFactors = FALSE)
+    if (!requireNamespace("ggplot2", quietly = TRUE)) {
+        stop("Package 'ggplot2' is required.")
+    }
+    if (!requireNamespace("cowplot", quietly = TRUE)) {
+        stop("Package 'cowplot' is required.")
+    }
 
-    #filter the age_preds to a restricted set of cell types.
-    if (!is.null(cell_type_file)) {
-        cell_types <- read.table(cell_type_file, header = FALSE, sep = "\t", stringsAsFactors = FALSE)$V1
-        age_preds <- age_preds[age_preds$cell_type %in% cell_types, ]
+    if (!is.null(cell_types)) {
+        if (!is.character(cell_types)) {
+            stop("'cell_types' must be a character vector.")
+        }
+        age_preds <- age_preds[age_preds$cell_type %in% cell_types, , drop = FALSE]
     }
 
     metrics_df <- compute_age_error_metrics(age_preds)
 
-    # Heatmap for any metric
-    p1 <- plot_age_metric_heatmap(metrics_df, metric = "mae", text_size = 4)
-    p2 <- plot_age_metric_heatmap(metrics_df, metric = "mae_young20")
+    p_mae <- plot_age_metric_heatmap(metrics_df, metric = "mae", text_size = 4)
+    p_mae_y20 <- plot_age_metric_heatmap(metrics_df, metric = "mae_young20")
 
-    # Regressions
     fit_all <- fit_age_mae_regression(metrics_df, outcome = "mae")
     fit_y20 <- fit_age_mae_regression(metrics_df, outcome = "mae_young20")
 
-    p_feat <- plot_error_vs_predictor(metrics_df, x_col = "num_features", y_col = "mae", x_scale = "identity", annotate_r2_size=5, show_y_label = FALSE)
-    p_nuc  <- plot_error_vs_predictor(metrics_df, x_col = "num_nuclei",   y_col = "mae", x_scale = "identity", annotate_r2_size=5, show_y_label = FALSE)
-    p_umi  <- plot_error_vs_predictor(metrics_df, x_col = "num_umis",     y_col = "mae", x_scale = "identity", annotate_r2_size=5, show_y_label = FALSE)
+    p_feat_mae <- plot_error_vs_predictor(
+        metrics_df, x_col = "num_features", y_col = "mae",
+        x_scale = "identity", annotate_r2_size = 5, show_y_label = FALSE
+    ) +  ggplot2::labs(x = "Age-associated DE genes")
 
-    y_axis_label <- ggdraw() +
-        draw_label("Mean AE (decades)", angle = 90, size = 13)
+    p_nuc_mae <- plot_error_vs_predictor(
+        metrics_df, x_col = "num_nuclei", y_col = "mae",
+        x_scale = "identity", annotate_r2_size = 5, show_y_label = FALSE
+    ) +  ggplot2::labs(x = "Total Nuclei")
 
-    combined <- plot_grid(y_axis_label,
-        plot_grid(p_feat, p_nuc, p_umi, ncol = 1),
-        ncol = 2, rel_widths = c(0.05, 1)
+    p_umi_mae <- plot_error_vs_predictor(
+        metrics_df, x_col = "num_umis", y_col = "mae",
+        x_scale = "identity", annotate_r2_size = 5, show_y_label = FALSE
+    ) + ggplot2::labs(x = "Total UMIs")
+
+    p_feat_y20 <- plot_error_vs_predictor(
+        metrics_df, x_col = "num_features", y_col = "mae_young20",
+        x_scale = "identity", annotate_r2_size = 5, show_y_label = FALSE
+    ) +  ggplot2::labs(x = "Age-associated DE genes")
+
+    p_nuc_y20 <- plot_error_vs_predictor(
+        metrics_df, x_col = "num_nuclei", y_col = "mae_young20",
+        x_scale = "identity", annotate_r2_size = 5, show_y_label = FALSE
+    ) +  ggplot2::labs(x = "Total Nuclei")
+
+    p_umi_y20 <- plot_error_vs_predictor(
+        metrics_df, x_col = "num_umis", y_col = "mae_young20",
+        x_scale = "identity", annotate_r2_size = 5, show_y_label = FALSE
+    ) + ggplot2::labs(x = "Total UMIs")
+
+
+    plots <- list(
+        p_mae = p_mae,
+        p_mae_y20 = p_mae_y20,
+        p_feat_mae = p_feat_mae,
+        p_nuc_mae = p_nuc_mae,
+        p_umi_mae = p_umi_mae,
+        p_feat_y20 = p_feat_y20,
+        p_nuc_y20 = p_nuc_y20,
+        p_umi_y20 = p_umi_y20
     )
 
-    p_feat <- plot_error_vs_predictor(metrics_df, x_col = "num_features", y_col = "mae_young20", x_scale = "identity", annotate_r2_size=5, show_y_label = FALSE)
-    p_nuc  <- plot_error_vs_predictor(metrics_df, x_col = "num_nuclei",   y_col = "mae_young20", x_scale = "identity", annotate_r2_size=5, show_y_label = FALSE)
-    p_umi  <- plot_error_vs_predictor(metrics_df, x_col = "num_umis",     y_col = "mae_young20", x_scale = "identity", annotate_r2_size=5, show_y_label = FALSE)
-
-    y_axis_label <- ggdraw() +
-        draw_label("Mean AE in youngest 20% (decades)", angle = 90, size = 13)
-
-    combined_y20 <- plot_grid(y_axis_label,
-                          plot_grid(p_feat, p_nuc, p_umi, ncol = 1),
-                          ncol = 2, rel_widths = c(0.05, 1)
+    list(
+        age_preds = age_preds,
+        metrics_df = metrics_df,
+        fit_all = fit_all,
+        fit_y20 = fit_y20,
+        plots = plots
     )
-
-    result=list(age_preds=age_preds, metrics_df=metrics_df, fit_all=fit_all, fit_y20=fit_y20, p_mae=p1, p_mae_y20=p2, p_feat=p_feat, p_nuc=p_nuc, p_umi=p_umi, combined=combined, combined_y20=combined_y20)
-    return (result)
-
 }
+
+
+
+
+
 
 
 #' Summarize age-prediction error metrics per cell_type x region
@@ -119,6 +237,9 @@ compute_age_error_metrics <- function(age_preds,
     }
 
     dt <- data.table::as.data.table(age_preds)
+
+    #Make R CMD CHECK Happy
+    abs_err <- young_cut <- is_young <- num_features <- NULL
 
     dt[, abs_err := abs(get(pred_col) - get(age_col))]
 
@@ -153,16 +274,196 @@ compute_age_error_metrics <- function(age_preds,
     data.table::setDF(out)
 }
 
+#' Compute pairwise residual age correlations within and across cell populations
+#'
+#' Computes pairwise correlations of corrected residual age values
+#' (`resid_mean_corrected`) across two comparison schemes:
+#' (1) between cell types within each region and
+#' (2) between regions within each cell type.
+#' The function returns two numeric vectors containing all pairwise
+#' correlation coefficients for each comparison class.
+#'
+#' @param model_predictions A data frame containing corrected residual
+#' age values (`resid_mean_corrected`) along with `cell_type`, `region`,
+#' and `donor` columns.
+#'
+#' @return A list with two elements:
+#' \describe{
+#'   \item{within_region}{Pairwise correlations across cell types within regions.}
+#'   \item{within_celltype}{Pairwise correlations across regions within cell types.}
+#' }
+#'
+#' @export
+compute_residual_age_correlations <- function(model_predictions) {
+
+    df <- model_predictions
+
+    # Keep only required columns
+    df <- df[, c("cell_type", "region", "donor", "resid_mean_corrected")]
+
+    # ----------------------------
+    # 1) Within-region, across cell types
+    # ----------------------------
+    regions <- unique(df$region)
+    cell_types <- unique(df$cell_type)
+
+    within_region <- c()
+
+    for (r in regions) {
+
+        df_r <- df[df$region == r, ]
+
+        ct_levels <- unique(df_r$cell_type)
+
+        if (length(ct_levels) < 2) next
+
+        combs <- utils::combn(ct_levels, 2, simplify = FALSE)
+
+        for (pair in combs) {
+
+            df1 <- df_r[df_r$cell_type == pair[1], ]
+            df2 <- df_r[df_r$cell_type == pair[2], ]
+
+            merged <- merge(df1[, c("donor", "resid_mean_corrected")],
+                            df2[, c("donor", "resid_mean_corrected")],
+                            by = "donor",
+                            suffixes = c("_1", "_2"))
+
+            if (nrow(merged) >= 10) {
+                cor_val <- cor(merged$resid_mean_corrected_1,
+                               merged$resid_mean_corrected_2,
+                               use = "complete.obs")
+                within_region <- c(within_region, cor_val)
+            }
+        }
+    }
+
+    # ----------------------------
+    # 2) Within-cell-type, across regions
+    # ----------------------------
+    within_celltype <- c()
+
+    for (ct in cell_types) {
+
+        df_ct <- df[df$cell_type == ct, ]
+
+        region_levels <- unique(df_ct$region)
+
+        if (length(region_levels) < 2) next
+
+        combs <- utils::combn(region_levels, 2, simplify = FALSE)
+
+        for (pair in combs) {
+
+            df1 <- df_ct[df_ct$region == pair[1], ]
+            df2 <- df_ct[df_ct$region == pair[2], ]
+
+            merged <- merge(df1[, c("donor", "resid_mean_corrected")],
+                            df2[, c("donor", "resid_mean_corrected")],
+                            by = "donor",
+                            suffixes = c("_1", "_2"))
+
+            if (nrow(merged) >= 10) {
+                cor_val <- cor(merged$resid_mean_corrected_1,
+                               merged$resid_mean_corrected_2,
+                               use = "complete.obs")
+                within_celltype <- c(within_celltype, cor_val)
+            }
+        }
+    }
+
+    return(list(
+        within_region = within_region,
+        within_celltype = within_celltype
+    ))
+}
+
+#' Plot distributions of residual age correlations
+#'
+#' Generates a violin plot with embedded boxplots comparing the
+#' distribution of residual age correlations computed within regions
+#' (across cell types) and within cell types (across regions).
+#' This visualization is intended to assess whether donor-specific
+#' variation in residual age is more consistent within a cell type
+#' across regions than across cell types within a region.
+#'
+#' @param corr_results A list returned by
+#' `compute_residual_age_correlations()`, containing numeric vectors
+#' `within_region` and `within_celltype`.
+#' @param fill_colors A named character vector specifying fill colors
+#' for the two comparison groups.
+#'
+#' @return A ggplot object.
+#'
+#' @export
+plot_residual_age_correlation_distributions <- function(
+        corr_results,
+        fill_colors = c(
+            "Within region\n(across cell types)" = "#8DA0CB",
+            "Within cell type\n(across regions)" = "#66C2A5"
+        )
+) {
+
+    correlation <- group <- NULL
+
+    df_plot <- data.frame(
+        correlation = c(corr_results$within_region,
+                        corr_results$within_celltype),
+        group = factor(
+            c(rep("Within region\n(across cell types)",
+                  length(corr_results$within_region)),
+              rep("Within cell type\n(across regions)",
+                  length(corr_results$within_celltype))),
+            levels = c("Within region\n(across cell types)",
+                       "Within cell type\n(across regions)")
+        )
+    )
+
+    ggplot2::ggplot(df_plot,
+                    ggplot2::aes(x = group, y = correlation, fill = group)
+    ) +
+        ggplot2::geom_violin(alpha = 0.6, width = 0.8, color = NA) +
+        ggplot2::geom_boxplot(width = 0.15, outlier.shape = NA,
+                              alpha = 0.8, color = "black") +
+        ggplot2::scale_fill_manual(values = fill_colors) +
+        ggplot2::labs(
+            x = NULL,
+            y = "Residual age correlation"
+        ) +
+        ggplot2::theme_classic() +
+        ggplot2::theme(legend.position = "none")
+}
+
+
+
 
 #' Heatmap for a single metric across cell_type x region
 #'
-#' @param metrics_df output of compute_age_error_metrics()
-#' @param metric column name to plot (e.g. "mae" or "mae_young20")
-#' @param cell_type_col column name for cell type
-#' @param region_col column name for region
-#' @param na_color color for missing tiles
+#' Creates a tile heatmap of one column from `metrics_df` (e.g. MAE) across
+#' cell types (rows) and regions (columns). Optionally overlays formatted
+#' values as text, with text color chosen for readability against the fill.
 #'
-#' @return ggplot object
+#' @param metrics_df Data.frame returned by `compute_age_error_metrics()`.
+#' @param metric Character scalar giving the column name to plot (e.g. `"mae"`
+#'   or `"mae_young20"`).
+#' @param cell_type_col Character scalar giving the column name in `metrics_df`
+#'   that contains cell type.
+#' @param region_col Character scalar giving the column name in `metrics_df`
+#'   that contains region.
+#' @param na_color Color used for missing tiles (passed as `na.value` to the
+#'   fill scale).
+#' @param add_text Logical; if `TRUE`, overlay numeric values on tiles.
+#' @param text_digits Integer number of digits after the decimal to display
+#'   when `add_text = TRUE`.
+#' @param text_size Numeric text size for the overlay labels when
+#'   `add_text = TRUE`.
+#' @param text_threshold Optional numeric threshold used to choose label text
+#'   color. Values less than or equal to this threshold use white text and
+#'   values greater than this threshold use black text. If `NULL`, a threshold
+#'   is computed from the data range.
+#'
+#' @return A ggplot object.
+#' @export
 plot_age_metric_heatmap <- function(metrics_df,
                                 metric,
                                 cell_type_col = "cell_type",
@@ -177,7 +478,8 @@ plot_age_metric_heatmap <- function(metrics_df,
     miss <- setdiff(need, colnames(metrics_df))
     if (length(miss) > 0) stop("Missing required columns: ", paste(miss, collapse = ", "))
 
-    cell_type <- region <- value <- label <- text_col <- NULL
+    #Make R CMD CHECK Happy
+    cell_type <- region <- value <- label <- text_col <- cell_type_label <- region_label <- mean_value <- NULL
 
     dt <- data.table::as.data.table(metrics_df)
     dt[, value := get(metric)]
@@ -189,7 +491,8 @@ plot_age_metric_heatmap <- function(metrics_df,
     metric_label <- gsub("_", " ", metric, fixed = TRUE)
 
     # Sort rows by average metric across regions (best = lowest error at top)
-    cell_means <- dt[, .(mean_value = mean(value, na.rm = TRUE)), by = cell_type_label]
+    #cell_means <- dt[, .(mean_value = mean(value, na.rm = TRUE)), by = cell_type_label]
+    cell_means <- dt[, list(mean_value = mean(value, na.rm = TRUE)), by = cell_type_label]
     cell_means <- cell_means[!is.nan(mean_value)]
     # For errors, lower is better; to put best at top, make it the last factor level
     cell_levels <- cell_means[order(mean_value, decreasing = TRUE), cell_type_label]
@@ -293,6 +596,8 @@ fit_age_mae_regression <- function(metrics_df,
         adj.r.squared = sm$adj.r.squared
     )
 }
+
+
 
 
 plot_mae_vs_num_features <- function(metrics_df,

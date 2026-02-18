@@ -5,21 +5,17 @@
 \title{Clustered trajectories of eGene yield across eQTL filtering levels}
 \usage{
 plot_eqtl_filtering_trajectories(
-  data_dir =
-    "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results",
-  outDir =
-    "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
+  eqtl_data_dir = NULL,
+  outDir = NULL,
   filter_levels = c(0, 1, 2, 3, 4),
   fdr_threshold = 0.05,
   num_clusters = 4,
-  cellTypeListFile =
-    "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/metadata/cell_types_for_de_filtering_plot.txt",
-  data_cache_dir =
-    "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
+  cellTypeListFile = NULL,
+  data_cache_dir = NULL
 )
 }
 \arguments{
-\item{data_dir}{Directory containing per-level eQTL results used by
+\item{eqtl_data_dir}{Directory containing per-level eQTL results used by
 `bican.mccarroll.eqtl::compare_all_eQTL_runs()`.}
 
 \item{outDir}{Output directory for the SVG. If `NULL`, no file is written.}

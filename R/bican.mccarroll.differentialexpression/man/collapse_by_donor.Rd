@@ -22,6 +22,9 @@ or more rows.}
 to retain in the output. For each donor, the function checks that these
 columns have exactly one unique (non-NA) value across all donor samples.
 An error is thrown if a column has multiple distinct values within a donor.}
+
+\item{sum_cols}{Character vector of numeric columns in \code{dge$samples} to
+sum within donor (e.g. \code{"num_nuclei"}).}
 }
 \value{
 A new \code{DGEList} where:
