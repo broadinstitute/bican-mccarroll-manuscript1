@@ -74,6 +74,27 @@ remotes::install_github(
 )
 ```
 
+Some packages (e.g. bican.mccarroll.figures) depend on other packages in this repository.
+We provide a single installer function that installs all packages in the correct order.
+
+```r
+# Install all packages from the main branch
+source("https://raw.githubusercontent.com/broadinstitute/bican-mccarroll-manuscript1/main/tools/install_packages.R")
+install_all_packages()
+
+# Install all packages from a specific branch
+source("https://raw.githubusercontent.com/broadinstitute/bican-mccarroll-manuscript1/jn_differential_expression/tools/install_packages.R")
+install_all_packages(ref = "jn_differential_expression")
+
+# Install without CRAN/Bioconductor dependencies
+install_all_packages(dependencies = FALSE)
+
+# Force reinstall even if SHA has not changed
+install_all_packages(force = TRUE)
+
+```
+
+
 
 
 

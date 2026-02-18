@@ -7,10 +7,11 @@ install_all_packages <- function(
             "R/bican.mccarroll.figures"
         ),
         dependencies = TRUE,
-        upgrade = "never") {
+        upgrade = "never",
+        force = FALSE) {
 
     if (!requireNamespace("remotes", quietly = TRUE)) {
-        stop("Please install remotes: install.packages('remotes')")
+        install.packages("remotes", repos = "https://cloud.r-project.org")
     }
 
     for (subdir in pkgs) {
@@ -20,7 +21,8 @@ install_all_packages <- function(
             subdir = subdir,
             ref = ref,
             dependencies = dependencies,
-            upgrade = upgrade
+            upgrade = upgrade,
+            force = force
         )
     }
 
