@@ -17,19 +17,38 @@ plot_age_metric_heatmap(
 )
 }
 \arguments{
-\item{metrics_df}{output of compute_age_error_metrics()}
+\item{metrics_df}{Data.frame returned by `compute_age_error_metrics()`.}
 
-\item{metric}{column name to plot (e.g. "mae" or "mae_young20")}
+\item{metric}{Character scalar giving the column name to plot (e.g. `"mae"`
+or `"mae_young20"`).}
 
-\item{cell_type_col}{column name for cell type}
+\item{cell_type_col}{Character scalar giving the column name in `metrics_df`
+that contains cell type.}
 
-\item{region_col}{column name for region}
+\item{region_col}{Character scalar giving the column name in `metrics_df`
+that contains region.}
 
-\item{na_color}{color for missing tiles}
+\item{na_color}{Color used for missing tiles (passed as `na.value` to the
+fill scale).}
+
+\item{add_text}{Logical; if `TRUE`, overlay numeric values on tiles.}
+
+\item{text_digits}{Integer number of digits after the decimal to display
+when `add_text = TRUE`.}
+
+\item{text_size}{Numeric text size for the overlay labels when
+`add_text = TRUE`.}
+
+\item{text_threshold}{Optional numeric threshold used to choose label text
+color. Values less than or equal to this threshold use white text and
+values greater than this threshold use black text. If `NULL`, a threshold
+is computed from the data range.}
 }
 \value{
-ggplot object
+A ggplot object.
 }
 \description{
-Heatmap for a single metric across cell_type x region
+Creates a tile heatmap of one column from `metrics_df` (e.g. MAE) across
+cell types (rows) and regions (columns). Optionally overlays formatted
+values as text, with text color chosen for readability against the fill.
 }

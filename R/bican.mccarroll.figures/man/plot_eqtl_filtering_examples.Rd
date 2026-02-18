@@ -7,16 +7,12 @@
 plot_eqtl_filtering_examples(
   cell_type_list = c("astrocyte", "microglia", "MSN_D1", "OPC"),
   region = "CaH",
-  baseline_data_dir =
-    "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_3",
-  comparison_data_dir =
-    "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_4",
+  baseline_data_dir = NULL,
+  comparison_data_dir = NULL,
   baseline_name = "LEVEL 3",
   comparison_name = "LEVEL 4",
-  outDir =
-    "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
-  data_cache_dir =
-    "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
+  outDir = NULL,
+  data_cache_dir = NULL
 )
 }
 \arguments{

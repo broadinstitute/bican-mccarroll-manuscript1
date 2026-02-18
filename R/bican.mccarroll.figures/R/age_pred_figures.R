@@ -1,5 +1,176 @@
+## ------------------------------------------------------------------
+## Set configuration (development only; comment out in package build)
+## ------------------------------------------------------------------
+
+# source("R/paths.R")
+#
+# options(
+#     bican.mccarroll.figures.data_root_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis",
+#
+#     bican.mccarroll.figures.out_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
+#
+#     bican.mccarroll.figures.cache_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
+# )
+
+
+# Private
+.age_prediction_all<-function () {
+
+    age_prediction_error_plots()
+    age_prediction_residual_corr_and_jaccard_heatmaps_region()
+    age_prediction_residual_corr_and_jaccard_heatmaps_cell_type()
+    age_prediction_corrected_residual_pairwise_scatter_region()
+    age_prediction_uncorrected_residual_pairwise_scatter_region()
+    age_prediction_examples()
+    age_prediction_mean_residual_correlation_plots()
+
+}
+
+
+
+age_prediction_mean_residual_correlation_plots <- function(
+        cellTypeListFile = NULL,
+        metacell_dir = NULL,
+        data_name = "donor_rxn_DGEList",
+        age_de_results_dir = NULL,
+        contig_yaml_file = NULL,
+        reduced_gtf_file = NULL,
+        n_cores = 14,
+        data_cache_dir = NULL,
+        outDir = NULL) {
+
+    paths <- .resolve_age_pred_paths(
+        cellTypeListFile = cellTypeListFile, metacell_dir = metacell_dir,
+        age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
+        reduced_gtf_file = reduced_gtf_file, data_cache_dir = data_cache_dir,
+        outDir = outDir
+    )
+
+    cell_types <- utils::read.table(paths$cellTypeListFile, header = FALSE)$V1
+
+    results <- get_age_prediction_results(
+        metacell_dir = paths$metacell_dir, data_name = data_name,
+        age_de_results_dir = paths$age_de_results_dir,
+        contig_yaml_file = paths$contig_yaml_file,
+        reduced_gtf_file = paths$reduced_gtf_file,
+        n_cores = n_cores, data_cache_dir = paths$data_cache_dir
+    )
+
+    model_predictions <- results$donor_predictions
+
+    r <- bican.mccarroll.differentialexpression::compute_residual_age_correlations(
+        age_preds = model_predictions
+    )
+
+    p <- bican.mccarroll.differentialexpression::plot_residual_age_correlation_distributions(r) +
+        ggplot2::theme(
+            axis.title.x = ggplot2::element_text(size = 16),
+            axis.title.y = ggplot2::element_text(size = 16),
+            axis.text.x  = ggplot2::element_text(size = 14),
+            axis.text.y  = ggplot2::element_text(size = 14)
+        )
+
+    save_plot_svg(
+        plot = p,
+        out_file = "age_prediction_mean_residual_correlation_comparison.svg",
+        out_dir = paths$outDir, width = 6, height = 6
+    )
+
+    invisible(NULL)
+}
+
+
+age_prediction_error_plots <- function(
+        cellTypeListFile = NULL,
+        metacell_dir = NULL,
+        data_name = "donor_rxn_DGEList",
+        age_de_results_dir = NULL,
+        contig_yaml_file = NULL,
+        reduced_gtf_file = NULL,
+        n_cores = 14,
+        data_cache_dir = NULL,
+        outDir = NULL) {
+
+    paths <- .resolve_age_pred_paths(
+        cellTypeListFile = cellTypeListFile, metacell_dir = metacell_dir,
+        age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
+        reduced_gtf_file = reduced_gtf_file, data_cache_dir = data_cache_dir,
+        outDir = outDir
+    )
+
+    cell_types <- utils::read.table(paths$cellTypeListFile, header = FALSE)$V1
+
+    results <- get_age_prediction_results(
+        metacell_dir = paths$metacell_dir, data_name = data_name,
+        age_de_results_dir = paths$age_de_results_dir,
+        contig_yaml_file = paths$contig_yaml_file,
+        reduced_gtf_file = paths$reduced_gtf_file,
+        n_cores = n_cores, data_cache_dir = paths$data_cache_dir
+    )
+
+    model_predictions <- results$donor_predictions
+
+    r <- bican.mccarroll.differentialexpression::summarize_age_prediction_results(
+        model_predictions, cell_types
+    )
+    logger::log_info("R2={round(r$fit_all$adj.r.squared, 3)} for all data fit to num DE genes, num nuclei, num UMIs")
+    logger::log_info("R2={round(r$fit_y20$adj.r.squared, 3)} for youngest 20% data fit to num DE genes, num nuclei, num UMIs")
+
+    plots <- r$plots
+
+    mean_abs_error_all_plot <- plots$p_mae + ggplot2::labs(fill = "Mean Abs Error")
+
+    save_plot_svg(
+        plot = mean_abs_error_all_plot,
+        out_file = "all_data_model_mean_absolute_errors_across_cell_type_region.svg",
+        out_dir = paths$outDir, width = 14, height = 7
+    )
+
+    feature_error_all <- cowplot::plot_grid(
+        plots$p_feat_mae, plots$p_nuc_mae,
+        plots$p_umi_mae, ncol = 1, nrow = 3
+    )
+
+    feature_error_all <- cowplot::ggdraw() +
+        cowplot::draw_label(
+            "Mean Absolute Error",
+            x = 0.02, y = 0.5, angle = 90, vjust = 0.5, size = 12
+        ) +
+        cowplot::draw_plot(feature_error_all, x = 0.04, y = 0, width = 0.92, height = 1)
+
+    save_plot_svg(
+        plot = feature_error_all,
+        out_file = "all_data_model_mean_absolute_errors_predictors.svg",
+        out_dir = paths$outDir, width = 5, height = 7
+    )
+
+    feature_error_y20 <- cowplot::plot_grid(
+        plots$p_feat_y20, plots$p_nuc_y20,
+        plots$p_umi_y20, ncol = 1, nrow = 3
+    )
+
+    feature_error_y20 <- cowplot::ggdraw() +
+        cowplot::draw_label(
+            "Mean Absolute Error",
+            x = 0.02, y = 0.5, angle = 90, vjust = 0.5, size = 12
+        ) +
+        cowplot::draw_plot(feature_error_y20, x = 0.04, y = 0, width = 0.92, height = 1)
+
+    save_plot_svg(
+        plot = feature_error_y20,
+        out_file = "y20_data_model_mean_absolute_errors_predictors.svg",
+        out_dir = paths$outDir, width = 5, height = 7
+    )
+
+    invisible(NULL)
+}
+
+
 #' Manuscript figure: residual correlation heatmap + Jaccard overlap heatmap
-#'
+#' across cell types
 #' Create a single SVG with two heatmaps on the same row:
 #' (1) Jaccard overlap of aging programs (ordered to match the residual correlation heatmap)
 #' (2) Residual correlation heatmap (clustered; provides the ordering)
@@ -9,7 +180,7 @@
 #'
 #' @param region Character scalar region name (e.g., "CaH").
 #' @param cellTypeListFile Path to a text file containing one cell type per line (no header).
-#' @param data_dir See `get_age_prediction_results()`.
+#' @param metacell_dir See `get_age_prediction_results()`.
 #' @param data_name See `get_age_prediction_results()`.
 #' @param age_de_results_dir See `get_age_prediction_results()`.
 #' @param contig_yaml_file See `get_age_prediction_results()`.
@@ -22,26 +193,32 @@
 #' @export
 age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(
         region = "CaH",
-        cellTypeListFile = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/metadata/cell_types_for_de_filtering_plot.txt",
-        data_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metacells/LEVEL_3",
+        cellTypeListFile = NULL,
+        metacell_dir = NULL,
         data_name = "donor_rxn_DGEList",
-        age_de_results_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results/old/LEVEL_3/sex_age/cell_type_region_interaction_absolute_effects",
-        contig_yaml_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metadata/GRCh38_ensembl_v43.contig_groups.yaml",
-        reduced_gtf_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metadata/GRCh38_ensembl_v43.reduced.gtf.gz",
+        age_de_results_dir = NULL,
+        contig_yaml_file = NULL,
+        reduced_gtf_file = NULL,
         n_cores = 14,
-        data_cache_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache",
-        outDir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository") {
+        data_cache_dir = NULL,
+        outDir = NULL) {
 
-    cell_types <- read.table(cellTypeListFile, header=F)$V1
-
-    results <- get_age_prediction_results(
-        data_dir = data_dir,
-        data_name = data_name,
+    paths <- .resolve_age_pred_paths(
+        cellTypeListFile = cellTypeListFile, metacell_dir = metacell_dir,
         age_de_results_dir = age_de_results_dir,
         contig_yaml_file = contig_yaml_file,
         reduced_gtf_file = reduced_gtf_file,
-        n_cores = n_cores,
-        data_cache_dir = data_cache_dir
+        data_cache_dir = data_cache_dir, outDir = outDir
+    )
+
+    cell_types <- utils::read.table(paths$cellTypeListFile, header = FALSE)$V1
+
+    results <- get_age_prediction_results(
+        metacell_dir = paths$metacell_dir, data_name = data_name,
+        age_de_results_dir = paths$age_de_results_dir,
+        contig_yaml_file = paths$contig_yaml_file,
+        reduced_gtf_file = paths$reduced_gtf_file,
+        n_cores = n_cores, data_cache_dir = paths$data_cache_dir
     )
 
     model_predictions <- results$donor_predictions
@@ -69,47 +246,32 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(
 
     corr_out <- bican.mccarroll.differentialexpression::plot_residual_corr_heatmap(
         model_predictions = model_predictions,
-        mode = "within_region",
-        region = region,
+        mode = "within_region", region = region,
         value_var = "resid_mean_corrected",
-        title = corr_title,
-        annotate_cells = TRUE,
-        row_fontsize = 10,
-        col_fontsize = 10,
-        cell_fontsize = 9
+        title = corr_title, annotate_cells = TRUE,
+        row_fontsize = 10, col_fontsize = 10, cell_fontsize = 9
     )
 
     jaccard_out <- bican.mccarroll.differentialexpression::plot_jaccard_overlap_heatmap(
         all_models = all_models,
-        mode = "within_region",
-        region = region,
-        title = jac_title,
-        coef_thresh = 0,
+        mode = "within_region", region = region,
+        title = jac_title, coef_thresh = 0,
         annotate_cells = TRUE,
-        row_fontsize = 10,
-        col_fontsize = 10,
-        cell_fontsize = 9,
+        row_fontsize = 10, col_fontsize = 10, cell_fontsize = 9,
         row_order_names = corr_out$row_order_names,
         column_order_names = corr_out$column_order_names
     )
 
-    #Yucky way to plot both together.
-    # heatmaps are objects:
-    #   corr_out$heatmap
-    #   jaccard_out$heatmap
-
     g_corr <- grid::grid.grabExpr(
         ComplexHeatmap::draw(
-            corr_out$heatmap,
-            newpage = FALSE,
+            corr_out$heatmap, newpage = FALSE,
             heatmap_legend_side = "right"
         )
     )
 
     g_jac <- grid::grid.grabExpr(
         ComplexHeatmap::draw(
-            jaccard_out$heatmap,
-            newpage = FALSE,
+            jaccard_out$heatmap, newpage = FALSE,
             heatmap_legend_side = "right"
         )
     )
@@ -117,24 +279,135 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(
     p_corr <- cowplot::ggdraw(g_corr)
     p_jac  <- cowplot::ggdraw(g_jac)
 
-    final <- cowplot::plot_grid(
-        p_jac, p_corr,
-        nrow = 1,
-        rel_widths = c(1, 1)
+    final <- cowplot::plot_grid(p_jac, p_corr, nrow = 1, rel_widths = c(1, 1))
+
+    save_plot_svg(
+        plot = final,
+        out_file = sprintf(
+            "age_prediction_residual_corr_and_jaccard_region_%s.svg", region
+        ),
+        out_dir = paths$outDir, width = 14, height = 7
     )
 
-    # Then ggsave(final) or draw on svg device
-
-    out_svg <- file.path(
-        outDir,
-        sprintf("age_prediction_residual_corr_and_jaccard_region_%s.svg", region)
-    )
-
-    grDevices::svg(filename = out_svg, width = 14, height = 7)
-    print(final)
-    grDevices::dev.off()
+    invisible(final)
 }
 
+
+#' Manuscript figure: residual correlation heatmap + Jaccard overlap heatmap
+#' across cell types
+#' Create a single SVG with two heatmaps on the same row:
+#' (1) Jaccard overlap of aging programs (ordered to match the residual correlation heatmap)
+#' (2) Residual correlation heatmap (clustered; provides the ordering)
+#'
+#' Cell types are restricted to those listed in `cellTypeListFile` (one cell type per line,
+#' no header). Data are fetched via `get_age_prediction_results()` and cached as usual.
+#'
+#' @param cell_type Character scalar cell type name (e.g., "astrocyte").
+#' @param metacell_dir See `get_age_prediction_results()`.
+#' @param data_name See `get_age_prediction_results()`.
+#' @param age_de_results_dir See `get_age_prediction_results()`.
+#' @param contig_yaml_file See `get_age_prediction_results()`.
+#' @param reduced_gtf_file See `get_age_prediction_results()`.
+#' @param n_cores See `get_age_prediction_results()`.
+#' @param data_cache_dir Cache root directory used by `get_age_prediction_results()`.
+#' @param outDir Output directory for the SVG.
+#'
+#' @return Invisibly returns a list with components `corr_out`, `jaccard_out`, and `out_svg`.
+#' @export
+age_prediction_residual_corr_and_jaccard_heatmaps_cell_type <- function(
+        cell_type = "microglia",
+        metacell_dir = NULL,
+        data_name = "donor_rxn_DGEList",
+        age_de_results_dir = NULL,
+        contig_yaml_file = NULL,
+        reduced_gtf_file = NULL,
+        n_cores = 14,
+        data_cache_dir = NULL,
+        outDir = NULL) {
+
+    paths <- .resolve_age_pred_paths(
+        metacell_dir = metacell_dir,
+        age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
+        reduced_gtf_file = reduced_gtf_file, data_cache_dir = data_cache_dir,
+        outDir = outDir
+    )
+
+    results <- get_age_prediction_results(
+        metacell_dir = paths$metacell_dir, data_name = data_name,
+        age_de_results_dir = paths$age_de_results_dir,
+        contig_yaml_file = paths$contig_yaml_file,
+        reduced_gtf_file = paths$reduced_gtf_file,
+        n_cores = n_cores, data_cache_dir = paths$data_cache_dir
+    )
+
+    model_predictions <- results$donor_predictions
+    all_models <- results$model_coefficients
+
+    model_predictions <- model_predictions[
+        model_predictions$cell_type %in% cell_type,
+    ]
+
+    all_models <- all_models[
+        all_models$cell_type %in% cell_type,
+    ]
+
+    corr_title <- sprintf(
+        "Age residuals (predicted - actual)\n  [%s]",
+        cell_type
+    )
+
+    jac_title <- sprintf(
+        "Cell-type gene overlap in aging programs\n [%s]",
+        cell_type
+    )
+
+    corr_out <- bican.mccarroll.differentialexpression::plot_residual_corr_heatmap(
+        model_predictions = model_predictions,
+        mode = "within_cell_type", cell_type = cell_type,
+        value_var = "resid_mean_corrected",
+        title = corr_title, annotate_cells = TRUE,
+        row_fontsize = 10, col_fontsize = 10, cell_fontsize = 9
+    )
+
+    jaccard_out <- bican.mccarroll.differentialexpression::plot_jaccard_overlap_heatmap(
+        all_models = all_models,
+        mode = "within_cell_type", cell_type = cell_type,
+        title = jac_title, coef_thresh = 0,
+        annotate_cells = TRUE,
+        row_fontsize = 10, col_fontsize = 10, cell_fontsize = 9,
+        row_order_names = corr_out$row_order_names,
+        column_order_names = corr_out$column_order_names
+    )
+
+    g_corr <- grid::grid.grabExpr(
+        ComplexHeatmap::draw(
+            corr_out$heatmap, newpage = FALSE,
+            heatmap_legend_side = "right"
+        )
+    )
+
+    g_jac <- grid::grid.grabExpr(
+        ComplexHeatmap::draw(
+            jaccard_out$heatmap, newpage = FALSE,
+            heatmap_legend_side = "right"
+        )
+    )
+
+    p_corr <- cowplot::ggdraw(g_corr)
+    p_jac  <- cowplot::ggdraw(g_jac)
+
+    final <- cowplot::plot_grid(p_jac, p_corr, nrow = 1, rel_widths = c(1, 1))
+
+    save_plot_svg(
+        plot = final,
+        out_file = sprintf(
+            "age_prediction_residual_corr_and_jaccard_cell_type_%s.svg", cell_type
+        ),
+        out_dir = paths$outDir, width = 14, height = 7
+    )
+
+    invisible(final)
+}
 
 
 
@@ -146,7 +419,7 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(
 #'
 #' @param cell_type_list Character vector of cell types to include.
 #' @param region Character scalar region name (e.g., "CaH").
-#' @param data_dir See `get_age_prediction_results()`.
+#' @param metacell_dir See `get_age_prediction_results()`.
 #' @param data_name See `get_age_prediction_results()`.
 #' @param age_de_results_dir See `get_age_prediction_results()`.
 #' @param contig_yaml_file See `get_age_prediction_results()`.
@@ -161,24 +434,29 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(
 age_prediction_corrected_residual_pairwise_scatter_region <- function(
         cell_type_list = c("astrocyte", "OPC", "microglia", "MSN_D1"),
         region = "CaH",
-        data_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metacells/LEVEL_3",
+        metacell_dir = NULL,
         data_name = "donor_rxn_DGEList",
-        age_de_results_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results/old/LEVEL_3/sex_age/cell_type_region_interaction_absolute_effects",
-        contig_yaml_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metadata/GRCh38_ensembl_v43.contig_groups.yaml",
-        reduced_gtf_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metadata/GRCh38_ensembl_v43.reduced.gtf.gz",
+        age_de_results_dir = NULL,
+        contig_yaml_file = NULL,
+        reduced_gtf_file = NULL,
         n_cores = 14,
-        data_cache_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache",
-        outDir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
+        data_cache_dir = NULL,
+        outDir = NULL,
         ncol = 3) {
 
+    paths <- .resolve_age_pred_paths(
+        metacell_dir = metacell_dir,
+        age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
+        reduced_gtf_file = reduced_gtf_file, data_cache_dir = data_cache_dir,
+        outDir = outDir
+    )
+
     results <- get_age_prediction_results(
-        data_dir = data_dir,
-        data_name = data_name,
-        age_de_results_dir = age_de_results_dir,
-        contig_yaml_file = contig_yaml_file,
-        reduced_gtf_file = reduced_gtf_file,
-        n_cores = n_cores,
-        data_cache_dir = data_cache_dir
+        metacell_dir = paths$metacell_dir, data_name = data_name,
+        age_de_results_dir = paths$age_de_results_dir,
+        contig_yaml_file = paths$contig_yaml_file,
+        reduced_gtf_file = paths$reduced_gtf_file,
+        n_cores = n_cores, data_cache_dir = paths$data_cache_dir
     )
 
     donor_pred <- results$donor_predictions
@@ -200,21 +478,14 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(
 
         p <- bican.mccarroll.differentialexpression::plot_residual_pair_scatter_one(
             model_predictions = donor_pred,
-            mode = "within_region",
-            region = region,
-            x_group = x_group,
-            y_group = y_group,
+            mode = "within_region", region = region,
+            x_group = x_group, y_group = y_group,
             value_var = "resid_mean_corrected",
-            color_var = "age",
-            color_title = "Donor age"
+            color_var = "age", color_title = "Donor age"
         )
 
         p <- p +
-            ggplot2::labs(
-                title = paste0(x_group, " vs ", y_group),
-                x = NULL,
-                y = NULL
-            ) +
+            ggplot2::labs(title = paste0(x_group, " vs ", y_group), x = NULL, y = NULL) +
             ggplot2::theme(
                 legend.position = "none",
                 plot.title = ggplot2::element_text(hjust = 0, size = 10),
@@ -241,50 +512,39 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(
 
     core <- cowplot::plot_grid(
         cowplot::ggdraw() +
-            cowplot::draw_label(header_text, x = 0, hjust = 0, fontface = "bold", size = 12),
+            cowplot::draw_label(header_text, x = 0, hjust = 0,
+                                fontface = "bold", size = 12),
         grid,
         cowplot::ggdraw() +
             cowplot::draw_label("Corrected residual (predicted - actual)", size = 11),
-        ncol = 1,
-        rel_heights = c(0.12, 1, 0.12)
+        ncol = 1, rel_heights = c(0.12, 1, 0.12)
     )
 
-    # Fix A: reserve space on left for shared Y label
     left_pad <- 0.03
 
     final <- cowplot::ggdraw() +
-        cowplot::draw_plot(core, x = left_pad, y = 0, width = 1 - left_pad, height = 1) +
+        cowplot::draw_plot(core, x = left_pad, y = 0,
+                           width = 1 - left_pad, height = 1) +
         cowplot::draw_label(
             "Corrected residual (predicted - actual)",
-            angle = 90,
-            x = left_pad * 0.35,
-            y = 0.5,
-            vjust = 0.5,
-            size = 11
+            angle = 90, x = left_pad * 0.35, y = 0.5,
+            vjust = 0.5, size = 11
         )
-
-    left_pad <- 0.03
 
     final_padded <- cowplot::ggdraw() +
-        cowplot::draw_plot(
-            final,
-            x = left_pad,
-            y = 0,
-            width = 1 - left_pad,
-            height = 1
-        )
+        cowplot::draw_plot(final, x = left_pad, y = 0,
+                           width = 1 - left_pad, height = 1)
 
     out_svg <- file.path(
-        outDir,
-        sprintf("age_prediction_corrected_residual_pairwise_scatter_region_%s.svg", region)
+        paths$outDir,
+        sprintf(
+            "age_prediction_corrected_residual_pairwise_scatter_region_%s.svg", region
+        )
     )
 
     ggplot2::ggsave(
-        filename = out_svg,
-        plot = final_padded,
-        device = "svg",
-        width = 14,
-        height = 8
+        filename = out_svg, plot = final_padded, device = "svg",
+        width = 14, height = 8
     )
 
     invisible(final)
@@ -298,7 +558,7 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(
 #'
 #' @param cell_type_list Character vector of cell types to include.
 #' @param region Character scalar region name (e.g., "CaH").
-#' @param data_dir See `get_age_prediction_results()`.
+#' @param metacell_dir See `get_age_prediction_results()`.
 #' @param data_name See `get_age_prediction_results()`.
 #' @param age_de_results_dir See `get_age_prediction_results()`.
 #' @param contig_yaml_file See `get_age_prediction_results()`.
@@ -313,24 +573,29 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(
 age_prediction_uncorrected_residual_pairwise_scatter_region <- function(
         cell_type_list = c("astrocyte", "OPC", "microglia", "MSN_D1"),
         region = "CaH",
-        data_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metacells/LEVEL_3",
+        metacell_dir = NULL,
         data_name = "donor_rxn_DGEList",
-        age_de_results_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results/old/LEVEL_3/sex_age/cell_type_region_interaction_absolute_effects",
-        contig_yaml_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metadata/GRCh38_ensembl_v43.contig_groups.yaml",
-        reduced_gtf_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metadata/GRCh38_ensembl_v43.reduced.gtf.gz",
+        age_de_results_dir = NULL,
+        contig_yaml_file = NULL,
+        reduced_gtf_file = NULL,
         n_cores = 14,
-        data_cache_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache",
-        outDir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
+        data_cache_dir = NULL,
+        outDir = NULL,
         ncol = 3) {
 
+    paths <- .resolve_age_pred_paths(
+        metacell_dir = metacell_dir,
+        age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
+        reduced_gtf_file = reduced_gtf_file, data_cache_dir = data_cache_dir,
+        outDir = outDir
+    )
+
     results <- get_age_prediction_results(
-        data_dir = data_dir,
-        data_name = data_name,
-        age_de_results_dir = age_de_results_dir,
-        contig_yaml_file = contig_yaml_file,
-        reduced_gtf_file = reduced_gtf_file,
-        n_cores = n_cores,
-        data_cache_dir = data_cache_dir
+        metacell_dir = paths$metacell_dir, data_name = data_name,
+        age_de_results_dir = paths$age_de_results_dir,
+        contig_yaml_file = paths$contig_yaml_file,
+        reduced_gtf_file = paths$reduced_gtf_file,
+        n_cores = n_cores, data_cache_dir = paths$data_cache_dir
     )
 
     donor_pred <- results$donor_predictions
@@ -352,21 +617,14 @@ age_prediction_uncorrected_residual_pairwise_scatter_region <- function(
 
         p <- bican.mccarroll.differentialexpression::plot_residual_pair_scatter_one(
             model_predictions = donor_pred,
-            mode = "within_region",
-            region = region,
-            x_group = x_group,
-            y_group = y_group,
+            mode = "within_region", region = region,
+            x_group = x_group, y_group = y_group,
             value_var = "resid_mean",
-            color_var = "age",
-            color_title = "Donor age"
+            color_var = "age", color_title = "Donor age"
         )
 
         p <- p +
-            ggplot2::labs(
-                title = paste0(x_group, " vs ", y_group),
-                x = NULL,
-                y = NULL
-            ) +
+            ggplot2::labs(title = paste0(x_group, " vs ", y_group), x = NULL, y = NULL) +
             ggplot2::theme(
                 legend.position = "none",
                 plot.title = ggplot2::element_text(hjust = 0, size = 10),
@@ -393,80 +651,69 @@ age_prediction_uncorrected_residual_pairwise_scatter_region <- function(
 
     core <- cowplot::plot_grid(
         cowplot::ggdraw() +
-            cowplot::draw_label(header_text, x = 0, hjust = 0, fontface = "bold", size = 12),
+            cowplot::draw_label(header_text, x = 0, hjust = 0,
+                                fontface = "bold", size = 12),
         grid,
         cowplot::ggdraw() +
             cowplot::draw_label("Uncorrected residual (predicted - actual)", size = 11),
-        ncol = 1,
-        rel_heights = c(0.12, 1, 0.12)
+        ncol = 1, rel_heights = c(0.12, 1, 0.12)
     )
 
-    # Fix A: reserve space on left for shared Y label
     left_pad <- 0.03
 
     final <- cowplot::ggdraw() +
-        cowplot::draw_plot(core, x = left_pad, y = 0, width = 1 - left_pad, height = 1) +
+        cowplot::draw_plot(core, x = left_pad, y = 0,
+                           width = 1 - left_pad, height = 1) +
         cowplot::draw_label(
             "Uncorrected residual (predicted - actual)",
-            angle = 90,
-            x = left_pad * 0.35,
-            y = 0.5,
-            vjust = 0.5,
-            size = 11
+            angle = 90, x = left_pad * 0.35, y = 0.5,
+            vjust = 0.5, size = 11
         )
-
-    left_pad <- 0.03
 
     final_padded <- cowplot::ggdraw() +
-        cowplot::draw_plot(
-            final,
-            x = left_pad,
-            y = 0,
-            width = 1 - left_pad,
-            height = 1
-        )
+        cowplot::draw_plot(final, x = left_pad, y = 0,
+                           width = 1 - left_pad, height = 1)
 
     out_svg <- file.path(
-        outDir,
-        sprintf("age_prediction_uncorrected_residual_pairwise_scatter_region_%s.svg", region)
+        paths$outDir,
+        sprintf(
+            "age_prediction_uncorrected_residual_pairwise_scatter_region_%s.svg", region
+        )
     )
 
     ggplot2::ggsave(
-        filename = out_svg,
-        plot = final_padded,
-        device = "svg",
-        width = 14,
-        height = 8
+        filename = out_svg, plot = final_padded, device = "svg",
+        width = 14, height = 8
     )
 
     invisible(final)
 }
 
-
-
-
-
 age_prediction_examples <- function(
         cell_type_list = c("astrocyte", "OPC", "microglia", "MSN_D1"),
         region = "CaH",
-        data_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metacells/LEVEL_3",
+        metacell_dir = NULL,
         data_name = "donor_rxn_DGEList",
-        age_de_results_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results/old/LEVEL_3/sex_age/cell_type_region_interaction_absolute_effects",
-        contig_yaml_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metadata/GRCh38_ensembl_v43.contig_groups.yaml",
-        reduced_gtf_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metadata/GRCh38_ensembl_v43.reduced.gtf.gz",
+        age_de_results_dir = NULL,
+        contig_yaml_file = NULL,
+        reduced_gtf_file = NULL,
         n_cores = 14,
-        data_cache_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache",
-        outDir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository"
-) {
+        data_cache_dir = NULL,
+        outDir = NULL) {
+
+    paths <- .resolve_age_pred_paths(
+        metacell_dir = metacell_dir,
+        age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
+        reduced_gtf_file = reduced_gtf_file, data_cache_dir = data_cache_dir,
+        outDir = outDir
+    )
 
     results <- get_age_prediction_results(
-        data_dir = data_dir,
-        data_name = data_name,
-        age_de_results_dir = age_de_results_dir,
-        contig_yaml_file = contig_yaml_file,
-        reduced_gtf_file = reduced_gtf_file,
-        n_cores = n_cores,
-        data_cache_dir = data_cache_dir
+        metacell_dir = paths$metacell_dir, data_name = data_name,
+        age_de_results_dir = paths$age_de_results_dir,
+        contig_yaml_file = paths$contig_yaml_file,
+        reduced_gtf_file = paths$reduced_gtf_file,
+        n_cores = n_cores, data_cache_dir = paths$data_cache_dir
     )
 
     donor_pred <- results$donor_predictions
@@ -498,36 +745,34 @@ age_prediction_examples <- function(
 
     grid <- cowplot::plot_grid(plotlist = plot_list, ncol = 4, align = "hv")
 
-    header_text <- sprintf("Monte Carlo cross fold donor age predictions | Region: %s", region)
+    header_text <- sprintf(
+        "Monte Carlo cross fold donor age predictions | Region: %s", region
+    )
 
     core <- cowplot::plot_grid(
         cowplot::ggdraw() +
-            cowplot::draw_label(header_text, x = 0, hjust = 0, fontface = "bold", size = 12),
+            cowplot::draw_label(header_text, x = 0, hjust = 0,
+                                fontface = "bold", size = 12),
         grid,
         cowplot::ggdraw() +
             cowplot::draw_label("Chronological age", size = 11),
-        ncol = 1,
-        rel_heights = c(0.12, 1, 0.12)
+        ncol = 1, rel_heights = c(0.12, 1, 0.12)
     )
 
-    # Fix A: reserve space on the left for the shared y label
     left_pad <- 0.025
 
     final <- cowplot::ggdraw() +
-        cowplot::draw_plot(core, x = left_pad, y = 0, width = 1 - left_pad, height = 1) +
+        cowplot::draw_plot(core, x = left_pad, y = 0,
+                           width = 1 - left_pad, height = 1) +
         cowplot::draw_label(
             "Predicted age (MC mean)",
-            angle = 90,
-            x = left_pad * 0.35,
-            y = 0.5,
-            vjust = 0.5,
-            size = 11
+            angle = 90, x = left_pad * 0.35, y = 0.5,
+            vjust = 0.5, size = 11
         )
 
-    if (!is.null(outDir)) {
-        output_svg <- file.path(outDir, "age_prediction_cell_type_examples.svg")
-        ggplot2::ggsave(filename = output_svg, plot = final, device = "svg", width = 16, height = 4)
-    }
+    output_svg <- file.path(paths$outDir, "age_prediction_cell_type_examples.svg")
+    ggplot2::ggsave(filename = output_svg, plot = final, device = "svg",
+                    width = 16, height = 4)
 
     invisible(final)
 }
@@ -536,7 +781,7 @@ age_prediction_examples <- function(
 # Generation of raw data for all plots for age prediction.
 # These results will be cached.
 # This returns a list of dataframes that can be used for plotting.
-get_age_prediction_results<-function (data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metacells/LEVEL_3",
+get_age_prediction_results<-function (metacell_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metacells/LEVEL_3",
                               data_name="donor_rxn_DGEList",
                               age_de_results_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results/old/LEVEL_3/sex_age/cell_type_region_interaction_absolute_effects",
                               contig_yaml_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metadata/GRCh38_ensembl_v43.contig_groups.yaml",
@@ -563,7 +808,7 @@ get_age_prediction_results<-function (data_dir="/broad/bican_um1_mccarroll/RNAse
 
         #this will write files to the cache dir.
         bican.mccarroll.differentialexpression::predict_age_by_celltype_region(
-            data_dir = data_dir,
+            data_dir = metacell_dir,
             data_name = data_name,
             age_de_results_dir = age_de_results_dir,
             outPDFFile=NULL,
@@ -623,4 +868,68 @@ read_age_prediction_results <- function(cache_dir) {
     )
 
     result
+}
+
+save_plot_svg <- function(plot, out_file, out_dir = ".", width = 14, height = 7) {
+    out_svg <- file.path(out_dir, out_file)
+
+    svglite::svglite(file = out_svg, width = width, height = height)
+    on.exit(grDevices::dev.off(), add = TRUE)
+
+    print(plot)
+
+    invisible(out_svg)
+}
+
+.resolve_age_pred_paths <- function(
+        cellTypeListFile = NULL,
+        metacell_dir = NULL,
+        age_de_results_dir = NULL,
+        contig_yaml_file = NULL,
+        reduced_gtf_file = NULL,
+        outDir = NULL,
+        data_cache_dir = NULL
+) {
+    root <- .resolve_data_root_dir(NULL)
+
+    rel <- list(
+        cellTypeListFile =
+            "differential_expression/metadata/cell_types_for_de_filtering_plot.txt",
+
+        metacell_dir =
+            "metacells/LEVEL_3",
+
+        age_de_results_dir =
+            "differential_expression/results/old/LEVEL_3/sex_age/cell_type_region_interaction_absolute_effects",
+
+        contig_yaml_file =
+            "metadata/GRCh38_ensembl_v43.contig_groups.yaml",
+
+        reduced_gtf_file =
+            "metadata/GRCh38_ensembl_v43.reduced.gtf.gz"
+    )
+
+    pick_in <- function(x, key) {
+        if (is.null(x)) {
+            return(file.path(root, rel[[key]]))
+        }
+        .resolve_under_root(root, x)
+    }
+
+    out <- .resolve_out_dir(outDir)
+    cache <- .resolve_cache_dir(data_cache_dir)
+
+    .ensure_dir(out)
+    .ensure_dir(cache)
+
+    list(
+        data_root_dir      = root,
+        cellTypeListFile   = pick_in(cellTypeListFile, "cellTypeListFile"),
+        metacell_dir       = pick_in(metacell_dir, "metacell_dir"),
+        age_de_results_dir = pick_in(age_de_results_dir, "age_de_results_dir"),
+        contig_yaml_file   = pick_in(contig_yaml_file, "contig_yaml_file"),
+        reduced_gtf_file   = pick_in(reduced_gtf_file, "reduced_gtf_file"),
+        outDir             = out,
+        data_cache_dir     = cache
+    )
 }

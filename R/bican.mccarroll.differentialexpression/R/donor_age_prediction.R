@@ -1388,6 +1388,8 @@ write_age_outputs_all <- function(outputs, result_dir, output_basename) {
 #'   to retain in the output. For each donor, the function checks that these
 #'   columns have exactly one unique (non-NA) value across all donor samples.
 #'   An error is thrown if a column has multiple distinct values within a donor.
+#' @param sum_cols Character vector of numeric columns in \code{dge$samples} to
+#' sum within donor (e.g. \code{"num_nuclei"}).
 #'
 #' @return A new \code{DGEList} where:
 #'   \itemize{
@@ -1399,83 +1401,6 @@ write_age_outputs_all <- function(outputs, result_dir, output_basename) {
 #'   }
 #'   Library sizes are recomputed as column sums of the collapsed counts,
 #'   and normalization factors are set to 1.
-collapse_by_donor <- function(dge, donor_col = "donor", keep_cols = character(0)) {
-    stopifnot(is.list(dge), !is.null(dge$counts), !is.null(dge$samples),
-              donor_col %in% colnames(dge$samples))
-
-    smp <- dge$samples
-    donors <- as.character(smp[[donor_col]])
-    if (anyNA(donors)) stop("donor_col has NA values.")
-    f <- factor(donors)
-
-    # donor indicator (samples x donors)
-    X <- model.matrix(~ 0 + f)
-    colnames(X) <- levels(f)
-
-    # sum counts across samples of each donor (genes x donors)
-    C <- as.matrix(dge$counts) %*% X
-    storage.mode(C) <- "integer"
-
-    # helper: initialize an NA vector matching the class of x
-    init_na_like <- function(x, n) {
-        if (is.integer(x))            return(rep(NA_integer_, n))
-        if (is.numeric(x))            return(rep(NA_real_, n))
-        if (is.logical(x))            return(rep(NA, n))
-        return(rep(NA_character_, n)) # character or factor handled as character
-    }
-
-    # build samples data.frame with only keep_cols and validate uniqueness per donor
-    if (length(keep_cols)) {
-        missing <- setdiff(keep_cols, colnames(smp))
-        if (length(missing)) stop("keep_cols not found in dge$samples: ", paste(missing, collapse = ", "))
-
-        nD <- nlevels(f)
-        out_list <- vector("list", length(keep_cols))
-        names(out_list) <- keep_cols
-
-        for (j in seq_along(keep_cols)) {
-            colname <- keep_cols[j]
-            colj <- smp[[colname]]
-            # treat factors as character to avoid level coercion
-            if (is.factor(colj)) colj <- as.character(colj)
-
-            v <- init_na_like(colj, nD)
-            names(v) <- levels(f)
-
-            for (d in levels(f)) {
-                vals <- unique(colj[f == d])
-                vals <- vals[!is.na(vals)]
-                if (length(vals) != 1) {
-                    stop(sprintf("Column '%s' not unique within donor '%s': values = {%s}",
-                                 colname, d, paste(utils::head(vals, 10), collapse = ", ")))
-                }
-                v[d] <- vals
-            }
-            out_list[[j]] <- v
-        }
-        samples_keep <- as.data.frame(out_list, stringsAsFactors = FALSE, row.names = levels(f))
-    } else {
-        samples_keep <- data.frame(row.names = levels(f))
-    }
-
-    # required edgeR-like fields
-    lib.size <- colSums(C)
-    samples_out <- data.frame(
-        group = 1L,
-        lib.size = lib.size,
-        norm.factors = rep(1, length(lib.size)),
-        samples_keep,
-        row.names = colnames(C),
-        check.names = FALSE
-    )
-
-    # assemble output
-    dge_out <- dge
-    dge_out$counts  <- C
-    dge_out$samples <- samples_out
-    dge_out
-}
-
 collapse_by_donor <- function(dge, donor_col = "donor",
                               keep_cols = character(0),
                               sum_cols  = character(0)) {

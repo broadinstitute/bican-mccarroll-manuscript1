@@ -4,48 +4,33 @@
 \alias{summarize_age_prediction_results}
 \title{Summarize age-prediction model performance and covariate associations}
 \usage{
-summarize_age_prediction_results(
-  age_preds_file,
-  cell_type_file = NULL,
-  out_summary_file
-)
+summarize_age_prediction_results(age_preds, cell_types = NULL)
 }
 \arguments{
-\item{age_preds_file}{Character scalar. Path to a tab-delimited file
-containing per-donor predictions and metadata.}
+\item{age_preds}{data.frame containing per-donor predictions and metadata.}
 
-\item{cell_type_file}{Optional character scalar. Path to a text file
-containing one cell type per line. If provided, \code{age_preds_file} is
-filtered to those cell types.}
-
-\item{out_summary_file}{Character scalar. Path for writing a tab-delimited
-summary table of model-level metrics (one row per cell type x region).}
-}
-\value{
-A named list with:
-\describe{
-  \item{age_preds}{data.frame of per-donor predictions (possibly filtered).}
-  \item{metrics_df}{data.frame of model-level error metrics and covariates.}
-  \item{fit_all}{List returned by \code{\link{fit_age_mae_regression}} for \code{mae}.}
-  \item{fit_y20}{List returned by \code{\link{fit_age_mae_regression}} for \code{mae_young20}.}
-  \item{p_mae}{Heatmap of \code{mae}.}
-  \item{p_mae_y20}{Heatmap of \code{mae_young20}.}
-  \item{combined}{Combined (cowplot) panel of MAE vs predictors.}
-  \item{combined_y20}{Combined (cowplot) panel of MAE in youngest 20\% vs predictors.}
-}
+\item{cell_types}{Optional character vector of cell types to keep. If
+provided, \code{age_preds} is filtered to those cell types.}
 }
 \description{
-This function reads per-donor age prediction results, optionally restricts
-to a user-specified set of cell types, computes model-level error metrics
-for each cell type by region, generates summary plots, and fits simple
-regression models relating prediction error to model size / data size
-covariates.
+This function analyzes per-donor age prediction results without performing
+any file I/O. It optionally restricts to a user-specified set of cell types,
+computes model-level error metrics for each cell type by region, generates
+summary plots, and fits simple regression models relating prediction error
+to model size / data size covariates.
 }
 \details{
-The expected input file is a tab-delimited table with one row per donor per
-cell type x region model. At minimum, it should contain the columns needed
-by \code{\link{compute_age_error_metrics}} (including \code{cell_type},
-\code{region}, \code{donor}, \code{age}, the prediction column used by
-\code{compute_age_error_metrics}, and \code{num_nuclei}, \code{num_umis},
-\code{num_features}).
+The returned \code{plots} element contains individual plots:
+\describe{
+  \item{p_mae}{Heatmap of \code{mae}.}
+  \item{p_mae_y20}{Heatmap of \code{mae_young20}.}
+  \item{p_feat_mae}{MAE vs \code{num_features}.}
+  \item{p_nuc_mae}{MAE vs \code{num_nuclei}.}
+  \item{p_umi_mae}{MAE vs \code{num_umis}.}
+  \item{p_feat_y20}{MAE in youngest 20\% vs \code{num_features}.}
+  \item{p_nuc_y20}{MAE in youngest 20\% vs \code{num_nuclei}.}
+  \item{p_umi_y20}{MAE in youngest 20\% vs \code{num_umis}.}
+}
+
+Combined panels are intended to be constructed by the file I/O wrapper.
 }

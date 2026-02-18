@@ -6,14 +6,11 @@
 \usage{
 plot_de_filtering_examples(
   cell_type_list = c("astrocyte", "microglia", "MSN_D1", "glutamatergic_IT"),
-  baseline_data_dir =
-    "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results/LEVEL_3/sex_age/cell_type",
-  comparison_data_dir =
-    "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results/LEVEL_4/sex_age/cell_type",
+  baseline_data_dir = NULL,
+  comparison_data_dir = NULL,
   baseline_name = "LEVEL 3",
   comparison_name = "LEVEL 4",
-  outDir =
-    "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository"
+  outDir = NULL
 )
 }
 \arguments{

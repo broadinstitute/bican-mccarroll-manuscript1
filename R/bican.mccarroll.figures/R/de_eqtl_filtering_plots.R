@@ -2,6 +2,30 @@
 # library (svglite)
 
 
+## ------------------------------------------------------------------
+## Set configuration (development only; comment out in package build)
+## ------------------------------------------------------------------
+
+# source("R/paths.R")
+#
+# options(
+#     bican.mccarroll.figures.data_root_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis",
+#
+#     bican.mccarroll.figures.out_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
+#
+#     bican.mccarroll.figures.cache_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
+# )
+
+
+.plot_all_eqtl<-function () {
+    plot_eqtl_filtering_trajectories()
+    plot_eqtl_filtering_examples()
+    plot_de_filtering_trajectories()
+    plot_de_filtering_examples()
+}
 
 #########################################
 # EQTL GENE DISCOCVERY AND FILTERING PLOTS
@@ -26,7 +50,7 @@
 #' `eqtl_filtering_plot.svg` in `outDir`. When `outDir` is `NULL`, the plot is
 #' constructed but not saved.
 #'
-#' @param data_dir Directory containing per-level eQTL results used by
+#' @param eqtl_data_dir Directory containing per-level eQTL results used by
 #'   `bican.mccarroll.eqtl::compare_all_eQTL_runs()`.
 #' @param outDir Output directory for the SVG. If `NULL`, no file is written.
 #' @param filter_levels Integer vector of filtering levels to compare.
@@ -47,73 +71,85 @@
 #'   \code{\link[bican.mccarroll.eqtl]{eqtl_cluster_filtering_trajectories}}
 #' @export
 #' @family sample filtering figures
-plot_eqtl_filtering_trajectories<-function (data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results",
-                              outDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
-                              filter_levels=c(0,1,2,3,4), fdr_threshold=0.05, num_clusters=4,
-                              cellTypeListFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/metadata/cell_types_for_de_filtering_plot.txt",
-                              data_cache_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache") {
+plot_eqtl_filtering_trajectories <- function(
+        eqtl_data_dir = NULL,
+        outDir = NULL,
+        filter_levels = c(0, 1, 2, 3, 4),
+        fdr_threshold = 0.05,
+        num_clusters = 4,
+        cellTypeListFile = NULL,
+        data_cache_dir = NULL) {
 
+    paths <- .resolve_eqtl_paths(
+        eqtl_data_dir = eqtl_data_dir, outDir = outDir,
+        cellTypeListFile = cellTypeListFile, data_cache_dir = data_cache_dir
+    )
 
-    #if the expected cache file is present, use it instead of rebuilding the data.
-    cache_file <- file.path(data_cache_dir, "eqtl_filtering_plot_cache.txt")
+    cache_file <- file.path(paths$data_cache_dir, "eqtl_filtering_plot_cache.txt")
+
     if (file.exists(cache_file)) {
         logger::log_info("Using cached data from {cache_file}")
-        df=read.table(cache_file, header=TRUE, sep="\t", stringsAsFactors=FALSE)
-    } else { # process the data as usual, write to the cache
-        #clustering_min_genes and num_clusters don't do anything when outDir is NULL
-        logger::log_info("No cached data from {cache_file} regenerating data from sources.  This can be extremely slow.")
-        eqtl_cache_dir=paste(data_cache_dir, "eqtl_filtering_plot", sep="/")
-        df= bican.mccarroll.eqtl::compare_all_eQTL_runs(data_dir=data_dir, outDir=NULL, filter_levels=filter_levels, fdr_threshold=fdr_threshold, cache_dir=eqtl_cache_dir)
-        write.table(df, file=cache_file, sep="\t", row.names=FALSE, quote=FALSE)
+        df <- utils::read.table(cache_file, header = TRUE, sep = "\t",
+                                stringsAsFactors = FALSE)
+    } else {
+        logger::log_info(
+            "No cached data from {cache_file} regenerating data from sources.  This can be extremely slow."
+        )
+        eqtl_cache_dir <- file.path(paths$data_cache_dir, "eqtl_filtering_plot")
+        df <- bican.mccarroll.eqtl::compare_all_eQTL_runs(
+            data_dir = paths$eqtl_data_dir, outDir = NULL,
+            filter_levels = filter_levels, fdr_threshold = fdr_threshold,
+            cache_dir = eqtl_cache_dir
+        )
+        utils::write.table(df, file = cache_file, sep = "\t",
+                           row.names = FALSE, quote = FALSE)
     }
 
+    cell_types_to_use <- utils::read.table(paths$cellTypeListFile, header = FALSE, stringsAsFactors = FALSE)[, 1]
 
-    cell_types_to_use <- read.table(cellTypeListFile, header=FALSE, stringsAsFactors=FALSE)[,1]
     df <- df[df$cell_type %in% cell_types_to_use, ]
-    missing=setdiff(cell_types_to_use, df$cell_type)
-    if (length(missing)>0) {
-        missing_list=paste(missing, collapse=', ')
-        logger::log_warn("The following cell types were requested but not found in the data: {missing_list}")
+    missing <- setdiff(cell_types_to_use, df$cell_type)
+    if (length(missing) > 0) {
+        missing_list <- paste(missing, collapse = ", ")
+        logger::log_warn(
+            "The following cell types were requested but not found in the data: {missing_list}"
+        )
     }
 
-    #change the baseline name and comparison name to match the DE analysis
     df$baseline_level <- as.numeric(gsub("LEVEL_", "", df$baseline_name))
     df$comparison_level <- as.numeric(gsub("LEVEL_", "", df$comparison_name))
 
-
     # Steve has asked to include level 0 - this is a temporary hack until that's approved as the
     # best way to visualize data.
-    df2=.add_baseline_comparison_level_eqtl (df_filtered)
+    df2 <- .add_baseline_comparison_level_eqtl(df)
 
-    res <- bican.mccarroll.eqtl::eqtl_cluster_filtering_trajectories(df2, value_col = "yield",
-                                                                     comparison_col="comparison_level",
-                                                                     K = num_clusters, title="Change in number of eGenes discovered compared to baseline")
-
-    #make compatible with plotting code.
-    clusters=res$clusters
-    colnames(clusters)[1]="cell_type"
-
-    df_plot=data.frame(
-        cell_type=paste(df2$cell_type, df2$region, sep="__"),
-        base_level=as.numeric(df2$baseline_level),
-        comparison_level=as.numeric(df2$comparison_level),
-        frac_genes_discovered=df2$yield
+    res <- bican.mccarroll.eqtl::eqtl_cluster_filtering_trajectories(
+        df2, value_col = "yield",
+        comparison_col = "comparison_level",
+        K = num_clusters,
+        title = "Change in number of eGenes discovered compared to baseline"
     )
 
-    if (length(setdiff(df_plot$cell_type, clusters$cell_type)))
-        stop("Data merge issue.")
+    clusters <- res$clusters
+    colnames(clusters)[1] <- "cell_type"
 
-    if (length(setdiff(clusters$cell_type, df_plot$cell_type)))
-        stop("Data merge issue.")
+    df_plot <- data.frame(
+        cell_type = paste(df2$cell_type, df2$region, sep = "__"),
+        base_level = as.numeric(df2$baseline_level),
+        comparison_level = as.numeric(df2$comparison_level),
+        frac_genes_discovered = df2$yield
+    )
 
-    p<- make_filtering_cluster_panels(df_plot, clusters, legend_scale=0.8)
+    if (length(setdiff(df_plot$cell_type, clusters$cell_type))) stop("Data merge issue.")
+    if (length(setdiff(clusters$cell_type, df_plot$cell_type))) stop("Data merge issue.")
 
-    if (!is.null(outDir)) {
-        output_svg <- file.path(outDir, "eqtl_filtering_plot.svg")
-        ggplot2::ggsave(filename = output_svg, plot = p, device = "svg", width = 8, height = 8)
-    }
+    p <- make_filtering_cluster_panels(df_plot, clusters, legend_scale = 0.8)
 
+    output_svg <- file.path(paths$outDir, "eqtl_filtering_plot.svg")
+    ggplot2::ggsave(filename = output_svg, plot = p, device = svglite::svglite,
+                    width = 8, height = 8)
 
+    invisible(NULL)
 }
 
 #' Example eQTL changes between two analysis levels for selected cell types
@@ -152,24 +188,36 @@ plot_eqtl_filtering_trajectories<-function (data_dir="/broad/bican_um1_mccarroll
 #'
 #' @export
 #' @family sample filtering figures
-plot_eqtl_filtering_examples<-function (cell_type_list=c("astrocyte", "microglia", "MSN_D1", "OPC"),
-                                        region="CaH",
-                                        baseline_data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_3",
-                                        comparison_data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_4",
-                                        baseline_name="LEVEL 3", comparison_name="LEVEL 4",
-                                        outDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
-                                        data_cache_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache") {
+plot_eqtl_filtering_examples <- function(
+        cell_type_list = c("astrocyte", "microglia", "MSN_D1", "OPC"),
+        region = "CaH",
+        baseline_data_dir = NULL,
+        comparison_data_dir = NULL,
+        baseline_name = "LEVEL 3",
+        comparison_name = "LEVEL 4",
+        outDir = NULL,
+        data_cache_dir = NULL) {
 
-    #this is slightly different than other internal functions with the same names to tune
-    #these particular plots.
+    paths <- .resolve_eqtl_paths(
+        baseline_eqtl_data_dir = baseline_data_dir,
+        comparison_eqtl_data_dir = comparison_data_dir,
+        outDir = outDir,
+        data_cache_dir = data_cache_dir
+    )
+
+    baseline_data_dir <- paths$baseline_eqtl_data_dir
+    comparison_data_dir <- paths$comparison_eqtl_data_dir
+
     make_celltype_row <- function(p_left, p_right, label, strip_size = 14, gutter = 8) {
-        p_left  <- p_left  + ggplot2::labs(title = NULL) +
-            ggplot2::theme(plot.margin = ggplot2::margin(0, gutter, 0, 0))  # add right margin
+
+        p_left <- p_left + ggplot2::labs(title = NULL) +
+            ggplot2::theme(plot.margin = ggplot2::margin(0, gutter, 0, 0))
 
         p_right <- p_right + ggplot2::labs(title = NULL) +
-            ggplot2::theme(plot.margin = ggplot2::margin(0, 0, 0, gutter))  # optional: add left margin
+            ggplot2::theme(plot.margin = ggplot2::margin(0, 0, 0, gutter))
 
-        panels <- cowplot::plot_grid(p_left, p_right, ncol = 2, align = "hv", axis = "tblr")
+        panels <- cowplot::plot_grid(p_left, p_right, ncol = 2, align = "hv",
+                                     axis = "tblr")
 
         strip <- cowplot::ggdraw() +
             cowplot::draw_label(label, fontface = "bold", size = strip_size, x = 0.5)
@@ -177,134 +225,186 @@ plot_eqtl_filtering_examples<-function (cell_type_list=c("astrocyte", "microglia
         cowplot::plot_grid(strip, panels, ncol = 1, rel_heights = c(0.1, 1))
     }
 
-    df=get_all_eqtl_filtering_example_data(cell_type_list=cell_type_list, region=region, baseline_data_dir=baseline_data_dir,
-                                         comparison_data_dir=comparison_data_dir, baseline_name=baseline_name,
-                                         comparison_name=comparison_name, data_cache_dir=data_cache_dir)
+    df <- get_all_eqtl_filtering_example_data(
+        cell_type_list = cell_type_list, region = region,
+        baseline_data_dir = baseline_data_dir,
+        comparison_data_dir = comparison_data_dir,
+        baseline_name = baseline_name,
+        comparison_name = comparison_name,
+        data_cache_dir = paths$data_cache_dir
+    )
 
     plot_list <- list()
     for (ct in cell_type_list) {
 
-        d=df[df$cell_type == ct,]
+        d <- df[df$cell_type == ct, ]
 
-        p1<-bican.mccarroll.eqtl::plot_pair_effects(
+        p1 <- bican.mccarroll.eqtl::plot_pair_effects(
             effect_dt = d,
             cell_type_A = baseline_name,
             cell_type_B = comparison_name,
             region = region,
-            annot_size=2.5
+            annot_size = 2.5
         )
 
-        p2<-bican.mccarroll.eqtl::plot_pair_pvals(
+        p2 <- bican.mccarroll.eqtl::plot_pair_pvals(
             effect_dt = d,
             cell_type_A = baseline_name,
             cell_type_B = comparison_name,
             region = region,
-            annot_size=2.5
+            annot_size = 2.5
         )
 
-        #bind plots together
         ct_lab <- gsub("_", " ", ct, fixed = TRUE)
         plot_list[[ct]] <- make_celltype_row(p1, p2, ct_lab)
     }
 
-    #make one big plot and save as SVG
-    # If you have N plots, give each row less vertical real estate by increasing output height,
-    # or explicitly control rel_heights:
     combined_plot <- cowplot::plot_grid(plotlist = plot_list, ncol = 2)
 
     ggplot2::ggsave(
-        filename = file.path(outDir, "eqtl_filtering_cell_type_examples.svg"),
-        plot = combined_plot, device = "svg", width = 12, height = 6
+        filename = file.path(paths$outDir, "eqtl_filtering_cell_type_examples.svg"),
+        plot = combined_plot, device = svglite::svglite, width = 12, height = 6
     )
 
-
-
+    invisible(NULL)
 }
 
-get_all_eqtl_filtering_example_data<-function (cell_type_list=c("astrocyte", "microglia", "MSN_D1", "OPC"),
-                                        region="CaH",
-                                        baseline_data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_3",
-                                        comparison_data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_4",
-                                        baseline_name="LEVEL 3", comparison_name="LEVEL 4",
-                                        data_cache_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache") {
 
+get_all_eqtl_filtering_example_data <- function(
+        cell_type_list = c("astrocyte", "microglia", "MSN_D1", "OPC"),
+        region = "CaH",
+        baseline_data_dir = NULL,
+        comparison_data_dir = NULL,
+        baseline_name = "LEVEL 3",
+        comparison_name = "LEVEL 4",
+        data_cache_dir = NULL) {
+
+    paths <- .resolve_eqtl_paths(
+        baseline_eqtl_data_dir = baseline_data_dir,
+        comparison_eqtl_data_dir = comparison_data_dir,
+        data_cache_dir = data_cache_dir
+    )
+
+    baseline_data_dir <- paths$baseline_eqtl_data_dir
+    comparison_data_dir <- paths$comparison_eqtl_data_dir
 
     df_list <- list()
     for (cell_type in cell_type_list) {
         logger::log_info("Getting data for cell type {cell_type} for eQTL filtering example plot")
-        df_list[[cell_type]] <- get_eqtl_filtering_example_data(cell_type=cell_type, region=region, baseline_data_dir=baseline_data_dir,
-                                                               comparison_data_dir=comparison_data_dir, baseline_name=baseline_name,
-                                                                    comparison_name=comparison_name, data_cache_dir=data_cache_dir)
+
+        df_list[[cell_type]] <- get_eqtl_filtering_example_data(
+            cell_type = cell_type, region = region,
+            baseline_data_dir = baseline_data_dir,
+            comparison_data_dir = comparison_data_dir,
+            baseline_name = baseline_name,
+            comparison_name = comparison_name,
+            data_cache_dir = paths$data_cache_dir
+        )
     }
+
     df_all <- do.call(rbind, df_list)
 
-    #will need to be a data table later.
     data.table::setDT(df_all)
-    return(df_all)
+    df_all
 }
 
-get_eqtl_filtering_example_data<-function (cell_type="astrocyte", region="CaH",
-                                       baseline_data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_3",
-                                       comparison_data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_4",
-                                       baseline_name="LEVEL 3", comparison_name="LEVEL 4",
-                                       file_separator="__", fdr_threshold=0.05,
-                                       data_cache_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache") {
+get_eqtl_filtering_example_data <- function(
+        cell_type = "astrocyte",
+        region = "CaH",
+        baseline_data_dir = NULL,
+        comparison_data_dir = NULL,
+        baseline_name = "LEVEL 3",
+        comparison_name = "LEVEL 4",
+        file_separator = "__",
+        fdr_threshold = 0.05,
+        data_cache_dir = NULL) {
 
+    paths <- .resolve_eqtl_paths(
+        baseline_eqtl_data_dir = baseline_data_dir,
+        comparison_eqtl_data_dir = comparison_data_dir,
+        data_cache_dir = data_cache_dir
+    )
 
-    cache_name<-paste0(paste("eqtl_filtering_example_cache_", cell_type, region, baseline_name, comparison_name, sep="_"),".txt")
-    cache_name<-gsub(" ", "_", cache_name, fixed=TRUE)
+    baseline_data_dir <- paths$baseline_eqtl_data_dir
+    comparison_data_dir <- paths$comparison_eqtl_data_dir
+    data_cache_dir <- paths$data_cache_dir
+
+    cache_name <- paste0(
+        paste(
+            "eqtl_filtering_example_cache_", cell_type, region,
+            baseline_name, comparison_name, sep = "_"
+        ),
+        ".txt"
+    )
+    cache_name <- gsub(" ", "_", cache_name, fixed = TRUE)
     cache_file <- file.path(data_cache_dir, cache_name)
 
     if (file.exists(cache_file)) {
         logger::log_info("Using cached data from {cache_file}")
-        df=read.table(cache_file, header=TRUE, sep="\t", stringsAsFactors=FALSE)
-        return (df)
+        df <- utils::read.table(cache_file, header = TRUE, sep = "\t",
+                                stringsAsFactors = FALSE)
+        return(df)
     }
     logger::log_info("No cached data file found {cache_file}")
 
-    index_file=paste0(baseline_data_dir,"/", cell_type, file_separator, region, "/", cell_type, file_separator, region, ".cis_qtl_ann.txt.gz")
-    index_file_comparison=paste0(comparison_data_dir,"/", cell_type, file_separator, region, "/", cell_type, file_separator, region, ".cis_qtl_ann.txt.gz")
-    all_pairs_file=paste0(baseline_data_dir,"/", cell_type, file_separator, region, "/", cell_type, file_separator, region, ".cis_qtl_pairs.txt.gz")
-    all_pairs_file_comparison=paste0(comparison_data_dir,"/", cell_type, file_separator, region, "/", cell_type, file_separator, region, ".cis_qtl_pairs.txt.gz")
+    index_file <- paste0(
+        baseline_data_dir, "/", cell_type, file_separator, region, "/",
+        cell_type, file_separator, region, ".cis_qtl_ann.txt.gz"
+    )
+    index_file_comparison <- paste0(
+        comparison_data_dir, "/", cell_type, file_separator, region, "/",
+        cell_type, file_separator, region, ".cis_qtl_ann.txt.gz"
+    )
+    all_pairs_file <- paste0(
+        baseline_data_dir, "/", cell_type, file_separator, region, "/",
+        cell_type, file_separator, region, ".cis_qtl_pairs.txt.gz"
+    )
+    all_pairs_file_comparison <- paste0(
+        comparison_data_dir, "/", cell_type, file_separator, region, "/",
+        cell_type, file_separator, region, ".cis_qtl_pairs.txt.gz"
+    )
 
-    idx_A <- bican.mccarroll.eqtl::read_index_file(index_file, colsToKeep = c("gene_name", "variant_id", "slope", "qval", "pval_nominal"))
-    idx_B <- bican.mccarroll.eqtl::read_index_file(index_file_comparison, colsToKeep = c("gene_name", "variant_id", "slope", "qval", "pval_nominal"))
-    ap_A <- bican.mccarroll.eqtl::read_all_pairs_file(all_pairs_file, colsToKeep = c("phenotype_id", "variant_id", "slope", "pval_nominal"))
-    ap_B <- bican.mccarroll.eqtl::read_all_pairs_file(all_pairs_file_comparison, colsToKeep = c("phenotype_id", "variant_id", "slope", "pval_nominal"))
+    idx_A <- bican.mccarroll.eqtl::read_index_file(
+        index_file,
+        colsToKeep = c("gene_name", "variant_id", "slope", "qval", "pval_nominal")
+    )
+    idx_B <- bican.mccarroll.eqtl::read_index_file(
+        index_file_comparison,
+        colsToKeep = c("gene_name", "variant_id", "slope", "qval", "pval_nominal")
+    )
+    ap_A <- bican.mccarroll.eqtl::read_all_pairs_file(
+        all_pairs_file,
+        colsToKeep = c("phenotype_id", "variant_id", "slope", "pval_nominal")
+    )
+    ap_B <- bican.mccarroll.eqtl::read_all_pairs_file(
+        all_pairs_file_comparison,
+        colsToKeep = c("phenotype_id", "variant_id", "slope", "pval_nominal")
+    )
 
-    sig_A <- bican.mccarroll.eqtl::filter_significant_index(idx_A, fdr_threshold = fdr_threshold)
-    sig_B <- bican.mccarroll.eqtl::filter_significant_index(idx_B, fdr_threshold = fdr_threshold)
+    sig_A <- bican.mccarroll.eqtl::filter_significant_index(
+        idx_A, fdr_threshold = fdr_threshold
+    )
+    sig_B <- bican.mccarroll.eqtl::filter_significant_index(
+        idx_B, fdr_threshold = fdr_threshold
+    )
 
     ref <- bican.mccarroll.eqtl::select_reference_pairs(sig_A = sig_A, sig_B = sig_B)
 
     eff <- bican.mccarroll.eqtl::build_pair_effect_table(
-        ref_dt = ref,
-        all_pairs_A = ap_A,
-        all_pairs_B = ap_B,
-        value_col = "slope"
-    )
+        ref_dt = ref, all_pairs_A = ap_A, all_pairs_B = ap_B, value_col = "slope")
 
-    pvals<-bican.mccarroll.eqtl::build_pair_effect_table(
-        ref_dt = ref,
-        all_pairs_A = ap_A,
-        all_pairs_B = ap_B,
-        value_col = "pval_nominal"
-    )
+    pvals <- bican.mccarroll.eqtl::build_pair_effect_table(
+        ref_dt = ref, all_pairs_A = ap_A, all_pairs_B = ap_B, value_col = "pval_nominal")
 
-    df=.merge_eqtl_effects_and_pvals(
-        eff = eff,
-        pvals = pvals,
-        cell_type = cell_type,
-        region = region,
-        baseline_name = baseline_name,
-        comparison_name = comparison_name
-    )
+    df <- .merge_eqtl_effects_and_pvals(
+        eff = eff, pvals = pvals, cell_type = cell_type, region = region,
+        baseline_name = baseline_name, comparison_name = comparison_name)
 
-    write.table(df, file=cache_file, sep="\t", row.names=FALSE, quote=FALSE)
-    return (df)
+    utils::write.table(df, file = cache_file, sep = "\t", row.names = FALSE, quote = FALSE)
 
-
+    df
 }
+
 
 .merge_eqtl_effects_and_pvals <- function(eff,
                                          pvals,
@@ -399,55 +499,76 @@ get_eqtl_filtering_example_data<-function (cell_type="astrocyte", region="CaH",
 #'   \code{\link[bican.mccarroll.differentialexpression]{cluster_filtering_trajectories}}
 #' @export
 #' @family sample filtering figures
-plot_de_filtering_trajectories<-function (
-        data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results",
-        data_name="donor_rxn_DGEList",
-        data_cache_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache",
-        cellTypeListFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/metadata/cell_types_for_de_filtering_plot.txt",
-        outDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
-        clustering_min_genes=150, num_clusters=3) {
+plot_de_filtering_trajectories <- function(
+        data_dir = NULL,
+        data_name = "donor_rxn_DGEList",
+        data_cache_dir = NULL,
+        cellTypeListFile = NULL,
+        outDir = NULL,
+        clustering_min_genes = 150,
+        num_clusters = 3) {
 
-    #if the expected cache file is present, use it instead of rebuilding the data.
+    paths <- .resolve_de_paths(
+        baseline_de_results_dir = data_dir,
+        cellTypeListFile = cellTypeListFile,
+        outDir = outDir,
+        data_cache_dir = data_cache_dir
+    )
+
+    data_dir <- paths$baseline_de_results_dir
+    cellTypeListFile <- paths$cellTypeListFile
+    outDir <- paths$outDir
+    data_cache_dir <- paths$data_cache_dir
+
     cache_file <- file.path(data_cache_dir, "de_filtering_plot_cache.txt")
+
     if (file.exists(cache_file)) {
         logger::log_info("Using cached data from {cache_file}")
-        df=read.table(cache_file, header=TRUE, sep="\t", stringsAsFactors=FALSE)
-    } else { # process the data as usual, write to the cache
-        #clustering_min_genes and num_clusters don't do anything when outDir is NULL
+        df <- utils::read.table(cache_file, header = TRUE, sep = "\t",
+                                stringsAsFactors = FALSE)
+    } else {
         logger::log_info("No cached data from {cache_file} regenerating data from sources")
-        df=bican.mccarroll.differentialexpression::compare_all_age_de_runs (data_dir, outDir=NULL, filter_levels=c(0,1,2,3,4), fdr_cutoff=0.05, clustering_min_genes=clustering_min_genes, num_clusters=num_clusters)
-        write.table(df, file=cache_file, sep="\t", row.names=FALSE, quote=FALSE)
+        df <- bican.mccarroll.differentialexpression::compare_all_age_de_runs(
+            data_dir, outDir = NULL,
+            filter_levels = c(0, 1, 2, 3, 4),
+            fdr_cutoff = 0.05,
+            clustering_min_genes = clustering_min_genes,
+            num_clusters = num_clusters
+        )
+        utils::write.table(df, file = cache_file, sep = "\t",
+                           row.names = FALSE, quote = FALSE)
     }
 
-    #filter by the cell type list before clustering
-    cell_types_to_use <- read.table(cellTypeListFile, header=FALSE, stringsAsFactors=FALSE)[,1]
+    cell_types_to_use <- utils::read.table(
+        cellTypeListFile, header = FALSE, stringsAsFactors = FALSE
+    )[, 1]
+
     df <- df[df$cell_type %in% cell_types_to_use, ]
-    missing=setdiff(cell_types_to_use, df$cell_type)
-    if (length(missing)>0) {
-        missing_list=paste(missing, collapse=', ')
-        logger::log_warn("The following cell types were requested but not found in the data: {missing_list}")
+    missing <- setdiff(cell_types_to_use, df$cell_type)
+    if (length(missing) > 0) {
+        missing_list <- paste(missing, collapse = ", ")
+        logger::log_warn(
+            "The following cell types were requested but not found in the data: {missing_list}"
+        )
     }
 
-    df_filtered=df[df$num_genes_significant_old>=clustering_min_genes, ]
+    df_filtered <- df[df$num_genes_significant_old >= clustering_min_genes, ]
 
-    # Steve has asked to include level 0 - this is a temporary hack until that's approved as the
-    # best way to visualize data.
-    df2=.add_baseline_comparison_level_de (df_filtered)
-    res <- bican.mccarroll.differentialexpression::cluster_filtering_trajectories(df2, K = num_clusters)
-    p<- make_filtering_cluster_panels(df2, res$clusters, legend_scale=0.8)
+    df2 <- .add_baseline_comparison_level_de(df_filtered)
+    res <- bican.mccarroll.differentialexpression::cluster_filtering_trajectories(
+        df2, K = num_clusters
+    )
 
-    if (!is.null(outDir)) {
-        output_svg <- file.path(outDir, "de_filtering_plot.svg")
-        ggplot2::ggsave(filename = output_svg, plot = p, device = "svg", width = 8, height = 8)
-    }
+    p <- make_filtering_cluster_panels(df2, res$clusters, legend_scale = 0.8)
 
-    #I need a plot of the initial number of discoveries.
-    #z=df_filtered[df_filtered$base_level==0 & df_filtered$comparison_level==1, c("cell_type", "num_genes_significant_old")]
-    #p_num_de_genes<-plot_num_de_genes(z)
+    output_svg <- file.path(outDir, "de_filtering_plot.svg")
+    ggplot2::ggsave(filename = output_svg, plot = p, device = svglite::svglite,
+                    width = 8, height = 8)
 
-    #plot
-
+    logger::log_info("Saved DE filtering trajectory plot to {output_svg}")
+    invisible(NULL)
 }
+
 
 #' Example DE changes between two analysis levels for selected cell types
 #'
@@ -474,31 +595,42 @@ plot_de_filtering_trajectories<-function (
 #'   \code{\link[bican.mccarroll.differentialexpression]{compare_age_de_run}}
 #' @family sample filtering figures
 #' @export
-plot_de_filtering_examples<-function (cell_type_list=c("astrocyte", "microglia", "MSN_D1", "glutamatergic_IT"),
-                                      baseline_data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results/LEVEL_3/sex_age/cell_type",
-                                      comparison_data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results/LEVEL_4/sex_age/cell_type",
-                                      baseline_name="LEVEL 3", comparison_name="LEVEL 4",
-                                      outDir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository") {
+plot_de_filtering_examples <- function(
+        cell_type_list = c("astrocyte", "microglia", "MSN_D1", "glutamatergic_IT"),
+        baseline_data_dir = NULL,
+        comparison_data_dir = NULL,
+        baseline_name = "LEVEL 3",
+        comparison_name = "LEVEL 4",
+        outDir = NULL) {
+
+    paths <- .resolve_de_paths(
+        baseline_de_results_dir = baseline_data_dir,
+        comparison_de_results_dir = comparison_data_dir,
+        outDir = outDir
+    )
+
+    baseline_data_dir <- paths$baseline_de_results_dir
+    comparison_data_dir <- paths$comparison_de_results_dir
+    outDir <- paths$outDir
 
     make_celltype_row <- function(p_left, p_right, label, strip_size = 14,
                                   axis_title_size = 9,
                                   axis_text_size = 7) {
 
         axis_theme <- ggplot2::theme(
-            axis.title = ggplot2::element_text(size = axis_title_size)
+            axis.title = ggplot2::element_text(size = axis_title_size),
+            axis.text = ggplot2::element_text(size = axis_text_size)
         )
 
-        p_left  <- p_left  +
-            ggplot2::labs(title = NULL) +
-            axis_theme +
+        p_left <- p_left + ggplot2::labs(title = NULL) + axis_theme +
             ggplot2::theme(plot.margin = ggplot2::margin(0, 0, 0, 0))
 
-        p_right <- p_right +
-            ggplot2::labs(title = NULL) +
-            axis_theme +
+        p_right <- p_right + ggplot2::labs(title = NULL) + axis_theme +
             ggplot2::theme(plot.margin = ggplot2::margin(0, 0, 0, 0))
 
-        panels <- cowplot::plot_grid(p_left, p_right, ncol = 2, align = "hv", axis = "tblr")
+        panels <- cowplot::plot_grid(
+            p_left, p_right, ncol = 2, align = "hv", axis = "tblr"
+        )
 
         strip <- cowplot::ggdraw() +
             cowplot::draw_label(label, fontface = "bold", size = strip_size, x = 0.5)
@@ -508,6 +640,7 @@ plot_de_filtering_examples<-function (cell_type_list=c("astrocyte", "microglia",
 
     plot_list <- list()
     for (cell_type in cell_type_list) {
+
         z <- bican.mccarroll.differentialexpression::compare_age_de_run(
             cell_type = cell_type,
             old_data_dir = baseline_data_dir,
@@ -518,43 +651,20 @@ plot_de_filtering_examples<-function (cell_type_list=c("astrocyte", "microglia",
         )
 
         ct_lab <- gsub("_", " ", cell_type, fixed = TRUE)
-        plot_list[[cell_type]] <- make_celltype_row(z$scatter_effect, z$scatter_fdr, ct_lab)
+        plot_list[[cell_type]] <- make_celltype_row(
+            z$scatter_effect, z$scatter_fdr, ct_lab
+        )
     }
 
-    # If you have N plots, give each row less vertical real estate by increasing output height,
-    # or explicitly control rel_heights:
     combined_plot <- cowplot::plot_grid(plotlist = plot_list, ncol = 2)
 
+    output_svg <- file.path(outDir, "de_filtering_cell_type_examples.svg")
     ggplot2::ggsave(
-        filename = file.path(outDir, "de_filtering_cell_type_examples.svg"),
-        plot = combined_plot, device = "svg", width = 14, height = 7  # try smaller height first
+        filename = output_svg,
+        plot = combined_plot, device = svglite::svglite, width = 14, height = 7
     )
-
-}
-
-plot_num_de_genes<-function (df) {
-    cell_type <- num_genes_significant_old <- NULL
-
-    df$cell_type <- factor(
-        z$cell_type,
-        levels = z$cell_type[order(z$num_genes_significant_old)]
-    )
-
-    ggplot(df, aes(x = cell_type, y = num_genes_significant_old)) +
-        geom_col() +
-        geom_text(
-            aes(label = num_genes_significant_old),
-            hjust = -0.1,
-            size = 3
-        ) +
-        scale_y_log10() +
-        coord_flip() +
-        labs(
-            x = "cell type",
-            y = "Number of age DE genes"
-        ) +
-        theme_bw()
-
+    logger::log_info("Saved DE filtering example plot to {output_svg}")
+    invisible(NULL)
 }
 
 #this plot requires:
@@ -580,7 +690,7 @@ make_filtering_cluster_panels <- function(
 
     # Titles
     if (is.null(panel_titles)) {
-        title_map <- setNames(paste0("Cluster ", ks), ks)
+        title_map <- stats::setNames(paste0("Cluster ", ks), ks)
     } else {
         if (!is.null(names(panel_titles)) && all(as.character(ks) %in% names(panel_titles))) {
             title_map <- panel_titles[as.character(ks)]
@@ -588,7 +698,7 @@ make_filtering_cluster_panels <- function(
             if (length(panel_titles) != length(ks)) {
                 stop("panel_titles must be NULL, named for all clusters, or same length as clusters.")
             }
-            title_map <- setNames(panel_titles, ks)
+            title_map <- stats::setNames(panel_titles, ks)
         }
     }
 
@@ -689,3 +799,112 @@ make_filtering_cluster_panels <- function(
 
     rbind(baseline, df)
 }
+
+
+.resolve_eqtl_paths <- function(
+        eqtl_data_dir = NULL,
+        baseline_eqtl_data_dir = NULL,
+        comparison_eqtl_data_dir = NULL,
+        cellTypeListFile = NULL,
+        outDir = NULL,
+        data_cache_dir = NULL) {
+
+    data_root_dir <- .resolve_data_root_dir()
+
+    if (is.null(outDir)) outDir <- getOption("bican.mccarroll.figures.out_dir", default = NULL)
+    if (is.null(data_cache_dir)) data_cache_dir <- getOption("bican.mccarroll.figures.cache_dir", default = NULL)
+
+    if (is.null(outDir)) {
+        stop(
+            "outDir is NULL and option 'bican.mccarroll.figures.out_dir' is not set. ",
+            "Set the option or pass outDir explicitly."
+        )
+    }
+    if (is.null(data_cache_dir)) {
+        stop(
+            "data_cache_dir is NULL and option 'bican.mccarroll.figures.cache_dir' is not set. ",
+            "Set the option or pass data_cache_dir explicitly."
+        )
+    }
+
+    .ensure_dir(outDir)
+    .ensure_dir(data_cache_dir)
+
+    # Defaults under the data root dir
+    if (is.null(eqtl_data_dir)) eqtl_data_dir <- "eqtls/results"
+    if (is.null(baseline_eqtl_data_dir)) baseline_eqtl_data_dir <- "eqtls/results/LEVEL_3"
+    if (is.null(comparison_eqtl_data_dir)) comparison_eqtl_data_dir <- "eqtls/results/LEVEL_4"
+
+    if (is.null(cellTypeListFile)) {
+        cellTypeListFile <- "differential_expression/metadata/cell_types_for_de_filtering_plot.txt"
+    }
+
+    # NOTE: your .resolve_under_root() expects (root, p)
+    eqtl_data_dir <- .resolve_under_root(data_root_dir, eqtl_data_dir)
+    baseline_eqtl_data_dir <- .resolve_under_root(data_root_dir, baseline_eqtl_data_dir)
+    comparison_eqtl_data_dir <- .resolve_under_root(data_root_dir, comparison_eqtl_data_dir)
+    cellTypeListFile <- .resolve_under_root(data_root_dir, cellTypeListFile)
+
+    list(
+        data_root_dir = data_root_dir,
+        eqtl_data_dir = eqtl_data_dir,
+        baseline_eqtl_data_dir = baseline_eqtl_data_dir,
+        comparison_eqtl_data_dir = comparison_eqtl_data_dir,
+        cellTypeListFile = cellTypeListFile,
+        outDir = outDir,
+        data_cache_dir = data_cache_dir
+    )
+}
+
+.resolve_de_paths <- function(
+        baseline_de_results_dir = NULL,
+        comparison_de_results_dir = NULL,
+        cellTypeListFile = NULL,
+        outDir = NULL,
+        data_cache_dir = NULL) {
+
+    data_root_dir <- .resolve_data_root_dir()
+
+    if (is.null(outDir)) outDir <- getOption("bican.mccarroll.figures.out_dir", default = NULL)
+    if (is.null(data_cache_dir)) data_cache_dir <- getOption("bican.mccarroll.figures.cache_dir", default = NULL)
+
+    if (is.null(outDir)) {
+        stop(
+            "outDir is NULL and option 'bican.mccarroll.figures.out_dir' is not set. ",
+            "Set the option or pass outDir explicitly."
+        )
+    }
+    if (is.null(data_cache_dir)) {
+        stop(
+            "data_cache_dir is NULL and option 'bican.mccarroll.figures.cache_dir' is not set. ",
+            "Set the option or pass data_cache_dir explicitly."
+        )
+    }
+
+    .ensure_dir(outDir)
+    .ensure_dir(data_cache_dir)
+
+    if (is.null(baseline_de_results_dir)) {
+        baseline_de_results_dir <- "differential_expression/results/LEVEL_3/sex_age/cell_type"
+    }
+    if (is.null(comparison_de_results_dir)) {
+        comparison_de_results_dir <- "differential_expression/results/LEVEL_4/sex_age/cell_type"
+    }
+    if (is.null(cellTypeListFile)) {
+        cellTypeListFile <- "differential_expression/metadata/cell_types_for_de_filtering_plot.txt"
+    }
+
+    baseline_de_results_dir <- .resolve_under_root(data_root_dir, baseline_de_results_dir)
+    comparison_de_results_dir <- .resolve_under_root(data_root_dir, comparison_de_results_dir)
+    cellTypeListFile <- .resolve_under_root(data_root_dir, cellTypeListFile)
+
+    list(
+        data_root_dir = data_root_dir,
+        baseline_de_results_dir = baseline_de_results_dir,
+        comparison_de_results_dir = comparison_de_results_dir,
+        cellTypeListFile = cellTypeListFile,
+        outDir = outDir,
+        data_cache_dir = data_cache_dir
+    )
+}
+

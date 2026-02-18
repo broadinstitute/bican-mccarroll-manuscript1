@@ -5,19 +5,17 @@
 \title{Correlation plot of sample covariates used in the model}
 \usage{
 plot_sample_covariate_correlations(
-  data_dir =
-    "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metacells/LEVEL_3",
+  metacell_dir = NULL,
   data_name = "donor_rxn_DGEList",
   randVars = c("donor", "imputed_sex", "biobank", "single_cell_assay", "region",
     "hbcac_status", "toxicology_group"),
   fixedVars = c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pmi_hr", "pct_intronic",
     "frac_contamination"),
-  outDir =
-    "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository"
+  outDir = NULL
 )
 }
 \arguments{
-\item{data_dir}{Directory containing the input objects used by the analysis
+\item{metacell_dir}{Directory containing the input objects used by the analysis
 package to prepare plotting data.}
 
 \item{data_name}{Basename of the input object (as expected by the analysis
