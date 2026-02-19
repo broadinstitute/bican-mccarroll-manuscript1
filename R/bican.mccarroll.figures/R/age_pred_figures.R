@@ -948,7 +948,7 @@ save_plot_svg <- function(plot, out_file, out_dir = ".", width = 14, height = 7)
             "metacells/LEVEL_3",
 
         age_de_results_dir =
-            "differential_expression/results/old/LEVEL_3/sex_age/cell_type_region_interaction_absolute_effects",
+            "differential_expression/results/LEVEL_3/sex_age/cell_type_region_interaction_absolute_effects",
 
         contig_yaml_file =
             "metadata/GRCh38_ensembl_v43.contig_groups.yaml",
