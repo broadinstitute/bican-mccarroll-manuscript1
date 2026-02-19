@@ -1,0 +1,29 @@
+Package: bican.mccarroll.trade
+Type: Package
+Title: What the Package Does (Title Case)
+Version: 0.1.0
+Imports:
+    data.table,
+    ggplot2,
+    TRADEtools,
+    bican.mccarroll.differentialexpression
+Remotes:
+    ajaynadig/TRADEtools
+Authors@R: c(
+    person(
+      "Steven", "Burger",
+      email = "sburger@broadinstitute.org",
+      role = c("aut", "cre")
+    ),
+     person(
+      "James", "Nemesh",
+      email = "nemesh@broadinstitute.org",
+      role = c("aut")
+    )
+  )
+Description: More about what it does (maybe more than one line).
+    Continuation lines should be indented.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.3.3

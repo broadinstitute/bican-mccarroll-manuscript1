@@ -1529,15 +1529,12 @@ get_age_de_results <- function(cellType,
         return(NULL)
 
     # Construct expected filename
-    #TODO: this changes to astrocyte__age_DE_results.txt and astrocyte__ic__age_DE_results.txt.
     if (is.null(region)) {
-        # e.g. microglia_age_DE_results.txt
-        expectedFileName <- paste(cellType, "__age", "DE_results.txt", sep = "_")
-        #expectedFileName <- paste(cellType, "__age", "_DE_results.txt", sep = "")
+        # e.g. astrocyte__age_DE_results.txt
+        expectedFileName <- paste(cellType, "__age", "_DE_results.txt", sep = "")
     } else {
-        # e.g. microglia_age_CaH_DE_results.txt
-        expectedFileName <- paste(cellType, "age", region, "DE_results.txt", sep = "_")
-        #expectedFileName <- paste(cellType, "__", region, "__age", "_DE_results.txt", sep = "")
+        # e.g. astrocyte__CaH__age_DE_results.txt
+        expectedFileName <- paste(cellType, "__", region, "__age", "_DE_results.txt", sep = "")
     }
 
     files <- list.files(path = age_de_results_dir, full.names = TRUE)
