@@ -53,4 +53,4 @@ Remotes:
     bioc::BiocParallel,
     bioc::ComplexHeatmap,
     bioc::BiocIO,
-    github::ajaynadig/TRADEtools
+    github::jamesnemesh/TRADEtools@dd858958503fa8da441bce8eea8b2efa1b566a7b
