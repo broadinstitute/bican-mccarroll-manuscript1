@@ -67,15 +67,16 @@ compute_ctp <- function(df, group_cols, cell_type_col) {
 
   # add sample label
   sample_df <- df |>
-    tidyr::unite(sample_id, all_of(group_cols), sep = "_", remove = FALSE) 
+    tidyr::unite(sample_id, all_of(group_cols), sep = "_", remove = FALSE)
 
-  # extract sample info 
+  # extract sample info
   sample_info <- sample_df |>
     dplyr::select(sample_id, all_of(group_cols)) |>
     dplyr::distinct()
 
   # Compute cell type proportions
   ctp_df <- sample_df |>
+    dplyr::filter(!is.na(!!rlang::sym(cell_type_col))) |> # remove NA values
     tidyr::unite(sample_id, all_of(group_cols), sep = "_", remove = FALSE) |>
     dplyr::group_by(sample_id, !!rlang::sym(cell_type_col)) |>
     dplyr::summarise(n_nuclei = dplyr::n(), .groups = 'drop') |>
@@ -93,7 +94,7 @@ compute_ctp <- function(df, group_cols, cell_type_col) {
     na.omit() |>
     dplyr::mutate(log10_nuclei = log10(total_nuclei)) |>
     dplyr::mutate(z_log10_nuclei = as.numeric(scale(log10_nuclei))) |>
-    dplyr::select(-log10_nuclei) 
+    dplyr::select(-log10_nuclei)
 
   final_df <- ctp_df |>
     dplyr::select(-total_nuclei) |>
