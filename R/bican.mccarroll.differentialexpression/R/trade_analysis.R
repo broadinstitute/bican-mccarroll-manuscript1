@@ -135,24 +135,22 @@ trade_barplot <- function(trade_results,
                           cell_types_use = NULL,
                           value_var = "trade_twi") {
 
-    #Make R CMD CHECK happy
+    # Make R CMD CHECK happy
     cell_type <- value <- N <- .N <- NULL
 
     dt <- data.table::as.data.table(trade_results)
 
-    # Require one row per cell_type (users should filter to a single region or "all" upstream).
     dup_ct <- dt[, .N, by = list(cell_type)][N > 1]
     if (nrow(dup_ct) > 0) {
         stop("trade_barplot(): requires one row per cell_type. Filter trade_results to a single region (or region-combined) before plotting.")
     }
 
-    tmp <- dt[, list(cell_type, value = get(value_var))]
+    dt <- dt[, list(cell_type, value = get(value_var))]
 
     if (!is.null(cell_types_use)) {
         dt <- dt[cell_type %in% cell_types_use]
         dt[, cell_type := factor(cell_type, levels = rev(cell_types_use))]
     } else {
-        # Default: order by value (largest at top for a horizontal barplot)
         dt <- dt[order(value)]
         dt[, cell_type := factor(cell_type, levels = cell_type)]
     }
