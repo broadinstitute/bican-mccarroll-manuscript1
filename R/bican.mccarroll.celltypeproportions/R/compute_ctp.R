@@ -141,41 +141,6 @@ compute_mean_cell_type_metrics <- function(df, group_cols, cell_type_col, metric
   return(mean_metrics_df)
 }
 
-
-#' Main workflow to compute cell type proportions and optional metrics.
-#'
-#' @param df Dataframe containing cell metadata.
-#' @param group_cols Character vector of columns to group by (e.g., donor ID)
-#' @param cell_type_col Column name representing cell type annotations.
-#' @param metric_cols Optional; Character vector of metric columns to compute means for.
-#' @param filters Optional; Character vector of filtering expressions.
-#' @param group_filters Optional;  Filtering expressions to apply within groups.
-#'
-#' @return Dataframe with cell type proportions and optional metrics.
-compute_ctp_and_metrics <- function(df, group_cols, cell_type_col, metric_cols = NULL, filters = NULL, group_filters=NULL) {
-
-  # Step 1: Filter the data frame
-  filtered_df <- filter_df(df, filters, group_cols, group_filters)
-
-  # Step 2: Compute cell type proportions
-  ctp_df <- compute_ctp(filtered_df, group_cols, cell_type_col)
-
-  # Step 3: Compute mean metrics if specified
-  if (!is.null(metric_cols) && length(metric_cols) > 0) {
-    mean_metrics_df <- compute_mean_cell_type_metrics(filtered_df, group_cols, cell_type_col, metric_cols)
-
-    combined_df <- dplyr::full_join(
-      ctp_df, mean_metrics_df,
-      by=c("sample_id", cell_type_col)
-    )
-
-    return(combined_df)
-  } else {
-    return(ctp_df)
-  }
-}
-
-
 #' Save CTP results.
 #'
 #' @param ctp_df Dataframe containing cell type proportions and optional metrics.
@@ -193,6 +158,45 @@ save_ctp <- function(ctp_df, out_file) {
   write.table(ctp_df_out, file = out_file, sep = "\t", row.names = FALSE, quote = FALSE)
 }
 
+
+#' Main workflow to compute cell type proportions and optional metrics.
+#'
+#' @param df Dataframe containing cell metadata.
+#' @param group_cols Character vector of columns to group by (e.g., donor ID)
+#' @param cell_type_col Column name representing cell type annotations.
+#' @param metric_cols Optional; Character vector of metric columns to compute means for.
+#' @param filters Optional; Character vector of filtering expressions.
+#' @param group_filters Optional;  Filtering expressions to apply within groups.
+#' @param out_file Optional; Output file to save the results
+#'
+#' @return Dataframe with cell type proportions and optional metrics.
+compute_ctp_and_metrics <- function(df, group_cols, cell_type_col, metric_cols = NULL, filters = NULL, group_filters=NULL, out_file=NULL) {
+
+  # Step 1: Filter the data frame
+  filtered_df <- filter_df(df, filters, group_cols, group_filters)
+
+  # Step 2: Compute cell type proportions
+  ctp_df <- compute_ctp(filtered_df, group_cols, cell_type_col)
+
+  # Step 3: Compute mean metrics if specified
+  if (!is.null(metric_cols) && length(metric_cols) > 0) {
+    mean_metrics_df <- compute_mean_cell_type_metrics(filtered_df, group_cols, cell_type_col, metric_cols)
+
+    ctp_df <- dplyr::full_join(
+      ctp_df, mean_metrics_df,
+      by=c("sample_id", cell_type_col)
+    )
+
+  }
+
+  # Optional: save CTP if specified
+  if (!is.null(out_file)) {
+    save_ctp(ctp_df, out_file)
+  }
+
+  return(ctp_df)
+
+}
 
 
 #' Main workflow to compute cell type proportions and optional metrics from a metadata file.
