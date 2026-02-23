@@ -207,7 +207,7 @@ make_ctp_boxplot <- function(ctp_df,
 make_region_ctp_plot_pretty <- function() {
   
   # --- Data Loading ---
-  ctp_dir <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/cell_type_proportions/LEVEL_1"
+  ctp_dir <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/cell_type_proportions/data/LEVEL_1/"
   ctp_annotations <- data.table::fread(
     file.path(ctp_dir, "donor_region.annotation.cell_type_proportions.txt"),
   )
