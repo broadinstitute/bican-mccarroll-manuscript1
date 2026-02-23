@@ -55,9 +55,10 @@ filter_df <- function(df, filters=NULL, group_cols=NULL, group_filters=NULL) {
 #' @param df Dataframe containing cell metadata.
 #' @param group_cols Character vector of columns to group by (e.g., donor ID)
 #' @param cell_type_col Column name representing cell type annotations.
+#' @param include_NA Whether to include NA values in cell type annotations as a separate category (default: FALSE)
 #'
 #' @return Dataframe with cell type proportions and total nuclei counts (raw & z-scored) per grouping.
-compute_ctp <- function(df, group_cols, cell_type_col) {
+compute_ctp <- function(df, group_cols, cell_type_col, include_NA=FALSE) {
 
   # Check if specified columns exist in the dataframe
   missing_cols <- setdiff(c(group_cols, cell_type_col), colnames(df))
@@ -75,8 +76,15 @@ compute_ctp <- function(df, group_cols, cell_type_col) {
     dplyr::distinct()
 
   # Compute cell type proportions
-  ctp_df <- sample_df |>
-    dplyr::filter(!is.na(!!rlang::sym(cell_type_col))) |> # remove NA values
+  if(!include_NA) {
+    # remove NA values
+    ctp_df <- sample_df |>
+      dplyr::filter(!is.na(!!rlang::sym(cell_type_col)))
+  } else {
+    ctp_df <- sample_df
+  }
+
+  ctp_df <- ctp_df
     tidyr::unite(sample_id, all_of(group_cols), sep = "_", remove = FALSE) |>
     dplyr::group_by(sample_id, !!rlang::sym(cell_type_col)) |>
     dplyr::summarise(n_nuclei = dplyr::n(), .groups = 'drop') |>

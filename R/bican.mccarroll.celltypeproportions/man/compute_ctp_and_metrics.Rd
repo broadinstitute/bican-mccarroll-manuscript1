@@ -10,7 +10,8 @@ compute_ctp_and_metrics(
   cell_type_col,
   metric_cols = NULL,
   filters = NULL,
-  group_filters = NULL
+  group_filters = NULL,
+  out_file = NULL
 )
 }
 \arguments{
@@ -25,6 +26,8 @@ compute_ctp_and_metrics(
 \item{filters}{Optional; Character vector of filtering expressions.}
 
 \item{group_filters}{Optional;  Filtering expressions to apply within groups.}
+
+\item{out_file}{Optional; Output file to save the results}
 }
 \value{
 Dataframe with cell type proportions and optional metrics.

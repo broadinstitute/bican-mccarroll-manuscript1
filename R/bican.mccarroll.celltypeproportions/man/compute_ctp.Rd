@@ -4,7 +4,7 @@
 \alias{compute_ctp}
 \title{Computes cell type proportions for a given grouping.}
 \usage{
-compute_ctp(df, group_cols, cell_type_col)
+compute_ctp(df, group_cols, cell_type_col, include_NA = FALSE)
 }
 \arguments{
 \item{df}{Dataframe containing cell metadata.}
@@ -12,6 +12,8 @@ compute_ctp(df, group_cols, cell_type_col)
 \item{group_cols}{Character vector of columns to group by (e.g., donor ID)}
 
 \item{cell_type_col}{Column name representing cell type annotations.}
+
+\item{include_NA}{Whether to include NA values in cell type annotations as a separate category (default: FALSE)}
 }
 \value{
 Dataframe with cell type proportions and total nuclei counts (raw & z-scored) per grouping.
