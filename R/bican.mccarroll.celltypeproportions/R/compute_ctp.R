@@ -175,16 +175,17 @@ save_ctp <- function(ctp_df, out_file) {
 #' @param metric_cols Optional; Character vector of metric columns to compute means for.
 #' @param filters Optional; Character vector of filtering expressions.
 #' @param group_filters Optional;  Filtering expressions to apply within groups.
+#' @param include_NA Whether to include NA values in cell type annotations as a separate category (default: FALSE)
 #' @param out_file Optional; Output file to save the results
 #'
 #' @return Dataframe with cell type proportions and optional metrics.
-compute_ctp_and_metrics <- function(df, group_cols, cell_type_col, metric_cols = NULL, filters = NULL, group_filters=NULL, out_file=NULL) {
+compute_ctp_and_metrics <- function(df, group_cols, cell_type_col, metric_cols = NULL, filters = NULL, group_filters=NULL, include_NA=FALSE, out_file=NULL) {
 
   # Step 1: Filter the data frame
   filtered_df <- filter_df(df, filters, group_cols, group_filters)
 
   # Step 2: Compute cell type proportions
-  ctp_df <- compute_ctp(filtered_df, group_cols, cell_type_col)
+  ctp_df <- compute_ctp(filtered_df, group_cols, cell_type_col, include_NA)
 
   # Step 3: Compute mean metrics if specified
   if (!is.null(metric_cols) && length(metric_cols) > 0) {
