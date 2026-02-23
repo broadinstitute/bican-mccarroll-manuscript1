@@ -10,22 +10,26 @@ ctp_annotations <- data.table::fread(
 
 # 
 cell_types <- unique(ctp_annotations$annotation)
+
+OOD_neurons <- c("VTR-HTH_glut", "SN-VTR-HTH_GABA", "other_GABA")
+
 interneurons <- c(grep("GABA", cell_types, value = TRUE),
-                  "striatal_cholinergic")
+                  "striatal_cholinergic") |> setdiff(OOD_neurons)
 
 projection_neurons <- c(grep("MSN", cell_types, value = TRUE),
                         grep("IT", cell_types, value = TRUE),
                         "cortical_glutamatergic_L5ET",
                         "cortical_glutamatergic_L56NP",
-                        "cortical_glutamatergic_L6",
-                        "VTR-HTH_glut")
+                        "cortical_glutamatergic_L6")
                         
 
-setdiff(cell_types, c(interneurons, projection_neurons))
+neuron_groupings <- list(
+  "Interneurons" = interneurons,
+  "Projection Neurons" = projection_neurons
+)
                         
-
 
 regroup_cell_types <- function(long_ctp_df, cell_type_column, groupings){
   
 }
-print("testing!")
+print("testing!!")
