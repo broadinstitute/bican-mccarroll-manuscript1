@@ -55,10 +55,9 @@ filter_df <- function(df, filters=NULL, group_cols=NULL, group_filters=NULL) {
 #' @param df Dataframe containing cell metadata.
 #' @param group_cols Character vector of columns to group by (e.g., donor ID)
 #' @param cell_type_col Column name representing cell type annotations.
-#' @param include_NA Whether to include NA values in cell type annotations as a separate category (default: FALSE)
 #'
 #' @return Dataframe with cell type proportions and total nuclei counts (raw & z-scored) per grouping.
-compute_ctp <- function(df, group_cols, cell_type_col, include_NA=FALSE) {
+compute_ctp <- function(df, group_cols, cell_type_col) {
 
   # Check if specified columns exist in the dataframe
   missing_cols <- setdiff(c(group_cols, cell_type_col), colnames(df))
@@ -76,15 +75,8 @@ compute_ctp <- function(df, group_cols, cell_type_col, include_NA=FALSE) {
     dplyr::distinct()
 
   # Compute cell type proportions
-  if(!include_NA) {
-    # remove NA values
-    ctp_df <- sample_df |>
-      dplyr::filter(!is.na(!!rlang::sym(cell_type_col)))
-  } else {
-    ctp_df <- sample_df
-  }
-
-  ctp_df <- ctp_df
+  ctp_df <- sample_df |>
+    dplyr::filter(!is.na(!!rlang::sym(cell_type_col))) |>
     tidyr::unite(sample_id, all_of(group_cols), sep = "_", remove = FALSE) |>
     dplyr::group_by(sample_id, !!rlang::sym(cell_type_col)) |>
     dplyr::summarise(n_nuclei = dplyr::n(), .groups = 'drop') |>
@@ -175,17 +167,16 @@ save_ctp <- function(ctp_df, out_file) {
 #' @param metric_cols Optional; Character vector of metric columns to compute means for.
 #' @param filters Optional; Character vector of filtering expressions.
 #' @param group_filters Optional;  Filtering expressions to apply within groups.
-#' @param include_NA Whether to include NA values in cell type annotations as a separate category (default: FALSE)
 #' @param out_file Optional; Output file to save the results
 #'
 #' @return Dataframe with cell type proportions and optional metrics.
-compute_ctp_and_metrics <- function(df, group_cols, cell_type_col, metric_cols = NULL, filters = NULL, group_filters=NULL, include_NA=FALSE, out_file=NULL) {
+compute_ctp_and_metrics <- function(df, group_cols, cell_type_col, metric_cols = NULL, filters = NULL, group_filters=NULL, out_file=NULL) {
 
   # Step 1: Filter the data frame
   filtered_df <- filter_df(df, filters, group_cols, group_filters)
 
   # Step 2: Compute cell type proportions
-  ctp_df <- compute_ctp(filtered_df, group_cols, cell_type_col, include_NA)
+  ctp_df <- compute_ctp(filtered_df, group_cols, cell_type_col)
 
   # Step 3: Compute mean metrics if specified
   if (!is.null(metric_cols) && length(metric_cols) > 0) {
