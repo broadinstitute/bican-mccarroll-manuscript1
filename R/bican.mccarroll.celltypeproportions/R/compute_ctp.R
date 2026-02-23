@@ -124,6 +124,7 @@ compute_mean_cell_type_metrics <- function(df, group_cols, cell_type_col, metric
 
   # Compute mean metrics
   mean_metrics_df <- df |>
+    dplyr::filter(!is.na(!!rlang::sym(cell_type_col))) |>
     tidyr::unite(sample_id, all_of(group_cols), sep = "_", remove = FALSE) |>
     dplyr::group_by(sample_id, !!rlang::sym(cell_type_col)) |>
     dplyr::summarise(
