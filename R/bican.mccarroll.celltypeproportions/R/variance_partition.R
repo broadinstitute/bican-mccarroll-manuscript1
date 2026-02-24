@@ -33,7 +33,7 @@
 #
 #
 # # cell type specific QC covariates
-# formula_qc <- ~ age_decades + z_PC1 + z_PC2 + z_PC3 + z_PC4 + z_PC5 + z_pmi_hr + z_mean_frac_contamination + z_mean_pct_intronic + (1 | sex) + (1 | biobank) + (1 | hbcac_status) + (1 | villages) + (1 | brain_region_abbreviation_simple) + (1 | donor_external_id)
+# formula_qc <- ~ age_decades + z_PC1 + z_PC2 + z_PC3 + z_PC4 + z_PC5 + z_pmi_hr + mean_frac_contamination + mean_pct_intronic + (1 | sex) + (1 | biobank) + (1 | hbcac_status) + (1 | villages) + (1 | brain_region_abbreviation_simple) + (1 | donor_external_id)
 #
 # vp_results_by_cell <- run_variance_partition_per_cell_type(
 #   sample_ctp = sample_ctp,
@@ -197,14 +197,7 @@ extract_cell_type_specific_qc_covariates <- function(sample_ctp, cell_type, cell
 
   cell_type_qc_covariates <- cell_type_df |>
     dplyr::select(sample_id, all_of(cell_type_col), all_of(qc_covariate_cols)) |>
-    dplyr::distinct() |>
-    dplyr::mutate(
-      dplyr::across(
-        dplyr::all_of(qc_covariate_cols),
-        ~ as.numeric(scale(.)),
-        .names = "z_{.col}"
-      )
-    ) |>
+    dplyr::distinct()
     dplyr::arrange(sample_id)
 
   return(cell_type_qc_covariates)
