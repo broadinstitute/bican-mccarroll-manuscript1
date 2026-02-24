@@ -16,6 +16,7 @@ Imports:
     viridisLite
 Remotes:
     ajaynadig/TRADEtools
+    bioc::fgsea
 Authors@R: c(
     person(
       "Steven", "Burger",
