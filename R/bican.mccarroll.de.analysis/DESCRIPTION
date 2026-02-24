@@ -4,9 +4,16 @@ Title: What the Package Does (Title Case)
 Version: 0.1.0
 Imports:
     data.table,
-    ggplot2,
-    TRADEtools,
-    bican.mccarroll.differentialexpression
+    bican.mccarroll.differentialexpression,
+    Matrix,
+    cluster,
+    fgsea,
+    lmtest,
+    matrixStats,
+    methods,
+    pheatmap,
+    sandwich,
+    viridisLite
 Remotes:
     ajaynadig/TRADEtools
 Authors@R: c(

@@ -57,7 +57,7 @@ read_de_results <- function(de_dir, test, ct_file, gene_to_chr) {
 #' @return A data.table with standardized columns and annotations.
 #' @export
 prep_de <- function(df, gene_to_chr) {
-    gene <- chr <- log_fc <- t <- NULL
+    gene <- chr <- log_fc <- t <- log_fc_se<- NULL
 
     dt <- data.table::as.data.table(df)
 
@@ -123,6 +123,9 @@ plot_de_volcano <- function(de_dt,
     graphics::abline(h = -base::log10(fdr_cutoff), lty = 2)
     graphics::abline(v = c(-abs_log_fc_cutoff, abs_log_fc_cutoff), lty = 2)
 
+    # Make R CMD CHECK Happy
+    .N <- NULL
+
     up <- dt[log_fc > abs_log_fc_cutoff & adj_p_val < fdr_cutoff, .N]
     down <- dt[log_fc < -abs_log_fc_cutoff & adj_p_val < fdr_cutoff, .N]
 
@@ -185,6 +188,9 @@ plot_de_scatter <- function(de_dt,
 
     m <- merge(x, y, by = c("chr", "gene"))
 
+    # Make R CMD CHECK Happy
+    adj_p_val.x <- adj_p_val.y <- log_fc.x <- log_fc.y <- NULL
+
     rng <- m[adj_p_val.x < fdr_cutoff | adj_p_val.y < fdr_cutoff,
              base::max(base::abs(c(log_fc.x, log_fc.y)))]
     rng <- c(-rng, rng)
@@ -212,9 +218,11 @@ plot_de_scatter <- function(de_dt,
             stats::cor.test(log_fc.x, log_fc.y, method = "spearman")]
 
     rho_sqrd <- base::round(ct$estimate^2, 2)
-    graphics::legend("topleft",
-                     legend = base::bquote(rho^2 * " = " * .(rho_sqrd)),
-                     bty = "n")
+    graphics::legend(
+      "topleft",
+      legend = sprintf("rho^2 = %.2f", rho_sqrd),
+      bty = "n"
+    )
 
     if (rho_sqrd > 0.5 && isTRUE(add_fit)) {
         fit <- stats::lm(log_fc.y ~ log_fc.x,
@@ -235,9 +243,13 @@ plot_de_scatter <- function(de_dt,
 
         graphics::abline(fit, lty = 2, col = fit_color)
         graphics::legend(
-            "bottomright",
-            legend = base::bquote(beta * " = " * .(base::round(b_ci[1], 2)) * " - " * .(base::round(b_ci[2], 2))),
-            bty = "n"
+          "bottomright",
+          legend = sprintf(
+            "beta = %.2f - %.2f",
+            base::round(b_ci[1], 2),
+            base::round(b_ci[2], 2)
+          ),
+          bty = "n"
         )
     }
 
@@ -298,6 +310,9 @@ compute_de_cor_mat <- function(de_dt,
             b <- dt[cr == j]
             m <- merge(a, b, by = "gene")
 
+            # Make R CMD CHECK Happy
+            adj_p_val.x <- adj_p_val.y <- log_fc.x <- log_fc.y <- NULL
+
             ctest <- m[adj_p_val.x < fdr_cutoff | adj_p_val.y < fdr_cutoff,
                        stats::cor.test(log_fc.x, log_fc.y, method = "spearman")]
 
@@ -353,7 +368,7 @@ read_cell_metadata <- function(cell_metadata_file) {
 extract_donor_ages <- function(cell_metadata) {
   donor_external_id <- age <- NULL
 
-  donor_ages_dt <- unique(cell_metadata[, .(donor_external_id, age)])
+  donor_ages_dt <- unique(cell_metadata[, list(donor_external_id, age)])
 
   donor_ages <- as.numeric(donor_ages_dt$age)
   names(donor_ages) <- donor_ages_dt$donor_external_id
@@ -481,7 +496,7 @@ summarize_metacells <- function(metacells,
                                 col_metadata,
                                 donor_ages) {
 
-  donor <- age <- age_bin <- cell_type <- region <- cr <- NULL
+  donor <- age <- age_bin <- cell_type <- region <- cr <- genes <- NULL
 
   col_metadata <- data.table::copy(col_metadata)
 
@@ -556,6 +571,9 @@ summarize_metacells <- function(metacells,
     res_list[[i]] <- dt_out
   }
 
+  #Make R CMD CHECK Happy
+  gene <- cell_type <- region <- NULL
+
   out <- data.table::rbindlist(res_list, use.names = TRUE, fill = TRUE)
   data.table::setorder(out, gene, cell_type, region)
 
@@ -573,7 +591,8 @@ split_metacells_by_cell_type_region <- function(metacells,
                                                 col_metadata,
                                                 donor_ages) {
 
-  donor <- cell_type <- region <- cr <- NULL
+  # Make R CMD CHECK Happy
+  donor <- cell_type <- region <- cr <- age<- NULL
 
   col_metadata <- data.table::copy(col_metadata)
 
@@ -637,21 +656,23 @@ prep_de_matrices <- function(de_dt,
 
   dt <- merge(
     dt,
-    metacell_summary[region == "CaH", .(gene, cell_type, median_tpm_ca = median)],
+    metacell_summary[region == "CaH", list(gene, cell_type, median_tpm_ca = median)],
     by = c("gene", "cell_type"),
     all.x = TRUE
   )
 
   dt <- merge(
     dt,
-    metacell_summary[region == "DFC", .(gene, cell_type, median_tpm_dfc = median)],
+    metacell_summary[region == "DFC", list(gene, cell_type, median_tpm_dfc = median)],
     by = c("gene", "cell_type"),
     all.x = TRUE
   )
 
+  # Make R CMD CHECK Happy
+  median_tpm_ca <- median_tpm_dfc <- NULL
+
   dt <- dt[median_tpm_ca > min_tpm | median_tpm_dfc > min_tpm]
 
-  ## IMPORTANT: rely on S3 dispatch for data.table's as.matrix method
   lfc_mat <- as.matrix(
     data.table::dcast(dt, gene ~ cell_type, value.var = "log_fc"),
     rownames = "gene"
@@ -727,6 +748,9 @@ prep_region_lfc_matrix <- function(de_dt,
   tmp <- data.table::as.data.table(
     do.call(base::rbind, base::strsplit(colnames(lfc_mat), "__"))
   )
+
+  # Make R CMD CHECK Happy
+  V1 <- V2 <- NULL
 
   tmp[, V1 := base::factor(V1, levels = cell_types_use)]
   tmp[, V2 := base::factor(V2, levels = regions_use)]
@@ -958,7 +982,6 @@ plot_kmeans_heatmap <- function(k_means_mat,
 }
 
 #' Write lightweight DE outputs (summary + top up/down gene tables)
-#' (originally write_de_lite)
 #'
 #' Writes three files:
 #' 1) A plain-text summary of inputs and DE results
@@ -1022,7 +1045,7 @@ write_de_lite <- function(de_dt,
   ## medians for requested cell type + region
   medians <- metacell_summary[
     cell_type == cell_type_use & region == region_use,
-    .(gene, median_30, median_40, median_50, median_60, median_70, median_80, median_90)
+    list(gene, median_30, median_40, median_50, median_60, median_70, median_80, median_90)
   ]
 
   if (nrow(medians) == 0L) {
@@ -1043,8 +1066,9 @@ write_de_lite <- function(de_dt,
   ## build up table (up)
   up_genes <- de_dt[
     adj_p_val < fdr_thresh & log_fc > 0,
-    .(gene, log_fc, log_fc_se, t_stat = t, fdr = adj_p_val)
+    list(gene, log_fc, log_fc_se, t_stat = t, fdr = adj_p_val)
   ]
+
   up_genes <- merge(up_genes, medians, by = "gene", all.x = TRUE)
   data.table::setorderv(up_genes, "t_stat", -1)
   if (nrow(up_genes) > 0L) {
@@ -1054,8 +1078,9 @@ write_de_lite <- function(de_dt,
   ## build down table (down)
   down_genes <- de_dt[
     adj_p_val < fdr_thresh & log_fc < 0,
-    .(gene, log_fc, log_fc_se, t_stat = t, fdr = adj_p_val)
+    list(gene, log_fc, log_fc_se, t_stat = t, fdr = adj_p_val)
   ]
+
   down_genes <- merge(down_genes, medians, by = "gene", all.x = TRUE)
   data.table::setorderv(down_genes, "t_stat", 1)
   if (nrow(down_genes) > 0L) {
@@ -1093,6 +1118,9 @@ write_de_lite <- function(de_dt,
     str <- convert_ages_to_decade_string(donor_ages_num)
     add_line("donors per decade bin: ", str)
   }
+
+  # Make R CMD CHECK Happy
+  .N <- NULL
 
   add_line("")
   add_line("Results summary")
@@ -1167,11 +1195,12 @@ convert_ages_to_decade_string <- function(donor_ages) {
 
 
 #' Run GSEA across cell types and GMT files
-#' (originally run_gsea)
+#'
 #'
 #' @param de_dt data.table with at least columns gene, cell_type, t.
 #' @param fgsea_cell_types Character vector of cell types to run.
 #' @param gmt_files Character vector of GMT file paths.
+#' @param seed Random seed for reproducibility.
 #' @return data.table of fgsea results with added columns cell_type, gmt, and id.
 #' @export
 run_gsea <- function(de_dt, fgsea_cell_types, gmt_files, seed=42) {
@@ -1213,6 +1242,8 @@ run_gsea <- function(de_dt, fgsea_cell_types, gmt_files, seed=42) {
 
   gsea_results <- data.table::rbindlist(gsea_results)
 
+  # Make R CMD CHECK Happy
+  id <- NULL
   gsea_results[, id := 1:nrow(gsea_results)]
 }
 
@@ -1270,7 +1301,7 @@ write_gsea_lite <- function(gsea_results,
         padj < padj_thresh
     ]
 
-    pos <- pos[, .(pathway, p_adj = padj, nes = NES, size, gmt)]
+    pos <- pos[, list(pathway, p_adj = padj, nes = NES, size, gmt)]
 
     utils::write.table(
       pos,
@@ -1288,7 +1319,7 @@ write_gsea_lite <- function(gsea_results,
         padj < padj_thresh
     ]
 
-    neg <- neg[, .(pathway, p_adj = padj, nes = NES, size, gmt)]
+    neg <- neg[, list(pathway, p_adj = padj, nes = NES, size, gmt)]
 
     utils::write.table(
       neg,
