@@ -1,15 +1,15 @@
 #library(dplyr)
 #library(rlang)
 #library(logger)
-
-#input_file <- "/broad/bican_um1_mccarroll/RNAseq/analysis/cellarium_upload/CAP_freeze_3/CAP_cell_metadata.annotated.txt.gz"
-#filters <- c("brain_region_abbreviation == 'DFC'", "single_cell_assay == '10X-GEMX-3P'")
-#group_cols <- c("donor_external_id", "village")
-#cell_type_col <- "annotation_most_specific"
-#metric_cols <- c("pct_intronic", "frac_contamination")
-#out_file <- "/broad/mccarroll/yooolivi/test/celltypeproportions/DFC_10X-GEMX-3P.cell_type_proportions.txt"
-
-#ctp <- load_and_compute_ctp(input_file, group_cols, cell_type_col, out_file, metric_cols, filters)
+#
+# input_file <- "/broad/bican_um1_mccarroll/RNAseq/analysis/cellarium_upload/CAP_freeze_3/CAP_cell_metadata.annotated.with_sub_clusters.txt.gz"
+# filters <- c("brain_region_abbreviation == 'DFC'", "single_cell_assay == '10X-GEMX-3P'")
+# group_cols <- c("donor_external_id", "village")
+# cell_type_col <- "annotation"
+# metric_cols <- c("pct_intronic", "frac_contamination")
+# out_file <- "/broad/mccarroll/yooolivi/test/celltypeproportions/DFC_10X-GEMX-3P.cell_type_proportions.txt"
+#
+# ctp <- load_and_compute_ctp(input_file, group_cols, cell_type_col, out_file, metric_cols, filters)
 
 
 #' Filters dataframe.
@@ -76,7 +76,6 @@ compute_ctp <- function(df, group_cols, cell_type_col) {
 
   # Compute cell type proportions
   ctp_df <- sample_df |>
-    dplyr::filter(!is.na(!!rlang::sym(cell_type_col))) |>
     tidyr::unite(sample_id, all_of(group_cols), sep = "_", remove = FALSE) |>
     dplyr::group_by(sample_id, !!rlang::sym(cell_type_col)) |>
     dplyr::summarise(n_nuclei = dplyr::n(), .groups = 'drop') |>
@@ -124,7 +123,6 @@ compute_mean_cell_type_metrics <- function(df, group_cols, cell_type_col, metric
 
   # Compute mean metrics
   mean_metrics_df <- df |>
-    dplyr::filter(!is.na(!!rlang::sym(cell_type_col))) |>
     tidyr::unite(sample_id, all_of(group_cols), sep = "_", remove = FALSE) |>
     dplyr::group_by(sample_id, !!rlang::sym(cell_type_col)) |>
     dplyr::summarise(
@@ -173,8 +171,11 @@ save_ctp <- function(ctp_df, out_file) {
 #' @return Dataframe with cell type proportions and optional metrics.
 compute_ctp_and_metrics <- function(df, group_cols, cell_type_col, metric_cols = NULL, filters = NULL, group_filters=NULL, out_file=NULL) {
 
+  # Step 0: drop NA values
+  df_complete <- df[!is.na(df[[cell_type_col]]), ]
+
   # Step 1: Filter the data frame
-  filtered_df <- filter_df(df, filters, group_cols, group_filters)
+  filtered_df <- filter_df(df_complete, filters, group_cols, group_filters)
 
   # Step 2: Compute cell type proportions
   ctp_df <- compute_ctp(filtered_df, group_cols, cell_type_col)

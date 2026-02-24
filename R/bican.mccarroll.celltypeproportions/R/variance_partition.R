@@ -1,8 +1,8 @@
-#library(tidyverse)
-#library(variancePartition)
+# library(tidyverse)
+# library(variancePartition)
 #
 # sample_ctp <- read.table(
-#   "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/cell_type_proportions/LEVEL_1/donor_region.annotation_most_specific.cell_type_proportions.txt",
+#   "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/cell_type_proportions/data/LEVEL_1/donor_region.annotation_most_specific.cell_type_proportions.txt",
 #   sep="\t", header=TRUE, stringsAsFactors = FALSE
 # )
 #
@@ -11,8 +11,10 @@
 #   sep="\t", header=TRUE, stringsAsFactors=FALSE
 # )
 #
-# formula <- ~ age_decades + z_PC1 + z_PC2 + z_PC3 + z_PC4 + z_PC5 + z_pmi_hr + (1 | sex) + (1 | biobank) + (1 | hbcac_status) + (1 | villages) + (1 | brain_region_abbreviation_simple) + (1 | donor_external_id)
 # cell_types <- c("astrocyte", "microglia", "oligodendrocyte", "OPC")
+#
+# # no cell type specific QC covariates
+# formula <- ~ age_decades + z_PC1 + z_PC2 + z_PC3 + z_PC4 + z_PC5 + z_pmi_hr + (1 | sex) + (1 | biobank) + (1 | hbcac_status) + (1 | villages) + (1 | brain_region_abbreviation_simple) + (1 | donor_external_id)
 #
 # vp_results <- format_and_run_variance_partition(
 #   sample_ctp = sample_ctp,
@@ -28,6 +30,23 @@
 #
 # combined_results <- combine_variance_partition_results(vp_result_list)
 # plot_variance_partition_results(combined_results)
+#
+#
+# # cell type specific QC covariates
+# formula_qc <- ~ age_decades + z_PC1 + z_PC2 + z_PC3 + z_PC4 + z_PC5 + z_pmi_hr + z_mean_frac_contamination + z_mean_pct_intronic + (1 | sex) + (1 | biobank) + (1 | hbcac_status) + (1 | villages) + (1 | brain_region_abbreviation_simple) + (1 | donor_external_id)
+#
+# vp_results_by_cell <- run_variance_partition_per_cell_type(
+#   sample_ctp = sample_ctp,
+#   sample_metadata = sample_metadata,
+#   formula = formula_qc,
+#   cell_types = cell_types,
+#   cell_type_col = "annotation_most_specific",
+#   qc_covariate_cols = c("mean_frac_contamination", "mean_pct_intronic"),
+#   pseudocount = 0.5
+# )
+#
+# plot_variance_partition_results(vp_results_by_cell)
+
 
 #' Compute logit transformations of cell type abundances.
 #'
@@ -162,6 +181,122 @@ combine_variance_partition_results <- function(vp_results_list) {
 
 }
 
+
+#' Extracts cell type-specific QC covariates for a given cell type, scales them, and formats them for variance partition input.
+#'
+#' @param sample_ctp Dataframe containing cell type proportions and QC covariates for each sample.
+#' @param cell_type Cell type for which to extract QC covariates.
+#' @param cell_type_col Column name in `sample_ctp` that contains cell type labels.
+#' @param qc_covariate_cols Character vector of column names in `sample_ctp` that contain the QC covariates to extract and scale.
+#'
+#' @return Dataframe containing sample IDs, cell type labels, and scaled QC covariate values for the specified cell type, formatted for variance partition input.
+extract_cell_type_specific_qc_covariates <- function(sample_ctp, cell_type, cell_type_col, qc_covariate_cols) {
+
+  cell_type_df <- sample_ctp |>
+    dplyr::filter(.data[[cell_type_col]] == cell_type)
+
+  cell_type_qc_covariates <- cell_type_df |>
+    dplyr::select(sample_id, all_of(cell_type_col), all_of(qc_covariate_cols)) |>
+    dplyr::distinct() |>
+    dplyr::mutate(
+      dplyr::across(
+        dplyr::all_of(qc_covariate_cols),
+        ~ as.numeric(scale(.)),
+        .names = "z_{.col}"
+      )
+    ) |>
+    dplyr::arrange(sample_id)
+
+  return(cell_type_qc_covariates)
+
+}
+
+
+#' Prepares logit-transformed CTP and cell type-specific QC covariates for a single cell type, formatted for variance partition input.
+#'
+#' @param sample_ctp Dataframe containing cell type proportions and QC covariates for each sample.
+#' @param sample_metadata Dataframe containing metadata for each sample.
+#' @param cell_type Cell type for which to prepare the variance partition input.
+#' @param cell_type_col Column name in `sample_ctp` that contains cell type labels.
+#' @param qc_covariate_cols Character vector of column names in `sample_ctp` that contain the QC covariates to extract and scale for the specified cell type.
+#' @param pseudocount Value to add to zero counts to avoid issues with logit.
+#'
+#' @return List containing the logit-transformed CTP matrix for the specified cell type
+#' and the formatted metadata dataframe with cell type-specific QC covariates, ready for variance partition analysis.
+prepare_vp_input_one_cell_type <- function(sample_ctp, sample_metadata, cell_type, cell_type_col, qc_covariate_cols, pseudocount=0.5) {
+
+  ctp_logit <- compute_logit_CTP(sample_ctp, cell_type_col, pseudocount)
+  metadata <- format_metadata_for_vp(sample_metadata)
+  qc_covariates <- extract_cell_type_specific_qc_covariates(sample_ctp, cell_type, cell_type_col, qc_covariate_cols)
+
+  # duplicate to get past number of rows check for VP
+  ctp_logit_cell_type <- ctp_logit[c(cell_type, cell_type), ,]
+
+  metadata_cell_type <- bind_cols(
+    metadata[colnames(ctp_logit_cell_type), ],
+    qc_covariates
+  )
+
+  return(list(
+    ctp_logit = ctp_logit_cell_type,
+    metadata = metadata_cell_type
+  ))
+
+}
+
+
+#' Fits variance partition model for a single cell type, incorporating cell type-specific QC covariates.
+#'
+#' @param sample_ctp Dataframe containing cell type proportions and QC covariates for each sample.
+#' @param sample_metadata Dataframe containing metadata for each sample.
+#' @param formula Formula specifying the fixed and random effects for the variance partition model.
+#' @param cell_type Cell type for which to fit the variance partition model.
+#' @param cell_type_col Column name in `sample_ctp` that contains cell type labels.
+#' @param qc_covariate_cols Character vector of column names in `sample_ctp` that contain the QC covariates to extract and scale for the specified cell type.
+#' @param pseudocount Value to add to zero counts to avoid issues with logit.
+#'
+#' @return Dataframe containing the variance explained for each variable.
+fit_vp_one_cell_type <- function(sample_ctp, sample_metadata, formula, cell_type, cell_type_col, qc_covariate_cols, pseudocount=0.5) {
+
+  vp_input <- prepare_vp_input_one_cell_type(sample_ctp, sample_metadata, cell_type, cell_type_col, qc_covariate_cols, pseudocount)
+
+  ctp_logit_cell_type <- vp_input$ctp_logit
+  metadata_cell_type <- vp_input$metadata
+
+  cell_type_varPart <- fitExtractVarPartModel(ctp_logit_cell_type, formula, metadata_cell_type)[cell_type,]
+
+  return(cell_type_varPart)
+
+}
+
+
+#' Runs variance partition analysis for each specified cell type, incorporating cell type-specific QC covariates, and combines results into a single dataframe.
+#'
+#' @param sample_ctp Dataframe containing cell type proportions and QC covariates for each sample.
+#' @param sample_metadata Dataframe containing metadata for each sample.
+#' @param formula Formula specifying the fixed and random effects for the variance partition model.
+#' @param cell_types Cell types for which to fit the variance partition model.
+#' @param cell_type_col Column name in `sample_ctp` that contains cell type labels.
+#' @param qc_covariate_cols Character vector of column names in `sample_ctp` that contain the QC covariates to extract and scale for the specified cell type.
+#' @param pseudocount Value to add to zero counts to avoid issues with logit.
+#'
+#' @return Dataframe combining variance explained for each variable and cell type across all specified cell types.
+run_variance_partition_per_cell_type <- function(sample_ctp, sample_metadata, formula, cell_types, cell_type_col, qc_covariate_cols, pseudocount=0.5) {
+
+  vp_results_per_cell_type <- lapply(cell_types, function(cell_type) {
+    fit_vp_one_cell_type(sample_ctp, sample_metadata, formula, cell_type, cell_type_col, qc_covariate_cols, pseudocount)
+  })
+
+  names(vp_results_per_cell_type) <- cell_types
+
+  combined_results <- dplyr::bind_rows(vp_results_per_cell_type) |>
+    tibble::rownames_to_column("cell_type")
+
+  return(combined_results)
+
+}
+
+
 #' Plots variance explained for each variable across cell types for all the results.
 #'
 #' @param combined_results Dataframe combining variance explained for each variable and cell type across all analyses.
@@ -194,3 +329,4 @@ plot_variance_partition_results <- function(combined_results) {
     ) +
     ggplot2::scale_fill_manual(values = base_colors)
 }
+
