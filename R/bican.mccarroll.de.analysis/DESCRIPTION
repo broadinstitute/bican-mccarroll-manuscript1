@@ -15,7 +15,7 @@ Imports:
     sandwich,
     viridisLite
 Remotes:
-    ajaynadig/TRADEtools
+    github::ajaynadig/TRADEtools,
     bioc::fgsea
 Authors@R: c(
     person(
