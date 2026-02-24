@@ -218,10 +218,11 @@ plot_de_scatter <- function(de_dt,
     ct <- m[adj_p_val.x < fdr_cutoff | adj_p_val.y < fdr_cutoff,
             stats::cor.test(log_fc.x, log_fc.y, method = "spearman")]
 
-    rho_sqrd <- base::round(ct$estimate^2, 2)
+    rho_sqrd <- round(ct$estimate^2, 2)
+
     graphics::legend(
       "topleft",
-      legend = sprintf("rho^2 = %.2f", rho_sqrd),
+      legend = bquote(rho^2 == .(rho_sqrd)),
       bty = "n"
     )
 
@@ -237,7 +238,6 @@ plot_de_scatter <- function(de_dt,
 
         fit_color <- "tomato"
 
-        # NOTE: preserved from original logic (likely intended to check whether CI spans 1).
         if (b_ci[1] >= 1 & b_ci[1] <= 1) {
             fit_color <- "lightgrey"
         }
@@ -245,11 +245,7 @@ plot_de_scatter <- function(de_dt,
         graphics::abline(fit, lty = 2, col = fit_color)
         graphics::legend(
           "bottomright",
-          legend = sprintf(
-            "beta = %.2f - %.2f",
-            base::round(b_ci[1], 2),
-            base::round(b_ci[2], 2)
-          ),
+          legend = bquote(beta == .(base::round(b_ci[1], 2)) * " - " * .(base::round(b_ci[2], 2))),
           bty = "n"
         )
     }

@@ -40,17 +40,17 @@ scaling_factor <- 5
 ## Execution
 ## -----------------------
 
-cell_types_use <- read_cell_types(ct_file)
+cell_types_use <- bican.mccarroll.de.analysis::read_cell_types(ct_file)
 
-cell_metadata <- read_cell_metadata(cell_metadata_file)
-donor_ages <- extract_donor_ages(cell_metadata)
+cell_metadata <- bican.mccarroll.de.analysis::read_cell_metadata(cell_metadata_file)
+donor_ages <- bican.mccarroll.de.analysis::extract_donor_ages(cell_metadata)
 
-gene_to_chr <- read_gene_to_chr(gene_to_chr_file)
+gene_to_chr <- bican.mccarroll.de.analysis::read_gene_to_chr(gene_to_chr_file)
 
 ## Load DE (region-combined) for gene selection
-de_age <- read_de_results(de_dir, test, ct_file, gene_to_chr)
+de_age <- bican.mccarroll.de.analysis::read_de_results(de_dir, test, ct_file, gene_to_chr)
 
-tmp <- read_metacells(
+tmp <- bican.mccarroll.de.analysis::read_metacells(
     metacells_file,
     cell_types_use = cell_types_use,
     regions_use = regions_use_metacells
@@ -59,13 +59,13 @@ tmp <- read_metacells(
 metacells <- tmp$metacells
 col_metadata <- tmp$col_metadata
 
-metacell_summary <- summarize_metacells(
+metacell_summary <- bican.mccarroll.de.analysis::summarize_metacells(
     metacells,
     col_metadata,
     donor_ages
 )
 
-de_age_mat_list <- prep_de_matrices(
+de_age_mat_list <- bican.mccarroll.de.analysis::prep_de_matrices(
     de_age,
     metacell_summary,
     cell_types_use,
@@ -77,10 +77,10 @@ de_age_mat_list <- prep_de_matrices(
 
 
 ## QC plot: silhouette vs k
-plot_kmeans_silhouette(de_age_mat_list$lfc_mat_z)
+bican.mccarroll.de.analysis::plot_kmeans_silhouette(de_age_mat_list$lfc_mat_z)
 
 ## QC plot: region-combined heatmap
-gene_clusters <- plot_kmeans_heatmap(
+gene_clusters <- bican.mccarroll.de.analysis::plot_kmeans_heatmap(
     de_age_mat_list$lfc_mat_z,
     de_age_mat_list$lfc_mat,
     scaling_factor = scaling_factor,
@@ -97,9 +97,9 @@ gene_clusters <- plot_kmeans_heatmap(
 # )
 
 ## Load DE (region interaction) for region-specific matrix
-de_ri_age <- read_de_results(de_region_interaction_dir, test, ct_file, gene_to_chr)
+de_ri_age <- bican.mccarroll.de.analysis::read_de_results(de_region_interaction_dir, test, ct_file, gene_to_chr)
 
-de_ri_age_flc_mat <- prep_region_lfc_matrix(
+de_ri_age_flc_mat <- bican.mccarroll.de.analysis::prep_region_lfc_matrix(
     de_dt = de_ri_age,
     genes_use = rownames(de_age_mat_list$lfc_mat),
     cell_types_use = cell_types_use,
@@ -107,7 +107,7 @@ de_ri_age_flc_mat <- prep_region_lfc_matrix(
 )
 
 ## QC plot: region-specific heatmap
-plot_kmeans_heatmap(
+bican.mccarroll.de.analysis::plot_kmeans_heatmap(
     de_age_mat_list$lfc_mat_z,
     de_ri_age_flc_mat,
     scaling_factor = scaling_factor

@@ -50,25 +50,25 @@ microglia_main <- ""
 ## Execution
 ## -----------------------
 
-cell_types_use <- read_cell_types(ct_file)
+cell_types_use <- bican.mccarroll.de.analysis::read_cell_types(ct_file)
 
-cell_metadata <- read_cell_metadata(cell_metadata_file)
-donor_ages <- extract_donor_ages(cell_metadata)
+cell_metadata <- bican.mccarroll.de.analysis::read_cell_metadata(cell_metadata_file)
+donor_ages <- bican.mccarroll.de.analysis::extract_donor_ages(cell_metadata)
 
-tmp <- read_metacells(
+tmp <- bican.mccarroll.de.analysis::read_metacells(
     metacells_file,
     cell_types_use = cell_types_use,
     regions_use = regions_use_metacells
 )
 
-metacell_cr_list <- split_metacells_by_cell_type_region(
+metacell_cr_list <- bican.mccarroll.de.analysis::split_metacells_by_cell_type_region(
     tmp$metacells,
     tmp$col_metadata,
     donor_ages
 )
 
 ## Heatmap
-plot_donor_gex_age_heatmap(
+bican.mccarroll.de.analysis::plot_donor_gex_age_heatmap(
     metacell_cr_list[[heatmap_key]],
     gs = gs,
     donor_ages = donor_ages,
@@ -78,14 +78,14 @@ plot_donor_gex_age_heatmap(
 )
 
 ## Single gene scatter
-plot_donor_gex_age_scatterplot(
+bican.mccarroll.de.analysis::plot_donor_gex_age_scatterplot(
     metacell_cr_list[[single_gene_key]][single_gene, ],
     donor_ages,
     main = single_gene_main
 )
 
 ## Metagene scatter (sum)
-plot_donor_gex_age_scatterplot(
+bican.mccarroll.de.analysis::plot_donor_gex_age_scatterplot(
     Matrix::colSums(metacell_cr_list[[microglia_key]][microglia_priming, , drop = FALSE]),
     donor_ages,
     main = microglia_main

@@ -36,28 +36,28 @@ tasks <- list(
 ## Execution
 ## -----------------------
 
-cell_types_use <- read_cell_types(ct_file)
-gene_to_chr <- read_gene_to_chr(gene_to_chr_file)
+cell_types_use <- bican.mccarroll.de.analysis::read_cell_types(ct_file)
+gene_to_chr <- bican.mccarroll.de.analysis::read_gene_to_chr(gene_to_chr_file)
 
-cell_metadata <- read_cell_metadata(cell_metadata_file)
-donor_ages <- extract_donor_ages(cell_metadata)
+cell_metadata <- bican.mccarroll.de.analysis::read_cell_metadata(cell_metadata_file)
+donor_ages <- bican.mccarroll.de.analysis::extract_donor_ages(cell_metadata)
 
-de_age <- read_de_results(de_dir, test, ct_file, gene_to_chr)
+de_age <- bican.mccarroll.de.analysis::read_de_results(de_dir, test, ct_file, gene_to_chr)
 
-tmp <- read_metacells(
+tmp <- bican.mccarroll.de.analysis::read_metacells(
     metacells_file,
     cell_types_use = cell_types_use,
     regions_use = regions_use_metacells
 )
 
-metacell_summary <- summarize_metacells(
+metacell_summary <- bican.mccarroll.de.analysis::summarize_metacells(
     tmp$metacells,
     tmp$col_metadata,
     donor_ages
 )
 
 for (x in tasks) {
-    write_de_lite(
+    bican.mccarroll.de.analysis::write_de_lite(
         de_dt = de_age,
         metacell_summary = metacell_summary,
         donor_ages = donor_ages,

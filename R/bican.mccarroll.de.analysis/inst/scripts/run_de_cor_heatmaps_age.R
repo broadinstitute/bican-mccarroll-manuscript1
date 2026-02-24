@@ -35,7 +35,6 @@ gene_to_chr <- bican.mccarroll.de.analysis::read_gene_to_chr(gene_to_chr_file)
 de_ri_age <- bican.mccarroll.de.analysis::read_de_results(de_region_interaction_dir, test, ct_file, gene_to_chr)
 
 cor_mat_main <- bican.mccarroll.de.analysis::compute_de_cor_mat(de_ri_age, cell_types_use, regions_main, non_neuron_types, fdr_cutoff = fdr_cutoff)
-cor_mat_supp <- bican.mccarroll.de.analysis::compute_de_cor_mat(de_ri_age, cell_types_use, regions_supp, non_neuron_types, fdr_cutoff = fdr_cutoff)
 
 bican.mccarroll.de.analysis::plot_de_cor_heatmap(
     cor_mat_main,
@@ -43,6 +42,9 @@ bican.mccarroll.de.analysis::plot_de_cor_heatmap(
     breaks = breaks,
     palette_colors = palette_colors
 )
+
+cor_mat_supp <- bican.mccarroll.de.analysis::compute_de_cor_mat(de_ri_age, cell_types_use, regions_supp, non_neuron_types, fdr_cutoff = fdr_cutoff)
+
 
 bican.mccarroll.de.analysis::plot_de_cor_heatmap(
     cor_mat_supp,
