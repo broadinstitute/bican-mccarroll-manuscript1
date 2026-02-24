@@ -22,15 +22,16 @@ read_cell_types <- function(ct_file) {
 #' @param gene_to_chr_file Path to a tabular file readable by data.table::fread.
 #' @return A data.table with columns including gene and chr.
 #' @export
+#' @import data.table
 read_gene_to_chr <- function(gene_to_chr_file) {
-    chr <- gene <- NULL
+  chr <- gene <- NULL
 
-    dt <- data.table::fread(gene_to_chr_file)
+  dt <- data.table::fread(gene_to_chr_file)
 
-    # Keep standard chromosomes only
-    dt <- dt[chr %in% c(as.character(1:22), "X", "Y", "M")]
+  keep <- c(as.character(1:22), "X", "Y", "M")
+  dt <- dt[dt[["chr"]] %in% keep,]
 
-    dt[]
+  dt[]
 }
 
 #' Read and format differential expression results
@@ -70,7 +71,7 @@ prep_de <- function(df, gene_to_chr) {
     dt <- merge(gene_to_chr, dt, by = "gene", all.y = TRUE)
     dt[, log_fc_se := log_fc / t]
 
-    dt[]
+    return (dt)
 }
 
 #' Volcano plot for DE results

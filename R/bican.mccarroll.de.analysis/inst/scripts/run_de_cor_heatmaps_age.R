@@ -30,21 +30,21 @@ clustering_method <- "complete"
 ## Execution
 ## -----------------------
 
-cell_types_use <- read_cell_types(ct_file)
-gene_to_chr <- read_gene_to_chr(gene_to_chr_file)
-de_ri_age <- read_de_results(de_region_interaction_dir, test, ct_file, gene_to_chr)
+cell_types_use <- bican.mccarroll.de.analysis::read_cell_types(ct_file)
+gene_to_chr <- bican.mccarroll.de.analysis::read_gene_to_chr(gene_to_chr_file)
+de_ri_age <- bican.mccarroll.de.analysis::read_de_results(de_region_interaction_dir, test, ct_file, gene_to_chr)
 
-cor_mat_main <- compute_de_cor_mat(de_ri_age, cell_types_use, regions_main, non_neuron_types, fdr_cutoff = fdr_cutoff)
-cor_mat_supp <- compute_de_cor_mat(de_ri_age, cell_types_use, regions_supp, non_neuron_types, fdr_cutoff = fdr_cutoff)
+cor_mat_main <- bican.mccarroll.de.analysis::compute_de_cor_mat(de_ri_age, cell_types_use, regions_main, non_neuron_types, fdr_cutoff = fdr_cutoff)
+cor_mat_supp <- bican.mccarroll.de.analysis::compute_de_cor_mat(de_ri_age, cell_types_use, regions_supp, non_neuron_types, fdr_cutoff = fdr_cutoff)
 
-plot_de_cor_heatmap(
+bican.mccarroll.de.analysis::plot_de_cor_heatmap(
     cor_mat_main,
     clustering_method = clustering_method,
     breaks = breaks,
     palette_colors = palette_colors
 )
 
-plot_de_cor_heatmap(
+bican.mccarroll.de.analysis::plot_de_cor_heatmap(
     cor_mat_supp,
     clustering_method = clustering_method,
     breaks = breaks,
