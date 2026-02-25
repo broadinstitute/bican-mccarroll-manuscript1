@@ -166,6 +166,29 @@ fit_glmm_and_extract_fixed_effects <- function(sample_ctp, sample_metadata, cell
 
 }
 
+#' Extract fitted values and residuals from a fitted beta-binomial GLMM.
+#'
+#' @param glmm_model Fitted beta-binomial GLMM object for a specific cell type.
+#'
+#' @return Dataframe containing the observed fractions, fitted fractions, and
+#' residuals for each sample in the model fit, along with the original model data.
+extract_beta_binomial_fitted_values <- function(glmm_model) {
+
+  # get proportions from model fit
+  model_data <- model.frame(glmm_model)
+  response_matrix <- model_data[["cbind(n_nuclei, n_other)"]]
+  observed_fraction <- response_matrix[, 1] / rowSums(response_matrix)
+  model_data$observed_fraction <- observed_fraction
+
+  # get marginal predictions from model fit
+  # (i.e., predictions based on fixed effects only, without random effects)
+  model_data$fitted_fraction <- predict(glmm_model, type = "response", re.form = NA)
+  model_data$residual <- model_data$observed_fraction - model_data$fitted_fraction
+
+  return(model_data)
+
+}
+
 
 #' Generate a volcano plot for a specific fixed effect from the combined fixed effects dataframe.
 #'
