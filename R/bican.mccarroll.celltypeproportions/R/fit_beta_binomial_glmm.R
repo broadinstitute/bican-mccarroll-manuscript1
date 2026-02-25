@@ -36,7 +36,7 @@
 #' @param cell_type_col Column name in `sample_ctp` that contains cell type labels.
 #'
 #' @return Dataframe with combined cell type proportions and metadata, including a column for the number of nuclei of other cell types (total_nuclei - n_nuclei).
-prepare_data_for_glm <- function(sample_ctp, sample_metadata, cell_type_col) {
+prepare_data_for_glmm <- function(sample_ctp, sample_metadata, cell_type_col) {
 
   sample_df <- sample_ctp |>
     dplyr::left_join(sample_metadata) |>
@@ -158,7 +158,7 @@ extract_many_beta_binomial_fixed_effects <- function(glmm_list, cell_type_col, o
 #' @return List containing the named list of fitted beta-binomial GLMM objects for each cell type and the combined fixed effects dataframe for all models.
 fit_glmm_and_extract_fixed_effects <- function(sample_ctp, sample_metadata, cell_types, cell_type_col, fixed_effects, random_effects, out_file=NULL) {
 
-  sample_df <- prepare_data_for_glm(sample_ctp, sample_metadata, cell_type_col)
+  sample_df <- prepare_data_for_glmm(sample_ctp, sample_metadata, cell_type_col)
   glmm_list <- fit_many_beta_binomial_glmms(sample_df, cell_types, cell_type_col, fixed_effects, random_effects)
   fixed_effects_df <- extract_many_beta_binomial_fixed_effects(glmm_list, cell_type_col, out_file)
 

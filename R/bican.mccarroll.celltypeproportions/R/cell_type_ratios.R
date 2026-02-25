@@ -101,9 +101,6 @@ generate_ctp_ratio_table <- function(
 #' @param ratio (optional) Name of the ratio being plotted (for labeling).
 plot_donor_ctp_ratio_between_two_regions <- function(ratio_df, region1, region2, ratio=NULL) {
 
-# -------------------------------------------------------------------------
-
-
   ratio_df_wide <- ratio_df |>
     select(donor_external_id, brain_region_abbreviation_simple, ratio) |>
     pivot_wider(
@@ -126,7 +123,7 @@ plot_donor_ctp_ratio_between_two_regions <- function(ratio_df, region1, region2,
   ) +
     theme_bw() +
     geom_abline(slope=1, intercept=0, lty="dashed", col="gray") +
-    geom_point() +
+    geom_point(alpha=0.75) +
     labs(
       title=ratio,
       subtitle=sprintf("N=%s donors", n_donors)
