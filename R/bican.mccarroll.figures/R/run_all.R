@@ -28,8 +28,10 @@ run_all<-function () {
     bican.mccarroll.figures::age_prediction_examples()
     bican.mccarroll.figures::plot_trade_analysis()
     bican.mccarroll.figures::plot_kmeans_age()
+
     bican.mccarroll.figures::plot_donor_gex_vs_age()
     bican.mccarroll.figures::plot_de_cor_heatmaps_age()
+
     bican.mccarroll.figures::de_sex_age_scatter_plots()
     bican.mccarroll.figures::plot_de_volcano()
 }
