@@ -1,15 +1,15 @@
-source("R/paths.R")
-
-options(
-    bican.mccarroll.figures.data_root_dir =
-        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis",
-
-    bican.mccarroll.figures.out_dir =
-        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
-
-    bican.mccarroll.figures.cache_dir =
-        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
-)
+# source("R/paths.R")
+#
+# options(
+#     bican.mccarroll.figures.data_root_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis",
+#
+#     bican.mccarroll.figures.out_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
+#
+#     bican.mccarroll.figures.cache_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
+# )
 
 #' Generate the TRADE manuscript figure
 #'
@@ -82,7 +82,10 @@ plot_trade_analysis <- function(
         de_dt[!(region == "ic" & !(cell_type %in% non_neuron_types))]
     }
 
-
+    cell_types_use <- c("MSN_D1_matrix","MSN_D1_striosome","MSN_D2_matrix","MSN_D2_striosome",
+                        "glutamatergic_L23IT","glutamatergic_L4IT","glutamatergic_L5IT","glutamatergic_L6IT",
+                        "GABA_TAC3-PLPP4","GABA_PTHLH-PVALB","GABA_PVALB","GABA_SST","GABA_VIP","GABA_LAMP5",
+                        "astrocyte","OPC","oligodendrocyte","microglia")
     # --------------------------------------------------------------------------
     # Dataset 1: regions combined, age (AUTOSOMES ONLY)
     # --------------------------------------------------------------------------
@@ -106,8 +109,9 @@ plot_trade_analysis <- function(
     }
 
     p_bar_age <- bican.mccarroll.differentialexpression::trade_barplot(
-        trade_auto, cell_types_use = NULL,
+        trade_auto, cell_types_use = cell_types_use,
         value_var = "trade_twi")
+    p_bar_age <- p_bar_age + ggplot2::geom_col(fill = "black")
 
     save_plot_svg(p_bar_age,
                   out_file = "trade_dataset1_age_autosomes_barplot.svg",
@@ -136,8 +140,13 @@ plot_trade_analysis <- function(
                            row.names = FALSE, col.names = TRUE, quote = FALSE)
     }
 
+    cell_types <- c("MSN_D1_matrix","MSN_D1_striosome","MSN_D2_matrix","MSN_D2_striosome",
+                    "glutamatergic_L23IT","glutamatergic_L4IT","glutamatergic_L5IT","glutamatergic_L6IT",
+                    "GABA_TAC3-PLPP4","GABA_PTHLH-PVALB","GABA_PVALB","GABA_SST","GABA_VIP","GABA_LAMP5",
+                    "astrocyte","OPC","oligodendrocyte","microglia")
+
     p_heat_age <- bican.mccarroll.differentialexpression::trade_heatmap(
-        trade_auto, cell_types_use = NULL,
+        trade_auto, cell_types_use = cell_types,
         region_order = region_order, value_var = "trade_twi")
 
     save_plot_svg(p_heat_age,

@@ -1,14 +1,22 @@
-Package: bican.mccarroll.trade
+Package: bican.mccarroll.de.analysis
 Type: Package
 Title: What the Package Does (Title Case)
 Version: 0.1.0
 Imports:
     data.table,
-    ggplot2,
-    TRADEtools,
-    bican.mccarroll.differentialexpression
+    bican.mccarroll.differentialexpression,
+    Matrix,
+    cluster,
+    fgsea,
+    lmtest,
+    matrixStats,
+    methods,
+    pheatmap,
+    sandwich,
+    viridisLite
 Remotes:
-    ajaynadig/TRADEtools
+    github::ajaynadig/TRADEtools,
+    bioc::fgsea
 Authors@R: c(
     person(
       "Steven", "Burger",

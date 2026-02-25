@@ -30,20 +30,39 @@
 }
 
 
-#' Plot residual age correlation distributions across cell types
+#' Plot residual age–prediction correlation distributions across cell types
 #'
-#' Computes correlations between chronological age and residual predicted age
-#' across cell types, and saves a distribution plot to disk.
+#' Computes, for each cell type, the correlation between chronological age
+#' and residual predicted age (predicted minus chronological age after
+#' correction), and generates a distribution plot summarizing these
+#' correlations. The resulting SVG file is written to the specified output
+#' directory.
 #'
-#' @param cellTypeListFile Path to a text file containing one cell type per line.
-#' @param metacell_dir Directory containing metacell objects.
-#' @param data_name Name of the DGEList object to load.
-#' @param age_de_results_dir Directory containing age differential expression results.
-#' @param contig_yaml_file Path to contig YAML file.
-#' @param reduced_gtf_file Path to reduced GTF file.
+#' All file path arguments may be \code{NULL}, in which case they are resolved
+#' via \code{.resolve_age_pred_paths()} using the configured data root,
+#' cache, and output directory options.
+#'
+#' @param cellTypeListFile Path to a text file containing one cell type per
+#'   line. If \code{NULL}, resolved under the data root.
+#' @param metacell_dir Directory containing metacell objects used for age
+#'   prediction. If \code{NULL}, resolved under the data root.
+#' @param data_name Name of the DGEList object to load from the metacell
+#'   directory.
+#' @param age_de_results_dir Directory containing age differential expression
+#'   results used in model construction. If \code{NULL}, resolved under the
+#'   data root.
+#' @param contig_yaml_file Path to the contig YAML file. If \code{NULL},
+#'   resolved under the data root.
+#' @param reduced_gtf_file Path to the reduced GTF file. If \code{NULL},
+#'   resolved under the data root.
 #' @param n_cores Number of cores to use for parallel computation.
-#' @param data_cache_dir Directory for cached intermediate data.
-#' @param outDir Output directory for the generated SVG plot.
+#' @param data_cache_dir Directory for cached intermediate data. If
+#'   \code{NULL}, resolved via configured cache directory options.
+#' @param outDir Output directory for the generated SVG plot. If \code{NULL},
+#'   resolved via configured output directory options.
+#'
+#' @return Invisibly returns \code{NULL}. The function is called for its
+#'   side effect of writing an SVG plot to disk.
 #'
 #' @export
 age_prediction_mean_residual_correlation_plots <- function(
@@ -726,7 +745,9 @@ age_prediction_uncorrected_residual_pairwise_scatter_region <- function(
 #' of mean absolute error overall and by key predictors (e.g., number of DE genes,
 #' nuclei, and UMIs), including fits for all data and the youngest 20%.
 #'
-#' @param cellTypeListFile Path to a text file containing one cell type per line.
+#' @param cell_type_list A list of cell types to include in the plots
+#' (e.g., c("astrocyte", "OPC", "microglia", "MSN_D1")).
+#' @param region The region to plot (e.g., "CaH").
 #' @param metacell_dir Directory containing metacell objects.
 #' @param data_name Name of the DGEList object to load.
 #' @param age_de_results_dir Directory containing age differential expression results.
