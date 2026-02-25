@@ -173,6 +173,79 @@ make_ctp_boxplot <- function(ctp_df,
 
 
 
+make_ctp_boxplot_facet_glia <-function(ctp_df, 
+                              cell_type_column, 
+                              fill_feature = "brain_region_abbreviation_simple",
+                              cell_type_label_map = NULL,
+                              region_label_map = NULL,
+                              title = "Cell Type Proportions as a Fraction of All Nuclei") {
+  ctp_df <- ctp_df |>
+    dplyr::mutate(cell_class = ifelse(annotation %in% c("projection_neurons", "interneurons"), "Neurons", "Glia")) 
+  
+  
+  # Ensure regions follow the provided map order
+  if (!is.null(region_label_map)) {
+    ctp_df[[fill_feature]] <- factor(
+      ctp_df[[fill_feature]], 
+      levels = names(region_label_map)
+    )
+  }
+  
+  # Ensure cell types follow the provided map order
+  if (!is.null(cell_type_label_map)) {
+    ctp_df[[cell_type_column]] <- factor(
+      ctp_df[[cell_type_column]], 
+      levels = names(cell_type_label_map)
+    )
+  }
+  
+  # Construct the plot
+  ctp_boxplot <- ggplot2::ggplot(
+    ctp_df,
+    ggplot2::aes(
+      x = !!rlang::sym(cell_type_column),
+      y = fraction_nuclei,
+      fill = !!rlang::sym(fill_feature),
+      
+    )
+  ) +
+    ggplot2::facet_grid(
+      cols = ggplot2::vars(cell_class), 
+      scales = "free_x", 
+      space = "free_x" # This makes panel width proportional to number of x-items
+    ) +
+    ggplot2::geom_boxplot(
+      #width = 1,
+      position = ggplot2::position_dodge(width = .8),
+      outlier.size = 0.5
+    ) +
+    # Conditional layers added via list evaluation
+    list(
+      if (!is.null(cell_type_label_map)) {
+        ggplot2::scale_x_discrete(labels = cell_type_label_map)
+      },
+      if (!is.null(region_label_map)) {
+        ggplot2::scale_fill_discrete(labels = region_label_map)
+      }
+    ) +
+    ggplot2::labs(
+      x = "",
+      y = "Fraction of nuclei",
+      fill = "Region"
+    ) +
+    # base_size is set here to avoid the theme hierarchy warning
+    ggplot2::theme_bw(base_size = 16) +
+    ggplot2::theme(
+      axis.text.x = ggplot2::element_text(angle = 45, hjust = 1),
+      panel.grid.major.x = ggplot2::element_blank()
+    ) +
+    ggplot2::ggtitle(title) 
+  
+  return(ctp_boxplot)
+}
+
+
+
 
 #' Generate Standardized Cell Type Proportion Plots for manuscript figure
 #'
@@ -204,10 +277,12 @@ make_ctp_boxplot <- function(ctp_df,
 #' 
 #' @importFrom data.table fread
 #' @importFrom rlang set_names
-make_region_ctp_plot_pretty <- function() {
+make_region_ctp_plot_pretty <- function(
+    region_order = c("CaH", "Pu", "NAC", "ic", "DFC")
+    ) {
   
   # --- Data Loading ---
-  ctp_dir <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/cell_type_proportions/data/LEVEL_1/"
+  ctp_dir <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/cell_type_proportions/data/LEVEL_2/"
   ctp_annotations <- data.table::fread(
     file.path(ctp_dir, "donor_region.annotation.cell_type_proportions.txt"),
   )
@@ -251,13 +326,21 @@ make_region_ctp_plot_pretty <- function() {
   )
   
   # Define display labels and factor ordering for the legend
-  region_label_map <- c(
-    "CaH" = "CaH (n=XX)",
-    "Pu"  = "Pu (n=XX)",
-    "NAC" = "NAC (n=XX)",
-    "ic"  = "ic (n=XX)",
-    "DFC" = "DFC (n=XX)"
-  )
+  region_label_map <- ctp_annotations |>
+    dplyr::filter(brain_region_abbreviation_simple %in% region_order) |>
+    dplyr::group_by(brain_region_abbreviation_simple) |>
+    dplyr::summarise(
+      n = dplyr::n_distinct(sample_id),
+      .groups = "drop"
+    ) |>
+    dplyr::mutate(
+      brain_region_abbreviation_simple =
+        factor(brain_region_abbreviation_simple, levels = region_order),
+      label = sprintf("%s (n=%d)", brain_region_abbreviation_simple, n)
+    ) |>
+    dplyr::arrange(brain_region_abbreviation_simple) |>
+    dplyr::select(brain_region_abbreviation_simple, label) |>
+    tibble::deframe()
   
   # Define display labels and factor ordering for the x-axis
   cell_type_labels <- c(
@@ -270,20 +353,18 @@ make_region_ctp_plot_pretty <- function() {
   )
   
   # Generate the final boxplot
-  make_ctp_boxplot(
+  make_ctp_boxplot_facet_glia(
     ctp_df = ctp_df,
     cell_type_column = "annotation",
     fill_feature = "brain_region_abbreviation_simple",
     cell_type_label_map = cell_type_labels,
     region_label_map = region_label_map,
-    vline_int = 4.5, # Vertical line to separate Glia from Neurons
+    #vline_int = 4.5, # Vertical line to separate Glia from Neurons
     title = "Cell Type Proportions as a Fraction of All Nuclei in Striatum and DFC"
   )
 }
 
 make_region_ctp_plot_pretty()
-
-
 
 
 

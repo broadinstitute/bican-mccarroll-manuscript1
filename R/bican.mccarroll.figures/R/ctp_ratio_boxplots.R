@@ -1,5 +1,3 @@
-
-
 #' Generate Cell-Type Proportion (CTP) Ratio Table
 #'
 #' This function calculates ratios between specific cell-type populations across 
@@ -76,6 +74,10 @@ generate_ctp_ratio_table <- function(
   
   return(ratio_df)
 }
+
+
+
+
 
 
 #' Perform Wilcoxon Rank-Sum Test with Effect Sizes
@@ -209,7 +211,7 @@ make_ctp_ratio_boxplot <- function(
   if (jitter) {
     p <- p +
       ggplot2::geom_boxplot(alpha = 0.7, outlier.shape = NA, width = 0.85) +
-      ggplot2::geom_jitter(width = 0.2, height = 0, alpha = 0.5, seed=42)
+      ggplot2::geom_jitter(width = 0.2, height = 0, alpha = 0.5)
   } else {
     p <- p +
       ggplot2::geom_boxplot(alpha = 0.7, outlier.size = 1, width = 0.85)
@@ -257,86 +259,314 @@ make_ctp_ratio_boxplot <- function(
     # Center x-axis text and remove legend as color redundant with x-axis labels
     ggplot2::theme(
       axis.text.x = ggplot2::element_text(angle = 0, hjust = 0.5),
-      legend.position = "none"
+      legend.position = "none",
+      panel.grid.major.x = ggplot2::element_blank(),
+      panel.grid.minor.x = ggplot2::element_blank()
     )
   
   return(p)
 }
 
 
-# ---------------- EXAMPLE USAGE ------------------
 
-annotations_df <- data.table::fread(
-  file.path("/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/cell_type_proportions/data/LEVEL_1/donor_region.annotation.neurons_only.cell_type_proportions.txt")
-)
+#' Create Faceted Boxplots for Cell-Type Proportion Ratios
+#'
+#' This function generates multiple boxplots faceted by ratio types, using
+#' the base `generate_ctp_ratio_table` function iteratively.
+#'
+#' @inheritParams make_ctp_ratio_boxplot
+#' @param adjust_pvalues Logical; if TRUE, applies Bonferroni correction to p-values within each facet.
+#'
+#' @return A patchwork object containing multiple ggplot facets.
+#' @importFrom purrr map2_dfr
+#' @importFrom patchwork wrap_plots plot_layout plot_annotation
+#' @export
+make_ctp_ratio_boxplot_faceted <- function(
+    ctp_df,
+    numerator,
+    denominator,
+    title,
+    cell_type_col = "annotation",
+    ylabel = "Ratio",
+    region_list = c("CaH", "Pu", "NAC"),
+    region_order = c("CaH", "Pu", "NAC", "ic", "DFC"),
+    cmap = c(
+      "CaH" = "#E69F00",
+      "Pu" = "#56B4E9",
+      "NAC" = "#009E73",
+      "ic" = "#F0E442",
+      "DFC" = "purple"
+    ),
+    display_pvalues = TRUE,
+    adjust_pvalues = FALSE,
+    jitter = TRUE
+) {
+  
+  # --- 1. Standardize Inputs ---
+  # Convert to lists if they aren't already to allow uniform iteration
+  if (!is.list(numerator)) {
+    numerator_list <- list("Ratio" = numerator)
+    denominator_list <- list("Ratio" = denominator)
+  } else {
+    numerator_list <- numerator
+    denominator_list <- denominator
+    
+    # If one denominator is provided for a list of numerators, recycle it
+    if (!is.list(denominator_list)) {
+      denominator_list <- rep(list(denominator_list), length(numerator_list))
+      names(denominator_list) <- names(numerator_list)
+    }
+  }
+  
+  # --- 2. Generate Data using the base function ---
+  full_ratio_df <- purrr::map2_dfr(
+    numerator_list, 
+    denominator_list, 
+    function(num, den) {
+      generate_ctp_ratio_table(ctp_df, num, den, cell_type_col, region_list)
+    }, 
+    .id = "ratio_name"
+  ) |>
+    dplyr::filter(!is.na(.data$ratio)) |>
+    dplyr::mutate(ratio_name = factor(.data$ratio_name, levels = names(numerator_list)))
+  
+  ratio_names <- levels(full_ratio_df$ratio_name)
+  global_y_max <- if(nrow(full_ratio_df) > 0) max(full_ratio_df$ratio, na.rm = TRUE) else 1
+  
+  # --- 3. Build Individual Plots ---
+  plot_list <- lapply(seq_along(ratio_names), function(i) {
+    r_name <- ratio_names[i]
+    is_leftmost <- (i == 1)
+    
+    sub_df <- full_ratio_df |>
+      dplyr::filter(.data$ratio_name == r_name) |>
+      dplyr::mutate(
+        brain_region_abbreviation_simple = factor(
+          .data$brain_region_abbreviation_simple, 
+          levels = region_order
+        )
+      )
+    
+    p <- ggplot2::ggplot(sub_df, ggplot2::aes(
+      x = .data$brain_region_abbreviation_simple, 
+      y = .data$ratio, 
+      fill = .data$brain_region_abbreviation_simple
+    ))
+    
+    # Plotting Layers
+    if (jitter) {
+      p <- p +
+        ggplot2::geom_boxplot(alpha = 0.7, outlier.shape = NA, width = 0.85) +
+        ggplot2::geom_jitter(width = 0.2, height = 0, alpha = 0.5)
+    } else {
+      p <- p + ggplot2::geom_boxplot(alpha = 0.7, outlier.size = 1, width = 0.85)
+    }
+    
+    # Scale Consistency
+    p <- p + ggplot2::expand_limits(y = c(0, global_y_max))
+    
+    # Statistics
+    if (display_pvalues && nrow(sub_df) > 0) {
+      region_pairs <- combn(region_list, 2, simplify = FALSE)
+      p_values <- sapply(region_pairs, function(pair) {
+        g1 <- sub_df$ratio[sub_df$brain_region_abbreviation_simple == pair[1]]
+        g2 <- sub_df$ratio[sub_df$brain_region_abbreviation_simple == pair[2]]
+        if(length(g1) < 2 || length(g2) < 2) return(NA)
+        return(wilcoxon_test(g1, g2)$p_value)
+      })
+      
+      if (adjust_pvalues) p_values <- p.adjust(p_values, method = "bonferroni")
+      
+      p_labels <- sapply(p_values, function(p) {
+        if (is.na(p)) "NA" else if (p >= 0.05) "NS" else sprintf("p = %.2e", p)
+      })
+      
+      p <- p + ggsignif::geom_signif(
+        comparisons = region_pairs, 
+        annotations = p_labels,
+        step_increase = 0.1, 
+        textsize = 3, 
+        vjust = 0
+      )
+    }
+    
+    # Facet Styling
+    p <- p +
+      ggplot2::scale_fill_manual(values = cmap, name = "Brain Region") +
+      ggplot2::facet_wrap(~ratio_name) +
+      ggplot2::theme_bw() + 
+      ggplot2::theme(
+        axis.text.x = ggplot2::element_blank(),
+        axis.ticks.x = ggplot2::element_blank(),
+        strip.background = ggplot2::element_rect(fill = "grey90", color = "black"),
+        strip.text = ggplot2::element_text(face = "bold"),
+        panel.grid.major.x = ggplot2::element_blank()
+      )
+    
+    # Conditional Axis Labels
+    if (is_leftmost) {
+      p <- p + ggplot2::labs(x = NULL, y = ylabel)
+    } else {
+      p <- p + ggplot2::labs(x = NULL, y = NULL) +
+        ggplot2::theme(axis.text.y = ggplot2::element_blank(),
+                       axis.ticks.y = ggplot2::element_blank())
+    }
+    
+    return(p)
+  })
+  
+  # --- 4. Combine via Patchwork ---
+  combined_plot <- patchwork::wrap_plots(plot_list, nrow = 1) + 
+    patchwork::plot_layout(guides = "collect") & 
+    ggplot2::theme(legend.position = "right")
+  
+  combined_plot <- combined_plot + 
+    patchwork::plot_annotation(title = title)
+  
+  return(combined_plot)
+}
 
-make_ctp_ratio_boxplot(
-  annotations_df,
-  numerator="MSN_D1_matrix",
-  denominator=NULL, 
-  title="D1 matrix proportion in different regions",
-  ylabel="D1 prop",
-  jitter=TRUE
-)
 
-make_ctp_ratio_boxplot(
-  annotations_df,
-  numerator="MSN_D1_matrix",
-  denominator="MSN_D2_matrix", 
-  title="D1/D2 matrix ratios",
-  ylabel="D1/D2 ratio",
-  jitter=TRUE
-)
+# ----------------------------------
 
-make_ctp_ratio_boxplot(
-  annotations_df,
-  numerator="MSN_D1_matrix",
-  denominator=c("MSN_D1_matrix", "MSN_D2_matrix"), 
-  title="D1 fraction of matrix MSNs",
-  ylabel="D1 fraction",
-  jitter=TRUE
-)
+generate_manuscript_ratio_boxplots <-function(ctp_table_fp, outDir){
+  annotations_df_level2 <- data.table::fread(ctp_table_fp)
+  
+  # ---------- Single plots: ----------
+  
+  p <- make_ctp_ratio_boxplot(
+    annotations_df_level2,
+    numerator=c("MSN_D1_striosome", "MSN_D2_striosome"),
+    denominator=c("MSN_D1_matrix", "MSN_D2_matrix"), 
+    title="Striosome : Matrix ratios between regions",
+    ylabel="Striosome : Matrix ratio",
+    jitter=TRUE
+  )
+  
+  ggplot2::ggsave(
+    filename = file.path(outDir, "striosome_matrix_ratios.svg"),
+    plot = p,
+    width = 6,
+    height = 4
+  )
+  
+  p <- make_ctp_ratio_boxplot(
+    annotations_df_level2,
+    numerator=c("MSN_D1_striosome", "MSN_D1_matrix"),
+    denominator=c("MSN_D2_striosome", "MSN_D2_matrix"), 
+    title="D1 : D2 ratios between regions",
+    ylabel="D1 : D2 ratio",
+    jitter=TRUE
+  )
+  
+  ggplot2::ggsave(
+    filename = file.path(outDir, "D1_D2_ratios.svg"),
+    plot = p,
+    width = 6,
+    height = 4
+  )
+  
+  # ---------- Faceted plots: ----------
+  numerators <- list(
+    "D1 : D2 ratio in striosome" = c("MSN_D1_striosome"),
+    "D1 : D2 ratio in matrix" = c("MSN_D1_matrix")
+  )
+  
+  denominators <- list(
+    "D1 : D2 ratio in striosome" = c("MSN_D2_striosome"),
+    "D1 : D2 ratio in matrix" = c("MSN_D2_matrix")
+  )
+  
+  p <- make_ctp_ratio_boxplot_faceted(
+    annotations_df_level2,
+    numerator = numerators,
+    denominator = denominators,
+    title = "D1 : D2 ratios in striosome and matrix",
+    ylabel = "D1 : D2 ratio",
+    jitter = FALSE,
+    adjust_pvalues = TRUE
+  )
+  ggplot2::ggsave(
+    filename = file.path(outDir, "D1_D2_ratios_faceted.svg"),
+    plot = p,
+    width = 8,
+    height = 4
+  )
+  
+  numerators <- list(
+    "Matrix : Striosome ratio of D1 MSNs" = c("MSN_D1_matrix"),
+    "Matrix : Striosome ratio of D2 MSNs" = c("MSN_D2_matrix")
+  )
+  denominators <- list(
+    "Matrix : Striosome ratio of D1 MSNs" = c("MSN_D1_striosome"),
+    "Matrix : Striosome ratio of D2 MSNs" = c("MSN_D2_striosome")
+  )
+  
+  p <- make_ctp_ratio_boxplot_faceted(
+    annotations_df_level2,
+    numerator = numerators,
+    denominator = denominators,
+    title = "Matrix : Striosome ratios for D1 and D2 MSNs",
+    ylabel = "Matrix : Striosome ratio",
+    jitter = FALSE,
+    adjust_pvalues = TRUE
+  )
+  ggplot2::ggsave(
+    filename = file.path(outDir, "matrix_striosome_ratios_faceted.svg"),
+    plot = p,
+    width = 8,
+    height = 4
+  )
+  
+  
+  
+  cell_types <- unique(annotations_df_level2$annotation)
+  
+  OOD_neurons <- c("VTR-HTH_glut", "SN-VTR-HTH_GABA", "other_GABA")
+  
+  # Interneurons: All GABAergic types plus striatal cholinergic, excluding OOD
+  interneurons <- c(grep("GABA", cell_types, value = TRUE),
+                    "striatal_cholinergic") |> setdiff(OOD_neurons)
+  
+  numerators <- list(
+    "GABA PTHLH-PVALB" = "striatal_GABA_MGE_PTHLH-PVALB",
+    "GABA TAC3-PLPP4" = "striatal_GABA_MGE_TAC3-PLPP4",
+    "GABA SST-CHODL" = "GABA_CGE_SST-CHODL",
+    "GABA cholinergic" = "striatal_cholinergic"
+  )
+  denominators <- list(
+    "GABA PTHLH-PVALB" = interneurons,
+    "GABA TAC3-PLPP4" = interneurons,
+    "GABA SST-CHODL" = interneurons,
+    "GABA cholinergic" = interneurons
+  )
+  
+
+  
+  p <- make_ctp_ratio_boxplot_faceted(
+    annotations_df_level2,
+    numerator = numerators,
+    denominator = denominators,
+    title = "Interneuron subtype ratios across striatal gray matter",
+    ylabel = "Proportion of interneurons",
+    jitter = FALSE,
+    adjust_pvalues = TRUE
+  )
+  
+  ggplot2::ggsave(
+    filename = file.path(outDir, "interneuron_ratios_faceted.svg"),
+    plot = p,
+    width = 12,
+    height = 4
+  )
+
+}
 
 
 
-cell_types <- unique(annotations_df$annotation)
+outDir <- "/Users/emuratog/Documents/misc_outs/manuscript1_boxplots"
+ctp_table_fp <- file.path("/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/cell_type_proportions/data/LEVEL_2/donor_region.annotation.neurons_only.cell_type_proportions.txt")
 
-# Define neurons that do not fit the primary Interneuron/Projection groupings
-OOD_neurons <- c("VTR-HTH_glut", "SN-VTR-HTH_GABA", "other_GABA")
-
-# Interneurons: All GABAergic types plus striatal cholinergic, excluding OOD
-interneurons <- c(grep("GABA", cell_types, value = TRUE),
-                  "striatal_cholinergic") |> setdiff(OOD_neurons)
-
-
-MSNs <- grep("MSN", cell_types, value = TRUE)
-
-make_ctp_ratio_boxplot(
-  annotations_df,
-  numerator=MSNs,
-  denominator=interneurons, 
-  title="MSN / Interneuron ratios across striatal gray matter",
-  ylabel="MSN / Interneuron ratio",
-  jitter=TRUE
-)
-
-make_ctp_ratio_boxplot(
-  annotations_df,
-  numerator=interneurons,,
-  denominator=MSNs, 
-  title="Interneuron / MSN ratios across striatal gray matter",
-  ylabel="Interneuron / MSN ratio",
-  jitter=TRUE
-)
-
-
-
-
-
-
-
-
-
-
+generate_manuscript_ratio_boxplots(ctp_table_fp, outDir)
 
 
