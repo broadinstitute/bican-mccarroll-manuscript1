@@ -11,7 +11,8 @@ plot_de_scatter(
   region_a = NA,
   region_b = NA,
   fdr_cutoff = 0.05,
-  add_fit = TRUE
+  add_fit = TRUE,
+  xlab_prefix = NULL
 )
 }
 \arguments{
@@ -28,6 +29,8 @@ plot_de_scatter(
 \item{fdr_cutoff}{Adjusted p-value threshold.}
 
 \item{add_fit}{Whether to add a robust linear fit when rho^2 is high.}
+
+\item{xlab_prefix}{Optional prefix string added to x-axis label.}
 }
 \value{
 Invisibly returns NULL.

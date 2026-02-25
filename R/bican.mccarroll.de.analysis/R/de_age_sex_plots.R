@@ -11,7 +11,7 @@
 #' @return A character vector of cell type names.
 #' @export
 read_cell_types <- function(ct_file) {
-    base::scan(ct_file, what = character(), quiet = TRUE)
+    scan(ct_file, what = character(), quiet = TRUE)
 }
 
 #' Read gene-to-chromosome mapping
@@ -87,7 +87,7 @@ plot_de_volcano <- function(de_dt,
                             cell_type_use,
                             region_use,
                             fdr_cutoff = 0.05,
-                            abs_log_fc_cutoff = base::log2(1.05)) {
+                            abs_log_fc_cutoff = log2(1.05)) {
 
     cell_type <- region <- log_fc <- adj_p_val <- NULL
 
@@ -97,14 +97,14 @@ plot_de_volcano <- function(de_dt,
         dt <- de_dt[cell_type == cell_type_use & region == region_use]
     }
 
-    rng <- dt[, base::max(base::abs(log_fc))]
+    rng <- dt[, max(abs(log_fc))]
     rng <- c(-rng, rng)
 
     graphics::par(pty = "s", xpd = FALSE)
 
     dt[, graphics::plot(
         log_fc,
-        -base::log10(adj_p_val),
+        -log10(adj_p_val),
         pch = 20,
         xlim = rng,
         col = "lightgrey",
@@ -115,13 +115,13 @@ plot_de_volcano <- function(de_dt,
 
     dt[adj_p_val < fdr_cutoff, graphics::points(
         log_fc,
-        -base::log10(adj_p_val),
+        -log10(adj_p_val),
         pch = 20,
         col = "cornflowerblue"
     )]
 
     graphics::title(main = cell_type_use, adj = 0)
-    graphics::abline(h = -base::log10(fdr_cutoff), lty = 2)
+    graphics::abline(h = -log10(fdr_cutoff), lty = 2)
     graphics::abline(v = c(-abs_log_fc_cutoff, abs_log_fc_cutoff), lty = 2)
 
     # Make R CMD CHECK Happy
@@ -134,13 +134,13 @@ plot_de_volcano <- function(de_dt,
 
     graphics::par(xpd = NA)
     if (p < 0.05) {
-        p_txt <- base::formatC(p, format = "e", digits = 1)
+        p_txt <- formatC(p, format = "e", digits = 1)
         graphics::legend(
             "topright",
             inset = c(0, -0.16),
             c(
-                base::paste("proportion up =", base::round(up / (up + down), 2)),
-                base::paste("p-value =", p_txt)
+                paste("proportion up =", round(up / (up + down), 2)),
+                paste("p-value =", p_txt)
             ),
             bty = "n"
         )
@@ -158,6 +158,7 @@ plot_de_volcano <- function(de_dt,
 #' @param region_b Region for B, or NA for region-combined results.
 #' @param fdr_cutoff Adjusted p-value threshold.
 #' @param add_fit Whether to add a robust linear fit when rho^2 is high.
+#' @param xlab_prefix Optional prefix string added to x-axis label.
 #' @return Invisibly returns NULL.
 #' @export
 plot_de_scatter <- function(de_dt,
@@ -166,91 +167,104 @@ plot_de_scatter <- function(de_dt,
                             region_a = NA,
                             region_b = NA,
                             fdr_cutoff = 0.05,
-                            add_fit = TRUE) {
+                            add_fit = TRUE,
+                            xlab_prefix = NULL) {
 
-    cell_type <- region <- chr <- gene <- adj_p_val <- log_fc <- NULL
+  cell_type <- region <- chr <- gene <- adj_p_val <- log_fc <- NULL
 
-    if (is.na(region_a)) {
-        x <- de_dt[cell_type == cell_type_a & is.na(region)]
-    } else {
-        x <- de_dt[cell_type == cell_type_a & region == region_a]
+  if (is.na(region_a)) {
+    x <- de_dt[cell_type == cell_type_a & is.na(region), ]
+  } else {
+    x <- de_dt[cell_type == cell_type_a & region == region_a, ]
+  }
+
+  if (is.na(region_b)) {
+    y <- de_dt[cell_type == cell_type_b & is.na(region), ]
+  } else {
+    y <- de_dt[cell_type == cell_type_b & region == region_b, ]
+  }
+
+  name_a <- paste0(toupper(substr(cell_type_a, 1, 1)),
+                   substr(cell_type_a, 2, nchar(cell_type_a)))
+  name_b <- paste0(toupper(substr(cell_type_b, 1, 1)),
+                   substr(cell_type_b, 2, nchar(cell_type_b)))
+
+  m <- merge(x, y, by = c("chr", "gene"))
+
+  # Make R CMD CHECK Happy
+  adj_p_val.x <- adj_p_val.y <- log_fc.x <- log_fc.y <- NULL
+
+  rng <- m[adj_p_val.x < fdr_cutoff | adj_p_val.y < fdr_cutoff,
+           max(abs(c(log_fc.x, log_fc.y)))]
+  rng <- c(-rng, rng)
+
+  xlab_string <- paste("Effect size, log2",
+                       paste(name_a, region_a, sep = ", "),
+                       sep = "\n")
+  if (!is.null(xlab_prefix)) {
+    xlab_string <- paste0(xlab_prefix, xlab_string)
+  }
+
+  ylab_string <- paste(paste(name_b, region_b, sep = ", "),
+                       "Effect size, log2",
+                       sep = "\n")
+
+  graphics::par(pty = "s", mar = c(6, 6, 4, 2))
+
+  m[, graphics::plot(
+    log_fc.x,
+    log_fc.y,
+    pch = 20,
+    col = "lightgrey",
+    xlim = rng,
+    ylim = rng,
+    xlab = xlab_string,
+    ylab = ylab_string
+  )]
+
+  m[(adj_p_val.x < fdr_cutoff | adj_p_val.y < fdr_cutoff),
+    graphics::points(log_fc.x, log_fc.y, pch = 20, col = "cornflowerblue")]
+
+  graphics::abline(h = 0, v = 0, lty = 2)
+  graphics::abline(0, 1, lty = 2)
+
+  ct <- m[adj_p_val.x < fdr_cutoff | adj_p_val.y < fdr_cutoff,
+          stats::cor.test(log_fc.x, log_fc.y, method = "spearman")]
+
+  rho_sqrd <- round(ct$estimate^2, 2)
+
+  graphics::legend(
+    "topleft",
+    legend = bquote(rho^2 == .(rho_sqrd)),
+    bty = "n"
+  )
+
+  if (rho_sqrd > 0.5 && isTRUE(add_fit)) {
+    fit_dt <- m[adj_p_val.x < fdr_cutoff & adj_p_val.y < fdr_cutoff, ]
+
+    fit <- stats::lm(log_fc.y ~ log_fc.x, data = fit_dt)
+
+    coef_tab <- lmtest::coeftest(fit, vcov = sandwich::vcovHC(fit, type = "HC1"))
+
+    b <- coef_tab["log_fc.x", "Estimate"]
+    b_se <- coef_tab["log_fc.x", "Std. Error"]
+    b_ci <- b + c(-1, 1) * 1.96 * b_se
+
+    fit_color <- "tomato"
+
+    if (b_ci[1] >= 1 & b_ci[1] <= 1) {
+      fit_color <- "lightgrey"
     }
 
-    if (is.na(region_b)) {
-        y <- de_dt[cell_type == cell_type_b & is.na(region)]
-    } else {
-        y <- de_dt[cell_type == cell_type_b & region == region_b]
-    }
-
-    name_a <- base::paste0(base::toupper(base::substr(cell_type_a, 1, 1)),
-                           base::substr(cell_type_a, 2, base::nchar(cell_type_a)))
-    name_b <- base::paste0(base::toupper(base::substr(cell_type_b, 1, 1)),
-                           base::substr(cell_type_b, 2, base::nchar(cell_type_b)))
-
-    m <- merge(x, y, by = c("chr", "gene"))
-
-    # Make R CMD CHECK Happy
-    adj_p_val.x <- adj_p_val.y <- log_fc.x <- log_fc.y <- NULL
-
-    rng <- m[adj_p_val.x < fdr_cutoff | adj_p_val.y < fdr_cutoff,
-             base::max(base::abs(c(log_fc.x, log_fc.y)))]
-    rng <- c(-rng, rng)
-
-    graphics::par(pty = "s", mar = c(6, 6, 4, 2))
-
-    m[, graphics::plot(
-        log_fc.x,
-        log_fc.y,
-        pch = 20,
-        col = "lightgrey",
-        xlim = rng,
-        ylim = rng,
-        xlab = c("Effect size, log2", base::paste(name_a, region_a, sep = ", ")),
-        ylab = c(base::paste(name_b, region_b, sep = ", "), "Effect size, log2")
-    )]
-
-    m[(adj_p_val.x < fdr_cutoff | adj_p_val.y < fdr_cutoff),
-      graphics::points(log_fc.x, log_fc.y, pch = 20, col = "cornflowerblue")]
-
-    graphics::abline(h = 0, v = 0, lty = 2)
-    graphics::abline(0, 1, lty = 2)
-
-    ct <- m[adj_p_val.x < fdr_cutoff | adj_p_val.y < fdr_cutoff,
-            stats::cor.test(log_fc.x, log_fc.y, method = "spearman")]
-
-    rho_sqrd <- round(ct$estimate^2, 2)
-
+    graphics::abline(fit, lty = 2, col = fit_color)
     graphics::legend(
-      "topleft",
-      legend = bquote(rho^2 == .(rho_sqrd)),
+      "bottomright",
+      legend = bquote(beta == .(round(b_ci[1], 2)) * " - " * .(round(b_ci[2], 2))),
       bty = "n"
     )
+  }
 
-    if (rho_sqrd > 0.5 && isTRUE(add_fit)) {
-        fit <- stats::lm(log_fc.y ~ log_fc.x,
-                         data = m[adj_p_val.x < fdr_cutoff & adj_p_val.y < fdr_cutoff])
-
-        coef_tab <- lmtest::coeftest(fit, vcov = sandwich::vcovHC(fit, type = "HC1"))
-
-        b <- coef_tab["log_fc.x", "Estimate"]
-        b_se <- coef_tab["log_fc.x", "Std. Error"]
-        b_ci <- b + c(-1, 1) * 1.96 * b_se
-
-        fit_color <- "tomato"
-
-        if (b_ci[1] >= 1 & b_ci[1] <= 1) {
-            fit_color <- "lightgrey"
-        }
-
-        graphics::abline(fit, lty = 2, col = fit_color)
-        graphics::legend(
-          "bottomright",
-          legend = bquote(beta == .(base::round(b_ci[1], 2)) * " - " * .(base::round(b_ci[2], 2))),
-          bty = "n"
-        )
-    }
-
-    invisible(NULL)
+  invisible(NULL)
 }
 
 #' Compute correlation matrix across cell_type x region groups
@@ -281,22 +295,22 @@ compute_de_cor_mat <- function(de_dt,
     # Exclude ic for neurons (preserved from original)
     dt <- dt[region != "ic" | cell_type %in% non_neuron_types]
 
-    dt[, cell_type := base::factor(cell_type, levels = cell_types_use)]
-    dt[, region := base::factor(region, levels = regions_use)]
-    dt[, cr := base::paste(cell_type, region, sep = "__")]
+    dt[, cell_type := factor(cell_type, levels = cell_types_use)]
+    dt[, region := factor(region, levels = regions_use)]
+    dt[, cr := paste(cell_type, region, sep = "__")]
 
     data.table::setorderv(dt, c("cell_type", "region"))
 
     keys <- unique(dt$cr)
-    n <- base::length(keys)
+    n <- length(keys)
 
-    out_mat <- base::matrix(NA_real_,
+    out_mat <- matrix(NA_real_,
                             nrow = n,
                             ncol = n,
                             dimnames = list(keys, keys))
 
     for (i in keys) {
-        base::message(i)
+        message(i)
         for (j in keys) {
             if (identical(i, j)) {
                 out_mat[i, j] <- 1
@@ -313,7 +327,7 @@ compute_de_cor_mat <- function(de_dt,
             ctest <- m[adj_p_val.x < fdr_cutoff | adj_p_val.y < fdr_cutoff,
                        stats::cor.test(log_fc.x, log_fc.y, method = "spearman")]
 
-            r <- base::sign(ctest$estimate) * ctest$estimate^2
+            r <- sign(ctest$estimate) * ctest$estimate^2
             out_mat[i, j] <- r
         }
     }
@@ -331,7 +345,7 @@ compute_de_cor_mat <- function(de_dt,
 #' @export
 plot_de_cor_heatmap <- function(cor_mat,
                                 clustering_method = "complete",
-                                breaks = base::seq(-1, 1, length.out = 101),
+                                breaks = seq(-1, 1, length.out = 101),
                                 palette_colors = c("steelblue", "white", "darkorange")) {
 
     pal_fun <- grDevices::colorRampPalette(palette_colors)
@@ -339,7 +353,7 @@ plot_de_cor_heatmap <- function(cor_mat,
     pheatmap::pheatmap(
         cor_mat,
         breaks = breaks,
-        color = pal_fun(base::length(breaks) - 1),
+        color = pal_fun(length(breaks) - 1),
         clustering_method = clustering_method
     )
 }
@@ -398,7 +412,7 @@ read_metacells <- function(path,
   mat <- methods::as(mat, "dgCMatrix")
 
   col_metadata <- data.table::as.data.table(
-    do.call(base::rbind, base::strsplit(colnames(mat), "__"))
+    do.call(rbind, strsplit(colnames(mat), "__"))
   )
   data.table::setnames(
     col_metadata,
@@ -409,8 +423,8 @@ read_metacells <- function(path,
   col_metadata <- col_metadata[keep]
   mat <- mat[, keep]
 
-  col_metadata[, group := base::paste(donor, cell_type, region, sep = "__")]
-  f <- base::factor(col_metadata$group)
+  col_metadata[, group := paste(donor, cell_type, region, sep = "__")]
+  f <- factor(col_metadata$group)
 
   dm <- Matrix::sparseMatrix(
     i = seq_along(f),
@@ -428,7 +442,7 @@ read_metacells <- function(path,
   colnames(mat_tpm) <- colnames(mat)
 
   col_metadata <- data.table::as.data.table(
-    do.call(base::rbind, base::strsplit(colnames(mat_tpm), "__"))
+    do.call(rbind, strsplit(colnames(mat_tpm), "__"))
   )
   data.table::setnames(col_metadata, c("donor", "cell_type", "region"))
 
@@ -469,7 +483,7 @@ row_stats_block_fast <- function(mat) {
     type = 7
   )
 
-  n <- base::rowSums(!is.na(mat))
+  n <- rowSums(!is.na(mat))
 
   list(
     median = med,
@@ -499,14 +513,14 @@ summarize_metacells <- function(metacells,
 
   col_metadata[, age := unname(donor_ages[donor])]
 
-  col_metadata[, age_bin := base::cut(
+  col_metadata[, age_bin := cut(
     age,
     breaks = c(-Inf, 39, 49, 59, 69, 79, 89, Inf),
     labels = c("30", "40", "50", "60", "70", "80", "90"),
     right = TRUE
   )]
 
-  col_metadata[, cr := base::paste(cell_type, region, sep = "__")]
+  col_metadata[, cr := paste(cell_type, region, sep = "__")]
 
   groups <- split(seq_len(nrow(col_metadata)), col_metadata$cr)
 
@@ -520,13 +534,13 @@ summarize_metacells <- function(metacells,
 
   for (gn in names(groups)) {
 
-    base::message(gn)
+    message(gn)
 
     i <- i + 1L
     cols <- groups[[gn]]
 
     sub_sp <- metacells[, cols, drop = FALSE]
-    sub_dense <- base::as.matrix(sub_sp)
+    sub_dense <- as.matrix(sub_sp)
 
     st <- row_stats_block_fast(sub_dense)
 
@@ -551,8 +565,8 @@ summarize_metacells <- function(metacells,
 
     for (b in age_bins) {
 
-      idx <- base::which(bins_for_cols == b)
-      colname <- base::paste0("median_", b)
+      idx <- which(bins_for_cols == b)
+      colname <- paste0("median_", b)
 
       if (length(idx) == 0L) {
         dt_out[[colname]] <- NA_real_
@@ -594,7 +608,7 @@ split_metacells_by_cell_type_region <- function(metacells,
   col_metadata <- data.table::copy(col_metadata)
 
   col_metadata[, age := unname(donor_ages[donor])]
-  col_metadata[, cr := base::paste(cell_type, region, sep = "__")]
+  col_metadata[, cr := paste(cell_type, region, sep = "__")]
 
   groups <- split(seq_len(nrow(col_metadata)), col_metadata$cr)
 
@@ -613,7 +627,7 @@ split_metacells_by_cell_type_region <- function(metacells,
     donors <- col_metadata$donor[cols]
     ages <- unname(donor_ages[donors])
 
-    ord <- base::order(ages, donors)
+    ord <- order(ages, donors)
 
     sub_sp <- sub_sp[, ord, drop = FALSE]
     donors <- donors[ord]
@@ -680,7 +694,7 @@ prep_de_matrices <- function(de_dt,
     rownames = "gene"
   )[, cell_types_use, drop = FALSE]
 
-  n_sig <- base::rowSums(
+  n_sig <- rowSums(
     (fdr_mat < fdr_cutoff) & (abs(lfc_mat) > abs_lfc_cutoff),
     na.rm = TRUE
   )
@@ -691,7 +705,7 @@ prep_de_matrices <- function(de_dt,
   lfc_mat[is.na(lfc_mat)] <- 0
   fdr_mat[is.na(fdr_mat)] <- 1
 
-  lfc_mat_z <- base::scale(lfc_mat, scale = TRUE, center = TRUE)
+  lfc_mat_z <- scale(lfc_mat, scale = TRUE, center = TRUE)
 
   list(lfc_mat = lfc_mat, fdr_mat = fdr_mat, lfc_mat_z = lfc_mat_z)
 }
@@ -743,16 +757,16 @@ prep_region_lfc_matrix <- function(de_dt,
   lfc_mat <- lfc_mat[genes_use, , drop = FALSE]
 
   tmp <- data.table::as.data.table(
-    do.call(base::rbind, base::strsplit(colnames(lfc_mat), "__"))
+    do.call(rbind, strsplit(colnames(lfc_mat), "__"))
   )
 
   # Make R CMD CHECK Happy
   V1 <- V2 <- NULL
 
-  tmp[, V1 := base::factor(V1, levels = cell_types_use)]
-  tmp[, V2 := base::factor(V2, levels = regions_use)]
+  tmp[, V1 := factor(V1, levels = cell_types_use)]
+  tmp[, V2 := factor(V2, levels = regions_use)]
 
-  col_order <- base::order(tmp$V1, tmp$V2)
+  col_order <- order(tmp$V1, tmp$V2)
   lfc_mat <- lfc_mat[, col_order, drop = FALSE]
 
   lfc_mat
@@ -785,14 +799,14 @@ plot_kmeans_silhouette <- function(mat, ks = 10:30) {
 
   d <- stats::dist(mat)
 
-  avg_sil <- base::sapply(ks, function(k) {
+  avg_sil <- sapply(ks, function(k) {
 
     set.seed(42)
     km <- stats::kmeans(mat, centers = k, nstart = 200, iter.max = 20)
 
     sil <- cluster::silhouette(km$cluster, d)
 
-    base::mean(sil[, "sil_width"])
+    mean(sil[, "sil_width"])
   })
 
   graphics::plot(
@@ -946,7 +960,7 @@ plot_kmeans_heatmap <- function(k_means_mat,
     }
 
     ## Relevel and optionally drop clusters not in the ordering vector
-    k_use <- base::factor(km$cluster, levels = cluster_level_order)
+    k_use <- factor(km$cluster, levels = cluster_level_order)
     k_use <- as.numeric(k_use)
     names(k_use) <- gn
 
@@ -958,18 +972,18 @@ plot_kmeans_heatmap <- function(k_means_mat,
     }
   }
 
-  gene_order <- names(k_use)[base::order(k_use)]
-  boundaries <- base::cumsum(base::table(k_use))
+  gene_order <- names(k_use)[order(k_use)]
+  boundaries <- cumsum(table(k_use))
 
   ## -----------------------
   ## Plot
   ## -----------------------
 
   pheatmap::pheatmap(
-    base::t(lfc_mat[gene_order, , drop = FALSE] * scaling_factor),
+    t(lfc_mat[gene_order, , drop = FALSE] * scaling_factor),
     cluster_cols = FALSE,
     cluster_rows = FALSE,
-    breaks = base::seq(-1, 1, length.out = 101),
+    breaks = seq(-1, 1, length.out = 101),
     color = grDevices::colorRampPalette(c("steelblue", "white", "darkorange"))(100),
     show_colnames = FALSE,
     gaps_col = boundaries
@@ -1140,20 +1154,20 @@ write_de_lite <- function(de_dt,
   )
 
   ## out paths
-  summary_path <- base::file.path(out_dir, paste0(out_name, "_summary.txt"))
-  up_path <- base::file.path(out_dir, paste0(out_name, "_up_genes.txt"))
-  down_path <- base::file.path(out_dir, paste0(out_name, "_down_genes.txt"))
+  summary_path <- file.path(out_dir, paste0(out_name, "_summary.txt"))
+  up_path <- file.path(out_dir, paste0(out_name, "_up_genes.txt"))
+  down_path <- file.path(out_dir, paste0(out_name, "_down_genes.txt"))
 
   summary_text <- paste(
     paste(summary_lines, collapse = "\n"),
     "",
     "Additional files",
-    base::basename(up_path),
-    base::basename(down_path),
+    basename(up_path),
+    basename(down_path),
     sep = "\n"
   )
 
-  base::writeLines(summary_text, con = summary_path)
+  writeLines(summary_text, con = summary_path)
 
   data.table::fwrite(up_genes, file = up_path, sep = "\t", quote = FALSE, na = "NA")
   data.table::fwrite(down_genes, file = down_path, sep = "\t", quote = FALSE, na = "NA")
@@ -1279,7 +1293,7 @@ write_gsea_lite <- function(gsea_results,
     stop("gsea_results is missing required columns: ", paste(missing_cols, collapse = ", "))
   }
 
-  if (!base::dir.exists(out_dir)) {
+  if (!dir.exists(out_dir)) {
     stop("out_dir does not exist: ", out_dir)
   }
 
@@ -1287,13 +1301,13 @@ write_gsea_lite <- function(gsea_results,
     stop("padj_thresh must be a scalar in (0, 1].")
   }
 
-  for (ct in base::sort(unique(gsea_results$cell_type))) {
+  for (ct in sort(unique(gsea_results$cell_type))) {
 
-    base::message(ct)
+    message(ct)
 
     pos <- gsea_results[
       cell_type == ct &
-        base::grepl(gmt_pattern, gmt, fixed = TRUE) &
+        grepl(gmt_pattern, gmt, fixed = TRUE) &
         NES > 0 &
         padj < padj_thresh
     ]
@@ -1302,7 +1316,7 @@ write_gsea_lite <- function(gsea_results,
 
     utils::write.table(
       pos,
-      file = base::paste0(out_dir, "/", ct, "_pos_gsea.txt"),
+      file = paste0(out_dir, "/", ct, "_pos_gsea.txt"),
       row.names = FALSE,
       col.names = TRUE,
       quote = FALSE,
@@ -1311,7 +1325,7 @@ write_gsea_lite <- function(gsea_results,
 
     neg <- gsea_results[
       cell_type == ct &
-        base::grepl(gmt_pattern, gmt, fixed = TRUE) &
+        grepl(gmt_pattern, gmt, fixed = TRUE) &
         NES < 0 &
         padj < padj_thresh
     ]
@@ -1320,7 +1334,7 @@ write_gsea_lite <- function(gsea_results,
 
     utils::write.table(
       neg,
-      file = base::paste0(out_dir, "/", ct, "_neg_gsea.txt"),
+      file = paste0(out_dir, "/", ct, "_neg_gsea.txt"),
       row.names = FALSE,
       col.names = TRUE,
       quote = FALSE,

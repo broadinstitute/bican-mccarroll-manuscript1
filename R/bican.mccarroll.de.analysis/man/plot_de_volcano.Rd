@@ -9,7 +9,7 @@ plot_de_volcano(
   cell_type_use,
   region_use,
   fdr_cutoff = 0.05,
-  abs_log_fc_cutoff = base::log2(1.05)
+  abs_log_fc_cutoff = log2(1.05)
 )
 }
 \arguments{

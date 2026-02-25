@@ -14,6 +14,14 @@
 
 #' Generate donor-level GEX plots vs age
 #'
+#' These plots show a number of genes expression values for each
+#' donor as heatmaps, with donors ordered by age.  This demonstrates
+#' some of the age DE pathways we observe using fairly raw data to
+#' demonstrate that patterns are observable without heavy processing.
+#'
+#' The scatterplot grid shows the same data as the heatmaps,
+#' but with one point per donor and a Spearman correlation
+#'
 #' This function computes all required intermediate objects (with RDS caching)
 #' and then generates the manuscript plots and saves them as SVG files.
 #'
@@ -24,6 +32,7 @@
 #' @param data_cache_dir Cache directory. If NULL, resolved by resolver.
 #'
 #' @return Invisibly NULL.
+#' @export
 plot_donor_gex_vs_age <- function(ct_file = NULL,
                                   cell_metadata_file = NULL,
                                   metacells_file = NULL,

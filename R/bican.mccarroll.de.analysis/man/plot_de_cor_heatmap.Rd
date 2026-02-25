@@ -7,7 +7,7 @@
 plot_de_cor_heatmap(
   cor_mat,
   clustering_method = "complete",
-  breaks = base::seq(-1, 1, length.out = 101),
+  breaks = seq(-1, 1, length.out = 101),
   palette_colors = c("steelblue", "white", "darkorange")
 )
 }

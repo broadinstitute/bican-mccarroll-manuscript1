@@ -18,6 +18,11 @@ age_prediction_examples(
 )
 }
 \arguments{
+\item{cell_type_list}{A list of cell types to include in the plots
+(e.g., c("astrocyte", "OPC", "microglia", "MSN_D1")).}
+
+\item{region}{The region to plot (e.g., "CaH").}
+
 \item{metacell_dir}{Directory containing metacell objects.}
 
 \item{data_name}{Name of the DGEList object to load.}
@@ -33,8 +38,6 @@ age_prediction_examples(
 \item{data_cache_dir}{Directory for cached intermediate data.}
 
 \item{outDir}{Output directory for the generated SVG plots.}
-
-\item{cellTypeListFile}{Path to a text file containing one cell type per line.}
 }
 \description{
 Summarizes age prediction performance across cell types and generates SVG plots

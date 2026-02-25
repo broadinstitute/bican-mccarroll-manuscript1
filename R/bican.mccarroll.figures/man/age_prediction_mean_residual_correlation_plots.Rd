@@ -2,7 +2,7 @@
 % Please edit documentation in R/age_pred_figures.R
 \name{age_prediction_mean_residual_correlation_plots}
 \alias{age_prediction_mean_residual_correlation_plots}
-\title{Plot residual age correlation distributions across cell types}
+\title{Plot residual age–prediction correlation distributions across cell types}
 \usage{
 age_prediction_mean_residual_correlation_plots(
   cellTypeListFile = NULL,
@@ -17,25 +17,46 @@ age_prediction_mean_residual_correlation_plots(
 )
 }
 \arguments{
-\item{cellTypeListFile}{Path to a text file containing one cell type per line.}
+\item{cellTypeListFile}{Path to a text file containing one cell type per
+line. If \code{NULL}, resolved under the data root.}
 
-\item{metacell_dir}{Directory containing metacell objects.}
+\item{metacell_dir}{Directory containing metacell objects used for age
+prediction. If \code{NULL}, resolved under the data root.}
 
-\item{data_name}{Name of the DGEList object to load.}
+\item{data_name}{Name of the DGEList object to load from the metacell
+directory.}
 
-\item{age_de_results_dir}{Directory containing age differential expression results.}
+\item{age_de_results_dir}{Directory containing age differential expression
+results used in model construction. If \code{NULL}, resolved under the
+data root.}
 
-\item{contig_yaml_file}{Path to contig YAML file.}
+\item{contig_yaml_file}{Path to the contig YAML file. If \code{NULL},
+resolved under the data root.}
 
-\item{reduced_gtf_file}{Path to reduced GTF file.}
+\item{reduced_gtf_file}{Path to the reduced GTF file. If \code{NULL},
+resolved under the data root.}
 
 \item{n_cores}{Number of cores to use for parallel computation.}
 
-\item{data_cache_dir}{Directory for cached intermediate data.}
+\item{data_cache_dir}{Directory for cached intermediate data. If
+\code{NULL}, resolved via configured cache directory options.}
 
-\item{outDir}{Output directory for the generated SVG plot.}
+\item{outDir}{Output directory for the generated SVG plot. If \code{NULL},
+resolved via configured output directory options.}
+}
+\value{
+Invisibly returns \code{NULL}. The function is called for its
+  side effect of writing an SVG plot to disk.
 }
 \description{
-Computes correlations between chronological age and residual predicted age
-across cell types, and saves a distribution plot to disk.
+Computes, for each cell type, the correlation between chronological age
+and residual predicted age (predicted minus chronological age after
+correction), and generates a distribution plot summarizing these
+correlations. The resulting SVG file is written to the specified output
+directory.
+}
+\details{
+All file path arguments may be \code{NULL}, in which case they are resolved
+via \code{.resolve_age_pred_paths()} using the configured data root,
+cache, and output directory options.
 }

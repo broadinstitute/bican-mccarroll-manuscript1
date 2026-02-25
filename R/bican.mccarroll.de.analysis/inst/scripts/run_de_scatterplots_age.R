@@ -30,6 +30,8 @@ grDevices::pdf(out_pdf)
 
 ## Within-cell-type, across-region comparisons
 bican.mccarroll.de.analysis::plot_de_scatter(de_ri_age, "MSN_D1_matrix", "MSN_D1_matrix", "CaH", "Pu", fdr_cutoff = fdr_cutoff, add_fit = add_fit)
+bican.mccarroll.de.analysis::plot_de_scatter(de_ri_age, "MSN_D1_matrix", "MSN_D1_matrix", "CaH", "Pu", fdr_cutoff = fdr_cutoff, add_fit = add_fit, xlab_prefix="DE Age ")
+
 bican.mccarroll.de.analysis::plot_de_scatter(de_ri_age, "MSN_D1_matrix", "MSN_D1_matrix", "CaH", "NAC", fdr_cutoff = fdr_cutoff, add_fit = add_fit)
 bican.mccarroll.de.analysis::plot_de_scatter(de_ri_age, "MSN_D1_matrix", "MSN_D1_matrix", "Pu", "NAC", fdr_cutoff = fdr_cutoff, add_fit = add_fit)
 
