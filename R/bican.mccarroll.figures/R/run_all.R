@@ -21,6 +21,7 @@ run_all<-function () {
     bican.mccarroll.figures::age_prediction_mean_residual_correlation_plots()
     bican.mccarroll.figures::age_prediction_error_plots()
     bican.mccarroll.figures::age_prediction_residual_corr_and_jaccard_heatmaps_region()
+    bican.mccarroll.figures::age_prediction_residual_corr_and_jaccard_heatmaps_region(region = "DFC")
     bican.mccarroll.figures::age_prediction_residual_corr_and_jaccard_heatmaps_cell_type()
     bican.mccarroll.figures::age_prediction_corrected_residual_pairwise_scatter_region()
     bican.mccarroll.figures::age_prediction_uncorrected_residual_pairwise_scatter_region()
