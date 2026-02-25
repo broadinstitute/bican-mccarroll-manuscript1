@@ -81,7 +81,9 @@ bican.mccarroll.de.analysis::plot_donor_gex_age_heatmap(
 bican.mccarroll.de.analysis::plot_donor_gex_age_scatterplot(
     metacell_cr_list[[single_gene_key]][single_gene, ],
     donor_ages,
-    main = single_gene_main
+    main = single_gene_main,
+    show_spearman=TRUE,
+    size=8
 )
 
 ## Metagene scatter (sum)
@@ -90,3 +92,89 @@ bican.mccarroll.de.analysis::plot_donor_gex_age_scatterplot(
     donor_ages,
     main = microglia_main
 )
+
+#let's test the 5 x 5 layout of single gene scatter plots.
+make_panel <- function(metacell_cr_list,
+                       key,
+                       gene,
+                       donor_ages,
+                       show_x = FALSE,
+                       show_spearman = TRUE,
+                       spearman_text_size = 4,
+                       rho_threshold = 0.2,
+                       y_axis_floor = 10) {
+
+    exp_vec <- metacell_cr_list[[key]][gene, ]
+
+    p <- bican.mccarroll.de.analysis::plot_donor_gex_age_scatterplot(
+        exp_vec,
+        donor_ages,
+        main = "",
+        show_spearman = show_spearman,
+        size = spearman_text_size,
+        rho_threshold = rho_threshold,
+        y_axis_floor = y_axis_floor
+    )
+
+    p +
+        ggplot2::theme_classic() +
+        ggplot2::theme(
+            axis.title = ggplot2::element_blank(),
+
+            ## X axis: only show on bottom row
+            axis.text.x  = if (show_x) ggplot2::element_text(size = 8) else ggplot2::element_blank(),
+            axis.ticks.x = if (show_x) ggplot2::element_line() else ggplot2::element_blank(),
+
+            ## Y axis: ALWAYS show for every panel
+            axis.text.y  = ggplot2::element_text(size = 8),
+            axis.ticks.y = ggplot2::element_line(),
+
+            plot.margin = ggplot2::margin(2, 2, 2, 2)
+        )
+}
+
+gene_list <- c("FKBP5","RGS9","RYR3","GRIA1","CLEC2B")
+
+keys <- c("MSN_D1_matrix__CaH", "glutamatergic_L23IT__DFC", "astrocyte__CaH",
+          "OPC__CaH", "oligodendrocyte__CaH", "microglia__CaH")
+
+
+nice_names <- c("D1 matrix MSN", "L23IT glutamatergic\nneuron", "Astrocyte",
+                "OPC", "Oligodendrocyte", "Microglia")
+
+plot_list <- list()
+idx <- 0L
+n_row <- length(gene_list)
+n_col <- length(keys)
+
+for (r in seq_len(n_row)) {
+    for (c in seq_len(n_col)) {
+        idx <- idx + 1L
+        plot_list[[idx]] <- make_panel(
+            metacell_cr_list = metacell_cr_list,
+            key = keys[c],
+            gene = gene_list[r],
+            donor_ages = donor_ages,
+            show_x = (r == n_row),
+            show_spearman = TRUE,
+            spearman_text_size = 4
+        )
+    }
+}
+
+grid <- cowplot::plot_grid(
+    plotlist = plot_list,
+    nrow = n_row,
+    align = "hv"
+)
+
+
+col_label_grobs <- lapply(nice_names, function(x) cowplot::ggdraw() + cowplot::draw_label(x, size = 12))
+col_labels <- cowplot::plot_grid(plotlist = col_label_grobs, nrow = 1)
+
+grid_with_cols <- cowplot::plot_grid(grid, col_labels, ncol = 1, rel_heights = c(1, 0.08))
+
+row_label_grobs <- lapply(gene_list, function(g) cowplot::ggdraw() + cowplot::draw_label(g, angle = 90, size = 14))
+row_labels <- cowplot::plot_grid(plotlist = row_label_grobs, ncol = 1)
+
+all_plot <- cowplot::plot_grid(row_labels, grid_with_cols, nrow = 1, rel_widths = c(0.06, 1))

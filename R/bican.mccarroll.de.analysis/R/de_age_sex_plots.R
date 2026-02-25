@@ -1446,16 +1446,30 @@ plot_donor_gex_age_heatmap <- function(metacells,
   invisible(NULL)
 }
 
-#' Donor-level GEX scatterplot vs age
+
+#' Donor-level GEX scatterplot vs age (ggplot2)
 #' (originally plot_donor_gex_age_scatterplot)
 #'
-#' @param exp_vector Named numeric vector of expression values (names are donor IDs).
-#' @param donor_ages Named numeric vector of donor ages (names are donor IDs).
+#' @param exp_vector Named numeric vector of expression values (names = donor IDs).
+#' @param donor_ages Named numeric vector of donor ages (names = donor IDs).
 #' @param main Character plot title.
-#'
-#' @return Invisibly returns NULL.
+#' @param show_spearman Logical; if TRUE, compute Spearman correlation and display it above the panel.
+#' @param size If show_spearman is TRUE, dictates the size of the correlation text.
+#' @param rho_threshold Numeric threshold for |rho| above which points are black; otherwise light grey.
+#'   Default is 0.2.
+#' @param y_axis_floor Numeric minimum upper Y-axis limit. If NULL, no Y limits are imposed.
+#'   Default is 10.
+#' @return A ggplot object.
 #' @export
-plot_donor_gex_age_scatterplot <- function(exp_vector, donor_ages, main = "") {
+plot_donor_gex_age_scatterplot <- function(exp_vector,
+                                           donor_ages,
+                                           main = "",
+                                           show_spearman = FALSE,
+                                           size = 6,
+                                           rho_threshold = 0.2,
+                                           y_axis_floor = 10) {
+
+  age <- expression <- NULL
 
   if (is.null(names(exp_vector))) {
     stop("exp_vector must be a named numeric vector (names are donor IDs).")
@@ -1465,19 +1479,64 @@ plot_donor_gex_age_scatterplot <- function(exp_vector, donor_ages, main = "") {
   }
 
   donors <- names(exp_vector)
+
   if (!all(donors %in% names(donor_ages))) {
     bad <- donors[!(donors %in% names(donor_ages))]
     stop("Some exp_vector names are missing from donor_ages. Example: ", bad[[1]])
   }
 
-  graphics::plot(
-    donor_ages[donors],
-    exp_vector,
-    pch = 20,
-    xlab = "Age",
-    ylab = "Expression, TPM",
-    main = main
+  df <- data.frame(
+    age = as.numeric(donor_ages[donors]),
+    expression = as.numeric(exp_vector),
+    stringsAsFactors = FALSE
   )
 
-  invisible(NULL)
+  point_color <- "black"
+  rho <- NA_real_
+  subtitle_txt <- NULL
+
+  if (isTRUE(show_spearman)) {
+
+    ok <- stats::complete.cases(df$age, df$expression)
+
+    if (sum(ok) >= 3L) {
+
+      ct <- stats::cor.test(
+        df$age[ok],
+        df$expression[ok],
+        method = "spearman",
+        exact = FALSE
+      )
+
+      rho <- unname(ct$estimate)
+      subtitle_txt <- paste0("rho = ", formatC(rho, format = "f", digits = 2))
+
+      if (is.finite(rho) && abs(rho) < rho_threshold) {
+        point_color <- "lightgrey"
+      }
+
+    } else {
+      warning("Not enough non-missing points to compute Spearman correlation.", call. = FALSE)
+    }
+  }
+
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = age, y = expression)) +
+    ggplot2::geom_point(size = 1.0, color = point_color) +
+    ggplot2::labs(
+      x = "Age",
+      y = "Expression, TPM",
+      title = main,
+      subtitle = subtitle_txt
+    ) +
+    ggplot2::theme_classic() +
+    ggplot2::theme(
+      plot.subtitle = ggplot2::element_text(size = size, hjust = 0)
+    )
+
+  if (!is.null(y_axis_floor)) {
+    y_max <- max(y_axis_floor, max(df$expression, na.rm = TRUE))
+    p <- p + ggplot2::scale_y_continuous(limits = c(0, y_max))
+  }
+
+  p
 }

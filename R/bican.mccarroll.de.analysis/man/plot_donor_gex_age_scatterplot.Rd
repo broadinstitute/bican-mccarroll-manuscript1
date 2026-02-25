@@ -2,22 +2,40 @@
 % Please edit documentation in R/de_age_sex_plots.R
 \name{plot_donor_gex_age_scatterplot}
 \alias{plot_donor_gex_age_scatterplot}
-\title{Donor-level GEX scatterplot vs age
+\title{Donor-level GEX scatterplot vs age (ggplot2)
 (originally plot_donor_gex_age_scatterplot)}
 \usage{
-plot_donor_gex_age_scatterplot(exp_vector, donor_ages, main = "")
+plot_donor_gex_age_scatterplot(
+  exp_vector,
+  donor_ages,
+  main = "",
+  show_spearman = FALSE,
+  size = 6,
+  rho_threshold = 0.2,
+  y_axis_floor = 10
+)
 }
 \arguments{
-\item{exp_vector}{Named numeric vector of expression values (names are donor IDs).}
+\item{exp_vector}{Named numeric vector of expression values (names = donor IDs).}
 
-\item{donor_ages}{Named numeric vector of donor ages (names are donor IDs).}
+\item{donor_ages}{Named numeric vector of donor ages (names = donor IDs).}
 
 \item{main}{Character plot title.}
+
+\item{show_spearman}{Logical; if TRUE, compute Spearman correlation and display it above the panel.}
+
+\item{size}{If show_spearman is TRUE, dictates the size of the correlation text.}
+
+\item{rho_threshold}{Numeric threshold for |rho| above which points are black; otherwise light grey.
+Default is 0.2.}
+
+\item{y_axis_floor}{Numeric minimum upper Y-axis limit. If NULL, no Y limits are imposed.
+Default is 10.}
 }
 \value{
-Invisibly returns NULL.
+A ggplot object.
 }
 \description{
-Donor-level GEX scatterplot vs age
+Donor-level GEX scatterplot vs age (ggplot2)
 (originally plot_donor_gex_age_scatterplot)
 }
