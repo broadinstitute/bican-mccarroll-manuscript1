@@ -115,7 +115,7 @@ plot_trade_analysis <- function(
 
     save_plot_svg(p_bar_age,
                   out_file = "trade_dataset1_age_autosomes_barplot.svg",
-                  out_dir = paths$outDir, width=10, height=5)
+                  out_dir = paths$outDir, width=5, height=9)
 
     # --------------------------------------------------------------------------
     # Dataset 2: region subset, age (AUTOSOMES ONLY)

@@ -84,9 +84,9 @@ de_sex_age_scatter_plots <- function(
         df = age_df,
         test = "age",
         cell_type1 = "MSN_D1_matrix",
-        cell_type2 = "MSN_D1_matrix",
+        cell_type2 = "MSN_D2_matrix",
         region1 = "CaH",
-        region2 = "Pu",
+        region2 = "CaH",
         xlab_prefix="Age DE, ",
         outDir = paths$outDir,
         fdr_cutoff = 0.05,
@@ -119,6 +119,7 @@ de_sex_age_scatter_plots <- function(
     ####################
     #Supplemental 1:
     ####################
+
     plot_de_scatter_svg(
         df = age_df,
         test = "age",
