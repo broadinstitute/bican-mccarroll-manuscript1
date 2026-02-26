@@ -8,23 +8,19 @@
 
 eqtl_dir <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_3"
 
-region_cell_type_file <- system.file(
-    "extdata", "region_cell_type_neuron_evo.tsv",
-    package = "bican.mccarroll.eqtl"
-)
+region_cell_type_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/region_cell_type_neuron_evo.tsv"
 
-population_suffix <- "_eur"
-qval_threshold    <- 0.01
-output_path       <- "/downloads/tmp/egene_union_pairs_neuron_evo_qval_0.01.tsv"
+qval_threshold <- 0.05
+
+output_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/script_output/LEVEL_3/egene_union_pairs_neuron_evo_qval_0.05.tsv"
 
 ## -----------------------
 ## Execution
 ## -----------------------
 
 bican.mccarroll.eqtl::get_egene_union_pairs(
-    eqtl_dir             = eqtl_dir,
-    region_cell_type_file = region_cell_type_file,
-    population_suffix     = population_suffix,
+    eqtl_dir              = eqtl_dir,
+    region_cell_type_path = region_cell_type_path,
     qval_threshold        = qval_threshold,
     output_path           = output_path
 )
