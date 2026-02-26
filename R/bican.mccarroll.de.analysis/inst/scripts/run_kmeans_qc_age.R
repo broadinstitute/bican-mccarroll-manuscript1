@@ -88,13 +88,15 @@ gene_clusters <- bican.mccarroll.de.analysis::plot_kmeans_heatmap(
     cluster_level_order = c(2, 10, 6, 3, 5, 14, 9, 13, 4, 1, 15, 19, 18, 7, 17, 8, 11, 12)
 )
 
-# gene_clusters <- plot_kmeans_heatmap(
-#     de_age_mat_list$lfc_mat_z,
-#     de_age_mat_list$lfc_mat,
-#     scaling_factor = scaling_factor,
-#     k=19,
-#     cluster_level_order = c(2, 10, 6, 3, 5, 14, 9, 13, 4, 1, 15, 19, 18, 7, 17, 8, 11, 12, 16)
-# )
+#attempt with extra labeling.
+gene_clusters <- bican.mccarroll.de.analysis::plot_kmeans_heatmap_with_cluster_labels(
+    de_age_mat_list$lfc_mat_z,
+    de_age_mat_list$lfc_mat,
+    scaling_factor = scaling_factor,
+    k=19,
+    cluster_level_order = c(2, 10, 6, 3, 5, 14, 9, 13, 4, 1, 15, 19, 18, 7, 17, 8, 11, 12)
+)
+
 
 ## Load DE (region interaction) for region-specific matrix
 de_ri_age <- bican.mccarroll.de.analysis::read_de_results(de_region_interaction_dir, test, ct_file, gene_to_chr)
@@ -112,3 +114,7 @@ bican.mccarroll.de.analysis::plot_kmeans_heatmap(
     de_ri_age_flc_mat,
     scaling_factor = scaling_factor
 )
+
+
+
+

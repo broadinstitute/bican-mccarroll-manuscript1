@@ -1,19 +1,19 @@
 ## ------------------------------------------------------------------
 ## Set configuration (development only; comment out in package build)
 ## ------------------------------------------------------------------
+source("R/paths.R")
+source ("R/age_pred_figures.R") #for path resolution
 
-# source("R/paths.R")
-#
-# options(
-#     bican.mccarroll.figures.data_root_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis",
-#
-#     bican.mccarroll.figures.out_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
-#
-#     bican.mccarroll.figures.cache_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
-# )
+options(
+    bican.mccarroll.figures.data_root_dir =
+        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis",
+
+    bican.mccarroll.figures.out_dir =
+        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
+
+    bican.mccarroll.figures.cache_dir =
+        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
+)
 
 #' Correlation plot of sample covariates used in the model
 #'
@@ -56,6 +56,8 @@ plot_sample_covariate_correlations<-function (
     data_name="donor_rxn_DGEList",
     randVars=c("donor", "imputed_sex", "biobank", "single_cell_assay", "region", "hbcac_status", "toxicology_group"),
     fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pmi_hr", "pct_intronic", "frac_contamination"),
+    #randVars=c("donor", "imputed_sex", "biobank", "single_cell_assay", "region", "hbcac_status"),
+    #fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination"),
     outDir=NULL) {
 
     paths <- .resolve_age_pred_paths(
@@ -106,6 +108,11 @@ plot_sample_covariate_correlations<-function (
         cell   = c("Percent intronic", "Fraction contamination")
     )
 
+    # groups <- list(
+    #     donor  = c("Imputed sex", "Biobank", "Age", "Genetic PC1", "Genetic PC2", "Genetic PC3", "Genetic PC4", "Genetic PC5", "HBCAC status"),
+    #     sample = c("Region", "Single-cell assay"),
+    #     cell   = c("Percent intronic", "Fraction contamination")
+    # )
     setdiff(colnames(corr_matrix), as.vector(unlist (groups)))
 
     #corrplot draws to the active device, so need to open a device and capture, then close.

@@ -81,13 +81,15 @@ prep_de <- function(df, gene_to_chr) {
 #' @param region_use Region label to plot, or NA for region-combined results.
 #' @param fdr_cutoff Adjusted p-value threshold.
 #' @param abs_log_fc_cutoff Absolute log2 fold-change threshold.
+#' @param show_title Whether to show the cell type as the plot title.
 #' @return Invisibly returns NULL.
 #' @export
 plot_de_volcano <- function(de_dt,
                             cell_type_use,
                             region_use,
                             fdr_cutoff = 0.05,
-                            abs_log_fc_cutoff = log2(1.05)) {
+                            abs_log_fc_cutoff = log2(1.05),
+                            show_title=TRUE) {
 
     cell_type <- region <- log_fc <- adj_p_val <- NULL
 
@@ -120,7 +122,9 @@ plot_de_volcano <- function(de_dt,
         col = "cornflowerblue"
     )]
 
-    graphics::title(main = cell_type_use, adj = 0)
+    if (show_title)
+        graphics::title(main = cell_type_use, adj = 0)
+
     graphics::abline(h = -log10(fdr_cutoff), lty = 2)
     graphics::abline(v = c(-abs_log_fc_cutoff, abs_log_fc_cutoff), lty = 2)
 
@@ -990,6 +994,239 @@ plot_kmeans_heatmap <- function(k_means_mat,
   )
 
   k_use
+}
+
+#' Plot k-means clustered heatmap of log fold-changes
+#' (originally plot_k_means_heatmap)
+#'
+#' Performs k-means clustering on a gene-by-feature matrix and visualizes
+#' the corresponding log fold-change matrix as a heatmap, ordered by cluster.
+#'
+#' @param k_means_mat Numeric matrix used for clustering.
+#'   Rows represent genes (or other units being clustered). Rownames must be
+#'   non-NULL and must correspond to gene identifiers. Typically this matrix is
+#'   a scaled (e.g., z-scored) version of `lfc_mat`, since k-means is
+#'   scale-sensitive.
+#'
+#' @param lfc_mat Numeric matrix of log fold-changes used for visualization.
+#'   Rows represent genes and must include all genes present in `k_means_mat`
+#'   (at least those that remain after optional cluster dropping/releveling).
+#'   Columns typically represent cell types or cell_type-region combinations.
+#'
+#' @param scaling_factor Numeric multiplier applied to `lfc_mat` prior to
+#'   plotting. This is used purely for visualization scaling and does not
+#'   affect clustering.
+#'
+#' @param k Integer number of clusters (centers) for k-means.
+#'
+#' @param cluster_level_order Optional integer vector defining the desired
+#'   ordering of k-means cluster labels. If NULL, cluster labels are used as
+#'   returned by k-means (no reordering and no cluster dropping). If non-NULL,
+#'   clusters not present in this vector will be dropped unless
+#'   `allow_drop_clusters = FALSE`.
+#'
+#' @param allow_drop_clusters Logical; if FALSE, stop when `cluster_level_order`
+#'   would drop any cluster labels present in the k-means solution.
+#'
+#' @return A named integer vector of cluster assignments for genes, where names
+#'   correspond to gene identifiers (after any optional dropping implied by
+#'   `cluster_level_order`).
+#'
+#' @details
+#' - Euclidean k-means clustering is performed with `stats::kmeans()` using
+#'   `centers = k`, `nstart = 200`, and `iter.max = 20`.
+#' - If `cluster_level_order` is provided, cluster labels are reordered
+#'   according to that order; optionally, clusters not included may be dropped.
+#' - The heatmap is generated using `pheatmap::pheatmap()` without column or row
+#'   clustering. Columns are shown in the existing order of `lfc_mat`.
+#' - Vertical separators between clusters are implemented by inserting
+#'   explicit `NA` columns into the plotted matrix. These columns are rendered
+#'   as solid black bars via `na_col = "black"`. This approach avoids fragile
+#'   grid coordinate overlays and ensures that separators scale correctly and
+#'   remain device-independent, since they are part of the matrix itself rather
+#'   than graphical annotations layered on top.
+#'
+#' @export
+plot_kmeans_heatmap_with_cluster_labels <- function(k_means_mat,
+                                lfc_mat,
+                                scaling_factor,
+                                k = 19,
+                                cluster_level_order = c(2, 10, 6, 3, 5, 14, 9, 13, 4, 1, 15, 19, 18, 7, 17, 8, 11, 12),
+                                allow_drop_clusters = TRUE) {
+
+    ## -----------------------
+    ## Assertions / validation
+    ## -----------------------
+
+    if (!is.matrix(k_means_mat) || !is.numeric(k_means_mat)) {
+      stop("k_means_mat must be a numeric matrix.")
+    }
+
+    if (is.null(rownames(k_means_mat))) {
+      stop("k_means_mat must have non-NULL rownames (gene identifiers).")
+    }
+
+    if (!is.matrix(lfc_mat) || !is.numeric(lfc_mat)) {
+      stop("lfc_mat must be a numeric matrix.")
+    }
+
+    if (is.null(rownames(lfc_mat))) {
+      stop("lfc_mat must have non-NULL rownames (gene identifiers).")
+    }
+
+    if (!is.numeric(scaling_factor) || length(scaling_factor) != 1L || is.na(scaling_factor)) {
+      stop("scaling_factor must be a single non-NA numeric value.")
+    }
+
+    if (!is.numeric(k) || length(k) != 1L || is.na(k) || k < 2) {
+      stop("k must be >= 2.")
+    }
+    k <- as.integer(k)
+
+    if (!is.null(cluster_level_order)) {
+
+      if (!is.numeric(cluster_level_order) || length(cluster_level_order) < 1L) {
+        stop("cluster_level_order must be NULL or numeric.")
+      }
+
+      if (anyDuplicated(cluster_level_order)) {
+        stop("cluster_level_order must not contain duplicates.")
+      }
+    }
+
+    ## -----------------------
+    ## K-means
+    ## -----------------------
+
+    set.seed(42)
+    km <- stats::kmeans(
+      k_means_mat,
+      centers = k,
+      nstart = 200,
+      iter.max = 20
+    )
+
+    gn <- rownames(k_means_mat)
+
+    missing_in_lfc <- setdiff(gn, rownames(lfc_mat))
+    if (length(missing_in_lfc) > 0L) {
+      stop("lfc_mat missing genes. Example: ", missing_in_lfc[[1]])
+    }
+
+    present_clusters <- sort(unique(km$cluster))
+
+    ## -----------------------
+    ## Cluster labeling / ordering
+    ## -----------------------
+
+    if (is.null(cluster_level_order)) {
+
+      k_use <- as.integer(km$cluster)
+      names(k_use) <- gn
+
+    } else {
+
+      dropped_clusters <- setdiff(present_clusters, cluster_level_order)
+
+      if (length(dropped_clusters) > 0L && !isTRUE(allow_drop_clusters)) {
+        stop("cluster_level_order would drop clusters: ",
+             paste(dropped_clusters, collapse = ", "))
+      }
+
+      k_use <- factor(km$cluster, levels = cluster_level_order)
+      k_use <- as.numeric(k_use)
+      names(k_use) <- gn
+
+      keep <- !is.na(k_use)
+      k_use <- k_use[keep]
+
+      if (length(k_use) == 0L) {
+        stop("All clusters dropped.")
+      }
+    }
+
+    gene_order <- names(k_use)[order(k_use)]
+    boundaries <- cumsum(table(k_use))
+
+    ## -----------------------
+    ## Plot with thick separators
+    ## -----------------------
+
+    mat_plot <- t(lfc_mat[gene_order, , drop = FALSE] * scaling_factor)
+
+    ## Replace pre-existing NA values (from lfc_mat) so na_col can be reserved
+    ## exclusively for separator columns.
+    na_before <- sum(is.na(mat_plot))
+    if (na_before > 0L) {
+      message("plot_kmeans_heatmap: replacing ", na_before, " NA values in mat_plot with 0 for visualization.")
+      mat_plot[is.na(mat_plot)] <- 0
+    }
+
+    n_cols <- ncol(mat_plot)
+
+    gap_after <- boundaries
+    if (length(gap_after) >= 1L) {
+      gap_after <- gap_after[-length(gap_after)]
+    }
+    gap_after <- as.integer(gap_after)
+
+    sep_width <- 6L
+
+    message("plot_kmeans_heatmap: n_cols = ", n_cols,
+            ", n_clusters = ", length(boundaries),
+            ", n_separators = ", length(gap_after),
+            ", sep_width = ", sep_width)
+
+    n_sep_total <- length(gap_after) * sep_width
+    n_cols_exp <- n_cols + n_sep_total
+
+    mat_exp <- matrix(NA_real_, nrow = nrow(mat_plot), ncol = n_cols_exp)
+    rownames(mat_exp) <- rownames(mat_plot)
+
+    orig_to_exp <- integer(n_cols)
+
+    exp_col <- 1L
+    sep_set <- rep(FALSE, n_cols)
+    if (length(gap_after) > 0L) {
+      sep_set[gap_after] <- TRUE
+    }
+
+    for (j in seq_len(n_cols)) {
+
+      mat_exp[, exp_col] <- mat_plot[, j]
+      orig_to_exp[j] <- exp_col
+      exp_col <- exp_col + 1L
+
+      if (sep_set[j]) {
+        exp_col <- exp_col + sep_width
+      }
+    }
+
+    ## Compute expanded cluster midpoints
+    starts <- c(1L, boundaries[-length(boundaries)] + 1L)
+    ends <- boundaries
+
+    start_exp <- orig_to_exp[starts]
+    end_exp <- orig_to_exp[ends]
+    mid_exp <- as.integer(round((start_exp + end_exp) / 2))
+
+    labels_col <- rep("", n_cols_exp)
+    labels_col[mid_exp] <- as.character(seq_along(boundaries))
+
+    pheatmap::pheatmap(
+      mat_exp,
+      cluster_cols = FALSE,
+      cluster_rows = FALSE,
+      breaks = seq(-1, 1, length.out = 101),
+      color = grDevices::colorRampPalette(c("steelblue", "white", "darkorange"))(100),
+      border_color = NA,
+      na_col = "black",
+      show_colnames = TRUE,
+      labels_col = labels_col,
+      angle_col = 0
+    )
+
+    k_use
 }
 
 #' Write lightweight DE outputs (summary + top up/down gene tables)

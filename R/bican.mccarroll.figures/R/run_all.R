@@ -34,4 +34,5 @@ run_all<-function () {
 
     bican.mccarroll.figures::de_sex_age_scatter_plots()
     bican.mccarroll.figures::plot_de_volcano()
+
 }

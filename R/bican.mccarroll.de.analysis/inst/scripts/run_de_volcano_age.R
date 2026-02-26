@@ -27,13 +27,13 @@ gene_to_chr <- bican.mccarroll.de.analysis::read_gene_to_chr(gene_to_chr_file)
 de_age <- bican.mccarroll.de.analysis::read_de_results(de_dir, test, ct_file, gene_to_chr)
 
 
-
 bican.mccarroll.de.analysis::plot_de_volcano(
     de_age,
     cell_type_use = ct,
     region_use = region_use,
     fdr_cutoff = fdr_cutoff,
-    abs_log_fc_cutoff = abs_log_fc_cutoff
+    abs_log_fc_cutoff = abs_log_fc_cutoff,
+    show_title = FALSE
 )
 
 

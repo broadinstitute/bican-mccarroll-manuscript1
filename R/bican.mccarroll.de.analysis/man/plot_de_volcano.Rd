@@ -9,7 +9,8 @@ plot_de_volcano(
   cell_type_use,
   region_use,
   fdr_cutoff = 0.05,
-  abs_log_fc_cutoff = log2(1.05)
+  abs_log_fc_cutoff = log2(1.05),
+  show_title = TRUE
 )
 }
 \arguments{
@@ -22,6 +23,8 @@ plot_de_volcano(
 \item{fdr_cutoff}{Adjusted p-value threshold.}
 
 \item{abs_log_fc_cutoff}{Absolute log2 fold-change threshold.}
+
+\item{show_title}{Whether to show the cell type as the plot title.}
 }
 \value{
 Invisibly returns NULL.

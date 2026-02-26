@@ -71,7 +71,8 @@ plot_de_volcano <- function(
         cell_type_use = ct,
         region_use = region_use,
         fdr_cutoff = fdr_cutoff,
-        abs_log_fc_cutoff = abs_log_fc_cutoff)
+        abs_log_fc_cutoff = abs_log_fc_cutoff,
+        show_title = FALSE)
 
     grDevices::dev.off()
 
@@ -95,7 +96,8 @@ plot_de_volcano <- function(
         cell_type_use = ct,
         region_use = region_use,
         fdr_cutoff = fdr_cutoff,
-        abs_log_fc_cutoff = abs_log_fc_cutoff)
+        abs_log_fc_cutoff = abs_log_fc_cutoff,
+        show_title = FALSE)
     grDevices::dev.off()
 
     invisible(out_file)
