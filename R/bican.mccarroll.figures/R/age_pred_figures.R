@@ -107,6 +107,9 @@ age_prediction_mean_residual_correlation_plots <- function(
             axis.text.y  = ggplot2::element_text(size = 14)
         )
 
+    #drop the title for manuscript
+    p<- p + ggplot2::labs(title = NULL)
+
     save_plot_svg(
         plot = p,
         out_file = "age_prediction_mean_residual_correlation_comparison.svg",
@@ -284,15 +287,19 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(
             all_models$cell_type %in% cell_types,
     ]
 
-    corr_title <- sprintf(
-        "Age Prediction residuals (predicted - actual)\nregion [%s]",
-        region
-    )
+    # corr_title <- sprintf(
+    #     "Age Prediction residuals (predicted - actual)\nregion [%s]",
+    #     region
+    # )
+    #
+    # jac_title <- sprintf(
+    #     "Cell-type gene overlap in aging programs\nregion [%s]",
+    #     region
+    # )
 
-    jac_title <- sprintf(
-        "Cell-type gene overlap in aging programs\nregion [%s]",
-        region
-    )
+    #Drop titles for manuscript
+    corr_title <- ""
+    jac_title <- ""
 
     corr_out <- bican.mccarroll.differentialexpression::plot_residual_corr_heatmap(
         model_predictions = model_predictions,
@@ -311,6 +318,7 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(
         row_order_names = corr_out$row_order_names,
         column_order_names = corr_out$column_order_names
     )
+
 
     g_corr <- grid::grid.grabExpr(
         ComplexHeatmap::draw(
@@ -401,15 +409,19 @@ age_prediction_residual_corr_and_jaccard_heatmaps_cell_type <- function(
         all_models$cell_type %in% cell_type,
     ]
 
-    corr_title <- sprintf(
-        "Age residuals (predicted - actual)\n  [%s]",
-        cell_type
-    )
+    # corr_title <- sprintf(
+    #     "Age residuals (predicted - actual)\n  [%s]",
+    #     cell_type
+    # )
+    #
+    # jac_title <- sprintf(
+    #     "Cell-type gene overlap in aging programs\n [%s]",
+    #     cell_type
+    # )
 
-    jac_title <- sprintf(
-        "Cell-type gene overlap in aging programs\n [%s]",
-        cell_type
-    )
+    #drop title for manuscript
+    corr_title <- ""
+    jac_title <- ""
 
     corr_out <- bican.mccarroll.differentialexpression::plot_residual_corr_heatmap(
         model_predictions = model_predictions,
@@ -555,19 +567,11 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(
     grid <- cowplot::plot_grid(plotlist = plots, ncol = ncol, align = "hv")
     grid <- cowplot::plot_grid(grid, legend_plot, ncol = 2, rel_widths = c(1, 0.18))
 
-    header_text <- sprintf(
-        "Corrected residual pairwise scatterplots | Region: %s",
-        region
-    )
-
     core <- cowplot::plot_grid(
-        cowplot::ggdraw() +
-            cowplot::draw_label(header_text, x = 0, hjust = 0,
-                                fontface = "bold", size = 12),
         grid,
         cowplot::ggdraw() +
             cowplot::draw_label("Corrected residual (predicted - actual)", size = 11),
-        ncol = 1, rel_heights = c(0.12, 1, 0.12)
+        ncol = 1, rel_heights = c(1, 0.12)
     )
 
     left_pad <- 0.03
@@ -700,29 +704,23 @@ age_prediction_uncorrected_residual_pairwise_scatter_region <- function(
     )
 
     core <- cowplot::plot_grid(
-        cowplot::ggdraw() +
-            cowplot::draw_label(header_text, x = 0, hjust = 0,
-                                fontface = "bold", size = 12),
         grid,
         cowplot::ggdraw() +
             cowplot::draw_label("Uncorrected residual (predicted - actual)", size = 11),
-        ncol = 1, rel_heights = c(0.12, 1, 0.12)
+        ncol = 1, rel_heights = c(1, 0.12)
     )
 
     left_pad <- 0.03
 
     final <- cowplot::ggdraw() +
-        cowplot::draw_plot(core, x = left_pad, y = 0,
-                           width = 1 - left_pad, height = 1) +
+        cowplot::draw_plot(core, x = left_pad, y = 0, width = 1 - left_pad, height = 1) +
         cowplot::draw_label(
             "Uncorrected residual (predicted - actual)",
-            angle = 90, x = left_pad * 0.35, y = 0.5,
-            vjust = 0.5, size = 11
+            angle = 90, x = left_pad * 0.35, y = 0.5, vjust = 0.5, size = 11
         )
 
     final_padded <- cowplot::ggdraw() +
-        cowplot::draw_plot(final, x = left_pad, y = 0,
-                           width = 1 - left_pad, height = 1)
+        cowplot::draw_plot(final, x = left_pad, y = 0, width = 1 - left_pad, height = 1)
 
     out_svg <- file.path(
         paths$outDir,
@@ -814,18 +812,11 @@ age_prediction_examples <- function(
 
     grid <- cowplot::plot_grid(plotlist = plot_list, ncol = 4, align = "hv")
 
-    header_text <- sprintf(
-        "Monte Carlo cross fold donor age predictions | Region: %s", region
-    )
-
     core <- cowplot::plot_grid(
-        cowplot::ggdraw() +
-            cowplot::draw_label(header_text, x = 0, hjust = 0,
-                                fontface = "bold", size = 12),
         grid,
         cowplot::ggdraw() +
             cowplot::draw_label("Chronological age", size = 11),
-        ncol = 1, rel_heights = c(0.12, 1, 0.12)
+        ncol = 1, rel_heights = c(1, 0.12)
     )
 
     left_pad <- 0.025
