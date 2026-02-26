@@ -3,6 +3,7 @@ install_all_packages <- function(
         ref = "main",
         pkgs = c(
             "R/bican.mccarroll.differentialexpression",
+            "R/bican.mccarroll.de.analysis",
             "R/bican.mccarroll.eqtl",
             "R/bican.mccarroll.figures"
         ),
