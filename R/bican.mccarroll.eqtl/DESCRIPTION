@@ -2,7 +2,10 @@ Package: bican.mccarroll.eqtl
 Type: Package
 Title: Eqtl analysis for the bican manuscript
 Version: 0.1.0
-Imports: data.table, ggplot2, ggvenn, cowplot,digest,logger, rlang, ggrepel
+Imports: data.table, ggplot2, ggvenn, cowplot, digest, logger, rlang, ggrepel,
+    ComplexHeatmap, circlize, grid
+Remotes:
+    bioc::ComplexHeatmap
 Authors@R: c(
     person(
       "James", "Nemesh",
