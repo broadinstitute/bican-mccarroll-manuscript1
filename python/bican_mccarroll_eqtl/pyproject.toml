@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bican_mccarroll_eqtl"
+version = "0.1.0"
+dependencies = [
+    "pandas",
+    "numpy",
+    "matplotlib",
+    "scanpy",
+    "anndata",
+    "seaborn",
+    "scikit-learn",
+]
+authors = [
+  { name="Tracy Yuan", email="tracyyuan@broadinstitute.org" },
+]
+description = "eQTL clustering and visualization for BICAN McCarroll manuscript."
+readme = "README.md"
+requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/broadinstitute/bican-mccarroll-manuscript1/"
+Issues = "https://github.com/broadinstitute/bican-mccarroll-manuscript1/issues"
