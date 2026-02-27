@@ -5,7 +5,7 @@
 ## Usage:
 ##   1. SSH into Broad server
 ##   2. Start R
-##   3. First install the package (only need to do this once per update):
+##   3. Install/update the package:
 ##
 ##      remotes::install_github(
 ##        "broadinstitute/bican-mccarroll-manuscript1",
@@ -16,19 +16,27 @@
 ##
 ##   4. source("test_eqtl_pipeline.R")
 ##
-## Each step prints a status message. If a step fails, the error
-## message will tell you which function broke.
+## Behavior:
+##   - Set force = FALSE to skip steps whose output file already exists.
+##   - Set force = TRUE to always run and overwrite output files.
 ## ============================================================
+
+## -----------------------
+## Config
+## -----------------------
+
+force <- FALSE  # set TRUE to rerun everything and overwrite existing outputs
 
 ## -----------------------
 ## Paths
 ## -----------------------
 
+#TODO: these paths should all be mutable.
 eqtl_dir <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_3"
 region_cell_type_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/manuscript_data/region_cell_type.tsv"
 
 # Output directory
-out_dir <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/manuscript_data"
+out_dir <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/manuscript_data_test"
 
 qval <- 0.01
 
@@ -41,165 +49,248 @@ ad_coloc_dir <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysi
 scz_coloc_dir <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_3/coloc/SCZ_eur"
 
 ## -----------------------
+## Helpers
+## -----------------------
+
+.run_step_table <- function(step_label, output_path, fun) {
+    cat("\n=====", step_label, "=====\n")
+
+    if (!isTRUE(force) && !is.null(output_path) && file.exists(output_path)) {
+        cat("  SKIPPED: file already exists at", output_path, "\n")
+        return(invisible(NULL))
+    }
+
+    out <- fun()
+
+    if (!is.null(output_path)) {
+        if (is.data.frame(out)) {
+            cat("  Rows:", nrow(out), " Cols:", ncol(out), " Written to:", output_path, "\n")
+        } else if (is.matrix(out)) {
+            cat("  Matrix:", nrow(out), "x", ncol(out), " Written to:", output_path, "\n")
+        } else {
+            cat("  Written to:", output_path, "\n")
+        }
+    }
+
+    invisible(out)
+}
+
+.run_step_plot <- function(step_label, output_path, fun) {
+    cat("\n=====", step_label, "=====\n")
+
+    if (!isTRUE(force) && file.exists(output_path)) {
+        cat("  SKIPPED: file already exists at", output_path, "\n")
+        return(invisible(NULL))
+    }
+
+    fun()
+    cat("  Written to:", output_path, "\n")
+    invisible(NULL)
+}
+
+## -----------------------
 ## Step 1: get_egene_union_pairs
 ## -----------------------
-cat("\n===== Step 1: get_egene_union_pairs =====\n")
 
 egene_path <- file.path(out_dir, paste0("egene_union_pairs_qval_", qval, ".tsv"))
 
-egene_dt <- bican.mccarroll.eqtl::get_egene_union_pairs(
-    eqtl_dir              = eqtl_dir,
-    region_cell_type_path = region_cell_type_path,
-    qval_threshold        = qval,
-    output_path           = egene_path
+egene_dt <- .run_step_table(
+    step_label = "Step 1: get_egene_union_pairs",
+    output_path = egene_path,
+    fun = function() {
+        bican.mccarroll.eqtl::get_egene_union_pairs(
+            eqtl_dir              = eqtl_dir,
+            region_cell_type_path = region_cell_type_path,
+            qval_threshold        = qval,
+            output_path           = egene_path
+        )
+    }
 )
-cat("  Rows:", nrow(egene_dt), " Written to:", egene_path, "\n")
 
 ## -----------------------
 ## Step 2: get_slope_matrix
 ## -----------------------
-cat("\n===== Step 2: get_slope_matrix =====\n")
 
 slope_path <- file.path(out_dir, paste0("slope_matrix_qval_", qval, ".tsv"))
 
-slope_dt <- bican.mccarroll.eqtl::get_slope_matrix(
-    eqtl_dir               = eqtl_dir,
-    region_cell_type_path  = region_cell_type_path,
-    egene_union_pairs_path = egene_path,
-    output_path            = slope_path
+slope_dt <- .run_step_table(
+    step_label = "Step 2: get_slope_matrix",
+    output_path = slope_path,
+    fun = function() {
+        bican.mccarroll.eqtl::get_slope_matrix(
+            eqtl_dir               = eqtl_dir,
+            region_cell_type_path  = region_cell_type_path,
+            egene_union_pairs_path = egene_path,
+            output_path            = slope_path
+        )
+    }
 )
-cat("  Rows:", nrow(slope_dt), " Cols:", ncol(slope_dt), " Written to:", slope_path, "\n")
 
 ## -----------------------
 ## Step 3: get_pval_nominal_matrix
 ## -----------------------
-cat("\n===== Step 3: get_pval_nominal_matrix =====\n")
 
 pval_path <- file.path(out_dir, paste0("pval_nominal_matrix_qval_", qval, ".tsv"))
 
-pval_dt <- bican.mccarroll.eqtl::get_pval_nominal_matrix(
-    eqtl_dir               = eqtl_dir,
-    region_cell_type_path  = region_cell_type_path,
-    egene_union_pairs_path = egene_path,
-    output_path            = pval_path
+pval_dt <- .run_step_table(
+    step_label = "Step 3: get_pval_nominal_matrix",
+    output_path = pval_path,
+    fun = function() {
+        bican.mccarroll.eqtl::get_pval_nominal_matrix(
+            eqtl_dir               = eqtl_dir,
+            region_cell_type_path  = region_cell_type_path,
+            egene_union_pairs_path = egene_path,
+            output_path            = pval_path
+        )
+    }
 )
-cat("  Rows:", nrow(pval_dt), " Cols:", ncol(pval_dt), " Written to:", pval_path, "\n")
 
 ## -----------------------
 ## Step 4: get_pval_nominal_threshold_matrix
 ## -----------------------
-cat("\n===== Step 4: get_pval_nominal_threshold_matrix =====\n")
 
 pval_thresh_path <- file.path(out_dir, paste0("pval_nominal_threshold_matrix_qval_", qval, ".tsv"))
 
-pval_thresh_dt <- bican.mccarroll.eqtl::get_pval_nominal_threshold_matrix(
-    eqtl_dir               = eqtl_dir,
-    region_cell_type_path  = region_cell_type_path,
-    egene_union_pairs_path = egene_path,
-    output_path            = pval_thresh_path
+pval_thresh_dt <- .run_step_table(
+    step_label = "Step 4: get_pval_nominal_threshold_matrix",
+    output_path = pval_thresh_path,
+    fun = function() {
+        bican.mccarroll.eqtl::get_pval_nominal_threshold_matrix(
+            eqtl_dir               = eqtl_dir,
+            region_cell_type_path  = region_cell_type_path,
+            egene_union_pairs_path = egene_path,
+            output_path            = pval_thresh_path
+        )
+    }
 )
-cat("  Rows:", nrow(pval_thresh_dt), " Cols:", ncol(pval_thresh_dt), " Written to:", pval_thresh_path, "\n")
 
 ## -----------------------
 ## Step 5: get_index_snp_slope_matrix_with_median_impute
 ## -----------------------
-cat("\n===== Step 5: get_index_snp_slope_matrix_with_median_impute =====\n")
 
 index_snp_path <- file.path(out_dir, paste0("index_snp_slope_matrix_with_median_impute_qval_", qval, ".tsv"))
 
-index_snp_dt <- bican.mccarroll.eqtl::get_index_snp_slope_matrix_with_median_impute(
-    slope_matrix_path = slope_path,
-    output_path       = index_snp_path
+index_snp_dt <- .run_step_table(
+    step_label = "Step 5: get_index_snp_slope_matrix_with_median_impute",
+    output_path = index_snp_path,
+    fun = function() {
+        bican.mccarroll.eqtl::get_index_snp_slope_matrix_with_median_impute(
+            slope_matrix_path = slope_path,
+            output_path       = index_snp_path
+        )
+    }
 )
-cat("  Rows:", nrow(index_snp_dt), " Cols:", ncol(index_snp_dt), " Written to:", index_snp_path, "\n")
 
 ## -----------------------
 ## Step 6: get_cell_type_pairwise_cor_matrix
 ## -----------------------
-cat("\n===== Step 6: get_cell_type_pairwise_cor_matrix =====\n")
 
 r_squared_path <- file.path(out_dir, paste0("cell_type_pairwise_r_squared_qval_", qval, ".tsv"))
 
-r_squared <- bican.mccarroll.eqtl::get_cell_type_pairwise_cor_matrix(
-    slope_path            = slope_path,
-    pval_path             = pval_path,
-    pval_threshold_path   = pval_thresh_path,
-    egene_path            = egene_path,
-    region_cell_type_path = region_cell_type_path,
-    output_path           = r_squared_path
+r_squared <- .run_step_table(
+    step_label = "Step 6: get_cell_type_pairwise_cor_matrix",
+    output_path = r_squared_path,
+    fun = function() {
+        bican.mccarroll.eqtl::get_cell_type_pairwise_cor_matrix(
+            slope_matrix_path                    = slope_path,
+            pval_nominal_matrix_path             = pval_path,
+            pval_nominal_threshold_matrix_path   = pval_thresh_path,
+            egene_union_pairs_path               = egene_path,
+            region_cell_type_path                = region_cell_type_path,
+            output_path                          = r_squared_path
+        )
+    }
 )
-cat("  Matrix:", nrow(r_squared), "x", ncol(r_squared), " Written to:", r_squared_path, "\n")
 
 ## -----------------------
 ## Step 7: plot_cell_type_pairwise_cor
 ## -----------------------
-cat("\n===== Step 7: plot_cell_type_pairwise_cor =====\n")
 
 cor_plot_path <- file.path(out_dir, paste0("cell_type_cor_plot_qval_", qval, ".png"))
 
-bican.mccarroll.eqtl::plot_cell_type_pairwise_cor(
-    r_squared_path = r_squared_path,
-    output_path    = cor_plot_path
+.run_step_plot(
+    step_label = "Step 7: plot_cell_type_pairwise_cor",
+    output_path = cor_plot_path,
+    fun = function() {
+        bican.mccarroll.eqtl::plot_cell_type_pairwise_cor(
+            r_squared_path = r_squared_path,
+            output_path    = cor_plot_path
+        )
+    }
 )
-cat("  Written to:", cor_plot_path, "\n")
 
 ## -----------------------
 ## Step 8: get_heatmap_index_snp_median_expression
 ## -----------------------
-cat("\n===== Step 8: get_heatmap_index_snp_median_expression =====\n")
 
 median_expr_path <- file.path(out_dir, paste0("heatmap_index_snp_median_expression_qval_", qval, ".tsv"))
 
-median_expr_dt <- bican.mccarroll.eqtl::get_heatmap_index_snp_median_expression(
-    index_snp_path        = index_snp_path,
-    region_cell_type_path = region_cell_type_path,
-    expression_path       = combined_expression_path,
-    output_path           = median_expr_path
+median_expr_dt <- .run_step_table(
+    step_label = "Step 8: get_heatmap_index_snp_median_expression",
+    output_path = median_expr_path,
+    fun = function() {
+        bican.mccarroll.eqtl::get_heatmap_index_snp_median_expression(
+            index_snp_path        = index_snp_path,
+            region_cell_type_path = region_cell_type_path,
+            expression_path       = combined_expression_path,
+            output_path           = median_expr_path
+        )
+    }
 )
-cat("  Rows:", nrow(median_expr_dt), " Cols:", ncol(median_expr_dt), " Written to:", median_expr_path, "\n")
 
 ## -----------------------
 ## Step 9: combine_expression_across_cell_types
 ## -----------------------
-cat("\n===== Step 9: combine_expression_across_cell_types =====\n")
 
-if (!file.exists(combined_expression_path)) {
-    combined_dt <- bican.mccarroll.eqtl::combine_expression_across_cell_types(
-        eqtl_dir              = eqtl_dir,
-        region_cell_type_path = region_cell_type_path,
-        output_path           = combined_expression_path
-    )
-    cat("  Rows:", nrow(combined_dt), " Cols:", ncol(combined_dt), " Written to:", combined_expression_path, "\n")
-} else {
-    cat("  SKIPPED: file already exists at", combined_expression_path, "\n")
-}
+combined_dt <- .run_step_table(
+    step_label = "Step 9: combine_expression_across_cell_types",
+    output_path = combined_expression_path,
+    fun = function() {
+        bican.mccarroll.eqtl::combine_expression_across_cell_types(
+            eqtl_dir              = eqtl_dir,
+            region_cell_type_path = region_cell_type_path,
+            output_path           = combined_expression_path
+        )
+    }
+)
 
 ## -----------------------
 ## Step 10: get_sig_coloc (AD and SCZ)
 ## -----------------------
+
 cat("\n===== Step 10: get_sig_coloc =====\n")
 
 ad_coloc_path <- file.path(out_dir, "AD_2022_coloc_genes_pp_h4_0.9.tsv")
 scz_coloc_path <- file.path(out_dir, "SCZ_eur_coloc_genes_pp_h4_0.9.tsv")
 
 if (dir.exists(ad_coloc_dir)) {
-    ad_coloc_dt <- bican.mccarroll.eqtl::get_sig_coloc(
-        coloc_dir   = ad_coloc_dir,
-        pp_h4_threshold = 0.9,
-        output_path = ad_coloc_path
+    .run_step_table(
+        step_label = "  AD: get_sig_coloc",
+        output_path = ad_coloc_path,
+        fun = function() {
+            bican.mccarroll.eqtl::get_sig_coloc(
+                coloc_dir       = ad_coloc_dir,
+                pp_h4_threshold = 0.9,
+                output_path     = ad_coloc_path
+            )
+        }
     )
-    cat("  AD coloc genes:", nrow(ad_coloc_dt), " Written to:", ad_coloc_path, "\n")
 } else {
     cat("  SKIPPED: AD coloc dir not found at", ad_coloc_dir, "\n")
 }
 
 if (dir.exists(scz_coloc_dir)) {
-    scz_coloc_dt <- bican.mccarroll.eqtl::get_sig_coloc(
-        coloc_dir   = scz_coloc_dir,
-        pp_h4_threshold = 0.9,
-        output_path = scz_coloc_path
+    .run_step_table(
+        step_label = "  SCZ: get_sig_coloc",
+        output_path = scz_coloc_path,
+        fun = function() {
+            bican.mccarroll.eqtl::get_sig_coloc(
+                coloc_dir       = scz_coloc_dir,
+                pp_h4_threshold = 0.9,
+                output_path     = scz_coloc_path
+            )
+        }
     )
-    cat("  SCZ coloc genes:", nrow(scz_coloc_dt), " Written to:", scz_coloc_path, "\n")
 } else {
     cat("  SKIPPED: SCZ coloc dir not found at", scz_coloc_dir, "\n")
 }
@@ -209,6 +300,7 @@ if (dir.exists(scz_coloc_dir)) {
 ## -----------------------
 ## NOTE: Requires contingency tables from the Python pipeline (build_fisher_contingency_table).
 ## Run test_eqtl_pipeline.py steps 2-3 first, then come back to this step.
+
 cat("\n===== Step 11: plot_fisher_exact =====\n")
 
 cluster_order <- c(8, 1, 3, 5, 4, 10, 2, 0, 7, 6, 9)
@@ -216,26 +308,39 @@ cluster_order <- c(8, 1, 3, 5, 4, 10, 2, 0, 7, 6, 9)
 ad_fisher_path <- file.path(out_dir, "AD_2022_fisher_contingency_counts_gene_clusters.tsv")
 scz_fisher_path <- file.path(out_dir, "SCZ_eur_fisher_contingency_counts_gene_clusters.tsv")
 
+ad_enrich_plot_path <- file.path(out_dir, "AD_2022_cluster_enrichment.png")
+scz_enrich_plot_path <- file.path(out_dir, "SCZ_eur_cluster_enrichment.png")
+
 if (file.exists(ad_fisher_path)) {
-    bican.mccarroll.eqtl::plot_fisher_exact(
-        fisher_table_path  = ad_fisher_path,
-        plot_disease_label = "Alzheimer's disease",
-        cluster_order      = cluster_order,
-        output_path        = file.path(out_dir, "AD_2022_cluster_enrichment.png")
+    .run_step_plot(
+        step_label = "  AD: plot_fisher_exact",
+        output_path = ad_enrich_plot_path,
+        fun = function() {
+            bican.mccarroll.eqtl::plot_fisher_exact(
+                fisher_table_path  = ad_fisher_path,
+                plot_disease_label = "Alzheimer's disease",
+                cluster_order      = cluster_order,
+                output_path        = ad_enrich_plot_path
+            )
+        }
     )
-    cat("  AD enrichment plot saved\n")
 } else {
     cat("  SKIPPED: AD contingency table not found. Run Python pipeline first.\n")
 }
 
 if (file.exists(scz_fisher_path)) {
-    bican.mccarroll.eqtl::plot_fisher_exact(
-        fisher_table_path  = scz_fisher_path,
-        plot_disease_label = "schizophrenia",
-        cluster_order      = cluster_order,
-        output_path        = file.path(out_dir, "SCZ_eur_cluster_enrichment.png")
+    .run_step_plot(
+        step_label = "  SCZ: plot_fisher_exact",
+        output_path = scz_enrich_plot_path,
+        fun = function() {
+            bican.mccarroll.eqtl::plot_fisher_exact(
+                fisher_table_path  = scz_fisher_path,
+                plot_disease_label = "schizophrenia",
+                cluster_order      = cluster_order,
+                output_path        = scz_enrich_plot_path
+            )
+        }
     )
-    cat("  SCZ enrichment plot saved\n")
 } else {
     cat("  SKIPPED: SCZ contingency table not found. Run Python pipeline first.\n")
 }
@@ -243,6 +348,7 @@ if (file.exists(scz_fisher_path)) {
 ## -----------------------
 ## Step 12: plot_gene_snp
 ## -----------------------
+
 cat("\n===== Step 12: plot_gene_snp =====\n")
 
 gene_snp_cases <- list(
@@ -253,6 +359,12 @@ gene_snp_cases <- list(
 
 for (case in gene_snp_cases) {
     out_file <- file.path(out_dir, paste0(case$gene, "_", case$chr, "_", case$pos, ".png"))
+
+    if (!isTRUE(force) && file.exists(out_file)) {
+        cat("  SKIPPED:", case$gene, "file already exists at", out_file, "\n")
+        next
+    }
+
     bican.mccarroll.eqtl::plot_gene_snp(
         gene            = case$gene,
         chr             = case$chr,
@@ -267,6 +379,7 @@ for (case in gene_snp_cases) {
 ## -----------------------
 ## Done with R steps
 ## -----------------------
+
 cat("\n===== All R steps completed successfully! =====\n")
 cat("\nNext: run the Python pipeline.\n")
 cat("Run the following in a terminal:\n\n")
