@@ -161,10 +161,19 @@ def plot_k_selection(silhouette_df, output_path=None):
     return fig
 
 
-def run_kmeans_heatmap(input_path, K, desired_order, random_state=32,
+def run_kmeans_heatmap(input_path, K, desired_order=None, random_state=32,
                        celltype_order=None, celltype_label_map=None,
-                       heatmap_output_path=None, cluster_counts_output_path=None):
+                       heatmap_output_path=None, cluster_counts_output_path=None,
+                       cluster_assignments_output_path=None):
     """Run K-means clustering and generate the effect-size heatmap.
+
+    Intended workflow:
+      1. Run with ``desired_order=None`` to produce an initial heatmap with
+         clusters in numeric order.  Inspect the heatmap and decide on a
+         cluster ordering that places the diagonal color blocks in the
+         desired sequence.
+      2. Re-run with ``desired_order=[6, 8, 1, ...]`` to produce the final
+         ordered heatmap.
 
     Parameters
     ----------
@@ -172,8 +181,9 @@ def run_kmeans_heatmap(input_path, K, desired_order, random_state=32,
         Path to the index-SNP slope matrix TSV.
     K : int
         Number of clusters.
-    desired_order : list of int
+    desired_order : list of int or None
         Cluster display order (e.g., [6, 8, 1, 4, 2, 3, 10, 9, 7, 5, 0]).
+        If None, clusters are displayed in numeric order (0, 1, 2, ...).
     random_state : int
         Random seed for KMeans.
     celltype_order : list of str or None
@@ -185,6 +195,9 @@ def run_kmeans_heatmap(input_path, K, desired_order, random_state=32,
         If provided, saves the heatmap PNG to this path.
     cluster_counts_output_path : str or None
         If provided, saves gene cluster counts TSV to this path.
+    cluster_assignments_output_path : str or None
+        If provided, saves a TSV with columns ``gene`` and ``cluster``
+        mapping each gene to its K-means cluster label.
 
     Returns
     -------
@@ -205,11 +218,25 @@ def run_kmeans_heatmap(input_path, K, desired_order, random_state=32,
     # K-means clustering
     km = KMeans(n_clusters=K, random_state=random_state).fit(adata.X)
     adata.obs["gene_clusters"] = pd.Categorical(km.labels_.astype(int))
+
+    if desired_order is None:
+        desired_order = sorted(adata.obs["gene_clusters"].cat.categories)
+
     adata.obs["gene_clusters"] = adata.obs["gene_clusters"].cat.reorder_categories(
         desired_order, ordered=True
     )
 
-    # --- Output 1: cluster counts ---
+    # --- Output 1: cluster assignments ---
+    if cluster_assignments_output_path is not None:
+        assignments_df = pd.DataFrame({
+            "gene": adata.obs_names,
+            "cluster": adata.obs["gene_clusters"].values,
+        })
+        assignments_df.to_csv(
+            cluster_assignments_output_path, sep="\t", index=False
+        )
+
+    # --- Output 2: cluster counts ---
     if cluster_counts_output_path is not None:
         counts = (
             adata.obs["gene_clusters"]
@@ -220,7 +247,7 @@ def run_kmeans_heatmap(input_path, K, desired_order, random_state=32,
         counts.columns = ["gene_cluster", "n_genes"]
         counts.to_csv(cluster_counts_output_path, sep="\t", index=False)
 
-    # --- Output 2: heatmap ---
+    # --- Output 3: heatmap ---
     sc.pl.heatmap(
         adata,
         var_names=adata.var_names,

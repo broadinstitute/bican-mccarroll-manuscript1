@@ -13,6 +13,7 @@ dependencies = [
     "anndata",
     "seaborn",
     "scikit-learn",
+    "scipy",
 ]
 authors = [
   { name="Tracy Yuan", email="tracyyuan@broadinstitute.org" },
