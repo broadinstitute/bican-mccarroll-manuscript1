@@ -26,6 +26,12 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
+[project.scripts]
+test-eqtl-pipeline = "bican_mccarroll_eqtl.cli.test_eqtl_pipeline:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bican_mccarroll_eqtl"]
+
 [project.urls]
 Homepage = "https://github.com/broadinstitute/bican-mccarroll-manuscript1/"
 Issues = "https://github.com/broadinstitute/bican-mccarroll-manuscript1/issues"
