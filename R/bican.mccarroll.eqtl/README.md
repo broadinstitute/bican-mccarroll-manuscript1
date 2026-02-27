@@ -24,7 +24,7 @@ Test scripts at the repository root run all functions automatically:
 1. **`test_eqtl_pipeline.R`** — Runs all 12 R steps (data extraction, matrix building, visualization)
 2. **`test_eqtl_pipeline.py`** — Runs all 5 Python steps (K-means clustering, Fisher contingency tables, expression heatmap)
 
-Each script runs all its steps sequentially with no manual intervention. Steps that depend on outputs from the other pipeline will be skipped automatically if the required files don't exist yet.
+Each script runs all its steps sequentially. Steps that depend on outputs from the other pipeline will be skipped automatically if the required files don't exist yet.
 
 The recommended run order is R first, then Python, then R again for the Fisher plots:
 
