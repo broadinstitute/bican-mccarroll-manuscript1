@@ -1,10 +1,10 @@
-# slope_path="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/script_output/LEVEL_3/slope_matrix_qval_0.01.tsv"
-# pval_path="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/script_output/LEVEL_3/pval_nominal_matrix_qval_0.01.tsv"
-# pval_threshold_path="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/script_output/LEVEL_3/pval_nominal_threshold_matrix_qval_0.01.tsv"
-# egene_path="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/script_output/LEVEL_3/egene_union_pairs_qval_0.01.tsv"
+# slope_matrix_path="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/script_output/LEVEL_3/slope_matrix_qval_0.01.tsv"
+# pval_nominal_matrix_path="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/script_output/LEVEL_3/pval_nominal_matrix_qval_0.01.tsv"
+# pval_nominal_threshold_matrix_path="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/script_output/LEVEL_3/pval_nominal_threshold_matrix_qval_0.01.tsv"
+# egene_union_pairs_path="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/script_output/LEVEL_3/egene_union_pairs_qval_0.01.tsv"
 # region_cell_type_path="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/region_cell_type.tsv"
 # output_path="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/script_output/LEVEL_3/cell_type_pairwise_r_squared.tsv"
-# bican.mccarroll.eqtl::get_cell_type_pairwise_cor_matrix(slope_path, pval_path, pval_threshold_path, egene_path, region_cell_type_path, output_path)
+# bican.mccarroll.eqtl::get_cell_type_pairwise_cor_matrix(slope_matrix_path, pval_nominal_matrix_path, pval_nominal_threshold_matrix_path, egene_union_pairs_path, region_cell_type_path, output_path)
 
 
 #' Compute pairwise Spearman correlation matrix of eQTL effect sizes across cell types
@@ -14,13 +14,13 @@
 #' \code{pval_nominal < pval_nominal_threshold}), then computes the Spearman
 #' correlation of slopes for those pairs.  Returns the R-squared matrix.
 #'
-#' @param slope_path Character scalar.  Path to the slope matrix TSV
+#' @param slope_matrix_path Character scalar.  Path to the slope matrix TSV
 #'   (output of \code{\link{get_slope_matrix}}).
-#' @param pval_path Character scalar.  Path to the pval_nominal matrix TSV
+#' @param pval_nominal_matrix_path Character scalar.  Path to the pval_nominal matrix TSV
 #'   (output of \code{\link{get_pval_nominal_matrix}}).
-#' @param pval_threshold_path Character scalar.  Path to the pval_nominal_threshold
+#' @param pval_nominal_threshold_matrix_path Character scalar.  Path to the pval_nominal_threshold
 #'   matrix TSV (output of \code{\link{get_pval_nominal_threshold_matrix}}).
-#' @param egene_path Character scalar.  Path to the eGene union pairs TSV
+#' @param egene_union_pairs_path Character scalar.  Path to the eGene union pairs TSV
 #'   (output of \code{\link{get_egene_union_pairs}}).
 #' @param region_cell_type_path Character scalar.  Path to a tab-delimited file
 #'   with columns \code{cell_type} and \code{region}.
@@ -32,17 +32,17 @@
 #' @export
 #' @importFrom data.table fread fwrite
 #' @importFrom logger log_info
-get_cell_type_pairwise_cor_matrix <- function(slope_path,
-                                              pval_path,
-                                              pval_threshold_path,
-                                              egene_path,
+get_cell_type_pairwise_cor_matrix <- function(slope_matrix_path,
+                                              pval_nominal_matrix_path,
+                                              pval_nominal_threshold_matrix_path,
+                                              egene_union_pairs_path,
                                               region_cell_type_path,
                                               output_path = NULL) {
 
-    slope_dt <- data.table::fread(slope_path)
-    pval_dt <- data.table::fread(pval_path)
-    pval_threshold_dt <- data.table::fread(pval_threshold_path)
-    egene_dt <- data.table::fread(egene_path, select = c("phenotype_id", "variant_id"))
+    slope_dt <- data.table::fread(slope_matrix_path)
+    pval_dt <- data.table::fread(pval_nominal_matrix_path)
+    pval_threshold_dt <- data.table::fread(pval_nominal_threshold_matrix_path)
+    egene_dt <- data.table::fread(egene_union_pairs_path, select = c("phenotype_id", "variant_id"))
 
     # Filter to eGene union pairs
     slope_dt <- merge(slope_dt, egene_dt, by = c("phenotype_id", "variant_id"))
