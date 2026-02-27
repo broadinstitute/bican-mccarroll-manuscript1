@@ -19,27 +19,31 @@ remotes::install_github(
 
 ## Running the full pipeline
 
-Test scripts that run all R and Python functions end-to-end are provided at the repository root:
+Test scripts at the repository root run all functions automatically:
 
-1. **`test_eqtl_pipeline.R`** — Runs all 12 R steps in order (data extraction, matrix building, visualization)
+1. **`test_eqtl_pipeline.R`** — Runs all 12 R steps (data extraction, matrix building, visualization)
 2. **`test_eqtl_pipeline.py`** — Runs all 5 Python steps (K-means clustering, Fisher contingency tables, expression heatmap)
 
-The R pipeline runs first (steps 1–9), then the Python pipeline (steps 1–3), then back to R for Fisher enrichment plots (step 11) which depend on Python outputs. See the comments at the top of each script for usage instructions.
+Each script runs all its steps sequentially with no manual intervention. Steps that depend on outputs from the other pipeline will be skipped automatically if the required files don't exist yet.
+
+The recommended run order is R first, then Python, then R again for the Fisher plots:
 
 ``` bash
 # On the Broad server:
-# 1. Install the R package
+
+# 1. Install packages
 Rscript -e 'remotes::install_github("broadinstitute/bican-mccarroll-manuscript1", subdir="R/bican.mccarroll.eqtl", ref="ty_eqtl", dependencies=TRUE)'
-
-# 2. Run R pipeline
-Rscript test_eqtl_pipeline.R
-
-# 3. Install and run Python pipeline
 python3 -m venv ~/test_eqtl_env && source ~/test_eqtl_env/bin/activate
 pip install "bican_mccarroll_eqtl @ git+https://github.com/broadinstitute/bican-mccarroll-manuscript1.git@ty_eqtl#subdirectory=python/bican_mccarroll_eqtl"
+
+# 2. Run R pipeline (steps 1-12; Fisher plots skip if Python hasn't run yet)
+Rscript test_eqtl_pipeline.R
+
+# 3. Run Python pipeline (K-means, Fisher contingency tables, expression heatmap)
 python3 test_eqtl_pipeline.py
 
-# 4. Go back to R for Fisher enrichment plots (step 11)
+# 4. Re-run R pipeline to generate Fisher enrichment plots (now that contingency tables exist)
+Rscript test_eqtl_pipeline.R
 ```
 
 ## Functions
