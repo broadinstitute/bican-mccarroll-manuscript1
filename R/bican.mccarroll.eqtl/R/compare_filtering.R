@@ -61,7 +61,6 @@
 #'
 #' @importFrom logger log_info
 #' @importFrom utils write.table
-#' @import ggrepel
 #' @export
 compare_all_eQTL_runs<-function (data_dir, outDir=NULL, filter_levels=c(0,1,2,3,4), fdr_threshold=0.05, cache_dir) {
     base_level=filter_levels[1]
@@ -1362,15 +1361,18 @@ plot_summary <- function(df,
             size = point_size,
             alpha = point_alpha
         ) +
-        ggrepel::geom_text_repel(
-            data = df_long[df_long$label != "", , drop = FALSE],
-            ggplot2::aes(x = metric, y = value, label = label),
-            max.overlaps = Inf,
-            box.padding = 0.3,
-            point.padding = 0.1,
-            min.segment.length = 0,
-            size = 2.5
-        ) +
+        # TODO: ggrepel suddenly requires R >=4.5, so leaving out for now to
+        # maintain broader compatibility. Can re-add later if we decide to bump
+        # the R version requirement.
+        # ggrepel::geom_text_repel(
+        #     data = df_long[df_long$label != "", , drop = FALSE],
+        #     ggplot2::aes(x = metric, y = value, label = label),
+        #     max.overlaps = Inf,
+        #     box.padding = 0.3,
+        #     point.padding = 0.1,
+        #     min.segment.length = 0,
+        #     size = 2.5
+        # ) +
         ggplot2::scale_x_discrete(labels = function(x) unname(metric_labels[x])) +
         ggplot2::labs(x = NULL, y = "Value", title = title) +
         ggplot2::theme_bw() +
