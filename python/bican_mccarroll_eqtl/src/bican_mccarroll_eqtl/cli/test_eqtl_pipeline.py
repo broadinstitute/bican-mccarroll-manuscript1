@@ -34,7 +34,8 @@ QVAL = "0.01"
 
 K = 11
 RANDOM_STATE = 51
-DESIRED_ORDER = [8, 1, 3, 5, 4, 10, 2, 0, 7, 6, 9]
+#DESIRED_ORDER = [8, 1, 3, 5, 4, 10, 2, 0, 7, 6, 9]
+DESIRED_ORDER=[6, 8, 1, 4, 2, 3, 10, 9, 7, 5, 0]
 
 
 def _maybe_skip(step_label, outputs, force):
