@@ -39,7 +39,7 @@
 #' @importFrom VariantAnnotation readVcf geno
 #' @importFrom GenomicRanges GRanges
 #' @importFrom IRanges IRanges
-#' @importFrom data.table fread melt tstrsplit :=
+#' @importFrom data.table fread melt tstrsplit := fifelse
 #' @importFrom ggplot2 ggplot aes geom_violin geom_text facet_wrap labs
 #'   theme_bw theme element_text element_blank unit
 #' @importFrom ggbeeswarm geom_beeswarm
@@ -132,10 +132,11 @@ plot_gene_snp <- function(gene,
     # Remove unascertained genotypes, compute log expression and dosage
     long_dt <- long_dt[genotype != "./."]
     long_dt[, log_expression := log2(expression + 1)]
-    long_dt[, dosage := fifelse(
+    long_dt[, dosage := data.table::fifelse(
         genotype == "0/0", 0,
-        fifelse(genotype %in% c("0/1", "1/0"), 1,
-                fifelse(genotype == "1/1", 2, NA_real_))
+        data.table::fifelse(genotype %in% c("0/1", "1/0"), 1,
+                            data.table::fifelse(genotype == "1/1", 2, NA_real_)
+        )
     )]
 
     # --- Compute per-cell-type p-values (linear model) ---
@@ -162,8 +163,11 @@ plot_gene_snp <- function(gene,
     pval_dt[, p_label := paste0("p = ", signif(pval_adj, digits = 3))]
 
     # --- Merge p-values back and prepare plot data ---
-    plot_dt <- merge(long_dt, pval_dt[, .(cell_type, pval_adj, p_label)],
-                     by = "cell_type", all.x = TRUE)
+    plot_dt <- data.table::merge.data.table(
+        long_dt, pval_dt[, .(cell_type, pval_adj, p_label)],
+        by = "cell_type",
+        all.x = TRUE
+    )
 
     # Map cell type labels
     plot_dt[, cell_type_label := celltype_label_map[cell_type]]
@@ -176,10 +180,11 @@ plot_gene_snp <- function(gene,
     )]
 
     # Allele-based genotype labels
-    plot_dt[, allele_genotype := fifelse(
+    plot_dt[, allele_genotype := data.table::fifelse(
         genotype == "0/0", paste0(ref_allele, "/", ref_allele),
-        fifelse(genotype == "0/1", paste0(ref_allele, "/", alt_allele),
-                paste0(alt_allele, "/", alt_allele))
+        data.table::fifelse(genotype == "0/1", paste0(ref_allele, "/", alt_allele),
+                            paste0(alt_allele, "/", alt_allele)
+        )
     )]
 
     # --- P-value label positions ---
