@@ -30,7 +30,7 @@
 #'   cell type / region.
 #'
 #' @export
-#' @importFrom data.table fread fwrite as.data.table
+#' @importFrom data.table fread fwrite as.data.table frank
 #' @importFrom logger log_info
 get_index_snp_slope_matrix_with_median_impute <- function(slope_matrix_path,
                                                           min_non_na = 3,

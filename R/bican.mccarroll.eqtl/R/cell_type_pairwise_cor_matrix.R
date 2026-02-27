@@ -53,6 +53,8 @@ get_cell_type_pairwise_cor_matrix <- function(slope_matrix_path,
     region_cell_type_dt <- data.table::fread(region_cell_type_path)
     ct_cols <- paste0(region_cell_type_dt$cell_type, "__", region_cell_type_dt$region)
     ct_cols <- intersect(ct_cols, names(slope_dt))
+    ct_cols <- intersect(ct_cols, names(pval_dt))
+    ct_cols <- intersect(ct_cols, names(pval_threshold_dt))
 
     slope_m <- as.matrix(slope_dt[, ct_cols, with = FALSE])
     pval_m <- as.matrix(pval_dt[, ct_cols, with = FALSE])
