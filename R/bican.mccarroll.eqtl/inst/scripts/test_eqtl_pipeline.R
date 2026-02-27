@@ -219,6 +219,23 @@ cor_plot_path <- file.path(out_dir, paste0("cell_type_cor_plot_qval_", qval, ".p
     }
 )
 
+#TODO: I think this was in the wrong order?
+## -----------------------
+## Step 9: combine_expression_across_cell_types
+## -----------------------
+
+combined_dt <- .run_step_table(
+    step_label = "Step 9: combine_expression_across_cell_types",
+    output_path = combined_expression_path,
+    fun = function() {
+        bican.mccarroll.eqtl::combine_expression_across_cell_types(
+            eqtl_dir              = eqtl_dir,
+            region_cell_type_path = region_cell_type_path,
+            output_path           = combined_expression_path
+        )
+    }
+)
+
 ## -----------------------
 ## Step 8: get_heatmap_index_snp_median_expression
 ## -----------------------
@@ -234,22 +251,6 @@ median_expr_dt <- .run_step_table(
             region_cell_type_path = region_cell_type_path,
             expression_path       = combined_expression_path,
             output_path           = median_expr_path
-        )
-    }
-)
-
-## -----------------------
-## Step 9: combine_expression_across_cell_types
-## -----------------------
-
-combined_dt <- .run_step_table(
-    step_label = "Step 9: combine_expression_across_cell_types",
-    output_path = combined_expression_path,
-    fun = function() {
-        bican.mccarroll.eqtl::combine_expression_across_cell_types(
-            eqtl_dir              = eqtl_dir,
-            region_cell_type_path = region_cell_type_path,
-            output_path           = combined_expression_path
         )
     }
 )
