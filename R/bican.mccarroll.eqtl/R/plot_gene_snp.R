@@ -53,8 +53,8 @@ plot_gene_snp <- function(gene,
                           expression_path,
                           output_path = NULL,
                           width = 2600,
-                          height = 1000,
-                          res = 150) {
+                          height = 350,
+                          res = 100) {
 
     celltype_order <- c(
         "MSN_D1_matrix__CaH",
@@ -120,12 +120,9 @@ plot_gene_snp <- function(gene,
         variable.name = "donor_cell_type", value.name = "expression"
     )
 
-    # Split "donorID_celltype__region" into donor and cell_type
-    long_dt[, c("donor", "cell_type") := data.table::tstrsplit(
-        donor_cell_type, "_", fixed = TRUE, keep = c(1L, NA)
-    )]
-    # tstrsplit with keep=c(1, NA) only gets the first piece; reconstruct
-    # the cell_type by removing the donor prefix
+    # Split "donorID_celltype__region" — donor is before first "_",
+    # cell_type is everything after
+    long_dt[, donor := sub("_.*", "", donor_cell_type)]
     long_dt[, cell_type := sub("^[^_]+_", "", donor_cell_type)]
     long_dt[, donor_cell_type := NULL]
 
