@@ -1,8 +1,8 @@
 ## ------------------------------------------------------------------
 ## Set configuration (development only; comment out in package build)
 ## ------------------------------------------------------------------
-source("R/paths.R")
-source ("R/age_pred_figures.R") #for path resolution
+# source("R/paths.R")
+# source ("R/age_pred_figures.R") #for path resolution
 
 options(
     bican.mccarroll.figures.data_root_dir =
@@ -56,8 +56,6 @@ plot_sample_covariate_correlations<-function (
     data_name="donor_rxn_DGEList",
     randVars=c("donor", "imputed_sex", "biobank", "single_cell_assay", "region", "hbcac_status", "toxicology_group"),
     fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pmi_hr", "pct_intronic", "frac_contamination"),
-    #randVars=c("donor", "imputed_sex", "biobank", "single_cell_assay", "region", "hbcac_status"),
-    #fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination"),
     outDir=NULL) {
 
     paths <- .resolve_age_pred_paths(
@@ -108,19 +106,45 @@ plot_sample_covariate_correlations<-function (
         cell   = c("Percent intronic", "Fraction contamination")
     )
 
-    # groups <- list(
-    #     donor  = c("Imputed sex", "Biobank", "Age", "Genetic PC1", "Genetic PC2", "Genetic PC3", "Genetic PC4", "Genetic PC5", "HBCAC status"),
-    #     sample = c("Region", "Single-cell assay"),
-    #     cell   = c("Percent intronic", "Fraction contamination")
-    # )
     setdiff(colnames(corr_matrix), as.vector(unlist (groups)))
 
     #corrplot draws to the active device, so need to open a device and capture, then close.
     output_svg <- file.path(paths$outDir, "figure1_feature_correlation.svg")
     svglite::svglite(output_svg, width = 8, height = 8)
-    on.exit(grDevices::dev.off(), add = TRUE)
     cm <- plot_corrplot_grouped(corr_matrix, groups)
-    invisible(cm)
+    grDevices::dev.off()
+
+    #################################
+    # Make a second copy, without PMI, Tox
+    ################################
+
+    randVars=c("donor", "imputed_sex", "biobank", "single_cell_assay", "region", "hbcac_status")
+    fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination")
+
+    required_vars <- unique(c(randVars, fixedVars))
+    required_vars<-intersect(required_vars, colnames(df))
+
+    correlation_vars <- setdiff(required_vars, "donor")
+    corr_matrix <- bican.mccarroll.differentialexpression::getVariableCorrelation(df, cols_to_test = correlation_vars)
+
+    pretty_map <- get_pretty_feature_names(correlation_vars)
+
+    colnames(corr_matrix) <- as.vector(pretty_map[colnames(corr_matrix)])
+    rownames(corr_matrix) <- as.vector(pretty_map[rownames(corr_matrix)])
+
+    groups <- list(
+        donor  = c("Imputed sex", "Biobank", "Age", "Genetic PC1", "Genetic PC2", "Genetic PC3", "Genetic PC4", "Genetic PC5", "HBCAC status"),
+        sample = c("Region", "Single-cell assay"),
+        cell   = c("Percent intronic", "Fraction contamination")
+    )
+
+    output_svg <- file.path(paths$outDir, "figure1_feature_correlation_v2.svg")
+    svglite::svglite(output_svg, width = 8, height = 8)
+    cm <- plot_corrplot_grouped(corr_matrix, groups)
+    grDevices::dev.off()
+
+
+
 
 }
 

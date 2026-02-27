@@ -102,7 +102,7 @@ compare_all_eQTL_runs<-function (data_dir, outDir=NULL, filter_levels=c(0,1,2,3,
 
     #filter out level 3.
     df2=df[df$comparison_name!="LEVEL_3",]
-    z2 <- cluster_filtering_trajectories(df2, value_col = "yield", K = 6)
+    z2 <- eqtl_cluster_filtering_trajectories(df2, value_col = "yield", K = 6)
 
     p21<- plot_reduction_vs_initial(df, cluster_df=z$clusters, baseline_name = "LEVEL_0",
                                     comparison_name = "LEVEL_2", y_col = "yield", x_col = "n_union_egenes", point_size=3)
