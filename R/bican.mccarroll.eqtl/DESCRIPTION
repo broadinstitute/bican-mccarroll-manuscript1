@@ -3,9 +3,13 @@ Type: Package
 Title: Eqtl analysis for the bican manuscript
 Version: 0.1.0
 Imports: data.table, ggplot2, ggvenn, cowplot, digest, logger, rlang, ggrepel,
-    ComplexHeatmap, circlize, grid, grDevices, stats, utils
+    ComplexHeatmap, circlize, grid, grDevices, stats, utils,
+    VariantAnnotation, GenomicRanges, IRanges, ggbeeswarm
 Remotes:
-    bioc::ComplexHeatmap
+    bioc::ComplexHeatmap,
+    bioc::VariantAnnotation,
+    bioc::GenomicRanges,
+    bioc::IRanges
 Authors@R: c(
     person(
       "James", "Nemesh",
