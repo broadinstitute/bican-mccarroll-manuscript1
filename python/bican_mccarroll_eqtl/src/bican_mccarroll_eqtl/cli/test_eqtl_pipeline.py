@@ -32,10 +32,9 @@ from bican_mccarroll_eqtl import (
 OUT_DIR = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/manuscript_data"
 QVAL = "0.01"
 
-K = 11
-RANDOM_STATE = 51
-#DESIRED_ORDER = [8, 1, 3, 5, 4, 10, 2, 0, 7, 6, 9]
-DESIRED_ORDER=[6, 8, 1, 4, 2, 3, 10, 9, 7, 5, 0]
+K = 9
+RANDOM_STATE = 119
+DESIRED_ORDER = [2, 1, 7, 4, 8, 5, 6, 3, 0]
 
 
 def _maybe_skip(step_label, outputs, force):

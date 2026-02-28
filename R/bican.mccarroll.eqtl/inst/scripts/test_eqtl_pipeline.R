@@ -31,7 +31,6 @@ force <- TRUE  # set TRUE to rerun everything and overwrite existing outputs
 ## Paths
 ## -----------------------
 
-#TODO: these paths should all be mutable.
 eqtl_dir <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_3"
 region_cell_type_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/manuscript_data/region_cell_type.tsv"
 
@@ -234,13 +233,12 @@ cor_plot_path <- file.path(out_dir, paste0("cell_type_cor_plot_qval_", qval, ".p
     }
 )
 
-#TODO: I think this was in the wrong order?
 ## -----------------------
-## Step 9: combine_expression_across_cell_types
+## Step 8: combine_expression_across_cell_types
 ## -----------------------
 
 combined_dt <- .run_step_table(
-    step_label = "Step 9: combine_expression_across_cell_types",
+    step_label = "Step 8: combine_expression_across_cell_types",
     output_path = combined_expression_path,
     fun = function() {
         bican.mccarroll.eqtl::combine_expression_across_cell_types(
@@ -252,13 +250,13 @@ combined_dt <- .run_step_table(
 )
 
 ## -----------------------
-## Step 8: get_heatmap_index_snp_median_expression
+## Step 9: get_heatmap_index_snp_median_expression
 ## -----------------------
 
 median_expr_path <- file.path(out_dir, paste0("heatmap_index_snp_median_expression_qval_", qval, ".tsv"))
 
 median_expr_dt <- .run_step_table(
-    step_label = "Step 8: get_heatmap_index_snp_median_expression",
+    step_label = "Step 9: get_heatmap_index_snp_median_expression",
     output_path = median_expr_path,
     fun = function() {
         bican.mccarroll.eqtl::get_heatmap_index_snp_median_expression(
@@ -319,7 +317,7 @@ if (dir.exists(scz_coloc_dir)) {
 
 cat("\n===== Step 11: plot_fisher_exact =====\n")
 
-cluster_order <- c(8, 1, 3, 5, 4, 10, 2, 0, 7, 6, 9)
+cluster_order <- c(2, 1, 7, 4, 8, 5, 6, 3, 0)
 
 ad_fisher_path <- file.path(out_dir, "AD_2022_fisher_contingency_counts_gene_clusters.tsv")
 scz_fisher_path <- file.path(out_dir, "SCZ_eur_fisher_contingency_counts_gene_clusters.tsv")

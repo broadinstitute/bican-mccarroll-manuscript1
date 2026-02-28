@@ -34,9 +34,9 @@ median_expression_path = os.path.join(out_dir, f"heatmap_index_snp_median_expres
 ad_coloc_path = os.path.join(out_dir, "AD_2022_coloc_genes_pp_h4_0.9.tsv")
 scz_coloc_path = os.path.join(out_dir, "SCZ_eur_coloc_genes_pp_h4_0.9.tsv")
 
-K = 11
-random_state = 51
-desired_order = [8, 1, 3, 5, 4, 10, 2, 0, 7, 6, 9]
+K = 9
+random_state = 119
+desired_order = [2, 1, 7, 4, 8, 5, 6, 3, 0]
 
 k_selection_output = os.path.join(out_dir, f"kmeans_cluster_k_selection_qval_{qval}.png")
 heatmap_output = os.path.join(out_dir, f"kmeans_eqtl_heatmap_qval_{qval}_k{K}.png")
