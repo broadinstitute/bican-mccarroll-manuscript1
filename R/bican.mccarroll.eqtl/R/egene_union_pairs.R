@@ -58,9 +58,10 @@ get_egene_union_pairs <- function(eqtl_dir,
 
     combined <- data.table::rbindlist(results)
 
-    # Deduplicate to unique (phenotype_id, variant_id) pairs
-    combined[, pair_key := paste0(phenotype_id, "_", variant_id)]
-    result <- combined[!duplicated(pair_key), .(phenotype_id, variant_id, qval)]
+    # Deduplicate to unique (phenotype_id, variant_id) pairs, keeping lowest qval
+    data.table::setorder(combined, phenotype_id, variant_id, qval)
+    result <- combined[!duplicated(combined, by = c("phenotype_id", "variant_id")),
+                       .(phenotype_id, variant_id, qval)]
 
     logger::log_info("Total unique eGene-variant pairs: {nrow(result)}")
 
