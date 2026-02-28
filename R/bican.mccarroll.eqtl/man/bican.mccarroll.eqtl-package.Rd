@@ -11,5 +11,10 @@ Tools for comparing eQTL analysis
 \author{
 \strong{Maintainer}: James Nemesh \email{nemesh@broadinstitute.org}
 
+Authors:
+\itemize{
+  \item Khalid Shakir \email{kshakir@broadinstitute.org} [contributor]
+}
+
 }
 \keyword{internal}

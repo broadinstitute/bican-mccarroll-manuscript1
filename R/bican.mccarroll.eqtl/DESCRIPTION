@@ -2,12 +2,32 @@ Package: bican.mccarroll.eqtl
 Type: Package
 Title: Eqtl analysis for the bican manuscript
 Version: 0.1.0
-Imports: data.table, ggplot2, ggvenn, cowplot,digest,logger, rlang
+Depends: R (>= 4.1)
+Imports:
+    coloc,
+    cowplot,
+    data.table,
+    digest,
+    dplyr,
+    ggplot2,
+    ggvenn,
+    logger,
+    purrr,
+    readr,
+    rlang,
+    tibble,
+    tidyr,
+    tidyselect
 Authors@R: c(
     person(
       "James", "Nemesh",
       email = "nemesh@broadinstitute.org",
       role = c("aut", "cre")
+    ),
+    person(
+      "Khalid", "Shakir",
+      email = "kshakir@broadinstitute.org",
+      role = c("aut", "ctb")
     )
   )
 Description: Eqtl analysis for the bican manuscript.  Yay.

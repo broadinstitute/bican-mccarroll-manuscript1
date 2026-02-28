@@ -88,4 +88,7 @@ install_all_packages(force = TRUE)
 
 # The installer can also be run from the command line without starting an interactive R session
 Rscript -e 'source("https://raw.githubusercontent.com/broadinstitute/bican-mccarroll-manuscript1/main/R/tools/install_packages.R"); install_all_packages()'
+
+# Install from a local checkout
+Rscript -e 'source("R/tools/install_packages.R"); install_all_packages(path=".")'
 ```
