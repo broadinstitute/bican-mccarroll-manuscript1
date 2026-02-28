@@ -232,7 +232,7 @@ def run_kmeans_heatmap(input_path, K, desired_order=None, random_state=32,
             "gene": adata.obs_names,
             "cluster": adata.obs["gene_clusters"].values,
         })
-        assignments_df.to_csv(
+        assignments_df.sort_values("gene").to_csv(
             cluster_assignments_output_path, sep="\t", index=False
         )
 
