@@ -25,7 +25,7 @@
 ## Config
 ## -----------------------
 
-force <- FALSE  # set TRUE to rerun everything and overwrite existing outputs
+force <- TRUE  # set TRUE to rerun everything and overwrite existing outputs
 
 ## -----------------------
 ## Paths
@@ -94,18 +94,18 @@ scz_coloc_dir <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analys
 
 egene_path <- file.path(out_dir, paste0("egene_union_pairs_qval_", qval, ".tsv"))
 
-egene_dt <- .run_step_table(
-    step_label = "Step 1: get_egene_union_pairs",
-    output_path = egene_path,
-    fun = function() {
-        bican.mccarroll.eqtl::get_egene_union_pairs(
-            eqtl_dir              = eqtl_dir,
-            region_cell_type_path = region_cell_type_path,
-            qval_threshold        = qval,
-            output_path           = egene_path
-        )
-    }
-)
+# egene_dt <- .run_step_table(
+#     step_label = "Step 1: get_egene_union_pairs",
+#     output_path = egene_path,
+#     fun = function() {
+#         bican.mccarroll.eqtl::get_egene_union_pairs(
+#             eqtl_dir              = eqtl_dir,
+#             region_cell_type_path = region_cell_type_path,
+#             qval_threshold        = qval,
+#             output_path           = egene_path
+#         )
+#     }
+# )
 
 ## -----------------------
 ## Step 2: get_slope_matrix
@@ -113,18 +113,18 @@ egene_dt <- .run_step_table(
 
 slope_path <- file.path(out_dir, paste0("slope_matrix_qval_", qval, ".tsv"))
 
-slope_dt <- .run_step_table(
-    step_label = "Step 2: get_slope_matrix",
-    output_path = slope_path,
-    fun = function() {
-        bican.mccarroll.eqtl::get_slope_matrix(
-            eqtl_dir               = eqtl_dir,
-            region_cell_type_path  = region_cell_type_path,
-            egene_union_pairs_path = egene_path,
-            output_path            = slope_path
-        )
-    }
-)
+# slope_dt <- .run_step_table(
+#     step_label = "Step 2: get_slope_matrix",
+#     output_path = slope_path,
+#     fun = function() {
+#         bican.mccarroll.eqtl::get_slope_matrix(
+#             eqtl_dir               = eqtl_dir,
+#             region_cell_type_path  = region_cell_type_path,
+#             egene_union_pairs_path = egene_path,
+#             output_path            = slope_path
+#         )
+#     }
+# )
 
 ## -----------------------
 ## Step 3: get_pval_nominal_matrix
@@ -132,18 +132,18 @@ slope_dt <- .run_step_table(
 
 pval_path <- file.path(out_dir, paste0("pval_nominal_matrix_qval_", qval, ".tsv"))
 
-pval_dt <- .run_step_table(
-    step_label = "Step 3: get_pval_nominal_matrix",
-    output_path = pval_path,
-    fun = function() {
-        bican.mccarroll.eqtl::get_pval_nominal_matrix(
-            eqtl_dir               = eqtl_dir,
-            region_cell_type_path  = region_cell_type_path,
-            egene_union_pairs_path = egene_path,
-            output_path            = pval_path
-        )
-    }
-)
+# pval_dt <- .run_step_table(
+#     step_label = "Step 3: get_pval_nominal_matrix",
+#     output_path = pval_path,
+#     fun = function() {
+#         bican.mccarroll.eqtl::get_pval_nominal_matrix(
+#             eqtl_dir               = eqtl_dir,
+#             region_cell_type_path  = region_cell_type_path,
+#             egene_union_pairs_path = egene_path,
+#             output_path            = pval_path
+#         )
+#     }
+# )
 
 ## -----------------------
 ## Step 4: get_pval_nominal_threshold_matrix
@@ -151,18 +151,18 @@ pval_dt <- .run_step_table(
 
 pval_thresh_path <- file.path(out_dir, paste0("pval_nominal_threshold_matrix_qval_", qval, ".tsv"))
 
-pval_thresh_dt <- .run_step_table(
-    step_label = "Step 4: get_pval_nominal_threshold_matrix",
-    output_path = pval_thresh_path,
-    fun = function() {
-        bican.mccarroll.eqtl::get_pval_nominal_threshold_matrix(
-            eqtl_dir               = eqtl_dir,
-            region_cell_type_path  = region_cell_type_path,
-            egene_union_pairs_path = egene_path,
-            output_path            = pval_thresh_path
-        )
-    }
-)
+# pval_thresh_dt <- .run_step_table(
+#     step_label = "Step 4: get_pval_nominal_threshold_matrix",
+#     output_path = pval_thresh_path,
+#     fun = function() {
+#         bican.mccarroll.eqtl::get_pval_nominal_threshold_matrix(
+#             eqtl_dir               = eqtl_dir,
+#             region_cell_type_path  = region_cell_type_path,
+#             egene_union_pairs_path = egene_path,
+#             output_path            = pval_thresh_path
+#         )
+#     }
+# )
 
 ## -----------------------
 ## Step 5: get_index_snp_slope_matrix_with_median_impute
@@ -174,12 +174,27 @@ index_snp_dt <- .run_step_table(
     step_label = "Step 5: get_index_snp_slope_matrix_with_median_impute",
     output_path = index_snp_path,
     fun = function() {
-        bican.mccarroll.eqtl::get_index_snp_slope_matrix_with_median_impute(
+        bican.mccarroll.eqtl::get_index_snp_slope_matrix_with_impute(
             slope_matrix_path = slope_path,
             output_path       = index_snp_path
         )
     }
 )
+
+index_snp_path <- file.path(out_dir, paste0("index_snp_slope_matrix_with_0_impute_qval_", qval, ".tsv"))
+
+index_snp_dt <- .run_step_table(
+    step_label = "Step 5: get_index_snp_slope_matrix_with_median_impute",
+    output_path = index_snp_path,
+    fun = function() {
+        bican.mccarroll.eqtl::get_index_snp_slope_matrix_with_impute(
+            slope_matrix_path = slope_path,
+            output_path       = index_snp_path,
+            imputation_method = "zero"
+        )
+    }
+)
+
 
 ## -----------------------
 ## Step 6: get_cell_type_pairwise_cor_matrix
