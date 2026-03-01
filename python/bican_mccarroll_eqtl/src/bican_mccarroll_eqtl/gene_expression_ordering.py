@@ -82,24 +82,22 @@ def order_genes_by_correlation(median_expression_path,
 
         X = median_expr_df.loc[genes_k, cols_in_order].astype(float).values
 
-        # Separate zero-variance rows (can't compute correlation)
+        # Add tiny deterministic trend to constant/near-constant rows so
+        # correlation distance is computable.  All near-constant genes get
+        # the same ascending pattern, so they correlate with each other
+        # (distance ≈ 0) and cluster together naturally.
         row_var = X.var(axis=1)
-        keep = row_var > 0
-        genes_keep = [g for g, ok in zip(genes_k, keep) if ok]
-        genes_drop = [g for g, ok in zip(genes_k, keep) if not ok]
+        near_const = row_var < 1e-10
+        if near_const.any():
+            X[near_const] += np.arange(X.shape[1]) * 1e-10
 
-        if len(genes_keep) <= 1:
-            ordered_genes.extend(genes_keep + genes_drop)
-            continue
-
-        X_keep = X[keep, :]
-
-        d = pdist(X_keep, metric="correlation")
+        d = pdist(X, metric="correlation")
+        d = np.nan_to_num(d, nan=0.0)
         Z = linkage(d, method="average")
         leaf_idx = leaves_list(Z)
-        ordered_keep = [genes_keep[i] for i in leaf_idx]
+        ordered_k = [genes_k[i] for i in leaf_idx]
 
-        ordered_genes.extend(ordered_keep + genes_drop)
+        ordered_genes.extend(ordered_k)
 
     if output_path is not None:
         out_df = pd.DataFrame({"gene": ordered_genes})
