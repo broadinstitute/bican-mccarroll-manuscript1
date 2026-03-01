@@ -66,7 +66,7 @@ plot_ctp_region_pair <- function(ctp_df, region1, region2, cell_type, cell_type_
     ggplot2::aes(x=!!dplyr::sym(region1), y=!!dplyr::sym(region2))
   ) +
     ggplot2::geom_abline(slope=1, intercept=0, linetype="dashed", color="gray") +
-    ggplot2::geom_point() +
+    ggplot2::geom_point(alpha=0.75) +
     ggpubr::stat_cor(method="spearman", cor.coef.name="rho") +
     ggplot2::labs(
       title=sprintf("%s fraction", cell_type),
