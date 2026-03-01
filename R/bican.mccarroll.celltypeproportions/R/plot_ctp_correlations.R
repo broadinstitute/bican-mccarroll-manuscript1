@@ -65,6 +65,7 @@ plot_ctp_region_pair <- function(ctp_df, region1, region2, cell_type, cell_type_
     plot_df,
     ggplot2::aes(x=!!dplyr::sym(region1), y=!!dplyr::sym(region2))
   ) +
+    ggplot2::geom_abline(slope=1, intercept=0, linetype="dashed", color="gray") +
     ggplot2::geom_point() +
     ggpubr::stat_cor(method="spearman", cor.coef.name="rho") +
     ggplot2::labs(
