@@ -78,6 +78,7 @@ def _load_slope_matrix(input_path, celltype_order=None):
         celltype_order = DEFAULT_CELLTYPE_ORDER
 
     input_matrix = pd.read_csv(input_path, sep="\t", index_col=0)
+    input_matrix = input_matrix.sort_index()
     slope_matrix = input_matrix.drop(columns=["variant_id"])
     adata = ad.AnnData(slope_matrix)
     adata = adata[:, celltype_order]

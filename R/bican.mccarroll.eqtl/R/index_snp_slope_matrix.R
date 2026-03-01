@@ -86,6 +86,9 @@ get_index_snp_slope_matrix_with_impute <- function(slope_matrix_path,
         "Output: {nrow(index_dt)} genes x {length(slope_cols)} cell type/regions (imputed via '{imputation_method}')"
     )
 
+    # Sort by gene for reproducible row order (k-means is order-sensitive)
+    data.table::setorder(index_dt, phenotype_id)
+
     if (!is.null(output_path)) {
         data.table::fwrite(index_dt, output_path, sep = "\t")
         logger::log_info("Written to: {output_path}")
