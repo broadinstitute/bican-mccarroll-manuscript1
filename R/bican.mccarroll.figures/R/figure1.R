@@ -4,16 +4,16 @@
 # source("R/paths.R")
 # source ("R/age_pred_figures.R") #for path resolution
 
-options(
-    bican.mccarroll.figures.data_root_dir =
-        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis",
-
-    bican.mccarroll.figures.out_dir =
-        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
-
-    bican.mccarroll.figures.cache_dir =
-        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
-)
+# options(
+#     bican.mccarroll.figures.data_root_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis",
+#
+#     bican.mccarroll.figures.out_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
+#
+#     bican.mccarroll.figures.cache_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
+# )
 
 #' Correlation plot of sample covariates used in the model
 #'

@@ -82,6 +82,7 @@ prep_de <- function(df, gene_to_chr) {
 #' @param fdr_cutoff Adjusted p-value threshold.
 #' @param abs_log_fc_cutoff Absolute log2 fold-change threshold.
 #' @param show_title Whether to show the cell type as the plot title.
+#' @param significant_color Color used for points passing the FDR threshold.
 #' @return Invisibly returns NULL.
 #' @export
 plot_de_volcano <- function(de_dt,
@@ -89,7 +90,8 @@ plot_de_volcano <- function(de_dt,
                             region_use,
                             fdr_cutoff = 0.05,
                             abs_log_fc_cutoff = log2(1.05),
-                            show_title=TRUE) {
+                            show_title=TRUE,
+                            significant_color = "cornflowerblue") {
 
     cell_type <- region <- log_fc <- adj_p_val <- NULL
 
@@ -119,7 +121,7 @@ plot_de_volcano <- function(de_dt,
         log_fc,
         -log10(adj_p_val),
         pch = 20,
-        col = "cornflowerblue"
+        col = significant_color
     )]
 
     if (show_title)
