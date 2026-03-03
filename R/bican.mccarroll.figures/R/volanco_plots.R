@@ -1,17 +1,17 @@
-# source("R/paths.R")
-#
-# options(
-#     bican.mccarroll.figures.data_root_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis",
-#
-#     bican.mccarroll.figures.out_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
-#
-#     bican.mccarroll.figures.cache_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
-# )
+source("R/paths.R")
 
-#de_dir<-gene_to_chr_file<-ct_file<-outDir<-data_cache_dir<- NULL
+options(
+    bican.mccarroll.figures.data_root_dir =
+        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis",
+
+    bican.mccarroll.figures.out_dir =
+        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
+
+    bican.mccarroll.figures.cache_dir =
+        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
+)
+
+de_dir<-gene_to_chr_file<-ct_file<-outDir<-data_cache_dir<- NULL
 
 #' Generate volcano plots for sex and age differential expression
 #'
@@ -46,7 +46,9 @@ plot_de_volcano <- function(
 
     fdr_cutoff <- 0.05
     abs_log_fc_cutoff <- log2(1.05)
-
+    #significant_color="orange"
+    #significant_color = "cornflowerblue"
+    significant_color = "lightseagreen"
     ###############################################
     #Gather the sex DE data averaged across regions
     ###############################################
@@ -72,7 +74,8 @@ plot_de_volcano <- function(
         region_use = region_use,
         fdr_cutoff = fdr_cutoff,
         abs_log_fc_cutoff = abs_log_fc_cutoff,
-        show_title = FALSE)
+        show_title = FALSE,
+        significant_color=significant_color)
 
     grDevices::dev.off()
 
@@ -97,7 +100,9 @@ plot_de_volcano <- function(
         region_use = region_use,
         fdr_cutoff = fdr_cutoff,
         abs_log_fc_cutoff = abs_log_fc_cutoff,
-        show_title = FALSE)
+        show_title = FALSE,
+        significant_color=significant_color)
+
     grDevices::dev.off()
 
     invisible(out_file)
