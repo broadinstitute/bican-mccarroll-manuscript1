@@ -14,7 +14,8 @@
 #     bican.mccarroll.figures.cache_dir =
 #         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
 # )
-
+#
+# cellTypeListFile <- metacell_dir <- age_de_results_dir <- contig_yaml_file <- reduced_gtf_file <- data_cache_dir <- outDir <- NULL
 
 # Private
 .age_prediction_all<-function () {
@@ -301,12 +302,20 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(
     corr_title <- ""
     jac_title <- ""
 
+    correlation_legend_title<-"Residual age\ncorrelation"
+    jaccard_legend_title<-"Gene overlap\n(Jaccard index)"
+
+    #replace the "_" with space for cell type names
+    model_predictions$cell_type <- gsub("_", " ", model_predictions$cell_type)
+    all_models$cell_type <- gsub("_", " ", all_models$cell_type)
+
     corr_out <- bican.mccarroll.differentialexpression::plot_residual_corr_heatmap(
         model_predictions = model_predictions,
         mode = "within_region", region = region,
         value_var = "resid_mean_corrected",
         title = corr_title, annotate_cells = TRUE,
-        row_fontsize = 10, col_fontsize = 10, cell_fontsize = 9
+        row_fontsize = 10, col_fontsize = 10, cell_fontsize = 9,
+        legend_title=correlation_legend_title
     )
 
     jaccard_out <- bican.mccarroll.differentialexpression::plot_jaccard_overlap_heatmap(
@@ -316,9 +325,9 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(
         annotate_cells = TRUE,
         row_fontsize = 10, col_fontsize = 10, cell_fontsize = 9,
         row_order_names = corr_out$row_order_names,
-        column_order_names = corr_out$column_order_names
+        column_order_names = corr_out$column_order_names,
+        legend_title = jaccard_legend_title
     )
-
 
     g_corr <- grid::grid.grabExpr(
         ComplexHeatmap::draw(
@@ -423,12 +432,20 @@ age_prediction_residual_corr_and_jaccard_heatmaps_cell_type <- function(
     corr_title <- ""
     jac_title <- ""
 
+    correlation_legend_title<-"Residual age\ncorrelation"
+    jaccard_legend_title<-"Gene overlap\n(Jaccard index)"
+
+    #replace the "_" with space for cell type names
+    model_predictions$cell_type <- gsub("_", " ", model_predictions$cell_type)
+    all_models$cell_type <- gsub("_", " ", all_models$cell_type)
+
     corr_out <- bican.mccarroll.differentialexpression::plot_residual_corr_heatmap(
         model_predictions = model_predictions,
         mode = "within_cell_type", cell_type = cell_type,
         value_var = "resid_mean_corrected",
         title = corr_title, annotate_cells = TRUE,
-        row_fontsize = 10, col_fontsize = 10, cell_fontsize = 9
+        row_fontsize = 10, col_fontsize = 10, cell_fontsize = 9,
+        legend_title=correlation_legend_title
     )
 
     jaccard_out <- bican.mccarroll.differentialexpression::plot_jaccard_overlap_heatmap(
@@ -438,7 +455,8 @@ age_prediction_residual_corr_and_jaccard_heatmaps_cell_type <- function(
         annotate_cells = TRUE,
         row_fontsize = 10, col_fontsize = 10, cell_fontsize = 9,
         row_order_names = corr_out$row_order_names,
-        column_order_names = corr_out$column_order_names
+        column_order_names = corr_out$column_order_names,
+        legend_title = jaccard_legend_title
     )
 
     g_corr <- grid::grid.grabExpr(
@@ -786,10 +804,20 @@ age_prediction_examples <- function(
     donor_pred <- results$donor_predictions
     gam_fit <- results$gam_fit
 
+    #for the paper, we're going to format age in years
+    donor_pred$age<-donor_pred$age*10
+    donor_pred$pred_mean<-donor_pred$pred_mean*10
+    donor_pred$resid_mean<-donor_pred$resid_mean*10
+
+    gam_fit$age<-gam_fit$age*10
+    gam_fit$gam_pred<-gam_fit$gam_pred*10
+
+
     make_one_plot <- function(cell_type) {
 
         dp <- donor_pred[donor_pred$cell_type == cell_type & donor_pred$region == region, ]
         gf <- gam_fit[gam_fit$cell_type == cell_type & gam_fit$region == region, ]
+
 
         bican.mccarroll.differentialexpression::plot_mc_donor_predictions(
             donor_predictions = dp,

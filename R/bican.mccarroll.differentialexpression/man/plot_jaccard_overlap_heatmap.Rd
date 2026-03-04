@@ -16,7 +16,8 @@ plot_jaccard_overlap_heatmap(
   col_fontsize = 16,
   cell_fontsize = 16,
   row_order_names = NULL,
-  column_order_names = NULL
+  column_order_names = NULL,
+  legend_title = "Jaccard"
 )
 }
 \arguments{
@@ -51,6 +52,8 @@ row clustering is disabled.}
 \item{column_order_names}{Optional character vector of column names specifying the
 desired column order. Names not present in the Jaccard matrix are ignored. If
 provided, column clustering is disabled.}
+
+\item{legend_title}{Character scalar specifying the legend title for the heatmap color scale.}
 }
 \value{
 A list with components:

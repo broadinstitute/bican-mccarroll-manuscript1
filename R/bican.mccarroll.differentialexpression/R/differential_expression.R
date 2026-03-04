@@ -244,32 +244,316 @@ differential_expression_region <- function(data_dir, data_name, randVars, fixedV
 
 }
 
-# make_de_filename <- function(contrast, cell_type, interaction_var = NULL, absolute_effects = FALSE, suffix="DE_results.txt") {
-#     if (is.null(interaction_var)) {
-#         return(paste0(cell_type, "__", contrast, "_", suffix))
-#     }
-#
-#     x <- contrast
-#
-#     # If contrast encodes baseline interaction as "age:regionNAC", strip "region" -> "age:NAC"
-#     if (!absolute_effects) {
-#         x <- sub(paste0(":", interaction_var), ":", x, fixed = TRUE)  # ":" + interaction_var -> ":"
-#     }
-#
-#     # Convert "age:NAC" -> "age_NAC"; if already "age_NAC" this is a no-op
-#     x <- gsub(":", "_", x, fixed = TRUE)
-#
-#     parts <- strsplit(x, "_", fixed = TRUE)[[1]]
-#     if (length(parts) != 2L) {
-#         stop(sprintf("Expected exactly two tokens after parsing, got %d from '%s' (parsed as '%s')",
-#                      length(parts), contrast, x))
-#     }
-#
-#     contrast_name <- parts[1]
-#     interaction_level <- parts[2]
-#
-#     paste0(cell_type, "__", interaction_level, "__", contrast_name, "_", suffix)
-# }
+
+########################
+# SLICE CONTRAST INTERACTION ENTRY POINT
+# Compare continuous-effect differences between two (cell_type, region) slices per row of a contrasts file.
+########################
+
+
+#' Differential expression for between-group differences in a continuous effect
+#'
+#' This entry point extends the standard differential expression workflow by
+#' testing whether the effect of a continuous variable (for example, age)
+#' differs between two groups. Groups are defined by `(cell_type, region)` and
+#' are provided row-wise in `group_interaction_file` as a baseline group and a
+#' comparison group.
+#'
+#' For each row in `group_interaction_file`, the function fits an interaction
+#' model and writes only the group-difference (interaction) results for the
+#' tested variable.
+#'
+#' @param data_dir Directory containing the serialized DGEList input data.
+#' @param data_name Name of the DGEList dataset (without file extension).
+#' @param randVars Character vector of random effect variables to include in
+#'   the model.
+#' @param fixedVars Character vector of fixed effect variables to include in
+#'   the model.
+#' @param group_interaction_file Path to a tab-delimited file defining the group
+#'   comparisons. The file must contain the columns `baseline_celltype`,
+#'   `baseline_region`, `comparison_celltype`, and `comparison_region`.
+#' @param tested_var Name of the continuous variable whose effect is compared
+#'   between groups (default `"age"`).
+#' @param outPDF Optional path to a PDF file for volcano plots. If `NULL`,
+#'   plots are not written.
+#' @param result_dir Directory where differential expression results will be
+#'   written.
+#' @param n_cores Number of cores used for model fitting.
+#' @param cpm_cutoff Minimum CPM threshold used during gene filtering.
+#' @param fraction_samples Fraction of samples required to exceed the CPM
+#'   threshold for a gene to be retained.
+#'
+#' @return Invisibly returns `NULL`. Differential expression tables are written
+#'   to `result_dir`.
+#'
+#' @export
+differential_expression_group_interactions <- function(data_dir,
+                                                       data_name,
+                                                       randVars,
+                                                       fixedVars,
+                                                       group_interaction_file,
+                                                       tested_var = "age",
+                                                       outPDF = NULL,
+                                                       result_dir,
+                                                       n_cores = parallel::detectCores() - 2,
+                                                       cpm_cutoff = 1,
+                                                       fraction_samples = 0.1) {
+
+    if (!dir.exists(result_dir)) {
+        logger::log_info(paste("Creating result directory:", result_dir))
+        dir.create(result_dir, recursive = TRUE)
+    }
+    if (!dir.exists(result_dir)) {
+        stop("Result directory does not exist: ", result_dir, call. = FALSE)
+    }
+
+    d <- bican.mccarroll.differentialexpression::prepare_data_for_differential_expression(
+        data_dir, data_name, randVars, fixedVars
+    )
+
+    dge <- d$dge
+    fixedVars <- d$fixedVars
+    randVars <- d$randVars
+
+    slice_defs <- read_slice_contrasts_file(group_interaction_file)
+
+    plot_list <- list()
+
+    lineStr <- strrep("=", 80)
+
+    for (i in seq_len(nrow(slice_defs))) {
+
+        row <- slice_defs[i, , drop = FALSE]
+
+        baseline_celltype <- row$baseline_celltype[[1]]
+        baseline_region <- row$baseline_region[[1]]
+        comparison_celltype <- row$comparison_celltype[[1]]
+        comparison_region <- row$comparison_region[[1]]
+
+        logger::log_info(lineStr)
+        logger::log_info(paste0("Group interaction DE row ", i, ": ",
+                                baseline_celltype, " / ", baseline_region,
+                                " vs ",
+                                comparison_celltype, " / ", comparison_region))
+        logger::log_info(lineStr)
+
+        run <- .build_slice_contrast_interaction_run(
+            dge = dge,
+            tested_var = tested_var,
+            fixedVars = fixedVars,
+            baseline_celltype = baseline_celltype,
+            baseline_region = baseline_region,
+            comparison_celltype = comparison_celltype,
+            comparison_region = comparison_region,
+            cpm_cutoff = cpm_cutoff,
+            fraction_samples = fraction_samples
+        )
+
+        if (isTRUE(run$skip)) {
+            logger::log_warn(paste("Skipping row", i, "-", run$reason))
+            next
+        }
+
+        z <- differential_expression_one_cell_type(
+            run$dge_cell,
+            run$fixedVars,
+            randVars,
+            run$contrast_defs,
+            interaction_var = run$interaction_var,
+            absolute_effects = FALSE,
+            n_cores = n_cores
+        )
+
+        z_flat <- flatten_de_results(z)
+
+        if (!length(z_flat)) {
+            logger::log_warn(paste("No DE results returned for row", i))
+            next
+        }
+
+        if (!(run$target_contrast %in% names(z_flat))) {
+            logger::log_warn(paste0("Target contrast not found for row ", i, ": ", run$target_contrast))
+            logger::log_warn(paste0("Available contrasts: ", paste(names(z_flat), collapse = ", ")))
+            next
+        }
+
+        out <- z_flat[[run$target_contrast]]
+
+        out_name <- paste0(run$cell_type_label, "__", tested_var, "_DE_results.txt")
+        outFile <- file.path(result_dir, out_name)
+
+        logger::log_info(paste("Saving slope-difference results to:", outFile))
+
+        write.table(out,
+                    file = outFile,
+                    sep = "\t",
+                    quote = FALSE,
+                    row.names = TRUE,
+                    col.names = TRUE)
+
+        if (!is.null(outPDF)) {
+            plot_title <- paste0(run$cell_type_label, "__", tested_var)
+            plot_title <- gsub("__", " ", plot_title)
+
+            p <- make_volcano(out,
+                              fdr_thresh = 0.05,
+                              lfc_thresh = 0,
+                              top_n_each = 10,
+                              title = plot_title)
+
+            plot_list[[plot_title]] <- p
+        }
+    }
+
+    if (!is.null(outPDF)) {
+        if (!length(plot_list)) {
+            logger::log_warn("outPDF was provided but no plots were generated.")
+        } else {
+            logger::log_info(paste("Saving all plots to PDF:", outPDF))
+            grDevices::pdf(outPDF)
+            on.exit(grDevices::dev.off(), add = TRUE)
+
+            pages <- paginate_plots(plot_list, plots_per_page = 2)
+            for (i in seq_along(pages)) {
+                print(pages[[i]])
+            }
+        }
+    }
+
+    invisible(NULL)
+}
+
+#' Prepare inputs for a between-group interaction DE run
+#'
+#' Constructs the data structures required to run a differential expression
+#' analysis comparing the effect of a continuous variable between two groups
+#' defined by `(cell_type, region)`. The function subsets the DGEList to the
+#' samples belonging to the baseline and comparison groups, creates the
+#' two-level group indicator used for the interaction model, and prepares the
+#' corresponding `fixedVars` and `contrast_defs` objects.
+#'
+#' @param dge A DGEList containing counts and sample metadata.
+#' @param tested_var Name of the continuous variable whose effect will be
+#'   compared between groups.
+#' @param fixedVars Character vector of fixed effect variables from the main
+#'   analysis.
+#' @param baseline_celltype Cell type defining the baseline group.
+#' @param baseline_region Region defining the baseline group.
+#' @param comparison_celltype Cell type defining the comparison group.
+#' @param comparison_region Region defining the comparison group.
+#'
+#' @return A list describing the prepared run, including the subsetted
+#'   `dge_cell`, modified `fixedVars`, the constructed `contrast_defs`,
+#'   the interaction variable name, and metadata used for labeling outputs.
+#'
+#' @noRd
+.build_slice_contrast_interaction_run <- function(dge,
+                                                  tested_var,
+                                                  fixedVars,
+                                                  baseline_celltype,
+                                                  baseline_region,
+                                                  comparison_celltype,
+                                                  comparison_region,
+                                                  cpm_cutoff = 1,
+                                                  fraction_samples = 0.1) {
+
+    stopifnot(!missing(dge))
+    stopifnot(!missing(tested_var))
+    stopifnot(!missing(fixedVars))
+
+    if (!(tested_var %in% colnames(dge$samples))) {
+        stop("tested_var not found in dge$samples: ", tested_var, call. = FALSE)
+    }
+    if (!is.numeric(dge$samples[[tested_var]])) {
+        stop("tested_var must be numeric (continuous): ", tested_var, call. = FALSE)
+    }
+
+    # Label the two slices with stable, parseable strings (avoid regex metacharacters).
+    baseline_level <- paste0(baseline_celltype, "__", baseline_region)
+    comparison_level <- paste0(comparison_celltype, "__", comparison_region)
+
+    # Subset to exactly the two requested slices.
+    keep <- (dge$samples$cell_type == baseline_celltype & dge$samples$region == baseline_region) |
+        (dge$samples$cell_type == comparison_celltype & dge$samples$region == comparison_region)
+
+    dge_cell <- dge[, keep, keep.lib.sizes = TRUE]
+    if (ncol(dge_cell) == 0) {
+        return(list(skip = TRUE, reason = "No samples after subsetting."))
+    }
+
+    # Build the 2-level factor "test" that encodes the two slices.
+    test <- ifelse(dge_cell$samples$cell_type == baseline_celltype & dge_cell$samples$region == baseline_region,
+                   baseline_level, comparison_level)
+    dge_cell$samples$test <- factor(test, levels = c(baseline_level, comparison_level))
+
+    # Filter/normalize exactly as the standard entry point does (libsize, top expressed, CPM cutoff).
+    # Title prefix uses the slice label rather than a single cell type.
+    slice_label <- paste0(baseline_level, "__vs__", comparison_level)
+
+    r <- filter_by_libsize(dge_cell, threshold_sd = 1.96, bins = 50, strTitlePrefix = slice_label)
+    dge_cell <- r$dge
+
+    dge_cell <- filter_top_expressed_genes(dge_cell, gene_filter_frac = 0.75, verbose = TRUE)
+
+    r2 <- plot_logCPM_density_quantiles(dge_cell,
+                                        cpm_cutoff = cpm_cutoff,
+                                        logCPM_xlim = c(-5, 15),
+                                        lower_quantile = 0.05,
+                                        upper_quantile = 0.95,
+                                        quantile_steps = 5,
+                                        min_samples = 1,
+                                        fraction_samples = fraction_samples)
+    dge_cell <- r2$filtered_dge
+
+    if (is.null(dge_cell) || ncol(dge_cell) == 0) {
+        return(list(skip = TRUE, reason = "No samples remaining after filtering."))
+    }
+    if (nrow(dge_cell) == 0) {
+        return(list(skip = TRUE, reason = "No genes remaining after filtering."))
+    }
+
+    # Modify fixedVars: remove variables that are deterministically encoded by "test".
+    # Do not include the interaction term directly; the DE code will add it when interaction_var is set.
+    fixedVars_run <- setdiff(fixedVars, c("cell_type", "region", "test", tested_var))
+    fixedVars_run <- unique(c(tested_var, "test", fixedVars_run))
+
+    # Contrast defs: encode tested_var as continuous (reference_level/comparison_level NA),
+    # and encode interaction baseline level via baseline_region (string match).
+    contrast_defs_run <- data.frame(contrast_name = tested_var,
+                                    variable = tested_var,
+                                    reference_level = NA_character_,
+                                    comparison_level = NA_character_,
+                                    baseline_region = baseline_level,
+                                    stringsAsFactors = FALSE)
+
+    target_contrast <- paste0(tested_var, ":", "test", comparison_level)
+    cell_type_label <- slice_label
+
+    list(skip = FALSE,
+         reason = NULL,
+         dge_cell = dge_cell,
+         fixedVars = fixedVars_run,
+         contrast_defs = contrast_defs_run,
+         interaction_var = "test",
+         baseline_level = baseline_level,
+         comparison_level = comparison_level,
+         target_contrast = target_contrast,
+         cell_type_label = cell_type_label)
+}
+
+read_slice_contrasts_file <- function(slice_contrasts_file) {
+    slice_defs <- read.table(slice_contrasts_file, stringsAsFactors = FALSE, sep = "\t", header = TRUE)
+
+    required_cols <- c("baseline_celltype", "baseline_region", "comparison_celltype", "comparison_region")
+    missing_cols <- setdiff(required_cols, colnames(slice_defs))
+    if (length(missing_cols)) {
+        stop("slice_contrasts_file is missing required columns: ",
+             paste(missing_cols, collapse = ", "),
+             call. = FALSE)
+    }
+
+    slice_defs
+}
 
 make_de_filename <- function(contrast,
                              cell_type,
@@ -1464,17 +1748,18 @@ make_volcano <- function(df,
     }
 
     if (nrow(labs) > 0) {
-        p <- p + ggrepel::geom_text_repel(
-            data = labs,
-            ggplot2::aes(x = logFC, y = neglog10FDR, label = label),
-            size = 3,
-            color = "black",
-            min.segment.length = 0,
-            max.overlaps = 10000,
-            box.padding = 0.3,
-            point.padding = 0.2,
-            show.legend = FALSE  # keep legend showing points
-        )
+        # TODO: ggrepel now requires R 4.5, revisit.
+        # p <- p + ggrepel::geom_text_repel(
+        #     data = labs,
+        #     ggplot2::aes(x = logFC, y = neglog10FDR, label = label),
+        #     size = 3,
+        #     color = "black",
+        #     min.segment.length = 0,
+        #     max.overlaps = 10000,
+        #     box.padding = 0.3,
+        #     point.padding = 0.2,
+        #     show.legend = FALSE  # keep legend showing points
+        # )
     }
 
 

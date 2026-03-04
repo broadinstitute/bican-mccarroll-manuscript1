@@ -14,7 +14,8 @@ plot_residual_corr_heatmap(
   annotate_cells = TRUE,
   row_fontsize = 9,
   col_fontsize = 9,
-  cell_fontsize = 9
+  cell_fontsize = 9,
+  legend_title = "Correlation"
 )
 }
 \arguments{

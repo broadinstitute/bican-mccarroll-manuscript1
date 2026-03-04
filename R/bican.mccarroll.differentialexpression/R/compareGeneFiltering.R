@@ -340,18 +340,19 @@ plot_summary <- function(df) {
     #Make R CMD CHECK happy
     metric<-value<-label<-NULL
 
+    #TODO: ggrepel requires R 4.5.  Revisit.
     p_main <- ggplot(df_main, aes(x = metric, y = value)) +
         geom_violin(trim = FALSE) +
         geom_jitter(width = 0.08, height = 0, size = 1, alpha = 0.6) +
-        ggrepel::geom_text_repel(
-            data = df_main[df_main$label != "", ],
-            aes(label = label),
-            max.overlaps = Inf,
-            box.padding = 0.3,
-            point.padding = 0.1,
-            min.segment.length = 0,
-            size = 2.5
-        ) +
+        # ggrepel::geom_text_repel(
+        #     data = df_main[df_main$label != "", ],
+        #     aes(label = label),
+        #     max.overlaps = Inf,
+        #     box.padding = 0.3,
+        #     point.padding = 0.1,
+        #     min.segment.length = 0,
+        #     size = 2.5
+        # ) +
         labs(
             x = NULL,
             y = "Value",
@@ -365,15 +366,16 @@ plot_summary <- function(df) {
     p_frac <- ggplot(df_frac, aes(x = metric, y = value)) +
         geom_violin(trim = FALSE) +
         geom_jitter(width = 0.08, height = 0, size = 1, alpha = 0.6) +
-        ggrepel::geom_text_repel(
-            data = df_frac[df_frac$label != "", ],
-            aes(label = label),
-            max.overlaps = Inf,
-            box.padding = 0.3,
-            point.padding = 0.1,
-            min.segment.length = 0,
-            size = 2.5
-        ) +
+        #TODO: ggrepel requires R 4.5.  Revisit.
+        # ggrepel::geom_text_repel(
+        #     data = df_frac[df_frac$label != "", ],
+        #     aes(label = label),
+        #     max.overlaps = Inf,
+        #     box.padding = 0.3,
+        #     point.padding = 0.1,
+        #     min.segment.length = 0,
+        #     size = 2.5
+        # ) +
         labs(
             x = NULL,
             y = "Value",
