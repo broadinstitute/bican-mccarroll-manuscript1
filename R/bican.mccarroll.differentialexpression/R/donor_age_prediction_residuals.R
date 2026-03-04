@@ -262,7 +262,7 @@ plot_residual_pair_scatter_one <- function(model_predictions,
 #' @param row_fontsize Font size for row labels.
 #' @param col_fontsize Font size for column labels.
 #' @param cell_fontsize Font size for cell annotations.
-#'
+#' @param legend_title The legend title.
 #' @return A list with components:
 #' \describe{
 #'   \item{heatmap}{A `ComplexHeatmap::Heatmap` object. Draw with `ComplexHeatmap::draw()`.}
@@ -287,7 +287,8 @@ plot_residual_corr_heatmap <- function(model_predictions,
                                        annotate_cells = TRUE,
                                        row_fontsize = 9,
                                        col_fontsize = 9,
-                                       cell_fontsize = 9) {
+                                       cell_fontsize = 9,
+                                       legend_title="Correlation") {
 
     mode <- match.arg(mode)
 
@@ -327,7 +328,8 @@ plot_residual_corr_heatmap <- function(model_predictions,
         annotate_cells = annotate_cells,
         row_fontsize = row_fontsize,
         col_fontsize = col_fontsize,
-        cell_fontsize = cell_fontsize
+        cell_fontsize = cell_fontsize,
+        legend_title
     )
 
     # Extract clustered order without drawing to the active device
@@ -368,6 +370,7 @@ plot_residual_corr_heatmap <- function(model_predictions,
 #' @param column_order_names Optional character vector of column names specifying the
 #'   desired column order. Names not present in the Jaccard matrix are ignored. If
 #'   provided, column clustering is disabled.
+#' @param legend_title Character scalar specifying the legend title for the heatmap color scale.
 #'
 #' @return A list with components:
 #' \describe{
@@ -394,7 +397,8 @@ plot_jaccard_overlap_heatmap <- function(all_models,
                                          col_fontsize = 16,
                                          cell_fontsize = 16,
                                          row_order_names = NULL,
-                                         column_order_names = NULL) {
+                                         column_order_names = NULL,
+                                         legend_title = "Jaccard") {
 
     mode <- match.arg(mode)
     .require_slice_args(mode, cell_type, region)
@@ -425,7 +429,8 @@ plot_jaccard_overlap_heatmap <- function(all_models,
         col_fontsize = col_fontsize,
         cell_fontsize = cell_fontsize,
         row_order_names = row_order_names,
-        column_order_names = column_order_names
+        column_order_names = column_order_names,
+        legend_title=legend_title
     )
 
     list(jaccard = J, heatmap = ht)
@@ -788,7 +793,8 @@ plot_jaccard_heatmap <- function(J,
                                  col_fontsize = 16,
                                  cell_fontsize = 16,
                                  row_order_names = NULL,
-                                 column_order_names = NULL) {
+                                 column_order_names = NULL,
+                                 legend_title = "Jaccard") {
     stopifnot(is.matrix(J))
 
     # Validate / map optional name-based ordering to indices
@@ -865,7 +871,7 @@ plot_jaccard_heatmap <- function(J,
         show_column_dend = cluster_columns,
         row_names_gp = grid::gpar(fontsize = row_fontsize),
         column_names_gp = grid::gpar(fontsize = col_fontsize),
-        heatmap_legend_param = list(at = c(0, 0.5, 1), title = "Jaccard"),
+        heatmap_legend_param = list(at = c(0, 0.5, 1), title = legend_title),
         cell_fun = cf
     )
 }
@@ -983,7 +989,8 @@ load_model_predictions <- function (prediction_file, cellTypeListFile=NULL) {
                                                annotate_cells = TRUE,
                                                row_fontsize = 9,
                                                col_fontsize = 9,
-                                               cell_fontsize = 9) {
+                                               cell_fontsize = 9,
+                                               legend_title="Correlation") {
     stopifnot(is.matrix(res_mat))
 
     C <- stats::cor(res_mat, use = "pairwise.complete.obs")
@@ -1019,7 +1026,7 @@ load_model_predictions <- function (prediction_file, cellTypeListFile=NULL) {
         show_column_dend = TRUE,
         row_names_gp = grid::gpar(fontsize = row_fontsize),
         column_names_gp = grid::gpar(fontsize = col_fontsize),
-        heatmap_legend_param = list(at = c(-1, -0.5, 0, 0.5, 1), title = "Correlation"),
+        heatmap_legend_param = list(at = c(-1, -0.5, 0, 0.5, 1), title = legend_title),
         cell_fun = cf
     )
 }

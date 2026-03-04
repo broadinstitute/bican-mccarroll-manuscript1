@@ -12,7 +12,8 @@ plot_de_scatter(
   region_b = NA,
   fdr_cutoff = 0.05,
   add_fit = TRUE,
-  xlab_prefix = NULL
+  xlab_prefix = NULL,
+  plot_only_significant = FALSE
 )
 }
 \arguments{
@@ -31,6 +32,8 @@ plot_de_scatter(
 \item{add_fit}{Whether to add a robust linear fit when rho^2 is high.}
 
 \item{xlab_prefix}{Optional prefix string added to x-axis label.}
+
+\item{plot_only_significant}{If TRUE, only plot genes where at least one test is significant.}
 }
 \value{
 Invisibly returns NULL.

@@ -165,6 +165,7 @@ plot_de_volcano <- function(de_dt,
 #' @param fdr_cutoff Adjusted p-value threshold.
 #' @param add_fit Whether to add a robust linear fit when rho^2 is high.
 #' @param xlab_prefix Optional prefix string added to x-axis label.
+#' @param plot_only_significant If TRUE, only plot genes where at least one test is significant.
 #' @return Invisibly returns NULL.
 #' @export
 plot_de_scatter <- function(de_dt,
@@ -174,9 +175,11 @@ plot_de_scatter <- function(de_dt,
                             region_b = NA,
                             fdr_cutoff = 0.05,
                             add_fit = TRUE,
-                            xlab_prefix = NULL) {
+                            xlab_prefix = NULL,
+                            plot_only_significant = FALSE) {
 
   cell_type <- region <- chr <- gene <- adj_p_val <- log_fc <- NULL
+  adj_p_val.x <- adj_p_val.y <- log_fc.x <- log_fc.y <- NULL
 
   if (is.na(region_a)) {
     x <- de_dt[cell_type == cell_type_a & is.na(region), ]
@@ -197,11 +200,21 @@ plot_de_scatter <- function(de_dt,
 
   m <- merge(x, y, by = c("chr", "gene"))
 
-  # Make R CMD CHECK Happy
-  adj_p_val.x <- adj_p_val.y <- log_fc.x <- log_fc.y <- NULL
+  sig_idx <- (m$adj_p_val.x < fdr_cutoff) | (m$adj_p_val.y < fdr_cutoff)
 
-  rng <- m[adj_p_val.x < fdr_cutoff | adj_p_val.y < fdr_cutoff,
-           max(abs(c(log_fc.x, log_fc.y)))]
+  if (isTRUE(plot_only_significant)) {
+    m <- m[sig_idx, ]
+    if (nrow(m) == 0L) {
+      return(invisible(NULL))
+    }
+    sig_idx <- rep(TRUE, nrow(m))
+  }
+
+  if (isTRUE(plot_only_significant)) {
+    rng <- m[, max(abs(c(log_fc.x, log_fc.y)))]
+  } else {
+    rng <- m[sig_idx, max(abs(c(log_fc.x, log_fc.y)))]
+  }
   rng <- c(-rng, rng)
 
   xlab_string <- paste("Effect size, log2",
@@ -217,25 +230,46 @@ plot_de_scatter <- function(de_dt,
 
   graphics::par(pty = "s", mar = c(6, 6, 4, 2))
 
-  m[, graphics::plot(
-    log_fc.x,
-    log_fc.y,
-    pch = 20,
-    col = "lightgrey",
-    xlim = rng,
-    ylim = rng,
-    xlab = xlab_string,
-    ylab = ylab_string
-  )]
+  if (isTRUE(plot_only_significant)) {
 
-  m[(adj_p_val.x < fdr_cutoff | adj_p_val.y < fdr_cutoff),
-    graphics::points(log_fc.x, log_fc.y, pch = 20, col = "cornflowerblue")]
+    graphics::plot(
+      m$log_fc.x,
+      m$log_fc.y,
+      pch = 20,
+      col = "cornflowerblue",
+      xlim = rng,
+      ylim = rng,
+      xlab = xlab_string,
+      ylab = ylab_string
+    )
+
+  } else {
+
+    graphics::plot(
+      m$log_fc.x,
+      m$log_fc.y,
+      pch = 20,
+      col = "lightgrey",
+      xlim = rng,
+      ylim = rng,
+      xlab = xlab_string,
+      ylab = ylab_string
+    )
+
+    graphics::points(
+      m$log_fc.x[sig_idx],
+      m$log_fc.y[sig_idx],
+      pch = 20,
+      col = "cornflowerblue"
+    )
+  }
 
   graphics::abline(h = 0, v = 0, lty = 2)
   graphics::abline(0, 1, lty = 2)
 
-  ct <- m[adj_p_val.x < fdr_cutoff | adj_p_val.y < fdr_cutoff,
-          stats::cor.test(log_fc.x, log_fc.y, method = "spearman")]
+  ct <- m[sig_idx,
+          stats::cor.test(log_fc.x, log_fc.y, method = "spearman")
+  ]
 
   rho_sqrd <- round(ct$estimate^2, 2)
 
@@ -246,11 +280,22 @@ plot_de_scatter <- function(de_dt,
   )
 
   if (rho_sqrd > 0.5 && isTRUE(add_fit)) {
-    fit_dt <- m[adj_p_val.x < fdr_cutoff & adj_p_val.y < fdr_cutoff, ]
+
+    fit_dt <- m[(adj_p_val.x < fdr_cutoff) & (adj_p_val.y < fdr_cutoff), ]
+    fit_dt <- fit_dt[!is.na(log_fc.x) & !is.na(log_fc.y), ]
+
+    n <- nrow(fit_dt)
+
+    if (n < 3L || length(unique(fit_dt$log_fc.x)) < 2L) {
+      return(invisible(NULL))
+    }
 
     fit <- stats::lm(log_fc.y ~ log_fc.x, data = fit_dt)
 
-    coef_tab <- lmtest::coeftest(fit, vcov = sandwich::vcovHC(fit, type = "HC1"))
+    coef_tab <- lmtest::coeftest(
+      fit,
+      vcov = sandwich::vcovHC(fit, type = "HC1")
+    )
 
     b <- coef_tab["log_fc.x", "Estimate"]
     b_se <- coef_tab["log_fc.x", "Std. Error"]
@@ -258,11 +303,12 @@ plot_de_scatter <- function(de_dt,
 
     fit_color <- "tomato"
 
-    if (b_ci[1] >= 1 & b_ci[1] <= 1) {
+    if (b_ci[1] <= 1 && b_ci[2] >= 1) {
       fit_color <- "lightgrey"
     }
 
     graphics::abline(fit, lty = 2, col = fit_color)
+
     graphics::legend(
       "bottomright",
       legend = bquote(beta == .(round(b_ci[1], 2)) * " - " * .(round(b_ci[2], 2))),

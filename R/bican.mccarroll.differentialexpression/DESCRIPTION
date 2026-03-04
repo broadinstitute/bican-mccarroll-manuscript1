@@ -30,7 +30,6 @@ Imports:
     limma,
     progress,
     lme4,
-    ggrepel,
     circlize,
     ComplexHeatmap,
     reshape2,
