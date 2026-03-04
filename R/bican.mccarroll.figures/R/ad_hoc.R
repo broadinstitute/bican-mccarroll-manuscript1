@@ -60,7 +60,7 @@ grey_white_comparison<-function () {
 
 
 
-    pdf(outFile)
+    grDevices::pdf(outFile)
 
     for (spec in plot_specs) {
         bican.mccarroll.de.analysis::plot_de_scatter(
@@ -75,7 +75,8 @@ grey_white_comparison<-function () {
             plot_only_significant=TRUE
         )
     }
-    dev.off()
+
+    grDevices::dev.off()
 
     d=bican.mccarroll.differentialexpression::prepare_data_for_differential_expression(data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/emuratog", data_name="OPC_astro_01_clusters_DGEList", randVars=c('donor','village'), fixedVars=c('age', 'PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'pct_intronic', 'frac_contamination', 'imputed_sex', 'single_cell_assay', 'region', 'biobank'))
     dge=d$dge;
@@ -105,8 +106,6 @@ grey_white_comparison<-function () {
         stringsAsFactors = FALSE
     ))
 
-    allowed
-
     # Keep only rows in s that match allowed (cell_type, region) pairs
     key_s <- paste(s$cell_type, s$region, sep = "||")
     key_a <- paste(allowed$cell_type, allowed$region, sep = "||")
@@ -125,7 +124,9 @@ grey_white_comparison<-function () {
 
     x_rng <- range(log10(s2$lib.size), na.rm = TRUE)
 
-    ggplot2::ggplot(s2, ggplot2::aes(x = log10(lib.size))) +
+    # Make R CMD CHECK Happy
+
+    p<-ggplot2::ggplot(s2, ggplot2::aes(x = log10(lib.size))) +
         ggplot2::geom_histogram(bins = 50) +
         ggplot2::facet_grid(color ~ region + cell_type_base, switch = "y") +
         ggplot2::coord_cartesian(xlim = x_rng) +

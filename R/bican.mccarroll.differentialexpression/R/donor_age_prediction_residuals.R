@@ -262,7 +262,7 @@ plot_residual_pair_scatter_one <- function(model_predictions,
 #' @param row_fontsize Font size for row labels.
 #' @param col_fontsize Font size for column labels.
 #' @param cell_fontsize Font size for cell annotations.
-#'
+#' @param legend_title The legend title.
 #' @return A list with components:
 #' \describe{
 #'   \item{heatmap}{A `ComplexHeatmap::Heatmap` object. Draw with `ComplexHeatmap::draw()`.}

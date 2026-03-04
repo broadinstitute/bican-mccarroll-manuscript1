@@ -44,6 +44,8 @@ a default title derived from `mode` and the slice value is used.}
 \item{col_fontsize}{Font size for column labels.}
 
 \item{cell_fontsize}{Font size for cell annotations.}
+
+\item{legend_title}{The legend title.}
 }
 \value{
 A list with components:
