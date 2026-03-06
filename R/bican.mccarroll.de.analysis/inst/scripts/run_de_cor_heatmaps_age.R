@@ -43,6 +43,15 @@ bican.mccarroll.de.analysis::plot_de_cor_heatmap(
     palette_colors = palette_colors
 )
 
+legend_title = "Spearman rho^2\nof age DE logFC"
+bican.mccarroll.de.analysis::plot_de_cor_heatmap_complex(
+    cor_mat_main,
+    clustering_method = clustering_method,
+    breaks = breaks,
+    palette_colors = palette_colors,
+    legend_title=legend_title
+)
+
 cor_mat_supp <- bican.mccarroll.de.analysis::compute_de_cor_mat(de_ri_age, cell_types_use, regions_supp, non_neuron_types, fdr_cutoff = fdr_cutoff)
 
 

@@ -76,13 +76,27 @@ prep_de <- function(df, gene_to_chr) {
 
 #' Volcano plot for DE results
 #'
+#' Produces a volcano plot for a single cell type (and optionally region).
+#'
+#' Overplotting order:
+#' 1) Non-significant points (adj_p_val >= fdr_cutoff) are plotted first in light grey.
+#' 2) Significant points (adj_p_val < fdr_cutoff) are then overplotted:
+#'    - If chr_color_map is NULL: all significant points are plotted together using significant_color.
+#'    - If chr_color_map is provided: significant points are plotted in groups in the REVERSE order
+#'      of names(chr_color_map), so the LAST name in chr_color_map is drawn last and appears on top.
+#'      The special key "default" is treated as "all significant points whose chr does not match any
+#'      non-default key in chr_color_map", and it participates in that same reversed drawing order.
+#'
 #' @param de_dt A prepared DE data.table from prep_de/read_de_results.
 #' @param cell_type_use Cell type label to plot.
 #' @param region_use Region label to plot, or NA for region-combined results.
 #' @param fdr_cutoff Adjusted p-value threshold.
 #' @param abs_log_fc_cutoff Absolute log2 fold-change threshold.
 #' @param show_title Whether to show the cell type as the plot title.
-#' @param significant_color Color used for points passing the FDR threshold.
+#' @param significant_color Color used for points passing the FDR threshold when chr_color_map is NULL.
+#' @param chr_color_map Optional named character vector or list mapping chromosome -> color.
+#'   Must include "default" for unmatched chromosomes (e.g., c(X="orange", Y="green", default="blue")).
+#'   If NULL, uses the original scheme (lightgrey background + significant_color for FDR-pass).
 #' @return Invisibly returns NULL.
 #' @export
 plot_de_volcano <- function(de_dt,
@@ -90,69 +104,240 @@ plot_de_volcano <- function(de_dt,
                             region_use,
                             fdr_cutoff = 0.05,
                             abs_log_fc_cutoff = log2(1.05),
-                            show_title=TRUE,
-                            significant_color = "cornflowerblue") {
+                            show_title = TRUE,
+                            significant_color = "cornflowerblue",
+                            chr_color_map = NULL) {
 
-    cell_type <- region <- log_fc <- adj_p_val <- NULL
+  cell_type <- region <- log_fc <- adj_p_val <- chr <- NULL
 
-    if (is.na(region_use)) {
-        dt <- de_dt[cell_type == cell_type_use & is.na(region)]
-    } else {
-        dt <- de_dt[cell_type == cell_type_use & region == region_use]
-    }
+  if (is.na(region_use)) {
+    dt <- de_dt[cell_type == cell_type_use & is.na(region)]
+  } else {
+    dt <- de_dt[cell_type == cell_type_use & region == region_use]
+  }
 
-    rng <- dt[, max(abs(log_fc))]
-    rng <- c(-rng, rng)
+  rng <- dt[, max(abs(log_fc), na.rm = TRUE)]
+  rng <- c(-rng, rng)
 
-    graphics::par(pty = "s", xpd = FALSE)
+  # Precompute y for ALL points so ylim includes significant points.
+  # Guard against adj_p_val == 0 (would yield Inf).
+  adj_p_floor <- dt[, min(adj_p_val[adj_p_val > 0], na.rm = TRUE)]
+  if (!is.finite(adj_p_floor)) {
+    adj_p_floor <- .Machine$double.xmin
+  }
+  y_all <- -log10(pmax(dt$adj_p_val, adj_p_floor))
+  ylim <- c(0, max(y_all[is.finite(y_all)], na.rm = TRUE) * 1.02)
 
-    dt[, graphics::plot(
-        log_fc,
-        -log10(adj_p_val),
-        pch = 20,
-        xlim = rng,
-        col = "lightgrey",
-        xlab = "Effect size, log2",
-        ylab = "Adjusted p-value, -log10",
-        main = ""
-    )]
+  graphics::par(pty = "s", xpd = FALSE)
 
-    dt[adj_p_val < fdr_cutoff, graphics::points(
-        log_fc,
-        -log10(adj_p_val),
+  non_sig <- dt[adj_p_val >= fdr_cutoff]
+  sig_dt <- dt[adj_p_val < fdr_cutoff]
+
+  graphics::plot(
+    non_sig$log_fc,
+    -log10(pmax(non_sig$adj_p_val, adj_p_floor)),
+    pch = 20,
+    xlim = rng,
+    ylim = ylim,
+    col = "lightgrey",
+    xlab = "Effect size, log2",
+    ylab = "Adjusted p-value, -log10",
+    main = ""
+  )
+
+  if (nrow(sig_dt) > 0) {
+
+    if (is.null(chr_color_map)) {
+
+      graphics::points(
+        sig_dt$log_fc,
+        -log10(pmax(sig_dt$adj_p_val, adj_p_floor)),
         pch = 20,
         col = significant_color
-    )]
+      )
 
-    if (show_title)
-        graphics::title(main = cell_type_use, adj = 0)
+    } else {
 
-    graphics::abline(h = -log10(fdr_cutoff), lty = 2)
-    graphics::abline(v = c(-abs_log_fc_cutoff, abs_log_fc_cutoff), lty = 2)
+      if (is.list(chr_color_map)) {
+        chr_color_map <- unlist(chr_color_map, use.names = TRUE)
+      }
 
-    # Make R CMD CHECK Happy
-    .N <- NULL
+      if (!is.character(chr_color_map) || is.null(names(chr_color_map))) {
+        stop("chr_color_map must be a named character vector (or list coercible to one).")
+      }
 
-    up <- dt[log_fc > abs_log_fc_cutoff & adj_p_val < fdr_cutoff, .N]
-    down <- dt[log_fc < -abs_log_fc_cutoff & adj_p_val < fdr_cutoff, .N]
+      if (!("default" %in% names(chr_color_map))) {
+        stop('chr_color_map must include a "default" entry.')
+      }
 
-    p <- stats::binom.test(up, up + down, 0.5)$p.value
+      map_names <- names(chr_color_map)
+      non_default_names <- map_names[map_names != "default"]
+      plot_order <- rev(map_names)
 
-    graphics::par(xpd = NA)
-    if (p < 0.05) {
-        p_txt <- formatC(p, format = "e", digits = 1)
-        graphics::legend(
-            "topright",
-            inset = c(0, -0.16),
-            c(
-                paste("proportion up =", round(up / (up + down), 2)),
-                paste("p-value =", p_txt)
-            ),
-            bty = "n"
-        )
+      sig_y <- -log10(pmax(sig_dt$adj_p_val, adj_p_floor))
+
+      for (chr_name in plot_order) {
+
+        if (chr_name == "default") {
+          idx <- !(sig_dt$chr %in% non_default_names)
+        } else {
+          idx <- sig_dt$chr == chr_name
+        }
+
+        if (any(idx)) {
+          graphics::points(
+            sig_dt$log_fc[idx],
+            sig_y[idx],
+            pch = 20,
+            col = chr_color_map[[chr_name]]
+          )
+        }
+      }
+    }
+  }
+
+  if (show_title)
+    graphics::title(main = cell_type_use, adj = 0)
+
+  graphics::abline(h = -log10(fdr_cutoff), lty = 2)
+  graphics::abline(v = c(-abs_log_fc_cutoff, abs_log_fc_cutoff), lty = 2)
+
+  # Make R CMD CHECK Happy
+  .N <- NULL
+
+  up <- dt[log_fc > abs_log_fc_cutoff & adj_p_val < fdr_cutoff, .N]
+  down <- dt[log_fc < -abs_log_fc_cutoff & adj_p_val < fdr_cutoff, .N]
+
+  p <- stats::binom.test(up, up + down, 0.5)$p.value
+
+  graphics::par(xpd = NA)
+  if (p < 0.05) {
+    p_txt <- formatC(p, format = "e", digits = 1)
+    graphics::legend(
+      "topright",
+      inset = c(0, -0.16),
+      c(
+        paste("proportion up =", round(up / (up + down), 2)),
+        paste("p-value =", p_txt)
+      ),
+      bty = "n"
+    )
+  }
+
+  invisible(NULL)
+}
+
+#' Volcano plot for DE results (ggplot2)
+#'
+#' Produces a volcano plot for a single cell type (and optionally region) and returns a ggplot object.
+#'
+#' Coloring:
+#' If chr_color_map is provided, points are colored by chromosome and chr_color_map must include
+#' a color for every chromosome observed in the plotted data (full coverage is enforced).
+#' If chr_color_map is NULL, all points are black.
+#'
+#' Overplotting order:
+#' 1) Non-significant points (adj_p_val >= fdr_cutoff) are drawn first.
+#' 2) Significant points (adj_p_val < fdr_cutoff) are drawn second.
+#' Within each significance layer, chromosomes follow the reverse order of names(chr_color_map),
+#' so the last entry in chr_color_map appears on top.
+#'
+#' @param de_dt A prepared DE data.table from prep_de/read_de_results.
+#' @param cell_type_use Cell type label to plot.
+#' @param region_use Region label to plot, or NA for region-combined results.
+#' @param fdr_cutoff Adjusted p-value threshold.
+#' @param abs_log_fc_cutoff Absolute log2 fold-change threshold.
+#' @param show_title Whether to show the cell type as the plot title.
+#' @param chr_color_map Optional named character vector (or list) mapping chromosome -> color.
+#'   If provided, it must cover every chromosome observed in the plotted data.
+#'
+#' @return A ggplot object.
+#' @export
+plot_de_volcano_gg <- function(de_dt,
+                               cell_type_use,
+                               region_use,
+                               fdr_cutoff = 0.05,
+                               abs_log_fc_cutoff = log2(1.05),
+                               show_title = TRUE,
+                               chr_color_map = NULL) {
+
+  cell_type <- region <- log_fc <- adj_p_val <- chr <- NULL
+  y <- is_sig <- col_group <- chr_draw <- draw_order <- NULL
+
+  if (is.na(region_use)) {
+    dt <- de_dt[cell_type == cell_type_use & is.na(region)]
+  } else {
+    dt <- de_dt[cell_type == cell_type_use & region == region_use]
+  }
+
+  rng <- dt[, max(abs(log_fc), na.rm = TRUE)]
+  x_limits <- c(-rng, rng)
+
+  adj_p_floor <- dt[, min(adj_p_val[adj_p_val > 0], na.rm = TRUE)]
+  if (!is.finite(adj_p_floor)) {
+    adj_p_floor <- .Machine$double.xmin
+  }
+
+  dt_plot <- data.table::copy(dt)
+  dt_plot[, y := -log10(pmax(adj_p_val, adj_p_floor))]
+  dt_plot[, is_sig := adj_p_val < fdr_cutoff]
+
+  if (!is.null(chr_color_map)) {
+
+    if (is.list(chr_color_map)) {
+      chr_color_map <- unlist(chr_color_map, use.names = TRUE)
     }
 
-    invisible(NULL)
+    chroms_obs <- sort(unique(dt_plot[!is.na(chr), chr]))
+    missing_chroms <- setdiff(chroms_obs, names(chr_color_map))
+    if (length(missing_chroms) > 0) {
+      stop(
+        paste0(
+          "chr_color_map does not cover all chromosomes in the data. Missing: ",
+          paste(missing_chroms, collapse = ", ")
+        )
+      )
+    }
+
+    dt_plot[, col_group := chr]
+
+    plot_order <- rev(names(chr_color_map))
+    draw_map <- stats::setNames(seq_along(plot_order), plot_order)
+
+    dt_plot[, chr_draw := draw_map[col_group]]
+    dt_plot[, draw_order := (is_sig * 1000L) + chr_draw]
+
+    color_values <- chr_color_map
+
+  } else {
+
+    dt_plot[, col_group := "all"]
+    dt_plot[, draw_order := ifelse(is_sig, 2L, 1L)]
+
+    color_values <- c(all = "black")
+  }
+
+  data.table::setorder(dt_plot, draw_order)
+
+  p <- ggplot2::ggplot(
+    dt_plot,
+    ggplot2::aes(x = log_fc, y = y)
+  ) +
+    ggplot2::geom_point(
+      ggplot2::aes(color = col_group),
+      size = 1.2
+    ) +
+    ggplot2::scale_x_continuous(limits = x_limits) +
+    ggplot2::scale_color_manual(values = color_values, name = NULL) +
+    ggplot2::geom_hline(yintercept = -log10(fdr_cutoff), linetype = 2) +
+    ggplot2::geom_vline(xintercept = c(-abs_log_fc_cutoff, abs_log_fc_cutoff), linetype = 2) +
+    ggplot2::labs(
+      x = "Effect size, log2",
+      y = "Adjusted p-value, -log10",
+      title = if (show_title) cell_type_use else NULL
+    )
+
+  p
 }
 
 #' Scatter plot comparing DE effect sizes
@@ -319,6 +504,207 @@ plot_de_scatter <- function(de_dt,
   invisible(NULL)
 }
 
+#' Scatter plot comparing DE effect sizes (ggplot2)
+#'
+#' Produces an effect-size scatter plot for two DE results (cell type and region pairs)
+#' and returns a ggplot object.
+#'
+#' Drawing order:
+#' - If plot_only_significant is FALSE: non-significant points are drawn first (light grey),
+#'   then significant points are drawn on top (cornflowerblue).
+#' - If plot_only_significant is TRUE: only significant points are drawn (cornflowerblue).
+#'
+#' Annotations:
+#' - Spearman rho^2 (computed on sig_idx) is annotated in the top-left corner.
+#' - If add_fit is TRUE and rho^2 > 0.5: a robust linear fit (HC1) is added using genes
+#'   significant in BOTH tests. The 95% CI for the slope (beta) is annotated bottom-right.
+#'   The fit line is colored "tomato" unless the CI includes 1, in which case it is "lightgrey".
+#'
+#' @param de_dt A prepared DE data.table from prep_de/read_de_results.
+#' @param cell_type_a First cell type.
+#' @param cell_type_b Second cell type.
+#' @param region_a Region for A, or NA for region-combined results.
+#' @param region_b Region for B, or NA for region-combined results.
+#' @param fdr_cutoff Adjusted p-value threshold.
+#' @param add_fit Whether to add a robust linear fit when rho^2 is high.
+#' @param xlab_prefix Optional prefix string added to x-axis label.
+#' @param plot_only_significant If TRUE, only plot genes where at least one test is significant.
+#' @return A ggplot object, or NULL if plot_only_significant is TRUE and no genes are significant.
+#' @export
+plot_de_scatter_gg <- function(de_dt,
+                               cell_type_a,
+                               cell_type_b,
+                               region_a = NA,
+                               region_b = NA,
+                               fdr_cutoff = 0.05,
+                               add_fit = TRUE,
+                               xlab_prefix = NULL,
+                               plot_only_significant = FALSE) {
+
+  cell_type <- region <- NULL
+  adj_p_val.x <- adj_p_val.y <- log_fc.x <- log_fc.y <- sig_any <- NULL
+
+  if (is.na(region_a)) {
+    x <- de_dt[cell_type == cell_type_a & is.na(region), ]
+  } else {
+    x <- de_dt[cell_type == cell_type_a & region == region_a, ]
+  }
+
+  if (is.na(region_b)) {
+    y <- de_dt[cell_type == cell_type_b & is.na(region), ]
+  } else {
+    y <- de_dt[cell_type == cell_type_b & region == region_b, ]
+  }
+
+  name_a <- paste0(toupper(substr(cell_type_a, 1, 1)),
+                   substr(cell_type_a, 2, nchar(cell_type_a)))
+  name_b <- paste0(toupper(substr(cell_type_b, 1, 1)),
+                   substr(cell_type_b, 2, nchar(cell_type_b)))
+
+  m <- merge(x, y, by = c("chr", "gene"))
+
+  sig_idx <- (m$adj_p_val.x < fdr_cutoff) | (m$adj_p_val.y < fdr_cutoff)
+
+  if (isTRUE(plot_only_significant)) {
+    m <- m[sig_idx, ]
+    if (nrow(m) == 0L) {
+      return(NULL)
+    }
+    sig_idx <- rep(TRUE, nrow(m))
+  }
+
+  if (isTRUE(plot_only_significant)) {
+    rng <- m[, max(abs(c(log_fc.x, log_fc.y)), na.rm = TRUE)]
+  } else {
+    rng <- m[sig_idx, max(abs(c(log_fc.x, log_fc.y)), na.rm = TRUE)]
+  }
+  rng <- c(-rng, rng)
+
+  xlab_string <- paste("Effect size, log2",
+                       paste(name_a, region_a, sep = ", "),
+                       sep = "\n")
+  if (!is.null(xlab_prefix)) {
+    xlab_string <- paste0(xlab_prefix, xlab_string)
+  }
+
+  ylab_string <- paste(paste(name_b, region_b, sep = ", "),
+                       "Effect size, log2",
+                       sep = "\n")
+
+  m_plot <- data.table::as.data.table(m)
+  m_plot[, sig_any := sig_idx]
+
+  # Spearman rho^2 computed on the same subset as the base function (sig_idx)
+  ct <- m_plot[sig_any == TRUE,
+               stats::cor.test(log_fc.x, log_fc.y, method = "spearman")]
+
+  rho_sqrd <- round(as.numeric(ct$estimate)^2, 2)
+  rho_label <- paste0("rho^2 == ", rho_sqrd)
+
+  p <- ggplot2::ggplot(
+    m_plot,
+    ggplot2::aes(x = log_fc.x, y = log_fc.y)
+  ) +
+    ggplot2::geom_hline(yintercept = 0, linetype = 2) +
+    ggplot2::geom_vline(xintercept = 0, linetype = 2) +
+    ggplot2::geom_abline(intercept = 0, slope = 1, linetype = 2) +
+    ggplot2::scale_x_continuous(limits = rng) +
+    ggplot2::scale_y_continuous(limits = rng) +
+    ggplot2::coord_equal() +
+    ggplot2::labs(
+      x = xlab_string,
+      y = ylab_string
+    ) +
+    ggplot2::annotate(
+      "text",
+      x = -Inf, y = Inf,
+      label = rho_label,
+      parse = TRUE,
+      hjust = -0.05, vjust = 1.1
+    )
+
+  if (isTRUE(plot_only_significant)) {
+
+    p <- p + ggplot2::geom_point(
+      color = "cornflowerblue",
+      size = 1.2
+    )
+
+  } else {
+
+    # Draw nonsig first, then sig on top (matches base behavior)
+    p <- p +
+      ggplot2::geom_point(
+        data = m_plot[sig_any == FALSE],
+        color = "lightgrey",
+        size = 1.2
+      ) +
+      ggplot2::geom_point(
+        data = m_plot[sig_any == TRUE],
+        color = "cornflowerblue",
+        size = 1.2
+      )
+  }
+
+  if (rho_sqrd > 0.5 && isTRUE(add_fit)) {
+
+    fit_dt <- m_plot[(adj_p_val.x < fdr_cutoff) & (adj_p_val.y < fdr_cutoff), ]
+    fit_dt <- fit_dt[!is.na(log_fc.x) & !is.na(log_fc.y), ]
+
+    n <- nrow(fit_dt)
+
+    if (n >= 3L && length(unique(fit_dt$log_fc.x)) >= 2L) {
+
+      if (!requireNamespace("lmtest", quietly = TRUE)) {
+        stop("Package 'lmtest' is required for add_fit = TRUE.")
+      }
+      if (!requireNamespace("sandwich", quietly = TRUE)) {
+        stop("Package 'sandwich' is required for add_fit = TRUE.")
+      }
+
+      fit <- stats::lm(log_fc.y ~ log_fc.x, data = fit_dt)
+
+      coef_tab <- lmtest::coeftest(
+        fit,
+        vcov = sandwich::vcovHC(fit, type = "HC1")
+      )
+
+      b <- coef_tab["log_fc.x", "Estimate"]
+      b_se <- coef_tab["log_fc.x", "Std. Error"]
+      b_ci <- b + c(-1, 1) * 1.96 * b_se
+
+      fit_color <- "tomato"
+      if (b_ci[1] <= 1 && b_ci[2] >= 1) {
+        fit_color <- "lightgrey"
+      }
+
+      beta_label <- paste0(
+        "beta == ",
+        round(b_ci[1], 2),
+        " * ' - ' * ",
+        round(b_ci[2], 2)
+      )
+
+      p <- p +
+        ggplot2::geom_abline(
+          intercept = stats::coef(fit)[["(Intercept)"]],
+          slope = stats::coef(fit)[["log_fc.x"]],
+          linetype = 2,
+          color = fit_color
+        ) +
+        ggplot2::annotate(
+          "text",
+          x = Inf, y = -Inf,
+          label = beta_label,
+          parse = TRUE,
+          hjust = 1.05, vjust = -0.6
+        )
+    }
+  }
+
+  p
+}
+
 #' Compute correlation matrix across cell_type x region groups
 #'
 #' Correlations are computed on log_fc among genes passing an FDR filter in either
@@ -408,6 +794,51 @@ plot_de_cor_heatmap <- function(cor_mat,
         color = pal_fun(length(breaks) - 1),
         clustering_method = clustering_method
     )
+}
+
+#' Plot a correlation heatmap
+#'
+#' @param cor_mat A numeric matrix produced by compute_de_cor_mat.
+#' @param clustering_method Clustering method passed to hclust.
+#' @param breaks Numeric breakpoints for the color scale.
+#' @param palette_colors Vector of colors used for the palette.
+#' @param legend_title Title for the color legend.
+#' @return A ComplexHeatmap heatmap object.
+#' @export
+plot_de_cor_heatmap_complex <- function(cor_mat,
+                                        clustering_method = "complete",
+                                        breaks = seq(-1, 1, length.out = 101),
+                                        palette_colors = c("steelblue", "white", "darkorange"),
+                                        legend_title = "Correlation") {
+
+  col_fun <- circlize::colorRamp2(
+    breaks = seq(min(breaks), max(breaks), length.out = length(palette_colors)),
+    palette_colors
+  )
+
+  ComplexHeatmap::Heatmap(
+    cor_mat,
+    name = "cor_metric",
+    col = col_fun,
+
+    clustering_method_rows = clustering_method,
+    clustering_method_columns = clustering_method,
+    clustering_distance_rows = "euclidean",
+    clustering_distance_columns = "euclidean",
+
+    row_dend_reorder = FALSE,
+    column_dend_reorder = FALSE,
+
+    column_names_rot = 90,
+    column_names_gp = grid::gpar(fontsize = 10),
+    row_names_gp = grid::gpar(fontsize = 10),
+
+    rect_gp = grid::gpar(col = "grey85", lwd = 1),
+
+    heatmap_legend_param = list(
+      title = legend_title
+    )
+  )
 }
 
 ###############################################################################
@@ -1145,6 +1576,7 @@ plot_kmeans_heatmap_with_cluster_labels <- function(k_means_mat,
     ## -----------------------
     ## K-means
     ## -----------------------
+    num_genes=dim (lfc_mat)[1]
 
     set.seed(42)
     km <- stats::kmeans(
@@ -1261,20 +1693,75 @@ plot_kmeans_heatmap_with_cluster_labels <- function(k_means_mat,
     labels_col <- rep("", n_cols_exp)
     labels_col[mid_exp] <- as.character(seq_along(boundaries))
 
-    pheatmap::pheatmap(
+    #replace the fixed breaks definition with one that scales
+    #with the scaling value passed in.
+    #this will preserve the same results as scaling_factor=5 and breaks = seq(-1, 1, length.out = 101)
+    #for the original unscaled lfc_mat.
+
+    lfc_limit <- 0.2
+
+    breaks_vec <- seq(
+      -lfc_limit * scaling_factor,
+      lfc_limit * scaling_factor,
+      length.out = 101
+    )
+
+
+    #add some extra margin for text.
+    ph <- pheatmap::pheatmap(
       mat_exp,
       cluster_cols = FALSE,
       cluster_rows = FALSE,
-      breaks = seq(-1, 1, length.out = 101),
+      breaks = breaks_vec,
       color = grDevices::colorRampPalette(c("steelblue", "white", "darkorange"))(100),
       border_color = NA,
       na_col = "black",
       show_colnames = TRUE,
       labels_col = labels_col,
-      angle_col = 0
+      angle_col = 0,
+      silent = TRUE
     )
 
-    k_use
+    gt <- ph$gtable
+
+    ## Add top margin
+    gt <- gtable::gtable_add_rows(
+      gt,
+      heights = grid::unit(6, "mm"),
+      pos = 0
+    )
+
+    ## Add bottom margin (this is where the label will go)
+    gt <- gtable::gtable_add_rows(
+      gt,
+      heights = grid::unit(8, "mm"),
+      pos = nrow(gt)
+    )
+
+    ## Shrink the original pheatmap content so margins fit on the device
+    shrink_factor <- 0.95  # try 0.85–0.95 as needed
+    if (nrow(gt) > 2L) {
+      gt$heights[2:(nrow(gt) - 1L)] <- gt$heights[2:(nrow(gt) - 1L)] * shrink_factor
+    }
+
+    labelStr <- paste0("Genes (n=", dim(lfc_mat)[1], ")")
+
+    gt <- gtable::gtable_add_grob(
+      gt,
+      grobs = grid::textGrob(
+        labelStr,
+        y = grid::unit(0.8, "npc"),
+        gp = grid::gpar(fontsize = 12)
+      ),
+      t = nrow(gt),
+      l = 1,
+      r = ncol(gt)
+    )
+
+    grid::grid.newpage()
+    grid::grid.draw(gt)
+
+    invisible(k_use)
 }
 
 #' Write lightweight DE outputs (summary + top up/down gene tables)

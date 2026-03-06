@@ -70,7 +70,7 @@ plot_kmeans_age <- function(
 
     test <- "age"
 
-    scaling_factor <- 5
+    scaling_factor <- 1
     k_use <- 19
     cluster_level_order <- c(2, 10, 6, 3, 5, 14, 9, 13, 4, 1, 15, 19, 18, 7, 17, 8, 11, 12)
 

@@ -80,7 +80,16 @@ de_age_mat_list <- bican.mccarroll.de.analysis::prep_de_matrices(
 bican.mccarroll.de.analysis::plot_kmeans_silhouette(de_age_mat_list$lfc_mat_z)
 
 ## QC plot: region-combined heatmap
-gene_clusters <- bican.mccarroll.de.analysis::plot_kmeans_heatmap(
+# gene_clusters <- bican.mccarroll.de.analysis::plot_kmeans_heatmap(
+#     de_age_mat_list$lfc_mat_z,
+#     de_age_mat_list$lfc_mat,
+#     scaling_factor = scaling_factor,
+#     k=19,
+#     cluster_level_order = c(2, 10, 6, 3, 5, 14, 9, 13, 4, 1, 15, 19, 18, 7, 17, 8, 11, 12)
+# )
+
+#attempt with extra labeling.
+gene_clusters <- bican.mccarroll.de.analysis::plot_kmeans_heatmap_with_cluster_labels(
     de_age_mat_list$lfc_mat_z,
     de_age_mat_list$lfc_mat,
     scaling_factor = scaling_factor,
@@ -88,11 +97,10 @@ gene_clusters <- bican.mccarroll.de.analysis::plot_kmeans_heatmap(
     cluster_level_order = c(2, 10, 6, 3, 5, 14, 9, 13, 4, 1, 15, 19, 18, 7, 17, 8, 11, 12)
 )
 
-#attempt with extra labeling.
 gene_clusters <- bican.mccarroll.de.analysis::plot_kmeans_heatmap_with_cluster_labels(
     de_age_mat_list$lfc_mat_z,
     de_age_mat_list$lfc_mat,
-    scaling_factor = scaling_factor,
+    scaling_factor = 1,
     k=19,
     cluster_level_order = c(2, 10, 6, 3, 5, 14, 9, 13, 4, 1, 15, 19, 18, 7, 17, 8, 11, 12)
 )
