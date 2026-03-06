@@ -86,6 +86,7 @@ plot_de_cor_heatmaps_age <- function(
     ## Plot 1: MAIN (cache = matrix only)
     ## -----------------------
 
+
     cache_file <- file.path(paths$data_cache_dir, "de_cor_mat_age_main_CaH_DFC.tsv")
 
     cor_mat_main <- get_or_build_de_cor_mat_cache(
@@ -103,14 +104,25 @@ plot_de_cor_heatmaps_age <- function(
     cor_mat_main <- clean_cor_mat_names(cor_mat_main)
 
     out_file <- file.path(paths$outDir, "de_cor_heatmap_age_main_CaH_DFC.svg")
-    grDevices::svg(out_file, width = 7, height = 7)
+    grDevices::svg(out_file, width = 9, height = 7)
 
-    bican.mccarroll.de.analysis::plot_de_cor_heatmap(
+    legend_title = "Spearman rho^2\nof age DE logFC"
+
+    # bican.mccarroll.de.analysis::plot_de_cor_heatmap(
+    #     cor_mat_main,
+    #     clustering_method = clustering_method,
+    #     breaks = breaks,
+    #     palette_colors = palette_colors)
+
+    ht<-bican.mccarroll.de.analysis::plot_de_cor_heatmap_complex(
         cor_mat_main,
         clustering_method = clustering_method,
         breaks = breaks,
-        palette_colors = palette_colors)
+        palette_colors = palette_colors,
+        legend_title=legend_title
+    )
 
+    ComplexHeatmap::draw(ht)
     grDevices::dev.off()
 
     ## -----------------------
@@ -136,12 +148,21 @@ plot_de_cor_heatmaps_age <- function(
     out_file <- file.path(paths$outDir, "de_cor_heatmap_age_supp_all_regions.svg")
     grDevices::svg(out_file, width = 10, height = 10)
 
-    bican.mccarroll.de.analysis::plot_de_cor_heatmap(
+    # bican.mccarroll.de.analysis::plot_de_cor_heatmap(
+    #     cor_mat_supp,
+    #     clustering_method = clustering_method,
+    #     breaks = breaks,
+    #     palette_colors = palette_colors)
+
+    ht2<-bican.mccarroll.de.analysis::plot_de_cor_heatmap_complex(
         cor_mat_supp,
         clustering_method = clustering_method,
         breaks = breaks,
-        palette_colors = palette_colors)
+        palette_colors = palette_colors,
+        legend_title=legend_title
+    )
 
+    ComplexHeatmap::draw(ht2)
     grDevices::dev.off()
 
     invisible(NULL)

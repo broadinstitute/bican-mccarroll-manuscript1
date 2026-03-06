@@ -111,7 +111,19 @@ plot_trade_analysis <- function(
     p_bar_age <- bican.mccarroll.differentialexpression::trade_barplot(
         trade_auto, cell_types_use = cell_types_use,
         value_var = "trade_twi")
+
+    #drop the axis labels and ticks that match up to the k-means plot.
+    p_bar_age <- p_bar_age+
+        ggplot2::theme(
+        axis.text.y = ggplot2::element_blank(),
+        axis.ticks.y = ggplot2::element_blank(),
+        axis.title.x = ggplot2::element_text(size = ggplot2::rel(1.5)),
+        axis.text.x  = ggplot2::element_text(size = ggplot2::rel(1.25)),
+        axis.ticks.x = ggplot2::element_line(linewidth = 0.7)
+    )
+
     p_bar_age <- p_bar_age + ggplot2::geom_col(fill = "black")
+
 
     save_plot_svg(p_bar_age,
                   out_file = "trade_dataset1_age_autosomes_barplot.svg",

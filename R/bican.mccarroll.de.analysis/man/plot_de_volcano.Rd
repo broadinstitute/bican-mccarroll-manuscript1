@@ -11,7 +11,8 @@ plot_de_volcano(
   fdr_cutoff = 0.05,
   abs_log_fc_cutoff = log2(1.05),
   show_title = TRUE,
-  significant_color = "cornflowerblue"
+  significant_color = "cornflowerblue",
+  chr_color_map = NULL
 )
 }
 \arguments{
@@ -27,11 +28,25 @@ plot_de_volcano(
 
 \item{show_title}{Whether to show the cell type as the plot title.}
 
-\item{significant_color}{Color used for points passing the FDR threshold.}
+\item{significant_color}{Color used for points passing the FDR threshold when chr_color_map is NULL.}
+
+\item{chr_color_map}{Optional named character vector or list mapping chromosome -> color.
+Must include "default" for unmatched chromosomes (e.g., c(X="orange", Y="green", default="blue")).
+If NULL, uses the original scheme (lightgrey background + significant_color for FDR-pass).}
 }
 \value{
 Invisibly returns NULL.
 }
 \description{
-Volcano plot for DE results
+Produces a volcano plot for a single cell type (and optionally region).
+}
+\details{
+Overplotting order:
+1) Non-significant points (adj_p_val >= fdr_cutoff) are plotted first in light grey.
+2) Significant points (adj_p_val < fdr_cutoff) are then overplotted:
+   - If chr_color_map is NULL: all significant points are plotted together using significant_color.
+   - If chr_color_map is provided: significant points are plotted in groups in the REVERSE order
+     of names(chr_color_map), so the LAST name in chr_color_map is drawn last and appears on top.
+     The special key "default" is treated as "all significant points whose chr does not match any
+     non-default key in chr_color_map", and it participates in that same reversed drawing order.
 }
