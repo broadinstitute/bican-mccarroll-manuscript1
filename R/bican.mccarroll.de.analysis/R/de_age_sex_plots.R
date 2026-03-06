@@ -262,6 +262,7 @@ plot_de_volcano_gg <- function(de_dt,
                                chr_color_map = NULL) {
 
   cell_type <- region <- log_fc <- adj_p_val <- chr <- NULL
+  y <- is_sig <- col_group <- chr_draw <- draw_order <- NULL
 
   if (is.na(region_use)) {
     dt <- de_dt[cell_type == cell_type_use & is.na(region)]
@@ -301,7 +302,7 @@ plot_de_volcano_gg <- function(de_dt,
     dt_plot[, col_group := chr]
 
     plot_order <- rev(names(chr_color_map))
-    draw_map <- setNames(seq_along(plot_order), plot_order)
+    draw_map <- stats::setNames(seq_along(plot_order), plot_order)
 
     dt_plot[, chr_draw := draw_map[col_group]]
     dt_plot[, draw_order := (is_sig * 1000L) + chr_draw]
@@ -540,8 +541,8 @@ plot_de_scatter_gg <- function(de_dt,
                                xlab_prefix = NULL,
                                plot_only_significant = FALSE) {
 
-  cell_type <- region <- chr <- gene <- adj_p_val <- log_fc <- NULL
-  adj_p_val.x <- adj_p_val.y <- log_fc.x <- log_fc.y <- NULL
+  cell_type <- region <- NULL
+  adj_p_val.x <- adj_p_val.y <- log_fc.x <- log_fc.y <- sig_any <- NULL
 
   if (is.na(region_a)) {
     x <- de_dt[cell_type == cell_type_a & is.na(region), ]

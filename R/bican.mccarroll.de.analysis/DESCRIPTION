@@ -14,10 +14,14 @@ Imports:
     methods,
     pheatmap,
     sandwich,
-    viridisLite
+    viridisLite,
+    ComplexHeatmap,
+    circlize,
+    gtable
 Remotes:
     github::ajaynadig/TRADEtools,
-    bioc::fgsea
+    bioc::fgsea,
+    bioc::ComplexHeatmap
 Authors@R: c(
     person(
       "Steven", "Burger",
