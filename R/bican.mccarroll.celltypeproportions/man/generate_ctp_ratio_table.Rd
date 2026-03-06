@@ -9,7 +9,8 @@ generate_ctp_ratio_table(
   numerator,
   denominator,
   cell_type_col = "annotation",
-  region_list = c("CaH", "Pu", "NAC")
+  region_list = c("CaH", "Pu", "NAC"),
+  z_score_threshold = NULL
 )
 }
 \arguments{
@@ -27,6 +28,9 @@ that contains cell type annotations. Defaults to `"annotation"`.}
 
 \item{region_list}{A character vector of brain regions to include in the analysis.
 Defaults to `c("CaH", "Pu", "NAC")`.}
+
+\item{z_score_threshold}{Threshold for calling outliers based on the z-score of
+the ratio for a given region.}
 }
 \value{
 A tibble (data frame) containing `sample_id`, `brain_region_abbreviation_simple`,

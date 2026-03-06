@@ -104,7 +104,7 @@ make_prediction_grid <- function(model,
 #'
 #' @return A data frame containing the prediction grid with columns for age,
 #' brain region, predicted proportion, and standard errors.
-predict_one_region <- function(model, region_name, region_col="brain_region_abbreviation_simple") {
+predict_one_region <- function(model, region_name) {
 
   df <- model.frame(model)
 
@@ -114,8 +114,8 @@ predict_one_region <- function(model, region_name, region_col="brain_region_abbr
       age_decades = seq(min(df$age_decades),
                         max(df$age_decades),
                         by = 0.1),
-      setNames(list(region_name), region_col)
-  ))
+      brain_region_abbreviation_simple=region_name)
+  )
 
   predictions <- predict(model, newdata = region_data_to_predict, type = "response", se.fit=TRUE, re.form=NA)
 

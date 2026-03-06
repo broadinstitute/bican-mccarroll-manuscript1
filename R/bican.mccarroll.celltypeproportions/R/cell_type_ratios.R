@@ -1,17 +1,18 @@
 
 # sample_ctp <- read.table(
-#   "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/cell_type_proportions/LEVEL_1/donor_region.annotation.cell_type_proportions.txt",
+#   "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/cell_type_proportions/LEVEL_2/donor_region.annotation.cell_type_proportions.txt",
 #   sep="\t", header=TRUE, stringsAsFactors = FALSE
 # )
 #
 # ratio_df <- generate_ctp_ratio_table(
 #   sample_ctp,
 #   numerator=c("MSN_D1_matrix", "MSN_D1_striosome"),
-#   denominator=c("MSN_D2_matrix", "MSN_D2_striosome")
+#   denominator=c("MSN_D2_matrix", "MSN_D2_striosome"),
+#   z_score_threshold = 5
 # )
 #
 # plot_donor_ctp_ratio_between_two_regions(ratio_df, "CaH", "Pu", "D1/D2 MSN ratio")
-#
+
 
 
 #' Generate Cell-Type Proportion (CTP) Ratio Table
@@ -30,6 +31,8 @@
 #'   that contains cell type annotations. Defaults to `"annotation"`.
 #' @param region_list A character vector of brain regions to include in the analysis.
 #'   Defaults to `c("CaH", "Pu", "NAC")`.
+#' @param z_score_threshold Threshold for calling outliers based on the z-score of
+#' the ratio for a given region.
 #'
 #' @return A tibble (data frame) containing `sample_id`, `brain_region_abbreviation_simple`,
 #'   `donor_external_id`, `total_nuclei`, and the calculated `ratio`.
@@ -41,7 +44,8 @@ generate_ctp_ratio_table <- function(
     numerator,
     denominator,
     cell_type_col = "annotation",
-    region_list = c("CaH", "Pu", "NAC"))
+    region_list = c("CaH", "Pu", "NAC"),
+    z_score_threshold=NULL)
 {
 
   ratio_df <- ctp_df |>
@@ -87,6 +91,22 @@ generate_ctp_ratio_table <- function(
       .data$total_nuclei,
       .data$ratio
     )
+
+  # compute z-scores of ratios per brain region
+  ratio_df <- ratio_df |>
+    dplyr::group_by(brain_region_abbreviation_simple) |>
+    dplyr::mutate(
+      z_ratio = as.numeric(scale(ratio))
+    ) |>
+    dplyr::ungroup()
+
+  if (!is.null(z_score_threshold)) {
+    ratio_df <- ratio_df |>
+      dplyr::mutate(outlier=abs(z_ratio) > z_score_threshold)
+  } else {
+    ratio_df <- ratio_df |>
+      dplyr::mutate(outlier=NA)
+  }
 
   return(ratio_df)
 }
