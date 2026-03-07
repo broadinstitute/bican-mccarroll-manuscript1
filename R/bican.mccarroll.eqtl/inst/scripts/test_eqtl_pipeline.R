@@ -303,7 +303,7 @@ if (dir.exists(scz_coloc_dir)) {
 
 cat("\n===== Step 11: plot_fisher_exact =====\n")
 
-cluster_order <- c(2, 1, 7, 4, 8, 5, 6, 3, 0)
+cluster_order <- c(5, 0, 6, 2, 7, 8, 10, 1, 9, 4, 3)
 
 ad_fisher_path <- file.path(out_dir, "AD_2022_fisher_contingency_counts_gene_clusters.tsv")
 scz_fisher_path <- file.path(out_dir, "SCZ_eur_fisher_contingency_counts_gene_clusters.tsv")
