@@ -109,7 +109,7 @@ def run_k_selection(input_path, k_range=(5, 25), random_state=42,
 
     rows = []
     for k in range(k_range[0], k_range[1]):
-        km = KMeans(n_clusters=k, n_init=200, max_iter=20, random_state=random_state).fit(adata.X)
+        km = KMeans(n_clusters=k, n_init=200, max_iter=20, random_state=random_state, algorithm="elkan").fit(adata.X)
         score = silhouette_score(adata.X, km.labels_)
         rows.append({"k": k, "silhouette_score": score, "wcss": km.inertia_})
 
@@ -217,7 +217,7 @@ def run_kmeans_heatmap(input_path, K, desired_order=None, random_state=42,
     adata.var_names = [celltype_label_map[v] for v in adata.var_names]
 
     # K-means clustering
-    km = KMeans(n_clusters=K, n_init=200, max_iter=20, random_state=random_state).fit(adata.X)
+    km = KMeans(n_clusters=K, n_init=200, max_iter=20, random_state=random_state, algorithm="elkan").fit(adata.X)
     adata.obs["gene_clusters"] = pd.Categorical(km.labels_.astype(int))
 
     if desired_order is None:
