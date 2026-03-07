@@ -85,7 +85,7 @@ def _load_slope_matrix(input_path, celltype_order=None):
     return adata, input_matrix
 
 
-def run_k_selection(input_path, k_range=(5, 25), random_state=32,
+def run_k_selection(input_path, k_range=(5, 25), random_state=42,
                     celltype_order=None):
     """Run K-means for a range of K values and compute selection metrics.
 
@@ -109,7 +109,7 @@ def run_k_selection(input_path, k_range=(5, 25), random_state=32,
 
     rows = []
     for k in range(k_range[0], k_range[1]):
-        km = KMeans(n_clusters=k, random_state=random_state).fit(adata.X)
+        km = KMeans(n_clusters=k, n_init=200, max_iter=20, random_state=random_state).fit(adata.X)
         score = silhouette_score(adata.X, km.labels_)
         rows.append({"k": k, "silhouette_score": score, "wcss": km.inertia_})
 
@@ -162,7 +162,7 @@ def plot_k_selection(silhouette_df, output_path=None):
     return fig
 
 
-def run_kmeans_heatmap(input_path, K, desired_order=None, random_state=32,
+def run_kmeans_heatmap(input_path, K, desired_order=None, random_state=42,
                        celltype_order=None, celltype_label_map=None,
                        heatmap_output_path=None, cluster_counts_output_path=None,
                        cluster_assignments_output_path=None):
@@ -217,7 +217,7 @@ def run_kmeans_heatmap(input_path, K, desired_order=None, random_state=32,
     adata.var_names = [celltype_label_map[v] for v in adata.var_names]
 
     # K-means clustering
-    km = KMeans(n_clusters=K, random_state=random_state).fit(adata.X)
+    km = KMeans(n_clusters=K, n_init=200, max_iter=20, random_state=random_state).fit(adata.X)
     adata.obs["gene_clusters"] = pd.Categorical(km.labels_.astype(int))
 
     if desired_order is None:
@@ -231,9 +231,10 @@ def run_kmeans_heatmap(input_path, K, desired_order=None, random_state=32,
     if cluster_assignments_output_path is not None:
         assignments_df = pd.DataFrame({
             "gene": adata.obs_names,
+            "variant_id": input_matrix.loc[adata.obs_names, "variant_id"].values,
             "cluster": adata.obs["gene_clusters"].values,
         })
-        assignments_df.sort_values("gene").to_csv(
+        assignments_df.to_csv(
             cluster_assignments_output_path, sep="\t", index=False
         )
 
@@ -275,7 +276,7 @@ def run_kmeans_heatmap(input_path, K, desired_order=None, random_state=32,
     )
 
     if heatmap_output_path is not None:
-        plt.savefig(heatmap_output_path, dpi=300, bbox_inches="tight")
+        plt.savefig(heatmap_output_path, format="svg", bbox_inches="tight")
 
     plt.close()
 

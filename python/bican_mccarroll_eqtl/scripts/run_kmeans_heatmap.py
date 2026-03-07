@@ -41,11 +41,11 @@ median_expression_path = f"{output_dir}/heatmap_index_snp_median_expression_qval
 
 K = 11
 # Set to None for initial exploration, then fill in after inspecting heatmap.
-desired_order = [6, 8, 1, 4, 2, 3, 10, 9, 7, 5, 0]
-random_state = 32
+desired_order = [5, 0, 6, 2, 7, 8, 10, 1, 9, 4, 3]
+random_state = 42
 
 k_selection_output = f"{output_dir}/kmeans_cluster_k_selection_qval_0.01.png"
-heatmap_output = f"{output_dir}/kmeans_eqtl_heatmap_qval_0.01_k{K}.png"
+heatmap_output = f"{output_dir}/kmeans_eqtl_heatmap_qval_0.01_k{K}.svg"
 cluster_counts_output = f"{output_dir}/gene_cluster_counts_qval_0.01_k{K}.tsv"
 cluster_assignments_output = f"{output_dir}/cluster_assignments_qval_0.01_k{K}.tsv"
 contingency_output = f"{output_dir}/SCZ_eur_fisher_contingency_counts_gene_clusters.tsv"

@@ -4,7 +4,7 @@
 #       gene = "CEP112", chr = "chr17", pos = 66192315,
 #       vcf_path = "/broad/bican_um1_mccarroll/vcfs/2025-05-05/gvs_concat_outputs_2025-05-05T14-10-02.donors_renamed_filtered_norm.vcf.gz",
 #       expression_path = "/broad/.../combined_tpm_expression_across_cell_types.tsv",
-#       output_path = "/broad/.../manuscript_data/CEP112_chr17_66192315.png"
+#       output_path = "/broad/.../manuscript_data/CEP112_chr17_66192315.svg"
 #   )
 
 
@@ -28,10 +28,10 @@
 #'   \code{pid} (gene ID); remaining columns are
 #'   \code{<donor>_<celltype>__<region>}.
 #' @param output_path Character scalar or \code{NULL}.  If non-NULL, the
-#'   plot is saved to this path as a PNG file.
-#' @param width Numeric.  PNG width in pixels.  Default 2600.
-#' @param height Numeric.  PNG height in pixels.  Default 1000.
-#' @param res Numeric.  PNG resolution in DPI.  Default 150.
+#'   plot is saved to this path as an SVG file.
+#' @param width Numeric.  SVG width in pixels (divided by res for inches).  Default 2600.
+#' @param height Numeric.  SVG height in pixels (divided by res for inches).  Default 1000.
+#' @param res Numeric.  Scaling factor for width/height.  Default 150.
 #'
 #' @return The \code{ggplot} object (invisibly).
 #'
@@ -43,7 +43,7 @@
 #' @importFrom ggplot2 ggplot aes geom_violin geom_text facet_wrap labs
 #'   theme_bw theme element_text element_blank unit
 #' @importFrom ggbeeswarm geom_beeswarm
-#' @importFrom grDevices png dev.off
+#' @importFrom grDevices svg dev.off
 #' @importFrom stats lm sd p.adjust
 #' @importFrom logger log_info
 plot_gene_snp <- function(gene,
@@ -237,7 +237,7 @@ plot_gene_snp <- function(gene,
         )
 
     if (!is.null(output_path)) {
-        grDevices::png(output_path, width = width, height = height, res = res)
+        grDevices::svg(output_path, width = width / res, height = height / res)
         print(p)
         grDevices::dev.off()
         logger::log_info("Saved to: {output_path}")
