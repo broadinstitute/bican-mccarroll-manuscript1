@@ -31,7 +31,7 @@ Outputs:
 # Parameters
 # -----------------------
 
-input_path = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/manuscript_data/index_snp_slope_matrix_with_median_impute_qval_0.01.tsv"
+input_path = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/manuscript_data/index_snp_slope_matrix_with_zero_impute_qval_0.01.tsv"
 
 output_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/manuscript_data"
 

@@ -1,4 +1,4 @@
-# index_snp_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/script_output/LEVEL_3/index_snp_slope_matrix_with_median_impute_qval_0.01.tsv"
+# index_snp_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/script_output/LEVEL_3/index_snp_slope_matrix_with_zero_impute_qval_0.01.tsv"
 # region_cell_type_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/region_cell_type.tsv"
 # expression_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/script_output/LEVEL_3/combined_gene_expression_tpm.tsv"
 # output_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/script_output/LEVEL_3/heatmap_index_snp_median_expression_qval_0.01.tsv"
@@ -14,7 +14,7 @@
 #'
 #' @param index_snp_path Character scalar.  Path to the index-SNP slope
 #'   matrix TSV (output of
-#'   \code{\link{get_index_snp_slope_matrix_with_median_impute}}).
+#'   \code{\link{get_index_snp_slope_matrix_with_impute}}).
 #'   Only the \code{phenotype_id} column is used.
 #' @param region_cell_type_path Character scalar.  Path to a tab-delimited
 #'   file with columns \code{cell_type} and \code{region}.

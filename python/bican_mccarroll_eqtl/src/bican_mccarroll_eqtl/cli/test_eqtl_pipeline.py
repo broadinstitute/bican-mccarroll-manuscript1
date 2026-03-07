@@ -73,7 +73,7 @@ def main(argv=None):
     # -----------------------
 
     input_path = os.path.join(
-        out_dir, f"index_snp_slope_matrix_with_median_impute_qval_{QVAL}.tsv"
+        out_dir, f"index_snp_slope_matrix_with_zero_impute_qval_{QVAL}.tsv"
     )
     median_expression_path = os.path.join(
         out_dir, f"heatmap_index_snp_median_expression_qval_{QVAL}.tsv"

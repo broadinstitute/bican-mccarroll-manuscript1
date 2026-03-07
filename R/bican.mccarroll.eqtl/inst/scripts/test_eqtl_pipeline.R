@@ -164,32 +164,18 @@ pval_thresh_path <- file.path(out_dir, paste0("pval_nominal_threshold_matrix_qva
 # )
 
 ## -----------------------
-## Step 5: get_index_snp_slope_matrix_with_median_impute
+## Step 5: get_index_snp_slope_matrix_with_impute (zero imputation)
 ## -----------------------
 
-index_snp_path <- file.path(out_dir, paste0("index_snp_slope_matrix_with_median_impute_qval_", qval, ".tsv"))
+index_snp_path <- file.path(out_dir, paste0("index_snp_slope_matrix_with_zero_impute_qval_", qval, ".tsv"))
 
 index_snp_dt <- .run_step_table(
-    step_label = "Step 5: get_index_snp_slope_matrix_with_median_impute",
+    step_label = "Step 5: get_index_snp_slope_matrix_with_impute",
     output_path = index_snp_path,
     fun = function() {
         bican.mccarroll.eqtl::get_index_snp_slope_matrix_with_impute(
             slope_matrix_path = slope_path,
             output_path       = index_snp_path
-        )
-    }
-)
-
-index_snp_path <- file.path(out_dir, paste0("index_snp_slope_matrix_with_0_impute_qval_", qval, ".tsv"))
-
-index_snp_dt <- .run_step_table(
-    step_label = "Step 5: get_index_snp_slope_matrix_with_median_impute",
-    output_path = index_snp_path,
-    fun = function() {
-        bican.mccarroll.eqtl::get_index_snp_slope_matrix_with_impute(
-            slope_matrix_path = slope_path,
-            output_path       = index_snp_path,
-            imputation_method = "zero"
         )
     }
 )

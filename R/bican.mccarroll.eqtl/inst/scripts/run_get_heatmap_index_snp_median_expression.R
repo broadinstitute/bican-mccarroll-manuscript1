@@ -6,7 +6,7 @@
 ## Parameters
 ## -----------------------
 
-index_snp_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/manuscript_data/index_snp_slope_matrix_with_median_impute_qval_0.01.tsv"
+index_snp_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/manuscript_data/index_snp_slope_matrix_with_zero_impute_qval_0.01.tsv"
 
 region_cell_type_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/manuscript_data/region_cell_type.tsv"
 

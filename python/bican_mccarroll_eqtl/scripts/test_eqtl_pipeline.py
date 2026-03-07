@@ -28,7 +28,7 @@ out_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtl
 
 qval = "0.01"
 
-input_path = os.path.join(out_dir, f"index_snp_slope_matrix_with_median_impute_qval_{qval}.tsv")
+input_path = os.path.join(out_dir, f"index_snp_slope_matrix_with_zero_impute_qval_{qval}.tsv")
 median_expression_path = os.path.join(out_dir, f"heatmap_index_snp_median_expression_qval_{qval}.tsv")
 
 ad_coloc_path = os.path.join(out_dir, "AD_2022_coloc_genes_pp_h4_0.9.tsv")

@@ -53,7 +53,7 @@ Rscript test_eqtl_pipeline.R
 - `get_slope_matrix` — Build matrix of eQTL effect sizes (slopes) across cell types
 - `get_pval_nominal_matrix` — Build matrix of nominal p-values across cell types
 - `get_pval_nominal_threshold_matrix` — Build matrix of nominal p-value thresholds
-- `get_index_snp_slope_matrix_with_median_impute` — Select index SNP per gene and impute missing slopes
+- `get_index_snp_slope_matrix_with_impute` — Select index SNP per gene and zero-impute missing slopes
 - `get_cell_type_pairwise_cor_matrix` — Compute pairwise R-squared of eQTL effect sizes
 - `get_heatmap_index_snp_median_expression` — Compute median expression per cell type for heatmap genes
 - `combine_expression_across_cell_types` — Combine per-sample gene expression TPM into a single matrix

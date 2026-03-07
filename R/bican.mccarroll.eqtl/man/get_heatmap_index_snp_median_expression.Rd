@@ -14,7 +14,7 @@ get_heatmap_index_snp_median_expression(
 \arguments{
 \item{index_snp_path}{Character scalar.  Path to the index-SNP slope
 matrix TSV (output of
-\code{\link{get_index_snp_slope_matrix_with_median_impute}}).
+\code{\link{get_index_snp_slope_matrix_with_impute}}).
 Only the \code{phenotype_id} column is used.}
 
 \item{region_cell_type_path}{Character scalar.  Path to a tab-delimited

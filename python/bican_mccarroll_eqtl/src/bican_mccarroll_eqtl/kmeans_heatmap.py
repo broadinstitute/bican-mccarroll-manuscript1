@@ -63,7 +63,7 @@ def _load_slope_matrix(input_path, celltype_order=None):
     Parameters
     ----------
     input_path : str
-        Path to the TSV output of get_index_snp_slope_matrix_with_median_impute.
+        Path to the TSV output of get_index_snp_slope_matrix_with_impute.
     celltype_order : list of str or None
         Column order for cell types. Defaults to DEFAULT_CELLTYPE_ORDER.
 
