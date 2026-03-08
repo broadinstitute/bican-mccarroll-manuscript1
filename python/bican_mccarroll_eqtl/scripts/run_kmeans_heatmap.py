@@ -44,7 +44,7 @@ K = 11
 desired_order = [5, 0, 6, 2, 7, 8, 10, 1, 9, 4, 3]
 random_state = 42
 
-k_selection_output = f"{output_dir}/kmeans_cluster_k_selection_qval_0.01.png"
+k_selection_output = f"{output_dir}/kmeans_cluster_k_selection_qval_0.01.svg"
 heatmap_output = f"{output_dir}/kmeans_eqtl_heatmap_qval_0.01_k{K}.svg"
 cluster_counts_output = f"{output_dir}/gene_cluster_counts_qval_0.01_k{K}.tsv"
 cluster_assignments_output = f"{output_dir}/cluster_assignments_qval_0.01_k{K}.tsv"

@@ -38,12 +38,12 @@ K = 11
 random_state = 42
 desired_order = [5, 0, 6, 2, 7, 8, 10, 1, 9, 4, 3]
 
-k_selection_output = os.path.join(out_dir, f"kmeans_cluster_k_selection_qval_{qval}.png")
+k_selection_output = os.path.join(out_dir, f"kmeans_cluster_k_selection_qval_{qval}.svg")
 heatmap_output = os.path.join(out_dir, f"kmeans_eqtl_heatmap_qval_{qval}_k{K}.svg")
 cluster_counts_output = os.path.join(out_dir, f"gene_cluster_counts_qval_{qval}_k{K}.tsv")
 cluster_assignments_output = os.path.join(out_dir, f"cluster_assignments_qval_{qval}_k{K}.tsv")
 ordered_genes_output = os.path.join(out_dir, f"ordered_genes_by_expression_correlation_k{K}.tsv")
-expression_heatmap_output = os.path.join(out_dir, "median_expression_heatmap_kmeans_clusters_expr_ordered.png")
+expression_heatmap_output = os.path.join(out_dir, "median_expression_heatmap_kmeans_clusters_expr_ordered.svg")
 
 # -----------------------
 # Execution

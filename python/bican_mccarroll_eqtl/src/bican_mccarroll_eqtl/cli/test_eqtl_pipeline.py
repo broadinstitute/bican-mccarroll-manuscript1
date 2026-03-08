@@ -83,7 +83,7 @@ def main(argv=None):
     scz_coloc_path = os.path.join(out_dir, "SCZ_eur_coloc_genes_pp_h4_0.9.tsv")
 
     k_selection_output = os.path.join(
-        out_dir, f"kmeans_cluster_k_selection_qval_{QVAL}.png"
+        out_dir, f"kmeans_cluster_k_selection_qval_{QVAL}.svg"
     )
     heatmap_output = os.path.join(
         out_dir, f"kmeans_eqtl_heatmap_qval_{QVAL}_k{K}.svg"
@@ -98,7 +98,7 @@ def main(argv=None):
         out_dir, f"ordered_genes_by_expression_correlation_k{K}.tsv"
     )
     expression_heatmap_output = os.path.join(
-        out_dir, "median_expression_heatmap_kmeans_clusters_expr_ordered.png"
+        out_dir, "median_expression_heatmap_kmeans_clusters_expr_ordered.svg"
     )
 
     # -----------------------

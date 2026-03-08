@@ -206,7 +206,7 @@ r_squared <- .run_step_table(
 ## Step 7: plot_cell_type_pairwise_cor
 ## -----------------------
 
-cor_plot_path <- file.path(out_dir, paste0("cell_type_cor_plot_qval_", qval, ".png"))
+cor_plot_path <- file.path(out_dir, paste0("cell_type_cor_plot_qval_", qval, ".svg"))
 
 .run_step_plot(
     step_label = "Step 7: plot_cell_type_pairwise_cor",
@@ -308,8 +308,8 @@ cluster_order <- c(5, 0, 6, 2, 7, 8, 10, 1, 9, 4, 3)
 ad_fisher_path <- file.path(out_dir, "AD_2022_fisher_contingency_counts_gene_clusters.tsv")
 scz_fisher_path <- file.path(out_dir, "SCZ_eur_fisher_contingency_counts_gene_clusters.tsv")
 
-ad_enrich_plot_path <- file.path(out_dir, "AD_2022_cluster_enrichment.png")
-scz_enrich_plot_path <- file.path(out_dir, "SCZ_eur_cluster_enrichment.png")
+ad_enrich_plot_path <- file.path(out_dir, "AD_2022_cluster_enrichment.svg")
+scz_enrich_plot_path <- file.path(out_dir, "SCZ_eur_cluster_enrichment.svg")
 
 if (file.exists(ad_fisher_path)) {
     .run_step_plot(
@@ -358,7 +358,7 @@ gene_snp_cases <- list(
 )
 
 for (case in gene_snp_cases) {
-    out_file <- file.path(out_dir, paste0(case$gene, "_", case$chr, "_", case$pos, ".png"))
+    out_file <- file.path(out_dir, paste0(case$gene, "_", case$chr, "_", case$pos, ".svg"))
 
     if (!isTRUE(force) && file.exists(out_file)) {
         cat("  SKIPPED:", case$gene, "file already exists at", out_file, "\n")
