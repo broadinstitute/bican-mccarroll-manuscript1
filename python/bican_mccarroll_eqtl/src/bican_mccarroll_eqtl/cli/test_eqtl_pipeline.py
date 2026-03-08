@@ -32,9 +32,9 @@ from bican_mccarroll_eqtl import (
 OUT_DIR = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/manuscript_data"
 QVAL = "0.01"
 
-K = 9
-RANDOM_STATE = 119
-DESIRED_ORDER = [2, 1, 7, 4, 8, 5, 6, 3, 0]
+K = 11
+RANDOM_STATE = 42
+DESIRED_ORDER = [5, 0, 6, 2, 7, 8, 10, 1, 9, 4, 3]
 
 
 def _maybe_skip(step_label, outputs, force):
@@ -86,7 +86,7 @@ def main(argv=None):
         out_dir, f"kmeans_cluster_k_selection_qval_{QVAL}.png"
     )
     heatmap_output = os.path.join(
-        out_dir, f"kmeans_eqtl_heatmap_qval_{QVAL}_k{K}.png"
+        out_dir, f"kmeans_eqtl_heatmap_qval_{QVAL}_k{K}.svg"
     )
     cluster_counts_output = os.path.join(
         out_dir, f"gene_cluster_counts_qval_{QVAL}_k{K}.tsv"
