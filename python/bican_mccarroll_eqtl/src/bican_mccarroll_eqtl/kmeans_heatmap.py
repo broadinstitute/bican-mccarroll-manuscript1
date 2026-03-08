@@ -276,7 +276,7 @@ def run_kmeans_heatmap(input_path, K, desired_order=None, random_state=42,
     )
 
     if heatmap_output_path is not None:
-        plt.savefig(heatmap_output_path, format="svg", bbox_inches="tight")
+        plt.savefig(heatmap_output_path, bbox_inches="tight")
 
     plt.close()
 
