@@ -52,6 +52,20 @@ def _validate_desired_order(desired_order, K):
             f"desired_order must not contain repeated values: {desired_order}"
         )
 
+    min_val = min(desired_order)
+    max_val = max(desired_order)
+
+    if min_val != 0:
+        raise ValueError(
+            f"desired_order must contain 0 as the minimum value, but min={min_val}: "
+            f"{desired_order}"
+        )
+
+    if max_val != K - 1:
+        raise ValueError(
+            f"desired_order must contain {K-1} as the maximum value, but max={max_val}: "
+            f"{desired_order}"
+        )
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
