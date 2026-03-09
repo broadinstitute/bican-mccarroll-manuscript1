@@ -20,7 +20,7 @@ force <- TRUE
 ## Paths
 ## -----------------------
 
-base_dir   <- "/Users/tracyyuan/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls"
+base_dir   <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls"
 eqtl_dir   <- file.path(base_dir, "results/LEVEL_3")
 out_dir    <- file.path(base_dir, "manuscript_test_0308")
 qval       <- 0.01
@@ -28,12 +28,8 @@ qval       <- 0.01
 region_cell_type_path    <- file.path(base_dir, "manuscript_data/region_cell_type.tsv")
 combined_expression_path <- file.path(out_dir, "combined_tpm_expression_across_cell_types.tsv")
 
-## Path to standalone scripts (same directory as this file)
-script_dir <- "/Users/tracyyuan/Desktop/McCarroll_Lab/BICAN/bican-mccarroll-manuscript1/R/bican.mccarroll.eqtl/inst/scripts"
-python_script <- "/Users/tracyyuan/Desktop/McCarroll_Lab/BICAN/bican-mccarroll-manuscript1/python/bican_mccarroll_eqtl/scripts/test_eqtl_pipeline_0308.py"
-
 ## VCF (for gene-snp plots)
-vcf_path <- "/Users/tracyyuan/broad/bican_um1_mccarroll/vcfs/2025-05-05/gvs_concat_outputs_2025-05-05T14-10-02.donors_renamed_filtered_norm.vcf.gz"
+vcf_path <- "/broad/bican_um1_mccarroll/vcfs/2025-05-05/gvs_concat_outputs_2025-05-05T14-10-02.donors_renamed_filtered_norm.vcf.gz"
 
 ## -----------------------
 ## Helpers
@@ -186,24 +182,23 @@ cor_plot_path <- file.path(out_dir, paste0("cell_type_cor_plot_qval_", qval, ".s
 )
 
 ## -----------------------
-## Step 8: get_index_snp_start_distance (standalone script)
+## Step 8: get_index_snp_start_distance
 ## -----------------------
 
 start_distance_path <- file.path(out_dir, paste0("index_snp_start_distance_qval_", qval, ".tsv"))
 
-cat("\n===== Step 8: get_index_snp_start_distance =====\n")
-if (isTRUE(force) || !file.exists(start_distance_path)) {
-    system2("Rscript", c(
-        file.path(script_dir, "get_index_snp_start_distance.R"),
-        eqtl_dir,
-        region_cell_type_path,
-        index_snp_path,
-        start_distance_path
-    ))
-    cat("  Written to:", start_distance_path, "\n")
-} else {
-    cat("  SKIPPED: file already exists at", start_distance_path, "\n")
-}
+.run_step(
+    "Step 8: get_index_snp_start_distance",
+    start_distance_path,
+    function() {
+        bican.mccarroll.eqtl::get_index_snp_start_distance(
+            eqtl_dir              = eqtl_dir,
+            region_cell_type_path = region_cell_type_path,
+            index_snp_matrix_path = index_snp_path,
+            output_path           = start_distance_path
+        )
+    }
+)
 
 ## -----------------------
 ## Step 9: combine_expression_across_cell_types (needed for gene-snp plots)
@@ -226,7 +221,27 @@ if (isTRUE(force) || !file.exists(start_distance_path)) {
 ## ===========================================================
 
 cat("\n===== Step 10: K-means clustering (Python) =====\n")
-exit_code <- system2("python3", python_script)
+python_code <- sprintf(
+    paste(
+        "from bican_mccarroll_eqtl import run_kmeans_heatmap",
+        "adata, _ = run_kmeans_heatmap(",
+        "    input_path='%s',",
+        "    K=11,",
+        "    desired_order=[5, 0, 6, 2, 7, 8, 10, 1, 9, 4, 3],",
+        "    random_state=42,",
+        "    heatmap_output_path='%s',",
+        "    cluster_counts_output_path='%s',",
+        "    cluster_assignments_output_path='%s',",
+        ")",
+        "print(f'  Genes: {adata.n_obs}, Cell types: {adata.n_vars}')",
+        sep = "\n"
+    ),
+    index_snp_path,
+    file.path(out_dir, paste0("kmeans_eqtl_heatmap_qval_", qval, "_k11.svg")),
+    file.path(out_dir, paste0("gene_cluster_counts_qval_", qval, "_k11.tsv")),
+    file.path(out_dir, paste0("cluster_assignments_qval_", qval, "_k11.tsv"))
+)
+exit_code <- system2("python3", c("-c", shQuote(python_code)))
 if (exit_code != 0) stop("Python K-means pipeline failed")
 
 ## ===========================================================
@@ -240,16 +255,19 @@ if (exit_code != 0) stop("Python K-means pipeline failed")
 cluster_assignments_path <- file.path(out_dir, paste0("cluster_assignments_qval_", qval, "_k11.tsv"))
 boxplot_output <- file.path(out_dir, "eqtl_distance_to_tss_boxplot.svg")
 
-cat("\n===== Step 11: plot_eqtl_distance_to_tss_boxplot =====\n")
-system2("Rscript", c(
-    file.path(script_dir, "plot_eqtl_distance_to_tss_boxplot.R"),
-    index_snp_path,
-    cluster_assignments_path,
-    start_distance_path,
+.run_step(
+    "Step 11: plot_eqtl_distance_to_tss_boxplot",
     boxplot_output,
-    "horizontal"
-))
-cat("  Written to:", boxplot_output, "\n")
+    function() {
+        bican.mccarroll.eqtl::plot_eqtl_distance_to_tss_boxplot(
+            index_snp_matrix_path    = index_snp_path,
+            cluster_assignments_path = cluster_assignments_path,
+            start_distance_path      = start_distance_path,
+            output_path              = boxplot_output,
+            orientation              = "horizontal"
+        )
+    }
+)
 
 ## -----------------------
 ## Step 12: plot_gene_snp
