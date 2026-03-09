@@ -86,6 +86,18 @@ de_sex_age_scatter_plots <- function(
         cell_type1 = "MSN_D1_matrix",
         cell_type2 = "MSN_D2_matrix",
         region1 = "CaH",
+        region2 = "NAC",
+        xlab_prefix="Age DE, ",
+        outDir = paths$outDir,
+        fdr_cutoff = 0.05,
+        add_fit = TRUE)
+
+    plot_de_scatter_svg(
+        df = age_df,
+        test = "age",
+        cell_type1 = "MSN_D1_matrix",
+        cell_type2 = "MSN_D2_matrix",
+        region1 = "CaH",
         region2 = "CaH",
         xlab_prefix="Age DE, ",
         outDir = paths$outDir,
@@ -204,58 +216,6 @@ plot_de_scatter_svg <- function(
         cell_type2,
         region1,
         region2,
-        xlab_prefix=NULL,
-        outDir,
-        fdr_cutoff = 0.05,
-        add_fit = TRUE,
-        width = 7,
-        height = 7) {
-
-    fileStr <- paste(
-        "de_scatter_plot_",
-        test,
-        "_", cell_type1, "_", cell_type2,
-        "_", region1, "_vs_", region2,
-        ".svg",
-        sep = "")
-
-    out_file <- file.path(outDir, fileStr)
-
-    p<-bican.mccarroll.de.analysis::plot_de_scatter_gg(
-        df,
-        cell_type1,
-        cell_type2,
-        region1,
-        region2,
-        fdr_cutoff = fdr_cutoff,
-        add_fit = add_fit,
-        xlab_prefix=xlab_prefix)
-
-    p <- p + ggplot2::theme_classic() +
-        ggplot2::theme(
-            axis.title.x = ggplot2::element_text(size = ggplot2::rel(1.5)),
-            axis.title.y = ggplot2::element_text(size = ggplot2::rel(1.5)),
-
-        )
-
-    ggplot2::ggsave(
-        filename = out_file,
-        plot = p,
-        width = width,
-        height = height,
-        units = "in"
-    )
-
-    invisible()
-}
-
-plot_de_scatter_svg <- function(
-        df,
-        test,
-        cell_type1,
-        cell_type2,
-        region1,
-        region2,
         xlab_prefix = NULL,
         outDir,
         fdr_cutoff = 0.05,
@@ -283,7 +243,12 @@ plot_de_scatter_svg <- function(
         add_fit = add_fit
     )
 
-    # Capitalize cell type names and replace underscores with spaces for axis labels
+    for (i in seq_along(p$layers)) {
+        if (inherits(p$layers[[i]]$geom, "GeomPoint")) {
+            p$layers[[i]]$aes_params$colour <- "black"
+        }
+    }
+
     format_cell_type <- function(x) {
         x <- gsub("_", " ", x)
         paste0(toupper(substr(x, 1, 1)), substr(x, 2, nchar(x)))
@@ -292,7 +257,6 @@ plot_de_scatter_svg <- function(
     name1 <- format_cell_type(cell_type1)
     name2 <- format_cell_type(cell_type2)
 
-    # Determine effect label
     if (identical(test, "age")) {
         effect_label <- "Age effect fold change per decade"
     } else if (identical(test, "sex")) {
@@ -301,14 +265,18 @@ plot_de_scatter_svg <- function(
         effect_label <- "Effect size, log2"
     }
 
-    # Construct axis labels
-    xlab_string <- paste(effect_label,
-                         paste0(name1, " [",region1,"]"),
-                         sep = "\n")
+    xlab_string <- paste(
+        effect_label,
+        paste0(name1, " [", region1, "]"),
+        sep = "\n"
+    )
 
-    ylab_string <- paste(effect_label,
-                         paste0(name2, " [",region2,"]"),
-                         sep = "\n")
+    ylab_string <- paste(
+        effect_label,
+        paste0(name2, " [", region2, "]"),
+        sep = "\n"
+    )
+
     p <- p +
         ggplot2::labs(
             x = xlab_string,
@@ -330,6 +298,7 @@ plot_de_scatter_svg <- function(
 
     invisible()
 }
+
 
 get_or_build_de_cache <- function(
         test,

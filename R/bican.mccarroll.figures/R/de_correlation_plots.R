@@ -1,15 +1,15 @@
-# source("R/paths.R")
-#
-# options(
-#     bican.mccarroll.figures.data_root_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis",
-#
-#     bican.mccarroll.figures.out_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
-#
-#     bican.mccarroll.figures.cache_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
-# )
+source("R/paths.R")
+
+options(
+    bican.mccarroll.figures.data_root_dir =
+        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis",
+
+    bican.mccarroll.figures.out_dir =
+        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
+
+    bican.mccarroll.figures.cache_dir =
+        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
+)
 
 #de_region_interaction_dir <- gene_to_chr_file <- ct_file <- outDir <- data_cache_dir <- NULL
 
@@ -104,9 +104,10 @@ plot_de_cor_heatmaps_age <- function(
     cor_mat_main <- clean_cor_mat_names(cor_mat_main)
 
     out_file <- file.path(paths$outDir, "de_cor_heatmap_age_main_CaH_DFC.svg")
-    grDevices::svg(out_file, width = 9, height = 7)
+    grDevices::svg(out_file, width = 9, height = 9)
 
-    legend_title = "Spearman rho^2\nof age DE logFC"
+    #legend_title = "Spearman rho^2\nof age DE logFC"
+    legend_title = NULL
 
     # bican.mccarroll.de.analysis::plot_de_cor_heatmap(
     #     cor_mat_main,
@@ -119,7 +120,9 @@ plot_de_cor_heatmaps_age <- function(
         clustering_method = clustering_method,
         breaks = breaks,
         palette_colors = palette_colors,
-        legend_title=legend_title
+        legend_title=legend_title,
+        show_dendrograms=FALSE
+
     )
 
     ComplexHeatmap::draw(ht)
@@ -159,7 +162,8 @@ plot_de_cor_heatmaps_age <- function(
         clustering_method = clustering_method,
         breaks = breaks,
         palette_colors = palette_colors,
-        legend_title=legend_title
+        legend_title=legend_title,
+        show_dendrograms=FALSE
     )
 
     ComplexHeatmap::draw(ht2)

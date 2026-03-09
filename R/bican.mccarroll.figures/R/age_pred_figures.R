@@ -346,7 +346,9 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(
     p_corr <- cowplot::ggdraw(g_corr)
     p_jac  <- cowplot::ggdraw(g_jac)
 
-    final <- cowplot::plot_grid(p_jac, p_corr, nrow = 1, rel_widths = c(1, 1))
+    #Steve wants me to switch the order.
+    #final <- cowplot::plot_grid(p_jac, p_corr, nrow = 1, rel_widths = c(1, 1))
+    final <- cowplot::plot_grid(p_corr, p_jac, nrow = 1, rel_widths = c(1, 1))
 
     save_plot_svg(
         plot = final,
@@ -476,7 +478,9 @@ age_prediction_residual_corr_and_jaccard_heatmaps_cell_type <- function(
     p_corr <- cowplot::ggdraw(g_corr)
     p_jac  <- cowplot::ggdraw(g_jac)
 
-    final <- cowplot::plot_grid(p_jac, p_corr, nrow = 1, rel_widths = c(1, 1))
+    #Steve wants me to switch the order.
+    #final <- cowplot::plot_grid(p_jac, p_corr, nrow = 1, rel_widths = c(1, 1))
+    final <- cowplot::plot_grid(p_corr, p_jac, nrow = 1, rel_widths = c(1, 1))
 
     save_plot_svg(
         plot = final,
@@ -819,7 +823,7 @@ age_prediction_examples <- function(
         gf <- gam_fit[gam_fit$cell_type == cell_type & gam_fit$region == region, ]
 
 
-        bican.mccarroll.differentialexpression::plot_mc_donor_predictions(
+        p<-bican.mccarroll.differentialexpression::plot_mc_donor_predictions(
             donor_predictions = dp,
             gam_fit_df = gf,
             y_var = "pred_mean",
@@ -832,8 +836,24 @@ age_prediction_examples <- function(
             ggplot2::theme(
                 plot.title = ggplot2::element_text(hjust = 0, size = 11),
                 axis.title.x = ggplot2::element_blank(),
-                axis.title.y = ggplot2::element_blank()
+                axis.title.y = ggplot2::element_blank(),
+                axis.text.x = ggplot2::element_text(size = ggplot2::rel(2)),
+                axis.text.y = ggplot2::element_text(size = ggplot2::rel(2))
             )
+
+
+        #change the point color to a single color
+        p <- p +
+            ggplot2::scale_color_gradient2(
+                low = "black",
+                mid = "black",
+                high = "black",
+                midpoint = 0,
+                guide = "none"
+            )
+        #drop the legend
+        p <- p + ggplot2::theme(legend.position = "none")
+
     }
 
     plot_list <- lapply(cell_type_list, make_one_plot)
@@ -843,8 +863,8 @@ age_prediction_examples <- function(
     core <- cowplot::plot_grid(
         grid,
         cowplot::ggdraw() +
-            cowplot::draw_label("Chronological age", size = 11),
-        ncol = 1, rel_heights = c(1, 0.12)
+            cowplot::draw_label("Chronological age", size = 16, y=1.5, vjust=1),
+        ncol = 1, rel_heights = c(1, 0.07)
     )
 
     left_pad <- 0.025
@@ -854,8 +874,8 @@ age_prediction_examples <- function(
                            width = 1 - left_pad, height = 1) +
         cowplot::draw_label(
             "Predicted age (MC mean)",
-            angle = 90, x = left_pad * 0.35, y = 0.5,
-            vjust = 0.5, size = 11
+            angle = 90, x = left_pad * 0.3, y = 0.5,
+            vjust = 0.5, size = 16
         )
 
     output_svg <- file.path(paths$outDir, "age_prediction_cell_type_examples.svg")

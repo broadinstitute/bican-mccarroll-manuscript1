@@ -779,21 +779,28 @@ compute_de_cor_mat <- function(de_dt,
 #' @param clustering_method Clustering method passed to pheatmap.
 #' @param breaks Numeric breakpoints for the color scale.
 #' @param palette_colors Vector of colors used for the palette.
+#' @param show_dendrograms Logical; if FALSE, dendrograms are hidden but clustering order is preserved.
 #' @return The value returned by pheatmap::pheatmap.
 #' @export
 plot_de_cor_heatmap <- function(cor_mat,
                                 clustering_method = "complete",
                                 breaks = seq(-1, 1, length.out = 101),
-                                palette_colors = c("steelblue", "white", "darkorange")) {
+                                palette_colors = c("steelblue", "white", "darkorange"),
+                                show_dendrograms = TRUE) {
 
-    pal_fun <- grDevices::colorRampPalette(palette_colors)
+  pal_fun <- grDevices::colorRampPalette(palette_colors)
 
-    pheatmap::pheatmap(
-        cor_mat,
-        breaks = breaks,
-        color = pal_fun(length(breaks) - 1),
-        clustering_method = clustering_method
-    )
+  treeheight_row <- if (show_dendrograms) 50 else 0
+  treeheight_col <- if (show_dendrograms) 50 else 0
+
+  pheatmap::pheatmap(
+    cor_mat,
+    breaks = breaks,
+    color = pal_fun(length(breaks) - 1),
+    clustering_method = clustering_method,
+    treeheight_row = treeheight_row,
+    treeheight_col = treeheight_col
+  )
 }
 
 #' Plot a correlation heatmap
@@ -802,19 +809,23 @@ plot_de_cor_heatmap <- function(cor_mat,
 #' @param clustering_method Clustering method passed to hclust.
 #' @param breaks Numeric breakpoints for the color scale.
 #' @param palette_colors Vector of colors used for the palette.
-#' @param legend_title Title for the color legend.
+#' @param legend_title Title for the color legend.  If set to NULL, suppress the legend entirely.
+#' @param show_dendrograms Logical; if FALSE, dendrograms are hidden but clustering order is preserved.
 #' @return A ComplexHeatmap heatmap object.
 #' @export
 plot_de_cor_heatmap_complex <- function(cor_mat,
                                         clustering_method = "complete",
                                         breaks = seq(-1, 1, length.out = 101),
                                         palette_colors = c("steelblue", "white", "darkorange"),
-                                        legend_title = "Correlation") {
+                                        legend_title = "Correlation",
+                                        show_dendrograms = TRUE) {
 
   col_fun <- circlize::colorRamp2(
     breaks = seq(min(breaks), max(breaks), length.out = length(palette_colors)),
     palette_colors
   )
+
+  show_legend <- !is.null(legend_title)
 
   ComplexHeatmap::Heatmap(
     cor_mat,
@@ -828,12 +839,16 @@ plot_de_cor_heatmap_complex <- function(cor_mat,
 
     row_dend_reorder = FALSE,
     column_dend_reorder = FALSE,
+    show_row_dend = show_dendrograms,
+    show_column_dend = show_dendrograms,
 
     column_names_rot = 90,
     column_names_gp = grid::gpar(fontsize = 10),
     row_names_gp = grid::gpar(fontsize = 10),
 
     rect_gp = grid::gpar(col = "grey85", lwd = 1),
+
+    show_heatmap_legend = show_legend,
 
     heatmap_legend_param = list(
       title = legend_title
