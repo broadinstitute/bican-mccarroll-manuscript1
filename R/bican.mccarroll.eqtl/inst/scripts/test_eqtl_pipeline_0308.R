@@ -28,6 +28,9 @@ qval       <- 0.01
 region_cell_type_path    <- file.path(base_dir, "manuscript_data/region_cell_type.tsv")
 combined_expression_path <- file.path(out_dir, "combined_tpm_expression_across_cell_types.tsv")
 
+## Python K-means script (in the same repo)
+python_script <- "python/bican_mccarroll_eqtl/scripts/test_eqtl_pipeline_0308.py"
+
 ## VCF (for gene-snp plots)
 vcf_path <- "/broad/bican_um1_mccarroll/vcfs/2025-05-05/gvs_concat_outputs_2025-05-05T14-10-02.donors_renamed_filtered_norm.vcf.gz"
 
@@ -221,27 +224,7 @@ start_distance_path <- file.path(out_dir, paste0("index_snp_start_distance_qval_
 ## ===========================================================
 
 cat("\n===== Step 10: K-means clustering (Python) =====\n")
-python_code <- sprintf(
-    paste(
-        "from bican_mccarroll_eqtl import run_kmeans_heatmap",
-        "adata, _ = run_kmeans_heatmap(",
-        "    input_path='%s',",
-        "    K=11,",
-        "    desired_order=[5, 0, 6, 2, 7, 8, 10, 1, 9, 4, 3],",
-        "    random_state=42,",
-        "    heatmap_output_path='%s',",
-        "    cluster_counts_output_path='%s',",
-        "    cluster_assignments_output_path='%s',",
-        ")",
-        "print(f'  Genes: {adata.n_obs}, Cell types: {adata.n_vars}')",
-        sep = "\n"
-    ),
-    index_snp_path,
-    file.path(out_dir, paste0("kmeans_eqtl_heatmap_qval_", qval, "_k11.svg")),
-    file.path(out_dir, paste0("gene_cluster_counts_qval_", qval, "_k11.tsv")),
-    file.path(out_dir, paste0("cluster_assignments_qval_", qval, "_k11.tsv"))
-)
-exit_code <- system2("python3", c("-c", shQuote(python_code)))
+exit_code <- system2("python3", python_script)
 if (exit_code != 0) stop("Python K-means pipeline failed")
 
 ## ===========================================================
