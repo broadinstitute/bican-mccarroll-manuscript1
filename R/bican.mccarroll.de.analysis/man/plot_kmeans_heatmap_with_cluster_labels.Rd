@@ -11,7 +11,9 @@ plot_kmeans_heatmap_with_cluster_labels(
   scaling_factor,
   k = 19,
   cluster_level_order = c(2, 10, 6, 3, 5, 14, 9, 13, 4, 1, 15, 19, 18, 7, 17, 8, 11, 12),
-  allow_drop_clusters = TRUE
+  allow_drop_clusters = TRUE,
+  fontsize_col = 10,
+  fontsize_row = 10
 )
 }
 \arguments{
@@ -40,6 +42,10 @@ clusters not present in this vector will be dropped unless
 
 \item{allow_drop_clusters}{Logical; if FALSE, stop when `cluster_level_order`
 would drop any cluster labels present in the k-means solution.}
+
+\item{fontsize_col}{Integer font size for column labels in the heatmap.}
+
+\item{fontsize_row}{Integer font size for row labels in the heatmap.}
 }
 \value{
 A named integer vector of cluster assignments for genes, where names

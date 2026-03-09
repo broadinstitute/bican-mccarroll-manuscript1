@@ -82,8 +82,8 @@ plot_de_volcano <- function(
     ggplot2::ggsave(
         filename = out_file,
         plot = p1,
-        width = 7,
-        height = 5,
+        width = 6,
+        height = 4,
         units = "in"
     )
 
@@ -116,8 +116,8 @@ plot_de_volcano <- function(
     ggplot2::ggsave(
         filename = out_file,
         plot = p2,
-        width = 7,
-        height = 5,
+        width = 6,
+        height = 4,
         units = "in"
     )
 
@@ -128,12 +128,12 @@ add_style_volcano<-function (p) {
     p <- p +
         ggplot2::theme_classic() +
         ggplot2::theme(
-            axis.title.x = ggplot2::element_text(size = ggplot2::rel(1.5)),
-            axis.title.y = ggplot2::element_text(size = ggplot2::rel(1.5)),
-            legend.text = ggplot2::element_text(size = ggplot2::rel(1.25))
+            axis.title.x = ggplot2::element_text(size = ggplot2::rel(2)),
+            axis.title.y = ggplot2::element_text(size = ggplot2::rel(2)),
+            legend.text = ggplot2::element_text(size = ggplot2::rel(1.5))
         ) +
         ggplot2::guides(
-            color = ggplot2::guide_legend(override.aes = list(size = 2))
+            color = ggplot2::guide_legend(override.aes = list(size = 2.5))
         )
     return (p)
 }

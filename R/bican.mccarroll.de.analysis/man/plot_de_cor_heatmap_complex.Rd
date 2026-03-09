@@ -9,7 +9,8 @@ plot_de_cor_heatmap_complex(
   clustering_method = "complete",
   breaks = seq(-1, 1, length.out = 101),
   palette_colors = c("steelblue", "white", "darkorange"),
-  legend_title = "Correlation"
+  legend_title = "Correlation",
+  show_dendrograms = TRUE
 )
 }
 \arguments{
@@ -21,7 +22,9 @@ plot_de_cor_heatmap_complex(
 
 \item{palette_colors}{Vector of colors used for the palette.}
 
-\item{legend_title}{Title for the color legend.}
+\item{legend_title}{Title for the color legend.  If set to NULL, suppress the legend entirely.}
+
+\item{show_dendrograms}{Logical; if FALSE, dendrograms are hidden but clustering order is preserved.}
 }
 \value{
 A ComplexHeatmap heatmap object.

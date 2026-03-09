@@ -8,7 +8,8 @@ plot_de_cor_heatmap(
   cor_mat,
   clustering_method = "complete",
   breaks = seq(-1, 1, length.out = 101),
-  palette_colors = c("steelblue", "white", "darkorange")
+  palette_colors = c("steelblue", "white", "darkorange"),
+  show_dendrograms = TRUE
 )
 }
 \arguments{
@@ -19,6 +20,8 @@ plot_de_cor_heatmap(
 \item{breaks}{Numeric breakpoints for the color scale.}
 
 \item{palette_colors}{Vector of colors used for the palette.}
+
+\item{show_dendrograms}{Logical; if FALSE, dendrograms are hidden but clustering order is preserved.}
 }
 \value{
 The value returned by pheatmap::pheatmap.

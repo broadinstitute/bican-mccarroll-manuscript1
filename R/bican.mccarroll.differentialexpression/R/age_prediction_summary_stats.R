@@ -1,11 +1,132 @@
 # library (ggplot2)
 # library (cowplot)
 
-age_preds_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/age_prediction/age_prediction_region_alpha_0/age_prediction_results_alpha0_donor_predictions.txt"
-cell_type_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/metadata/cell_types_for_prs_test.txt"
+# age_preds_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/age_prediction/age_prediction_region_alpha_0/age_prediction_results_alpha0_donor_predictions.txt"
+# cell_type_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/metadata/cell_types_for_de_filtering_plot.txt"
 
-# summarize median absolute error, mean absolute error, and median absolute error
-# in the youngest 20% of donors for each cell type and region, and save to a summary file
+# This was just a quick check on a joint clock.
+# This matches what we expect - averaging the cell types with the lowest error rate
+# generates a slightly more accurate donor level clock.
+
+# get_average_error<-function () {
+#     age_preds <- utils::read.table(
+#         age_preds_file, header = TRUE, sep = "\t", stringsAsFactors = FALSE
+#     )
+#
+#     cell_types <- NULL
+#     if (!is.null(cell_type_file)) {
+#         cell_types <- utils::read.table(
+#             cell_type_file, header = FALSE, sep = "\t", stringsAsFactors = FALSE
+#         )$V1
+#         cell_types <- as.character(cell_types)
+#     }
+#
+#     res <- summarize_age_prediction_results(
+#         age_preds = age_preds,
+#         cell_types = cell_types
+#     )
+#
+#     p=res$age_preds
+#     #restrict to Cah
+#     p=p[p$region=="CaH",]
+#
+#     data.table::setDT(p)
+#
+#     s <- p[, .(
+#         age = mean(age, na.rm = TRUE),
+#         pred_mean = mean(pred_mean, na.rm = TRUE)
+#     ), by = donor]
+#
+#     s[, abs_err := abs(pred_mean - age)]
+#     mean(s$abs_err)
+#     median(s$abs_err)
+#
+#     cell_types=c("oligodendrocyte", "MSN_D1_matrix", "MSN_D2_matrix")
+#     s=p[cell_type %in% cell_types, .(
+#         age = mean(age, na.rm = TRUE),
+#         pred_mean = mean(pred_mean, na.rm = TRUE)
+#     ), by = donor]
+#
+#     s[, abs_err := abs(pred_mean - age)]
+#     mean(s$abs_err)
+#     median(s$abs_err)
+#
+# }
+#
+# fit_age_elastic_net_complete_donors <- function(p) {
+#     donor <- cell_type <- age <- pred_mean <- NULL
+#
+#     donor_age <- p[, .(
+#         age = mean(age, na.rm = TRUE)
+#     ), by = donor]
+#
+#     donor_cell_type <- p[, .(
+#         pred_mean = mean(pred_mean, na.rm = TRUE)
+#     ), by = .(donor, cell_type)]
+#
+#     feature_dt <- data.table::dcast(
+#         donor_cell_type,
+#         donor ~ cell_type,
+#         value.var = "pred_mean"
+#     )
+#
+#     feature_cols <- setdiff(colnames(feature_dt), "donor")
+#
+#     keep_idx <- stats::complete.cases(feature_dt[, feature_cols, with = FALSE])
+#     feature_dt <- feature_dt[keep_idx]
+#
+#     model_dt <- merge(
+#         donor_age,
+#         feature_dt,
+#         by = "donor"
+#     )
+#
+#     x <- as.matrix(model_dt[, feature_cols, with = FALSE])
+#     y <- model_dt[["age"]]
+#
+#     cv_fit <- glmnet::cv.glmnet(
+#         x = x,
+#         y = y,
+#         family = "gaussian",
+#         alpha = 0,
+#         standardize = TRUE
+#     )
+#
+#     fit <- glmnet::glmnet(
+#         x = x,
+#         y = y,
+#         family = "gaussian",
+#         alpha = 0.0,
+#         lambda = cv_fit$lambda.min,
+#         standardize = TRUE
+#     )
+#
+#     coef_mat <- as.matrix(stats::coef(fit))
+#     coef_dt <- data.table::data.table(
+#         feature = rownames(coef_mat),
+#         coefficient = as.numeric(coef_mat[, 1])
+#     )
+#     coef_dt <- coef_dt[feature != "(Intercept)" & coefficient != 0]
+#     coef_dt <- coef_dt[order(-abs(coefficient))]
+#
+#     pred_dt <- data.table::data.table(
+#         donor = model_dt$donor,
+#         age = y,
+#         predicted_age = as.numeric(stats::predict(fit, newx = x))
+#     )
+#
+#     pred_dt[, abs_err := abs(predicted_age - age)]
+#     mean(pred_dt$abs_err)
+#     median(pred_dt$abs_err)
+#
+#     list(
+#         model_dt = model_dt,
+#         fit = fit,
+#         cv_fit = cv_fit,
+#         coefficients = coef_dt,
+#         predictions = pred_dt
+#     )
+# }
 
 #' Summarize age-prediction model performance and covariate associations
 #'
