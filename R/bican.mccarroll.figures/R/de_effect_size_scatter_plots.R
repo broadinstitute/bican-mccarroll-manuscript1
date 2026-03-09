@@ -220,8 +220,8 @@ plot_de_scatter_svg <- function(
         outDir,
         fdr_cutoff = 0.05,
         add_fit = TRUE,
-        width = 7,
-        height = 7) {
+        width = 6,
+        height = 6) {
 
     fileStr <- paste(
         "de_scatter_plot_",

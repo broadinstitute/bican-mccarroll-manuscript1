@@ -96,7 +96,9 @@ plot_kmeans_age <- function(
         combined_obj$lfc_mat,
         scaling_factor = scaling_factor,
         k = k_use,
-        cluster_level_order = cluster_level_order
+        cluster_level_order = cluster_level_order,
+        fontsize_col=16,
+        fontsize_row=16
     )
 
     grDevices::dev.off()

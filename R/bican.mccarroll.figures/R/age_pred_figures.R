@@ -302,6 +302,9 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(
     corr_title <- ""
     jac_title <- ""
 
+    row_fontsize=12
+    col_fontsize=12
+
     correlation_legend_title<-"Residual age\ncorrelation"
     jaccard_legend_title<-"Gene overlap\n(Jaccard index)"
 
@@ -433,7 +436,8 @@ age_prediction_residual_corr_and_jaccard_heatmaps_cell_type <- function(
     #drop title for manuscript
     corr_title <- ""
     jac_title <- ""
-
+    row_fontsize=12
+    col_fontsize=12
     correlation_legend_title<-"Residual age\ncorrelation"
     jaccard_legend_title<-"Gene overlap\n(Jaccard index)"
 
@@ -446,7 +450,7 @@ age_prediction_residual_corr_and_jaccard_heatmaps_cell_type <- function(
         mode = "within_cell_type", cell_type = cell_type,
         value_var = "resid_mean_corrected",
         title = corr_title, annotate_cells = TRUE,
-        row_fontsize = 10, col_fontsize = 10, cell_fontsize = 9,
+        row_fontsize = row_fontsize, col_fontsize = col_fontsize, cell_fontsize = 9,
         legend_title=correlation_legend_title
     )
 
@@ -455,7 +459,7 @@ age_prediction_residual_corr_and_jaccard_heatmaps_cell_type <- function(
         mode = "within_cell_type", cell_type = cell_type,
         title = jac_title, coef_thresh = 0,
         annotate_cells = TRUE,
-        row_fontsize = 10, col_fontsize = 10, cell_fontsize = 9,
+        row_fontsize = row_fontsize, col_fontsize = col_fontsize, cell_fontsize = 9,
         row_order_names = corr_out$row_order_names,
         column_order_names = corr_out$column_order_names,
         legend_title = jaccard_legend_title
@@ -863,8 +867,8 @@ age_prediction_examples <- function(
     core <- cowplot::plot_grid(
         grid,
         cowplot::ggdraw() +
-            cowplot::draw_label("Chronological age", size = 16, y=1.5, vjust=1),
-        ncol = 1, rel_heights = c(1, 0.07)
+            cowplot::draw_label("Chronological age", size = 16, y=0.75, vjust=1),
+        ncol = 1, rel_heights = c(1, 0.08)
     )
 
     left_pad <- 0.025

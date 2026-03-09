@@ -104,7 +104,7 @@ plot_de_cor_heatmaps_age <- function(
     cor_mat_main <- clean_cor_mat_names(cor_mat_main)
 
     out_file <- file.path(paths$outDir, "de_cor_heatmap_age_main_CaH_DFC.svg")
-    grDevices::svg(out_file, width = 9, height = 9)
+    grDevices::svg(out_file, width = 6, height = 6)
 
     #legend_title = "Spearman rho^2\nof age DE logFC"
     legend_title = NULL

@@ -82,8 +82,8 @@ plot_de_volcano <- function(
     ggplot2::ggsave(
         filename = out_file,
         plot = p1,
-        width = 7,
-        height = 5,
+        width = 6,
+        height = 4,
         units = "in"
     )
 
@@ -116,8 +116,8 @@ plot_de_volcano <- function(
     ggplot2::ggsave(
         filename = out_file,
         plot = p2,
-        width = 7,
-        height = 5,
+        width = 6,
+        height = 4,
         units = "in"
     )
 

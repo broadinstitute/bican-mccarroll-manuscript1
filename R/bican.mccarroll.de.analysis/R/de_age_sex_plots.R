@@ -1522,6 +1522,9 @@ plot_kmeans_heatmap <- function(k_means_mat,
 #' @param allow_drop_clusters Logical; if FALSE, stop when `cluster_level_order`
 #'   would drop any cluster labels present in the k-means solution.
 #'
+#' @param fontsize_col Integer font size for column labels in the heatmap.
+#' @param fontsize_row Integer font size for row labels in the heatmap.
+#'
 #' @return A named integer vector of cluster assignments for genes, where names
 #'   correspond to gene identifiers (after any optional dropping implied by
 #'   `cluster_level_order`).
@@ -1546,7 +1549,9 @@ plot_kmeans_heatmap_with_cluster_labels <- function(k_means_mat,
                                 scaling_factor,
                                 k = 19,
                                 cluster_level_order = c(2, 10, 6, 3, 5, 14, 9, 13, 4, 1, 15, 19, 18, 7, 17, 8, 11, 12),
-                                allow_drop_clusters = TRUE) {
+                                allow_drop_clusters = TRUE,
+                                fontsize_col=10,
+                                fontsize_row=10) {
 
     ## -----------------------
     ## Assertions / validation
@@ -1721,7 +1726,6 @@ plot_kmeans_heatmap_with_cluster_labels <- function(k_means_mat,
       length.out = 101
     )
 
-
     #add some extra margin for text.
     ph <- pheatmap::pheatmap(
       mat_exp,
@@ -1734,7 +1738,9 @@ plot_kmeans_heatmap_with_cluster_labels <- function(k_means_mat,
       show_colnames = TRUE,
       labels_col = labels_col,
       angle_col = 0,
-      silent = TRUE
+      silent = TRUE,
+      fontsize_col = fontsize_col,
+      fontsize_row = fontsize_row
     )
 
     gt <- ph$gtable
