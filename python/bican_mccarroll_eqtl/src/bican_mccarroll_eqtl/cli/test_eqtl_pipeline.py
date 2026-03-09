@@ -13,28 +13,21 @@ Behavior:
 
 import argparse
 import os
-import sys
-
-from bican_mccarroll_eqtl import (
-    run_k_selection,
-    plot_k_selection,
-    run_kmeans_heatmap,
-    build_fisher_contingency_table,
-    order_genes_by_correlation,
-    plot_expression_heatmap
-)
-
+from bican_mccarroll_eqtl import run_kmeans_heatmap
 
 # -----------------------
-# Hard-coded defaults (unchanged)
+# Hard-coded defaults
 # -----------------------
 
-OUT_DIR = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/manuscript_data"
+DEFAULT_CELLTYPE_ORDER = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/manuscript_data"
 QVAL = "0.01"
-
-K = 11
+K_DEFAULT = 11
 RANDOM_STATE = 42
-DESIRED_ORDER = [5, 0, 6, 2, 7, 8, 10, 1, 9, 4, 3]
+DESIRED_ORDER_DEFAULT = [5, 0, 6, 2, 7, 8, 10, 1, 9, 4, 3]
+
+
+def _parse_desired_order(desired_order_str):
+    return [int(x) for x in desired_order_str.split(",")]
 
 
 def _maybe_skip(step_label, outputs, force):
@@ -47,6 +40,18 @@ def _maybe_skip(step_label, outputs, force):
         return True
     return False
 
+def _validate_desired_order(desired_order, K):
+    if len(desired_order) != K:
+        raise ValueError(
+            f"desired_order must have exactly {K} elements, but got {len(desired_order)}: "
+            f"{desired_order}"
+        )
+
+    if len(set(desired_order)) != len(desired_order):
+        raise ValueError(
+            f"desired_order must not contain repeated values: {desired_order}"
+        )
+
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
@@ -55,8 +60,22 @@ def main(argv=None):
     )
     parser.add_argument(
         "--out-dir",
-        default=OUT_DIR,
+        default=DEFAULT_CELLTYPE_ORDER,
         help="Output directory used by the R pipeline (inputs) and for Python outputs.",
+    )
+    parser.add_argument(
+        "--K",
+        type=int,
+        default=K_DEFAULT,
+        help=f"Number of K-means clusters. Default: {K_DEFAULT}.",
+    )
+    parser.add_argument(
+        "--desired-order",
+        default=",".join(str(x) for x in DESIRED_ORDER_DEFAULT),
+        help=(
+            "Comma-separated cluster order to use in the heatmap. "
+            f"Default: {','.join(str(x) for x in DESIRED_ORDER_DEFAULT)}."
+        ),
     )
     parser.add_argument(
         "--force",
@@ -72,48 +91,16 @@ def main(argv=None):
     # Derived paths (unchanged logic, but rooted at out_dir)
     # -----------------------
 
-    input_path = os.path.join(
-        out_dir, f"index_snp_slope_matrix_with_zero_impute_qval_{QVAL}.tsv"
-    )
-    median_expression_path = os.path.join(
-        out_dir, f"heatmap_index_snp_median_expression_qval_{QVAL}.tsv"
-    )
+    qval = QVAL
+    K = args.K
+    random_state = RANDOM_STATE
+    desired_order = _parse_desired_order(args.desired_order)
+    _validate_desired_order(desired_order, K)
 
-    ad_coloc_path = os.path.join(out_dir, "AD_2022_coloc_genes_pp_h4_0.9.tsv")
-    scz_coloc_path = os.path.join(out_dir, "SCZ_eur_coloc_genes_pp_h4_0.9.tsv")
-
-    k_selection_output = os.path.join(
-        out_dir, f"kmeans_cluster_k_selection_qval_{QVAL}.svg"
-    )
-    heatmap_output = os.path.join(
-        out_dir, f"kmeans_eqtl_heatmap_qval_{QVAL}_k{K}.svg"
-    )
-    cluster_counts_output = os.path.join(
-        out_dir, f"gene_cluster_counts_qval_{QVAL}_k{K}.tsv"
-    )
-    cluster_assignments_output = os.path.join(
-        out_dir, f"cluster_assignments_qval_{QVAL}_k{K}.tsv"
-    )
-    ordered_genes_output = os.path.join(
-        out_dir, f"ordered_genes_by_expression_correlation_k{K}.tsv"
-    )
-    expression_heatmap_output = os.path.join(
-        out_dir, "median_expression_heatmap_kmeans_clusters_expr_ordered.svg"
-    )
-
-    # -----------------------
-    # Step 1: K-selection
-    # -----------------------
-    print("\n===== Step 1: run_k_selection =====")
-
-    if not os.path.exists(input_path):
-        print(f"  ERROR: input file not found: {input_path}")
-        sys.exit(2)
-
-    if not _maybe_skip("Step 1", [k_selection_output], force):
-        silhouette_df = run_k_selection(input_path, random_state=RANDOM_STATE)
-        plot_k_selection(silhouette_df, output_path=k_selection_output)
-        print(f"  K-selection plot saved to: {k_selection_output}")
+    input_path = os.path.join(out_dir, f"index_snp_slope_matrix_with_zero_impute_qval_{qval}.tsv")
+    heatmap_output = os.path.join(out_dir, f"kmeans_eqtl_heatmap_qval_{qval}_k{K}.svg")
+    cluster_counts_output = os.path.join(out_dir, f"gene_cluster_counts_qval_{qval}_k{K}.tsv")
+    cluster_assignments_output = os.path.join(out_dir, f"cluster_assignments_qval_{qval}_k{K}.tsv")
 
     # -----------------------
     # Step 2: K-means heatmap
@@ -127,108 +114,22 @@ def main(argv=None):
     ]
 
     if not _maybe_skip("Step 2", step2_outputs, force):
+        print("\n===== K-means clustering =====")
         adata, input_matrix = run_kmeans_heatmap(
             input_path=input_path,
             K=K,
-            desired_order=DESIRED_ORDER,
-            random_state=RANDOM_STATE,
+            desired_order=desired_order,
+            random_state=random_state,
             heatmap_output_path=heatmap_output,
             cluster_counts_output_path=cluster_counts_output,
             cluster_assignments_output_path=cluster_assignments_output,
         )
-        print(f"  Heatmap saved to: {heatmap_output}")
-        print(f"  Cluster counts saved to: {cluster_counts_output}")
-        print(f"  Cluster assignments saved to: {cluster_assignments_output}")
+        print(f"  Heatmap: {heatmap_output}")
+        print(f"  Cluster counts: {cluster_counts_output}")
+        print(f"  Cluster assignments: {cluster_assignments_output}")
         print(f"  Genes: {adata.n_obs}, Cell types: {adata.n_vars}")
-    else:
-        adata = None
-        input_matrix = None
 
-    # -----------------------
-    # Step 3: Fisher contingency tables
-    # -----------------------
-    print("\n===== Step 3: build_fisher_contingency_table =====")
-
-    if adata is None or input_matrix is None:
-        print("  SKIPPED Step 3: requires Step 2 to run in this invocation.")
-    else:
-        for label, coloc_path in [
-            ("AD_2022", ad_coloc_path),
-            ("SCZ_eur", scz_coloc_path),
-        ]:
-            if not os.path.exists(coloc_path):
-                print(f"  SKIPPED {label}: coloc file not found at {coloc_path}")
-                continue
-
-            contingency_output = os.path.join(
-                out_dir,
-                f"{label}_fisher_contingency_counts_gene_clusters.tsv",
-            )
-            coloc_cluster_output = os.path.join(
-                out_dir,
-                f"{label}_coloc_genes_with_clusters.tsv",
-            )
-
-            if _maybe_skip(
-                f"Step 3 ({label})",
-                [contingency_output, coloc_cluster_output],
-                force,
-            ):
-                continue
-
-            build_fisher_contingency_table(
-                adata=adata,
-                input_matrix=input_matrix,
-                coloc_path=coloc_path,
-                contingency_output_path=contingency_output,
-                coloc_cluster_output_path=coloc_cluster_output,
-            )
-            print(f"  {label} contingency table saved to: {contingency_output}")
-            print(f"  {label} coloc cluster mapping saved to: {coloc_cluster_output}")
-
-    # -----------------------
-    # Step 4: Order genes
-    # -----------------------
-    print("\n===== Step 4: order_genes_by_correlation =====")
-
-    if not os.path.exists(median_expression_path):
-        print(f"  SKIPPED: median expression file not found at {median_expression_path}")
-    elif not os.path.exists(cluster_assignments_output):
-        print(f"  SKIPPED: cluster assignments file not found at {cluster_assignments_output}")
-    elif not _maybe_skip("Step 4", [ordered_genes_output], force):
-        ordered_genes = order_genes_by_correlation(
-            median_expression_path=median_expression_path,
-            cluster_assignments_path=cluster_assignments_output,
-            output_path=ordered_genes_output,
-        )
-        print(f"  Ordered {len(ordered_genes)} genes")
-        print(f"  Saved to: {ordered_genes_output}")
-
-    # -----------------------
-    # Step 5: Expression heatmap
-    # -----------------------
-    print("\n===== Step 5: plot_expression_heatmap =====")
-
-    prereq_ok = (
-        os.path.exists(median_expression_path)
-        and os.path.exists(ordered_genes_output)
-        and os.path.exists(cluster_assignments_output)
-    )
-
-    if not prereq_ok:
-        print("  SKIPPED: requires median expression, ordered genes, and cluster assignments.")
-    elif not _maybe_skip("Step 5", [expression_heatmap_output], force):
-        plot_expression_heatmap(
-            median_expression_path=median_expression_path,
-            ordered_genes_path=ordered_genes_output,
-            cluster_assignments_path=cluster_assignments_output,
-            cluster_order=DESIRED_ORDER,
-            output_path=expression_heatmap_output,
-        )
-        print(f"  Expression heatmap saved to: {expression_heatmap_output}")
-
-    print("\n===== All Python steps completed successfully! =====")
-    print("\nNow go back to the R pipeline step that runs plot_fisher_exact.\n")
+        print("\n===== K-means clustering done! =====\n")
 
 
 if __name__ == "__main__":
