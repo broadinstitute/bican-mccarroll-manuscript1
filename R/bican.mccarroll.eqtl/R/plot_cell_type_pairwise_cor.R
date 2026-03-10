@@ -1,5 +1,5 @@
-# r_squared_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/manuscript_test_0308_jim/cell_type_pairwise_r_squared_qval_0.01.tsv"
-# output_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/manuscript_test_0308_jim/cell_type_cor_plot_qval_0.01.svg"
+# r_squared_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/eqtl_analysis_pipeline_run_jim/cell_type_pairwise_r_squared_qval_0.01.tsv"
+# output_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/eqtl_analysis_pipeline_run_jim/cell_type_cor_plot_qval_0.01.svg"
 # bican.mccarroll.eqtl::plot_cell_type_pairwise_cor(r_squared_path, output_path)
 
 
