@@ -21,10 +21,9 @@
 #   random_effects=c("donor_external_id", "village")
 # )
 #
-# a <- predict_one_region(opc_glmm, region_name="CaH")
-#
 # opc_predictions <- predict_many_regions(opc_glmm, region_names=c("CaH", "Pu", "NAC", "ic", "DFC"))
-
+#
+# plot_predictions_over_data(opc_glmm, cell_type="OPC", regions=c("CaH", "Pu", "NAC", "ic", "DFC"))
 
 #' Calculate the mode of a vector, ignoring NA values.
 get_mode <- function(x) {
@@ -142,4 +141,53 @@ predict_many_regions <- function(model, region_names, region_col="brain_region_a
   combined_predictions <- dplyr::bind_rows(prediction_list, .id=region_col)
 
   return(combined_predictions)
+}
+
+
+#' Plot observed data and model predictions for a specific cell type across multiple brain regions.
+#'
+#' This function takes a fitted model, extracts the observed data, calculates the
+#' fraction of nuclei for the specified cell type, generates predictions from the model
+#' for the specified brain regions, and creates a faceted plot comparing observed
+#' data points with model predictions and confidence intervals. Age is in years (not decades).
+#'
+#' @param model A fitted model object for COUNTS data (e.g., from glmmTMB).
+#' @param cell_type The name of the cell type being analyzed (used for labeling the y-axis)
+#' @param regions A vector of brain region names to include in the plot.
+#' @param region_col The name of the column in the model data that corresponds to brain region
+#'
+#' @return A ggplot object showing observed data points and model predictions for the
+#' specified cell type across the specified brain regions.
+plot_predictions_over_data <- function(model, cell_type,
+                                       regions=c("CaH", "Pu", "NAC", "ic", "DFC"),
+                                       region_col="brain_region_abbreviation_simple") {
+
+  df <- as.data.frame(model.frame(model))
+  resp <- model.response(df)
+  df$fraction_nuclei <- resp[, 1] / rowSums(resp)
+  df[[region_col]] <- factor(df[[region_col]], levels = regions)
+  df <- df[, -1]
+
+  predictions <- predict_many_regions(model, regions, region_col=region_col)
+  predictions[[region_col]] <- factor(predictions[[region_col]], levels = regions)
+
+  ggplot2::ggplot(
+    df |> na.omit(),
+    ggplot2::aes(x=age_decades*10, y=fraction_nuclei)
+  ) +
+    ggplot2::geom_point() +
+    ggplot2::geom_line(data=predictions, ggplot2::aes(x=age_decades*10, y=fit), color="blue", lwd=1) +
+    ggplot2::geom_ribbon(
+      data=predictions,
+      ggplot2::aes(x=age_decades*10, y=fit, ymin=fit_lower, ymax=fit_upper),
+      alpha=0.2
+    ) +
+    ggplot2::facet_wrap(~brain_region_abbreviation_simple, scales="free", nrow=1) +
+    ggpubr::stat_cor(method="spearman", cor.coef.name = "rho") +
+    ggplot2::theme_bw() +
+    ggplot2::labs(
+      x="age",
+      y=paste(cell_type, "fraction")
+    )
+
 }
