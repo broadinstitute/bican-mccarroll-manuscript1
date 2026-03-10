@@ -4,10 +4,7 @@
 \alias{get_index_snp_slope_matrix_with_impute}
 \title{Select index SNPs per gene and build a sign-adjusted, zero-imputed slope matrix}
 \usage{
-get_index_snp_slope_matrix_with_impute(
-  slope_matrix_path,
-  output_path = NULL
-)
+get_index_snp_slope_matrix_with_impute(slope_matrix_path, output_path = NULL)
 }
 \arguments{
 \item{slope_matrix_path}{Character scalar. Path to the slope matrix file.}

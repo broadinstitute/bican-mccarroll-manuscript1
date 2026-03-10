@@ -32,13 +32,13 @@ expression TPM TSV (output of
 \code{<donor>_<celltype>__<region>}.}
 
 \item{output_path}{Character scalar or \code{NULL}.  If non-NULL, the
-plot is saved to this path as a PNG file.}
+plot is saved to this path as an SVG file.}
 
-\item{width}{Numeric.  PNG width in pixels.  Default 2600.}
+\item{width}{Numeric.  SVG width in pixels (divided by res for inches).  Default 2600.}
 
-\item{height}{Numeric.  PNG height in pixels.  Default 1000.}
+\item{height}{Numeric.  SVG height in pixels (divided by res for inches).  Default 1000.}
 
-\item{res}{Numeric.  PNG resolution in DPI.  Default 150.}
+\item{res}{Numeric.  Scaling factor for width/height.  Default 150.}
 }
 \value{
 The \code{ggplot} object (invisibly).

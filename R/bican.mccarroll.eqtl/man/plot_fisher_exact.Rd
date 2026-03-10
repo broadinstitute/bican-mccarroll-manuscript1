@@ -9,8 +9,8 @@ plot_fisher_exact(
   plot_disease_label,
   cluster_order,
   output_path = NULL,
-  width = 7,
-  height = 4,
+  width = 4,
+  height = 7,
   dpi = 150
 )
 }
@@ -23,13 +23,13 @@ plot_fisher_exact(
 (e.g., \code{"schizophrenia"}, \code{"Alzheimer's disease"}).}
 
 \item{cluster_order}{Character vector giving the desired display order
-of clusters (e.g., \code{c("6","8","1","4","2","3","10","9","7","5","0")}).}
+of clusters (e.g., \code{c("5","0","6","2","7","8","10","1","9","4","3")}).}
 
 \item{output_path}{If not \code{NULL}, saves the plot to this path.}
 
-\item{width}{Plot width in inches (default 7).}
+\item{width}{Plot width in inches (default 4).}
 
-\item{height}{Plot height in inches (default 4).}
+\item{height}{Plot height in inches (default 7).}
 
 \item{dpi}{Plot resolution (default 150).}
 }

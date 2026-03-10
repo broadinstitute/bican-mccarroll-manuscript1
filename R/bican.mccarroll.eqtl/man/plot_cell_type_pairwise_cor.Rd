@@ -7,7 +7,7 @@
 plot_cell_type_pairwise_cor(
   r_squared_path,
   output_path = NULL,
-  width = 3400,
+  width = 3150,
   height = 3000,
   res = 300,
   title = "Pairwise R² of eQTL effect sizes across cell types"
@@ -19,13 +19,13 @@ plot_cell_type_pairwise_cor(
 column should be named \code{cell_type} and contain row names.}
 
 \item{output_path}{Character scalar or \code{NULL}.  If non-NULL, the
-heatmap is saved to this path as a PNG file.}
+heatmap is saved to this path as an SVG file.}
 
-\item{width}{Numeric.  PNG width in pixels.  Default 3400.}
+\item{width}{Numeric.  SVG width in pixels (divided by res for inches).  Default 3150.}
 
-\item{height}{Numeric.  PNG height in pixels.  Default 3000.}
+\item{height}{Numeric.  SVG height in pixels (divided by res for inches).  Default 3000.}
 
-\item{res}{Numeric.  PNG resolution in DPI.  Default 300.}
+\item{res}{Numeric.  Scaling factor for width/height.  Default 300.}
 
 \item{title}{Character scalar.  Plot title.}
 }
