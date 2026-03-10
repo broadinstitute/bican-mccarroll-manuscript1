@@ -1,7 +1,7 @@
-#library(dplyr)
-#library(rlang)
-#library(logger)
-#
+# library(dplyr)
+# library(rlang)
+# library(logger)
+
 # input_file <- "/broad/bican_um1_mccarroll/RNAseq/analysis/cellarium_upload/CAP_freeze_3/CAP_cell_metadata.annotated.with_sub_clusters.txt.gz"
 # filters <- c("brain_region_abbreviation == 'DFC'", "single_cell_assay == '10X-GEMX-3P'")
 # group_cols <- c("donor_external_id", "village")
@@ -10,6 +10,59 @@
 # out_file <- "/broad/mccarroll/yooolivi/test/celltypeproportions/DFC_10X-GEMX-3P.cell_type_proportions.txt"
 #
 # ctp <- load_and_compute_ctp(input_file, group_cols, cell_type_col, out_file, metric_cols, filters)
+#
+# sample_ctp <- read.table(
+#   "/broad/mccarroll/yooolivi/projects/bican/manuscript_1_figures/data_cache/donor_region.annotation.ctp.txt",
+#   sep = "\t", header = TRUE, stringsAsFactors = FALSE
+# )
+#
+# annotation_map <- tribble(
+#   ~annotation, ~annotation_major,
+#
+#   # astrocyte
+#   "astrocyte", "astrocyte",
+#
+#   # microglia
+#   "microglia", "microglia",
+#
+#   # OPC
+#   "OPC", "OPC",
+#
+#   # oligodendrocyte
+#   "oligodendrocyte", "oligodendrocyte",
+#
+#   # projection neurons
+#   "MSN_D1_matrix", "projection neuron",
+#   "MSN_D2_matrix", "projection neuron",
+#   "MSN_D1_NUDAP", "projection neuron",
+#   "extreme_ventral_MSN", "projection neuron",
+#   "MSN_D1_striosome", "projection neuron",
+#   "MSN_D2_striosome", "projection neuron",
+#   "MSN_striomat_hybrid", "projection neuron",
+#   "MSN_D1D2_hybrid", "projection neuron",
+#   "cortical_glutamatergic_L23IT", "projection neuron",
+#   "cortical_glutamatergic_L4IT", "projection neuron",
+#   "cortical_glutamatergic_L56NP", "projection neuron",
+#   "cortical_glutamatergic_L5ET", "projection neuron",
+#   "cortical_glutamatergic_L5IT", "projection neuron",
+#   "cortical_glutamatergic_L6", "projection neuron",
+#   "cortical_glutamatergic_L6IT", "projection neuron",
+#   "cortical_glutamatergic_L6ITCar3", "projection neuron",
+#
+#   # interneuron
+#   "striatal_cholinergic", "interneuron",
+#   "striatal_GABA_MGE_PTHLH-PVALB", "interneuron",
+#   "striatal_GABA_MGE_TAC3-PLPP4", "interneuron",
+#   "GABA_CGE_SST-CHODL", "interneuron",
+#   "cortical_GABA_CGE_LAMP5", "interneuron",
+#   "cortical_GABA_CGE_SNCG", "interneuron",
+#   "cortical_GABA_CGE_VIP", "interneuron",
+#   "cortical_GABA_MGE_PVALB", "interneuron",
+#   "cortical_GABA_MGE_SST", "interneuron"
+#
+# )
+
+
 
 
 #' Filters dataframe.
@@ -230,6 +283,52 @@ load_and_compute_ctp <- function(cell_metadata_file, group_cols, cell_type_col, 
   }
 
   return(ctp_df)
+}
+
+#' Recompute CTP from an existing CTP dataframe - either with a subset of the
+#' existing grouping variables, or a new cell type label.
+#'
+#' This is useful for quickly recomputing CTP from an existing dataframe
+#' rather than having to load the entire cell metadata file in again. The
+#' tradeoff is that you cannot compute any single-cell metrics.
+#'
+#' @param ctp_df Dataframe of cell type proportions.
+#' @param group_cols Character vector of columns to group by (e.g., donor ID)
+#' @param cell_type_col Column name representing cell type annotations.
+#' @param cell_type_label_map Dataframe with 2 columns: the first column should
+#' match the existing cell type labels in the `cell_type_col` of the `ctp_df`,
+#' and the second column should have the new cell type labels to group by.
+#'
+#' @return Dataframe with recomputed cell type proportions based on the new grouping.
+regroup_ctp <- function(ctp_df, group_cols, cell_type_col, cell_type_label_map) {
+
+  # check format of new annotation map
+  if(ncol(annotation_map) != 2) {
+    stop("`cell_type_label_map` must have exactly 2 columns: the first for the {cell_type_col} and the second for the new grouping variable.")
+  }
+
+  new_cell_type_col <- colnames(annotation_map)[2]
+
+  # compute CTP using the counts from the original
+  new_ctp_df <- ctp_df |>
+    dplyr::left_join(annotation_map) |>
+    dplyr::group_by(across(all_of(group_cols)), !!rlang::sym(new_cell_type_col)) |>
+    dplyr::summarise(
+      n_nuclei = sum(n_nuclei)
+    ) |>
+    dplyr::group_by(across(all_of(group_cols))) |>
+    dplyr::mutate(
+      total_nuclei = sum(n_nuclei),
+      fraction_nuclei = n_nuclei / total_nuclei
+    ) |>
+    dplyr::ungroup() |>
+    dplyr::mutate(
+      sample_id = paste(!!!rlang::syms(group_cols), sep = "_")
+    ) |>
+    dplyr::select(sample_id, everything())
+
+  return(new_ctp_df)
+
 }
 
 
