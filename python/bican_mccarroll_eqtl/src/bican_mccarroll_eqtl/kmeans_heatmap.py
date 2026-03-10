@@ -162,10 +162,11 @@ def plot_k_selection(silhouette_df, output_path=None):
     return fig
 
 
-def run_kmeans_heatmap(input_path, K, desired_order=None, random_state=42,
+def run_kmeans_heatmap(input_path, K, desired_order=None, show_cluster_labels=False, random_state=42,
                        celltype_order=None, celltype_label_map=None,
                        heatmap_output_path=None, cluster_counts_output_path=None,
-                       cluster_assignments_output_path=None):
+                       cluster_assignments_output_path=None,
+                       use_sequential_cluster_labels=False):
     """Run K-means clustering and generate the effect-size heatmap.
 
     Intended workflow:
@@ -199,6 +200,9 @@ def run_kmeans_heatmap(input_path, K, desired_order=None, random_state=42,
     cluster_assignments_output_path : str or None
         If provided, saves a TSV with columns ``gene`` and ``cluster``
         mapping each gene to its K-means cluster label.
+    use_sequential_cluster_labels : bool
+        If True, relabel cluster labels on the heatmap as 1..K rather than
+        the raw cluster IDs.
 
     Returns
     -------
@@ -263,6 +267,19 @@ def run_kmeans_heatmap(input_path, K, desired_order=None, random_state=42,
         figsize=(12, 9),
         show=False,
     )
+
+    fig = plt.gcf()
+
+    group_axis = None
+    for ax in fig.axes:
+        if ax.get_xlabel() == "gene_clusters":
+            group_axis = ax
+            break
+
+    if group_axis is not None and use_sequential_cluster_labels:
+        tick_positions = group_axis.get_xticks()
+        group_axis.set_xticks(tick_positions)
+        group_axis.set_xticklabels([str(i + 1) for i in range(len(tick_positions))])
 
     for text in plt.gcf().findobj(match=plt.Text):
         text.set_fontsize(16)
