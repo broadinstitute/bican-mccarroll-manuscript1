@@ -282,7 +282,76 @@ regroup_ctp <- function(ctp_df, group_cols, cell_type_col, cell_type_label_map) 
 
 }
 
+#' Extract sample-level metadata from cell-level metadata, applying optional filters and grouping.
+#'
+#' This function takes cell-level metadata and extracts sample-level metadata by
+#' grouping based on specified columns (e.g., donor ID, brain region) and applying optional filters.
+#' It can also aggregate certain metadata columns by concatenating unique values within each group.
+#'
+#' @param df Dataframe containing cell-level metadata, with columns for grouping (e.g., donor ID, brain region) and other metadata.
+#' @param group_cols Character vector of columns to group by (e.g., donor ID, brain region).
+#' @param donor_metadata_cols Character vector of donor-level metadata columns to include in the output.
+#' @param metadata_cols_to_group Character vector of metadata columns to aggregate by concatenating unique values within each group.
+#' @param filters Optional; Character vector of filtering expressions to apply to the cell-level metadata before extracting sample-level metadata.
+#' @param out_file Optional; Output file to save the extracted sample metadata.
+#'
+#' @return Dataframe with one row per sample (defined by `group_cols`), including the specified donor-level metadata and aggregated metadata columns.
+extract_sample_metadata <- function(df, group_cols, donor_metadata_cols, metadata_cols_to_group, filters=NULL, out_file=NULL) {
+
+  filtered_df <- filter_df(df, filters)
+
+  sample_metadata <- filtered_df |>
+    dplyr::mutate(
+      sample_id = paste(!!!rlang::syms(group_cols), sep = "_")
+    ) |>
+    dplyr::select(
+      sample_id, all_of(group_cols), all_of(donor_metadata_cols), all_of(metadata_cols_to_group)
+    ) |>
+    dplyr::distinct() |>
+    dplyr::group_by(sample_id) |>
+    dplyr::mutate(
+      dplyr::across(
+        all_of(metadata_cols_to_group),
+        ~ paste(sort(unique(.x)), collapse=":")
+      )
+    ) |>
+    dplyr::ungroup() |>
+    dplyr::distinct()
+
+  if (!is.null(out_file)) {
+    logger::log_info("Saving sample metadata to {out_file}")
+    write.table(sample_metadata, file = out_file, sep = "\t", row.names = FALSE, quote = FALSE)
+  }
+
+  return(sample_metadata)
+}
 
 
+#' Main workflow to extract sample-level metadata from a cell metadata file.
+#'
+#' This function reads cell-level metadata from a file, applies optional filters,
+#' and extracts sample-level metadata by grouping based on specified columns.
+#'  It can also aggregate certain metadata columns by concatenating unique values within each group.
+#'   The resulting sample metadata can be saved to an output file if specified.
+#'
+#' @param cell_metadata_file Path to the cell metadata file (one row for each cell barcode),
+#' with columns for grouping (e.g., donor ID, brain region) and other metadata.
+#' @param group_cols Character vector of columns to group by (e.g., donor ID, brain region).
+#' @param donor_metadata_cols Character vector of donor-level metadata columns to include in the output.
+#' @param metadata_cols_to_group Character vector of metadata columns to aggregate by concatenating unique values within each group.
+#' @param filters Optional; Character vector of filtering expressions to apply to the cell-level metadata before extracting sample-level metadata.
+#' @param out_file Optional; Output file
+#'
+#' @return Dataframe with one row per sample (defined by `group_cols`), including the specified donor-level metadata and aggregated metadata columns.
+load_and_extract_sample_metadata <- function(cell_metadata_file, group_cols, donor_metadata_cols, metadata_cols_to_group, filters=NULL, out_file=NULL) {
 
+  # read input file
+  logger::log_info("Loading cell metadata from {cell_metadata_file}")
+  df <- read.table(cell_metadata_file, sep = "\t", header = TRUE, stringsAsFactors = FALSE)
+
+  # extract sample metadata
+  sample_metadata <- extract_sample_metadata(df, group_cols, donor_metadata_cols, metadata_cols_to_group, filters, out_file)
+
+  return(sample_metadata)
+}
 
