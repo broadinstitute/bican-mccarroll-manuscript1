@@ -33,7 +33,7 @@ qval <- 0.01
 
 #K-means clustering settings
 K=11
-cluster_order="5,0,6,2,7,8,10,1,9,4,3"
+cluster_order="2,7,4,1,6,10,9,0,8,3,5"
 
 ## -----------------------
 ## Helpers
