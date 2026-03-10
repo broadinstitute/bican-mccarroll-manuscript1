@@ -7,62 +7,13 @@
 # group_cols <- c("donor_external_id", "village")
 # cell_type_col <- "annotation"
 # metric_cols <- c("pct_intronic", "frac_contamination")
-# out_file <- "/broad/mccarroll/yooolivi/test/celltypeproportions/DFC_10X-GEMX-3P.cell_type_proportions.txt"
 #
-# ctp <- load_and_compute_ctp(input_file, group_cols, cell_type_col, out_file, metric_cols, filters)
-#
-# sample_ctp <- read.table(
-#   "/broad/mccarroll/yooolivi/projects/bican/manuscript_1_figures/data_cache/donor_region.annotation.ctp.txt",
-#   sep = "\t", header = TRUE, stringsAsFactors = FALSE
+# cell_metadata <- read.table(
+#   input_file, sep = "\t", header = TRUE, stringsAsFactors = FALSE
 # )
 #
-# annotation_map <- tribble(
-#   ~annotation, ~annotation_major,
-#
-#   # astrocyte
-#   "astrocyte", "astrocyte",
-#
-#   # microglia
-#   "microglia", "microglia",
-#
-#   # OPC
-#   "OPC", "OPC",
-#
-#   # oligodendrocyte
-#   "oligodendrocyte", "oligodendrocyte",
-#
-#   # projection neurons
-#   "MSN_D1_matrix", "projection neuron",
-#   "MSN_D2_matrix", "projection neuron",
-#   "MSN_D1_NUDAP", "projection neuron",
-#   "extreme_ventral_MSN", "projection neuron",
-#   "MSN_D1_striosome", "projection neuron",
-#   "MSN_D2_striosome", "projection neuron",
-#   "MSN_striomat_hybrid", "projection neuron",
-#   "MSN_D1D2_hybrid", "projection neuron",
-#   "cortical_glutamatergic_L23IT", "projection neuron",
-#   "cortical_glutamatergic_L4IT", "projection neuron",
-#   "cortical_glutamatergic_L56NP", "projection neuron",
-#   "cortical_glutamatergic_L5ET", "projection neuron",
-#   "cortical_glutamatergic_L5IT", "projection neuron",
-#   "cortical_glutamatergic_L6", "projection neuron",
-#   "cortical_glutamatergic_L6IT", "projection neuron",
-#   "cortical_glutamatergic_L6ITCar3", "projection neuron",
-#
-#   # interneuron
-#   "striatal_cholinergic", "interneuron",
-#   "striatal_GABA_MGE_PTHLH-PVALB", "interneuron",
-#   "striatal_GABA_MGE_TAC3-PLPP4", "interneuron",
-#   "GABA_CGE_SST-CHODL", "interneuron",
-#   "cortical_GABA_CGE_LAMP5", "interneuron",
-#   "cortical_GABA_CGE_SNCG", "interneuron",
-#   "cortical_GABA_CGE_VIP", "interneuron",
-#   "cortical_GABA_MGE_PVALB", "interneuron",
-#   "cortical_GABA_MGE_SST", "interneuron"
-#
-# )
-
-
+# a <- compute_ctp_and_metrics(cell_metadata, group_cols, cell_type_col, metric_cols, filters)
+# b <- compute_ctp_and_metrics(cell_metadata, group_cols, cell_type_col, metric_cols, filters=c(filters, "!is.na(annotation)"))
 
 
 #' Filters dataframe.
@@ -225,10 +176,10 @@ save_ctp <- function(ctp_df, out_file) {
 compute_ctp_and_metrics <- function(df, group_cols, cell_type_col, metric_cols = NULL, filters = NULL, group_filters=NULL, out_file=NULL) {
 
   # Step 0: drop NA values
-  df_complete <- df[!is.na(df[[cell_type_col]]), ]
+  #df_complete <- df[!is.na(df[[cell_type_col]]), ]
 
   # Step 1: Filter the data frame
-  filtered_df <- filter_df(df_complete, filters, group_cols, group_filters)
+  filtered_df <- filter_df(df, filters, group_cols, group_filters)
 
   # Step 2: Compute cell type proportions
   ctp_df <- compute_ctp(filtered_df, group_cols, cell_type_col)
