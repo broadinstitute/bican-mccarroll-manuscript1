@@ -11,28 +11,29 @@
 ## ============================================================
 
 ## -----------------------
-## Config
-## -----------------------
-
-force <- TRUE
-
-## -----------------------
 ## Paths
 ## -----------------------
 
 base_dir   <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls"
 eqtl_dir   <- file.path(base_dir, "results/LEVEL_3")
-out_dir    <- file.path(base_dir, "manuscript_test_0308")
-qval       <- 0.01
+out_dir    <- file.path(base_dir, "eqtl_analysis_pipeline_run_jim")
 
 region_cell_type_path    <- file.path(base_dir, "manuscript_data/region_cell_type.tsv")
 combined_expression_path <- file.path(out_dir, "combined_tpm_expression_across_cell_types.tsv")
 
-## Python K-means script (in the same repo)
-python_script <- "python/bican_mccarroll_eqtl/scripts/test_eqtl_pipeline_0308.py"
-
 ## VCF (for gene-snp plots)
 vcf_path <- "/broad/bican_um1_mccarroll/vcfs/2025-05-05/gvs_concat_outputs_2025-05-05T14-10-02.donors_renamed_filtered_norm.vcf.gz"
+
+## -----------------------
+## Config
+## -----------------------
+
+force <- TRUE
+qval <- 0.01
+
+#K-means clustering settings
+K=11
+cluster_order="5,0,6,2,7,8,10,1,9,4,3"
 
 ## -----------------------
 ## Helpers
@@ -224,7 +225,14 @@ start_distance_path <- file.path(out_dir, paste0("index_snp_start_distance_qval_
 ## ===========================================================
 
 cat("\n===== Step 10: K-means clustering (Python) =====\n")
-exit_code <- system2("python3", python_script)
+args <- c(
+    "--out-dir", out_dir,
+    sprintf("--K=%d", K),
+    "--desired-order", cluster_order,
+    "--force"
+)
+cat("Running:", paste("test-eqtl-pipeline", paste(args, collapse = " ")), "\n")
+exit_code <- system2("test-eqtl-pipeline", args)
 if (exit_code != 0) stop("Python K-means pipeline failed")
 
 ## ===========================================================
