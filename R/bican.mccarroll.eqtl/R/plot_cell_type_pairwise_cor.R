@@ -1,5 +1,5 @@
-# r_squared_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/script_output/LEVEL_3/cell_type_pairwise_r_squared.tsv"
-# output_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/script_output/LEVEL_3/cell_type_cor_plot.svg"
+# r_squared_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/manuscript_test_0308_jim/cell_type_pairwise_r_squared_qval_0.01.tsv"
+# output_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/manuscript_test_0308_jim/cell_type_cor_plot_qval_0.01.svg"
 # bican.mccarroll.eqtl::plot_cell_type_pairwise_cor(r_squared_path, output_path)
 
 
@@ -30,10 +30,10 @@
 #' @importFrom logger log_info
 plot_cell_type_pairwise_cor <- function(r_squared_path,
                                         output_path = NULL,
-                                        width = 3150,
-                                        height = 3000,
-                                        res = 300,
-                                        title = "Pairwise R\u00B2 of eQTL effect sizes across cell types") {
+                                        width = 10.25,
+                                        height = 9,
+                                        #title = "Pairwise R\u00B2 of eQTL effect sizes across cell types",
+                                        title=NULL) {
 
     celltype_label_map <- c(
         "MSN_D2_matrix__CaH"      = "MSN D2 matrix (CaH)",
@@ -77,15 +77,19 @@ plot_cell_type_pairwise_cor <- function(r_squared_path,
         cor_matrix_r_squared,
         name = "R_sq",
         col = col_fun,
+        width  = grid::unit(ncol(cor_matrix_r_squared) * 0.85, "cm"),
+        height = grid::unit(nrow(cor_matrix_r_squared) * 0.85, "cm"),
         column_title = title,
-        column_title_gp = grid::gpar(fontsize = 16, fontface = "bold"),
+        column_title_gp = grid::gpar(fontsize = 16),
         cluster_rows = TRUE,
         cluster_columns = TRUE,
         show_row_dend = FALSE,
         show_column_dend = FALSE,
         row_names_side = "left",
-        row_names_gp = grid::gpar(fontsize = 12, fontface = "bold"),
-        column_names_gp = grid::gpar(fontsize = 12, fontface = "bold"),
+        row_names_gp = grid::gpar(fontsize = 18),
+        column_names_gp = grid::gpar(fontsize = 18),
+        row_names_max_width = grid::unit(12, "cm"),
+        column_names_max_height = grid::unit(12, "cm"),
         column_names_rot = 45,
         heatmap_legend_param = list(
             title = expression(R^2),
@@ -98,7 +102,7 @@ plot_cell_type_pairwise_cor <- function(r_squared_path,
     )
 
     if (!is.null(output_path)) {
-        grDevices::svg(output_path, width = width / res, height = height / res)
+        grDevices::svg(output_path, width = width, height = height)
         ComplexHeatmap::draw(
             ht,
             heatmap_legend_side = "right",

@@ -284,13 +284,13 @@ def run_kmeans_heatmap(input_path, K, desired_order=None, show_cluster_labels=Fa
     for text in plt.gcf().findobj(match=plt.Text):
         text.set_fontsize(16)
 
-    plt.suptitle(
-        "K-means clustering of lead eQTL effect-size profiles across cell types",
-        fontsize=20,
-        fontweight="bold",
-        x=0.55,
-        y=0.95,
-    )
+    # plt.suptitle(
+    #     "K-means clustering of lead eQTL effect-size profiles across cell types",
+    #     fontsize=20,
+    #     fontweight="bold",
+    #     x=0.55,
+    #     y=0.95,
+    # )
 
     if heatmap_output_path is not None:
         plt.savefig(heatmap_output_path, bbox_inches="tight")
