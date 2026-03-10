@@ -97,6 +97,13 @@ def main(argv=None):
         help="Recompute steps even if output files already exist.",
     )
 
+    parser.add_argument(
+        "--use_sequential_cluster_labels",
+        action="store_true",
+        help="Recompute steps even if output files already exist.",
+    )
+
+
     args = parser.parse_args(argv)
     out_dir = args.out_dir
     force = args.force
@@ -137,6 +144,7 @@ def main(argv=None):
             heatmap_output_path=heatmap_output,
             cluster_counts_output_path=cluster_counts_output,
             cluster_assignments_output_path=cluster_assignments_output,
+            use_sequential_cluster_labels=args.use_sequential_cluster_labels,
         )
         print(f"  Heatmap: {heatmap_output}")
         print(f"  Cluster counts: {cluster_counts_output}")
