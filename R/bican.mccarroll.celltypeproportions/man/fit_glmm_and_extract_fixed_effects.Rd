@@ -11,6 +11,8 @@ fit_glmm_and_extract_fixed_effects(
   cell_type_col,
   fixed_effects,
   random_effects,
+  min_nuclei = 0,
+  denominator_types = NULL,
   out_file = NULL
 )
 }

@@ -1,28 +1,17 @@
 
-# ctp_dir=file.path("/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis", "cell_type_proportions", "data", "LEVEL_2")
+# figures_cache_dir = "/broad/mccarroll/yooolivi/projects/bican/manuscript_1_figures/data_cache"
 #
 # sample_ctp <- read.table(
-#   file.path(ctp_dir, "donor_region.annotation.cell_type_proportions.txt"),
-#   sep="\t", header=TRUE, stringsAsFactors=FALSE
+#   file.path(figures_cache_dir, "donor_region.annotation.ctp.txt"),
+#   sep="\t", header=TRUE, stringsAsFactors = FALSE
 # )
 #
 # sample_metadata <- read.table(
-#   file.path(ctp_dir, "donor_region_metadata.txt"),
+#   file.path(figures_cache_dir, "donor_region.sample_metadata.txt"),
 #   sep="\t", header=TRUE, stringsAsFactors=FALSE
-# ) |>
-#   dplyr::mutate(
-#     sample_id=paste(donor_external_id, brain_region_abbreviation_simple, sep="_"),
-#     sex = ifelse(imputed_sex == 2, "F", "M"),
-#     age_decades = age / 10,
-#     z_PC1 = scale(PC1),
-#     z_PC2 = scale(PC2),
-#     z_PC3 = scale(PC3),
-#     z_PC4 = scale(PC4),
-#     z_PC5 = scale(PC5),
-#     z_pmi_hr = scale(pmi_hr)
-#   )
+# )
 #
-# sample_df <- prepare_data_for_glm(sample_ctp, sample_metadata, cell_type_col="annotation")
+# sample_df <- prepare_data_for_glmm(sample_ctp, sample_metadata, cell_type_col="annotation", cell_types="OPC")
 #
 # opc_glmm <- fit_beta_binomial_glmm(
 #   sample_df=sample_df,
@@ -31,6 +20,8 @@
 #   fixed_effects=c("age_decades", "sex", "brain_region_abbreviation_simple", "mean_frac_contamination"), #, "single_cell_assay"),
 #   random_effects=c("donor_external_id", "village")
 # )
+#
+# a <- predict_one_region(opc_glmm, region_name="CaH")
 #
 # opc_predictions <- predict_many_regions(opc_glmm, region_names=c("CaH", "Pu", "NAC", "ic", "DFC"))
 
@@ -95,6 +86,8 @@ make_prediction_grid <- function(model,
 }
 
 
+
+
 #' Generate predictions from a fitted model for a specific brain region,
 #' varying age and holding other variables constant.
 #'
@@ -104,23 +97,26 @@ make_prediction_grid <- function(model,
 #'
 #' @return A data frame containing the prediction grid with columns for age,
 #' brain region, predicted proportion, and standard errors.
-predict_one_region <- function(model, region_name) {
+predict_one_region <- function(model, region_name, region_col="brain_region_abbreviation_simple") {
 
   df <- model.frame(model)
 
+  vary_list <- rlang::list2(
+    age_decades = seq(min(df$age_decades), max(df$age_decades), by = 0.1),
+    !!region_col := region_name
+  )
+
   region_data_to_predict <- make_prediction_grid(
     model,
-    vary = list(
-      age_decades = seq(min(df$age_decades),
-                        max(df$age_decades),
-                        by = 0.1),
-      brain_region_abbreviation_simple=region_name)
+    vary = vary_list
   )
 
   predictions <- predict(model, newdata = region_data_to_predict, type = "response", se.fit=TRUE, re.form=NA)
 
   region_data_to_predict$fit <- predictions$fit
   region_data_to_predict$se.fit <- predictions$se.fit
+  region_data_to_predict$fit_lower <- region_data_to_predict$fit - 1.96 * region_data_to_predict$se.fit
+  region_data_to_predict$fit_upper <- region_data_to_predict$fit + 1.96 * region_data_to_predict$se.fit
 
   return(region_data_to_predict)
 }
@@ -143,12 +139,7 @@ predict_many_regions <- function(model, region_names, region_col="brain_region_a
 
   names(prediction_list) <- region_names
 
-  combined_predictions <- dplyr::bind_rows(prediction_list, .id=region_col) |>
-    dplyr::mutate(
-      predicted_proportion = fit,
-      predicted_proportion_lower = fit - 1.96 * se.fit,
-      predicted_proportion_upper = fit + 1.96 * se.fit
-    )
+  combined_predictions <- dplyr::bind_rows(prediction_list, .id=region_col)
 
   return(combined_predictions)
 }

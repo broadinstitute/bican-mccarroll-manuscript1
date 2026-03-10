@@ -4,7 +4,14 @@
 \alias{prepare_data_for_glmm}
 \title{Combine cell type proportions and metadata dataframe.}
 \usage{
-prepare_data_for_glmm(sample_ctp, sample_metadata, cell_type_col)
+prepare_data_for_glmm(
+  sample_ctp,
+  sample_metadata,
+  cell_type_col,
+  cell_types,
+  min_nuclei = 0,
+  denominator_types = NULL
+)
 }
 \arguments{
 \item{sample_ctp}{Dataframe containing cell type proportions for each sample.}
@@ -12,9 +19,19 @@ prepare_data_for_glmm(sample_ctp, sample_metadata, cell_type_col)
 \item{sample_metadata}{Dataframe containing metadata for each sample.}
 
 \item{cell_type_col}{Column name in `sample_ctp` that contains cell type labels.}
+
+\item{cell_types}{Character vector of cell types to include in the combined dataframe.}
+
+\item{min_nuclei}{Minimum number of nuclei for any of the specified cell types.}
+
+\item{denominator_types}{If not using the total number of nuclei as the denominator,
+specify which cell types to include in the denominator by providing a character
+vector of cell type names. If NULL, the total number of nuclei for each sample
+will be used as the denominator (i.e., n_other = total_nuclei - n_nuclei).}
 }
 \value{
-Dataframe with combined cell type proportions and metadata, including a column for the number of nuclei of other cell types (total_nuclei - n_nuclei).
+Dataframe with combined cell type proportions and metadata for the specified cell types,
+including a column for n_other to be used as the denominator in the GLMM.
 }
 \description{
 Combine cell type proportions and metadata dataframe.

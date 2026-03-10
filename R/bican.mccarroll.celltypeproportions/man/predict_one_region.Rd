@@ -5,7 +5,11 @@
 \title{Generate predictions from a fitted model for a specific brain region,
 varying age and holding other variables constant.}
 \usage{
-predict_one_region(model, region_name)
+predict_one_region(
+  model,
+  region_name,
+  region_col = "brain_region_abbreviation_simple"
+)
 }
 \arguments{
 \item{model}{A fitted model object for COUNTS data (e.g., from glmmTMB).}
