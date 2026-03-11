@@ -29,9 +29,8 @@
 #'   \code{<donor>_<celltype>__<region>}.
 #' @param output_path Character scalar or \code{NULL}.  If non-NULL, the
 #'   plot is saved to this path as an SVG file.
-#' @param width Numeric.  SVG width in pixels (divided by res for inches).  Default 2600.
-#' @param height Numeric.  SVG height in pixels (divided by res for inches).  Default 1000.
-#' @param res Numeric.  Scaling factor for width/height.  Default 150.
+#' @param width Numeric.  SVG width in inches .  Default 20.
+#' @param height Numeric.  SVG height in pixels .  Default 5.
 #'
 #' @return The \code{ggplot} object (invisibly).
 #'
@@ -197,46 +196,66 @@ plot_gene_snp <- function(gene,
     # --- Build plot ---
     n_panels <- length(celltype_order)
 
-    p <- ggplot2::ggplot(plot_dt,
-                         ggplot2::aes(x = allele_genotype,
-                                      y = log_expression)) +
+    p <- ggplot2::ggplot(
+        plot_dt,
+        ggplot2::aes(
+            x = allele_genotype,
+            y = log_expression
+        )
+    ) +
         ggbeeswarm::geom_beeswarm(size = 0.3, alpha = 0.8) +
         ggplot2::geom_violin(
-            trim = FALSE, scale = "width",
-            fill = "#9bd3dd", color = NA, alpha = 0.6
+            trim = FALSE,
+            scale = "width",
+            fill = "#9bd3dd",
+            color = NA,
+            alpha = 0.6
         ) +
         ggplot2::facet_wrap(
-            ~ cell_type_label, ncol = n_panels, drop = FALSE,
+            ~ cell_type_label,
+            ncol = n_panels,
+            drop = FALSE,
             labeller = ggplot2::label_wrap_gen(width = 18)
         ) +
         ggplot2::geom_text(
             data = label_dt,
             ggplot2::aes(y = y_pos, label = p_label),
             color = "#d62728",
-            x = Inf, hjust = 1, vjust = 1,
-            nudge_x = -0.15, nudge_y = -0.05,
-            size = 6, fontface = "bold", inherit.aes = FALSE
+            x = Inf,
+            hjust = 1,
+            vjust = 1,
+            nudge_x = -0.15,
+            nudge_y = -0.05,
+            size = 6,
+            fontface = "bold",
+            inherit.aes = FALSE
         ) +
         ggplot2::labs(
-            title = paste0("Expression of ", gene, " by Genotype at ",
-                           chr, ":", pos),
+            title = paste0(gene, "  ", chr, ":", pos),
             x = "Genotype",
-            y = paste0("Log2(", gene, " expression)")
+            y = "Expression, TPM (log2)"
         ) +
         ggplot2::theme_bw() +
         ggplot2::theme(
             plot.title = ggplot2::element_text(
-                hjust = 0.5, size = 24, face = "bold"),
+                hjust = 0,
+                size = 18,
+                face = "bold"
+            ),
+            plot.title.position = "plot",
             strip.text = ggplot2::element_text(size = 14, face = "bold"),
             axis.title.x = ggplot2::element_text(size = 20),
             axis.title.y = ggplot2::element_text(size = 20),
+            axis.text.x = ggplot2::element_text(size = 16),
+            axis.text.y = ggplot2::element_text(size = 16),
             panel.spacing.x = ggplot2::unit(0.18, "lines"),
             panel.spacing.y = ggplot2::unit(0.25, "lines"),
-            strip.background = ggplot2::element_blank()
+            strip.background = ggplot2::element_blank(),
+            legend.position = "none"
         )
 
     if (!is.null(output_path)) {
-        grDevices::svg(output_path, width = width / res, height = height / res)
+        grDevices::svg(output_path, width = width, height = height)
         print(p)
         grDevices::dev.off()
         logger::log_info("Saved to: {output_path}")
