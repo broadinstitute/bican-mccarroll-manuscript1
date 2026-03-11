@@ -256,7 +256,9 @@ run_eqtl_manuscript_pipeline <- function(
         vcf_path = vcf_path,
         expression_path = paths$combined_expression_path,
         gene_snp_cases = gene_snp_cases,
-        force = force
+        force = force,
+        width=30,
+        height=2
     )
 
 
@@ -380,7 +382,9 @@ run_eqtl_manuscript_pipeline_defaults <- function(
         vcf_path,
         expression_path,
         gene_snp_cases,
-        force) {
+        force,
+        width=20,
+        height=4) {
 
     cat("\n===== Step 12: plot_gene_snp =====\n")
 
@@ -402,8 +406,8 @@ run_eqtl_manuscript_pipeline_defaults <- function(
             vcf_path = vcf_path,
             expression_path = expression_path,
             output_path = out_file,
-            width = 20,
-            height = 4
+            width = width,
+            height = height
         )
 
         cat("  ", case$gene, "saved to:", out_file, "\n")

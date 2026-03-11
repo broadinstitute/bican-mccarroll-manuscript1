@@ -64,12 +64,13 @@ plot_gene_snp <- function(gene,
         "astrocyte__CaH",
         "oligodendrocyte__CaH",
         "OPC__CaH",
-        "microglia__CaH"
+        "microglia__CaH",
+        "microglia__DFC"
     )
 
-    if (gene == "NPAS3") {
-        celltype_order <- c(celltype_order, "microglia__DFC")
-    }
+    # if (gene == "NPAS3") {
+    #     celltype_order <- c(celltype_order, "microglia__DFC")
+    # }
 
     celltype_label_map <- c(
         "MSN_D1_matrix__CaH"        = "MSN D1 matrix (CaH)",

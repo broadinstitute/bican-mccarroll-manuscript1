@@ -1,5 +1,5 @@
-# r_squared_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/eqtl_analysis_pipeline_run_jim/cell_type_pairwise_r_squared_qval_0.01.tsv"
-# output_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/eqtl_analysis_pipeline_run_jim/cell_type_cor_plot_qval_0.01.svg"
+# r_squared_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/eqtl_analysis_pipeline_run_main_figure/cell_type_pairwise_r_squared_qval_0.01.tsv"
+# output_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/eqtl_analysis_pipeline_run_main_figure/cell_type_cor_plot_qval_0.01.svg"
 # bican.mccarroll.eqtl::plot_cell_type_pairwise_cor(r_squared_path, output_path)
 
 
@@ -30,8 +30,8 @@
 #' @importFrom logger log_info
 plot_cell_type_pairwise_cor <- function(r_squared_path,
                                         output_path = NULL,
-                                        width = 10.25,
-                                        height = 9,
+                                        width = 10,
+                                        height = 10,
                                         #title = "Pairwise R\u00B2 of eQTL effect sizes across cell types",
                                         title=NULL) {
 
@@ -89,15 +89,15 @@ plot_cell_type_pairwise_cor <- function(r_squared_path,
         row_names_gp = grid::gpar(fontsize = 18),
         column_names_gp = grid::gpar(fontsize = 18),
         row_names_max_width = grid::unit(12, "cm"),
-        column_names_max_height = grid::unit(12, "cm"),
-        column_names_rot = 45,
+        column_names_max_height = grid::unit(8, "cm"),
+        #column_names_rot = 45,
         heatmap_legend_param = list(
             title = expression(R^2),
             at = c(0, 0.25, 0.5, 0.75, 1),
             title_gp = grid::gpar(fontsize = 14, fontface = "bold"),
             labels_gp = grid::gpar(fontsize = 12),
-            grid_width  = grid::unit(6, "mm"),
-            grid_height = grid::unit(6, "mm")
+            grid_width  = grid::unit(5, "mm"),
+            grid_height = grid::unit(5, "mm")
         )
     )
 
@@ -106,7 +106,7 @@ plot_cell_type_pairwise_cor <- function(r_squared_path,
         ComplexHeatmap::draw(
             ht,
             heatmap_legend_side = "right",
-            padding = grid::unit(c(10, 4, 4, 4), "mm")
+            padding = grid::unit(c(9, 4, 4, 6), "mm")
         )
         grDevices::dev.off()
         logger::log_info("Saved to: {output_path}")
