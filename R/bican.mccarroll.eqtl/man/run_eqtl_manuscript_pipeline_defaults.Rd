@@ -13,8 +13,8 @@ run_eqtl_manuscript_pipeline_defaults(
     "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/manuscript_data/region_cell_type.tsv",
   vcf_path =
     "/broad/bican_um1_mccarroll/vcfs/2025-05-05/gvs_concat_outputs_2025-05-05T14-10-02.donors_renamed_filtered_norm.vcf.gz",
-  K = 11,
-  cluster_order = "2,7,4,1,6,10,9,0,8,3,5",
+  K = 13,
+  cluster_order = "11,0,5,4,2,12,9,1,6,3,7,10,8",
   qval = 0.01,
   force = TRUE,
   gene_snp_cases = list(list(gene = "XRRA1", chr = "chr11", pos = 74935168), list(gene =

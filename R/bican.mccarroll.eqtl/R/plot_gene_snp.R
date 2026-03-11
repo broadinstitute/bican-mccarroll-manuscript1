@@ -52,9 +52,8 @@ plot_gene_snp <- function(gene,
                           vcf_path,
                           expression_path,
                           output_path = NULL,
-                          width = 2600,
-                          height = 350,
-                          res = 100) {
+                          width = 20,
+                          height = 5) {
 
     celltype_order <- c(
         "MSN_D1_matrix__CaH",

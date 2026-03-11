@@ -11,9 +11,8 @@ plot_gene_snp(
   vcf_path,
   expression_path,
   output_path = NULL,
-  width = 2600,
-  height = 350,
-  res = 100
+  width = 20,
+  height = 5
 )
 }
 \arguments{
@@ -34,11 +33,9 @@ expression TPM TSV (output of
 \item{output_path}{Character scalar or \code{NULL}.  If non-NULL, the
 plot is saved to this path as an SVG file.}
 
-\item{width}{Numeric.  SVG width in pixels (divided by res for inches).  Default 2600.}
+\item{width}{Numeric.  SVG width in inches .  Default 20.}
 
-\item{height}{Numeric.  SVG height in pixels (divided by res for inches).  Default 1000.}
-
-\item{res}{Numeric.  Scaling factor for width/height.  Default 150.}
+\item{height}{Numeric.  SVG height in pixels .  Default 5.}
 }
 \value{
 The \code{ggplot} object (invisibly).

@@ -7,10 +7,9 @@
 plot_cell_type_pairwise_cor(
   r_squared_path,
   output_path = NULL,
-  width = 3150,
-  height = 3000,
-  res = 300,
-  title = "Pairwise R² of eQTL effect sizes across cell types"
+  width = 10.25,
+  height = 9,
+  title = NULL
 )
 }
 \arguments{
@@ -25,9 +24,9 @@ heatmap is saved to this path as an SVG file.}
 
 \item{height}{Numeric.  SVG height in pixels (divided by res for inches).  Default 3000.}
 
-\item{res}{Numeric.  Scaling factor for width/height.  Default 300.}
-
 \item{title}{Character scalar.  Plot title.}
+
+\item{res}{Numeric.  Scaling factor for width/height.  Default 300.}
 }
 \value{
 The \code{ComplexHeatmap::Heatmap} object (invisibly).
