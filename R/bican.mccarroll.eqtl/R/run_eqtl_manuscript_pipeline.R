@@ -223,7 +223,34 @@ run_eqtl_manuscript_pipeline <- function(
         }
     )
 
-    #this does it's own logging, and is step 8.
+    .run_eqtl_manuscript_pipeline_step(
+        step_label = "Step 8: get_index_snp_start_distance",
+        output_path = paths$start_distance_path,
+        force = force,
+        fun = function() {
+            bican.mccarroll.eqtl::get_index_snp_start_distance(
+                eqtl_dir = eqtl_dir,
+                region_cell_type_path = region_cell_type_path,
+                index_snp_matrix_path = paths$index_snp_path,
+                output_path = paths$start_distance_path
+            )
+        }
+    )
+
+    .run_eqtl_manuscript_pipeline_step(
+        step_label = "Step 9: combine_expression_across_cell_types",
+        output_path = paths$combined_expression_path,
+        force = force,
+        fun = function() {
+            bican.mccarroll.eqtl::combine_expression_across_cell_types(
+                eqtl_dir = eqtl_dir,
+                region_cell_type_path = region_cell_type_path,
+                output_path = paths$combined_expression_path
+            )
+        }
+    )
+
+    #this does it's own logging, and is step 9  .
     .run_eqtl_manuscript_pipeline_gene_snp_plots(
         out_dir = out_dir,
         vcf_path = vcf_path,
@@ -232,32 +259,6 @@ run_eqtl_manuscript_pipeline <- function(
         force = force
     )
 
-    # .run_eqtl_manuscript_pipeline_step(
-    #     step_label = "Step 8: get_index_snp_start_distance",
-    #     output_path = paths$start_distance_path,
-    #     force = force,
-    #     fun = function() {
-    #         bican.mccarroll.eqtl::get_index_snp_start_distance(
-    #             eqtl_dir = eqtl_dir,
-    #             region_cell_type_path = region_cell_type_path,
-    #             index_snp_matrix_path = paths$index_snp_path,
-    #             output_path = paths$start_distance_path
-    #         )
-    #     }
-    # )
-
-    # .run_eqtl_manuscript_pipeline_step(
-    #     step_label = "Step 9: combine_expression_across_cell_types",
-    #     output_path = paths$combined_expression_path,
-    #     force = force,
-    #     fun = function() {
-    #         bican.mccarroll.eqtl::combine_expression_across_cell_types(
-    #             eqtl_dir = eqtl_dir,
-    #             region_cell_type_path = region_cell_type_path,
-    #             output_path = paths$combined_expression_path
-    #         )
-    #     }
-    # )
 
     .run_eqtl_manuscript_pipeline_kmeans(
         out_dir = out_dir,
@@ -400,7 +401,9 @@ run_eqtl_manuscript_pipeline_defaults <- function(
             pos = case$pos,
             vcf_path = vcf_path,
             expression_path = expression_path,
-            output_path = out_file
+            output_path = out_file,
+            width = 20,
+            height = 4
         )
 
         cat("  ", case$gene, "saved to:", out_file, "\n")
