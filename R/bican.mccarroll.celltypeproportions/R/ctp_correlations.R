@@ -8,16 +8,27 @@
 #   sep="\t", header=TRUE, stringsAsFactors = FALSE
 # )
 #
-# major_sample_ctp <- read.table(
-#   file.path(figures_cache_dir, "donor_region.annotation_major.ctp.txt"),
-#   sep="\t", header=TRUE, stringsAsFactors = FALSE
-# )
-#
 # d1_d2_ratio_df <- read.table(
 #   file.path(figures_cache_dir, "donor_region.D1_D2_MSN_ratio.txt"),
 #   sep="\t", header=TRUE, stringsAsFactors = FALSE
 # )
 #
+# glia_neuron_ratio_df <- read.table(
+#   file.path(figures_cache_dir, "donor_region.glial_neuron_ratios.txt"),
+#   sep="\t", header=TRUE, stringsAsFactors = FALSE
+# )
+#
+# compute_ctp_correlations(
+#   ctp_df =glia_neuron_ratio_df,
+#   cell_types = c("astrocyte_neuron_ratio", "microglia_neuron_ratio"),
+#   regions = c("CaH", "DFC"),
+#   cell_type_col = "ratio_name",
+#   metric_col="ratio"
+# )
+
+
+
+
 # plot_ctp_correlation(
 #   sample_ctp,
 #   "CaH",
@@ -55,8 +66,6 @@
 #   regions=c("CaH", "Pu", "NAC")
 # )
 
-
-# functions to produce scatterplots of donor CTP ----
 
 #' Make a wide-format dataframe of donor cell type proportions, with columns
 #' for each cell type or brain region.
@@ -420,7 +429,7 @@ compute_ctp_correlations <- function(
   # drop outliers if present
   if (drop_outliers & "outlier" %in% colnames(ctp_df)) {
     ctp_df <- ctp_df |>
-      dplyr::filter(!outlier)
+      dplyr::filter(!outlier | is.na(outlier))
   }
 
   wide_ctp_df <- ctp_df |>
