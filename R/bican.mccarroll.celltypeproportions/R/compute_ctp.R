@@ -153,7 +153,7 @@ compute_mean_cell_type_metrics <- function(df, group_cols, cell_type_col, metric
 #' @return None
 save_ctp <- function(ctp_df, out_file) {
   # save file
-  write.table(ctp_df_out, file = out_file, sep = "\t", row.names = FALSE, quote = FALSE)
+  write.table(ctp_df, file = out_file, sep = "\t", row.names = FALSE, quote = FALSE)
 }
 
 
