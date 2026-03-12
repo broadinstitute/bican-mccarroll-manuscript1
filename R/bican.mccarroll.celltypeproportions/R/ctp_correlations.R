@@ -1,10 +1,10 @@
-
+#
 # root_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis"
 # figures_out_dir = "/broad/mccarroll/yooolivi/projects/bican/manuscript_1_figures/figures"
 # figures_cache_dir = "/broad/mccarroll/yooolivi/projects/bican/manuscript_1_figures/data_cache"
 #
 # sample_ctp <- read.table(
-#   file.path(figures_cache_dir, "donor_region.annotation_major.ctp.txt"),
+#   file.path(figures_cache_dir, "donor_region.annotation.ctp.txt"),
 #   sep="\t", header=TRUE, stringsAsFactors = FALSE
 # )
 #
@@ -17,8 +17,8 @@
 #   file.path(figures_cache_dir, "donor_region.glial_neuron_ratios.txt"),
 #   sep="\t", header=TRUE, stringsAsFactors = FALSE
 # )
-
-
+#
+#
 # plot_ctp_correlation(
 #   sample_ctp,
 #   "CaH",
@@ -27,6 +27,14 @@
 #   "extreme_ventral_MSN"
 # )
 #
+# plot_ctp_region_correlation(
+#   ctp_df=sample_ctp,
+#   cell_type="OPC",
+#   cell_type_col="annotation",
+#   region1="CaH",
+#   region2="Pu"
+# )
+
 # plot_ctp_region_correlation(
 #   ctp_df=sample_ctp,
 #   cell_type="OPC",
@@ -182,8 +190,8 @@ plot_metric_correlation <- function(
     ggplot2::ylim(min_value, max_value) +
     ggplot2::theme_bw() +
     ggplot2::labs(
-      x=sprintf("%s (%s)", metric_name, var1),
-      y=sprintf("%s (%s)", metric_name, var2)
+      x=sprintf("%s\n(%s)", metric_name, var1),
+      y=sprintf("%s\n(%s)", metric_name, var2)
     )
 
   if (!is.null(correlation_rho) & !is.null(correlation_pvalue)) {
@@ -321,7 +329,6 @@ plot_ctp_region_correlation <- function(
     region2,
     region_col="brain_region_abbreviation_simple",
     donor_col="donor_external_id",
-    metric_name="fraction",
     metric_col="fraction_nuclei",
     drop_outliers=TRUE,
     compute_correlation=TRUE,
@@ -347,7 +354,7 @@ plot_ctp_region_correlation <- function(
     ctp_df_wide=ctp_df_wide,
     var1=region1,
     var2=region2,
-    metric_name=paste(cell_type, metric_name),
+    metric_name=cell_type,
     compute_correlation=compute_correlation,
     correlation_rho=correlation_rho,
     correlation_pvalue=correlation_pvalue
