@@ -425,8 +425,8 @@ compute_ctp_correlations <- function(
 
   wide_ctp_df <- ctp_df |>
     dplyr::filter(.data[[cell_type_col]] %in% cell_types) |>
-    dplyr::filter(.data[[brain_region_col]] %in% regions) |>
-    dplyr::mutate(celltype_region = paste(.data[[cell_type_col]], .data[[brain_region_col]], sep="__")) |>
+    dplyr::filter(.data[[region_col]] %in% regions) |>
+    dplyr::mutate(celltype_region = paste(.data[[cell_type_col]], .data[[region_col]], sep="__")) |>
     dplyr::select(all_of(c(donor_col, metric_col)), celltype_region) |>
     tidyr::pivot_wider(names_from = celltype_region, values_from = all_of(metric_col))
 
