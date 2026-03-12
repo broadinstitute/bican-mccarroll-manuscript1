@@ -331,7 +331,7 @@ plot_ctp_region_correlation <- function(
     region_col="brain_region_abbreviation_simple",
     donor_col="donor_external_id",
     metric_name="fraction",
-    metric_col="fraction_nuclei"
+    metric_col="fraction_nuclei",
     drop_outliers=TRUE,
     compute_correlation=TRUE,
     correlation_rho=NULL,
