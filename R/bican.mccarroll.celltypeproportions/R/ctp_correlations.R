@@ -1,10 +1,11 @@
-#
+
 # root_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis"
 # figures_out_dir = "/broad/mccarroll/yooolivi/projects/bican/manuscript_1_figures/figures"
 # figures_cache_dir = "/broad/mccarroll/yooolivi/projects/bican/manuscript_1_figures/data_cache"
 #
 # sample_ctp <- read.table(
-#   file.path(figures_cache_dir, "donor_region.annotation.ctp.txt"),
+#   file.path(figures_cache_dir, "donor_region.annotation_major.ctp.txt"),
+#   sep="\t", header=TRUE, stringsAsFactors = FALSE
 # )
 #
 # d1_d2_ratio_df <- read.table(
@@ -601,16 +602,6 @@ plot_correlation_heatmap <- function(
     ) |>
     dplyr::select(var1, var2, rho)
 
-  # complete them, so heatmap is full
-  cor_mat_long <- compute_ctp_correlations(
-    ctp_df, cell_types, regions
-  ) |>
-    dplyr::mutate(
-      var1 = paste(cell_type1, region1, sep="__"),
-      var2 = paste(cell_type2, region2, sep="__")
-    ) |>
-    dplyr::select(var1, var2, rho)
-
   cor_mat_long_complete <- cor_mat_long |>
     dplyr::select(var1, var2, rho)  |>
 
@@ -698,6 +689,3 @@ plot_correlation_heatmap <- function(
   return(ctp_cor_heatmap)
 
 }
-
-
-
