@@ -198,8 +198,6 @@ plot_metric_correlation <- function(
 
   if (!is.null(correlation_rho) & !is.null(correlation_pvalue)) {
 
-    logger::log_info("Annotating scatterplot with provided correlation results: rho = {correlation_rho}, p-value = {correlation_pvalue}")
-
     p_label <- ifelse(
       correlation_pvalue < 1e-16,
       "p < 1e-16",
@@ -215,6 +213,8 @@ plot_metric_correlation <- function(
                       digits = 3))
       )
     )
+
+    logger::log_info("Annotating scatterplot with provided correlation results: rho = {round(correlation_rho, 3)}, {p_label}")
 
     rho_label <- paste0("\u03C1 = ", format(correlation_rho, digits=3))
 
@@ -331,6 +331,7 @@ plot_ctp_region_correlation <- function(
     region_col="brain_region_abbreviation_simple",
     donor_col="donor_external_id",
     metric_name="fraction",
+    metric_col="fraction_nuclei"
     drop_outliers=TRUE,
     compute_correlation=TRUE,
     correlation_rho=NULL,
@@ -347,7 +348,7 @@ plot_ctp_region_correlation <- function(
     cell_type_col=cell_type_col,
     region_col=region_col,
     donor_col=donor_col,
-    metric_col="fraction_nuclei",
+    metric_col=metric_col,
     drop_outliers=drop_outliers
   )
 
