@@ -320,7 +320,7 @@ generate_ctp_ratio_table <- function(
     denominator,
     cell_type_col = "annotation",
     region_list = c("CaH", "Pu", "NAC"),
-    brain_region_col="brain_region_abbreviation_simple",
+    region_col="brain_region_abbreviation_simple",
     donor_col="donor_external_id",
     ratio_name = NA,
     z_score_threshold=NULL)
@@ -329,11 +329,11 @@ generate_ctp_ratio_table <- function(
   ratio_df <- ctp_df |>
 
     # Filter to brain regions of interest
-    dplyr::filter(.data[[brain_region_col]]%in% region_list) |>
+    dplyr::filter(.data[[region_col]]%in% region_list) |>
 
     # Group by sample_id
     dplyr::group_by(
-      dplyr::across(all_of(c(brain_region_col, donor_col))),
+      dplyr::across(all_of(c(region_col, donor_col))),
       sample_id,
       total_nuclei
     )|>
