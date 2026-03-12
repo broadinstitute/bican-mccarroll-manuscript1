@@ -5,7 +5,6 @@
 #
 # sample_ctp <- read.table(
 #   file.path(figures_cache_dir, "donor_region.annotation.ctp.txt"),
-#   sep="\t", header=TRUE, stringsAsFactors = FALSE
 # )
 #
 # d1_d2_ratio_df <- read.table(
@@ -17,16 +16,6 @@
 #   file.path(figures_cache_dir, "donor_region.glial_neuron_ratios.txt"),
 #   sep="\t", header=TRUE, stringsAsFactors = FALSE
 # )
-#
-# compute_ctp_correlations(
-#   ctp_df =glia_neuron_ratio_df,
-#   cell_types = c("astrocyte_neuron_ratio", "microglia_neuron_ratio"),
-#   regions = c("CaH", "DFC"),
-#   cell_type_col = "ratio_name",
-#   metric_col="ratio"
-# )
-
-
 
 
 # plot_ctp_correlation(
@@ -106,7 +95,7 @@ make_donor_ctp_wide <- function(
 
   if (drop_outliers & "outlier" %in% colnames(ctp_df)) {
     ctp_df <- ctp_df |>
-      dplyr::filter(!outlier)
+      dplyr::filter(!outlier | is.na(outlier))
   }
 
   if (!is.null(pivot_cols)) {
@@ -271,6 +260,7 @@ plot_ctp_correlation <- function(
     cell_type2,
     region_col="brain_region_abbreviation_simple",
     donor_col="donor_external_id",
+    metric_col="fraction_nuclei",
     drop_outliers=TRUE,
     compute_correlation=TRUE,
     correlation_rho=NULL,
@@ -287,7 +277,7 @@ plot_ctp_correlation <- function(
     cell_type_col=cell_type_col,
     region_col=region_col,
     donor_col=donor_col,
-    metric_col="fraction_nuclei",
+    metric_col=metric_col,
     drop_outliers=drop_outliers
   )
 

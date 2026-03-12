@@ -13,6 +13,7 @@ plot_ctp_correlation(
   cell_type2,
   region_col = "brain_region_abbreviation_simple",
   donor_col = "donor_external_id",
+  metric_col = "fraction_nuclei",
   drop_outliers = TRUE,
   compute_correlation = TRUE,
   correlation_rho = NULL,
