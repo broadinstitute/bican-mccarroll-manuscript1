@@ -349,8 +349,6 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(
     p_corr <- cowplot::ggdraw(g_corr)
     p_jac  <- cowplot::ggdraw(g_jac)
 
-    #Steve wants me to switch the order.
-    #final <- cowplot::plot_grid(p_jac, p_corr, nrow = 1, rel_widths = c(1, 1))
     final <- cowplot::plot_grid(p_corr, p_jac, nrow = 1, rel_widths = c(1, 1))
 
     save_plot_svg(
@@ -358,7 +356,7 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(
         out_file = sprintf(
             "age_prediction_residual_corr_and_jaccard_region_%s.svg", region
         ),
-        out_dir = paths$outDir, width = 14, height = 7
+        out_dir = paths$outDir, width = 15, height = 6.2
     )
 
     invisible(final)
@@ -491,7 +489,7 @@ age_prediction_residual_corr_and_jaccard_heatmaps_cell_type <- function(
         out_file = sprintf(
             "age_prediction_residual_corr_and_jaccard_cell_type_%s.svg", cell_type
         ),
-        out_dir = paths$outDir, width = 14, height = 7
+        out_dir = paths$outDir, width = 15, height = 6.2
     )
 
     invisible(final)
@@ -576,9 +574,11 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(
             ggplot2::labs(title = paste0(x_group, " vs ", y_group), x = NULL, y = NULL) +
             ggplot2::theme(
                 legend.position = "none",
-                plot.title = ggplot2::element_text(hjust = 0, size = 10),
+                plot.title = ggplot2::element_text(hjust = 0, size = 16),
                 axis.title.x = ggplot2::element_blank(),
-                axis.title.y = ggplot2::element_blank()
+                axis.title.y = ggplot2::element_blank(),
+                axis.text.x = ggplot2::element_text(size = ggplot2::rel(1.5)),
+                axis.text.y = ggplot2::element_text(size = ggplot2::rel(1.5))
             )
 
         if (is.null(legend_plot)) {
@@ -596,7 +596,7 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(
     core <- cowplot::plot_grid(
         grid,
         cowplot::ggdraw() +
-            cowplot::draw_label("Corrected residual (predicted - actual)", size = 11),
+            cowplot::draw_label("Corrected residual (predicted - actual)", size = 16),
         ncol = 1, rel_heights = c(1, 0.12)
     )
 
@@ -608,7 +608,7 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(
         cowplot::draw_label(
             "Corrected residual (predicted - actual)",
             angle = 90, x = left_pad * 0.35, y = 0.5,
-            vjust = 0.5, size = 11
+            vjust = 0.5, size = 16
         )
 
     final_padded <- cowplot::ggdraw() +
@@ -707,9 +707,11 @@ age_prediction_uncorrected_residual_pairwise_scatter_region <- function(
             ggplot2::labs(title = paste0(x_group, " vs ", y_group), x = NULL, y = NULL) +
             ggplot2::theme(
                 legend.position = "none",
-                plot.title = ggplot2::element_text(hjust = 0, size = 10),
+                plot.title = ggplot2::element_text(hjust = 0, size = 16),
                 axis.title.x = ggplot2::element_blank(),
-                axis.title.y = ggplot2::element_blank()
+                axis.title.y = ggplot2::element_blank(),
+                axis.text.x = ggplot2::element_text(size = ggplot2::rel(1.5)),
+                axis.text.y = ggplot2::element_text(size = ggplot2::rel(1.5))
             )
 
         if (is.null(legend_plot)) {
@@ -732,7 +734,7 @@ age_prediction_uncorrected_residual_pairwise_scatter_region <- function(
     core <- cowplot::plot_grid(
         grid,
         cowplot::ggdraw() +
-            cowplot::draw_label("Uncorrected residual (predicted - actual)", size = 11),
+            cowplot::draw_label("Uncorrected residual (predicted - actual)", size = 16),
         ncol = 1, rel_heights = c(1, 0.12)
     )
 
@@ -742,7 +744,7 @@ age_prediction_uncorrected_residual_pairwise_scatter_region <- function(
         cowplot::draw_plot(core, x = left_pad, y = 0, width = 1 - left_pad, height = 1) +
         cowplot::draw_label(
             "Uncorrected residual (predicted - actual)",
-            angle = 90, x = left_pad * 0.35, y = 0.5, vjust = 0.5, size = 11
+            angle = 90, x = left_pad * 0.35, y = 0.5, vjust = 0.5, size = 16
         )
 
     final_padded <- cowplot::ggdraw() +

@@ -2,7 +2,7 @@
 % Please edit documentation in R/de_age_sex_plots.R
 \name{plot_de_scatter_gg}
 \alias{plot_de_scatter_gg}
-\title{Scatter plot comparing DE effect sizes (ggplot2)}
+\title{Scatter plot comparing DE effect sizes}
 \usage{
 plot_de_scatter_gg(
   de_dt,
@@ -11,9 +11,7 @@ plot_de_scatter_gg(
   region_a = NA,
   region_b = NA,
   fdr_cutoff = 0.05,
-  add_fit = TRUE,
-  xlab_prefix = NULL,
-  plot_only_significant = FALSE
+  xlab_prefix = NULL
 )
 }
 \arguments{
@@ -27,30 +25,23 @@ plot_de_scatter_gg(
 
 \item{region_b}{Region for B, or NA for region-combined results.}
 
-\item{fdr_cutoff}{Adjusted p-value threshold.}
+\item{fdr_cutoff}{Adjusted p-value threshold used to define the subset for
+rho^2 calculation and plot limits.}
 
-\item{add_fit}{Whether to add a robust linear fit when rho^2 is high.}
-
-\item{xlab_prefix}{Optional prefix string added to x-axis label.}
-
-\item{plot_only_significant}{If TRUE, only plot genes where at least one test is significant.}
+\item{xlab_prefix}{Optional prefix string added to the x-axis label.}
 }
 \value{
-A ggplot object, or NULL if plot_only_significant is TRUE and no genes are significant.
+A ggplot object, or NULL if no genes are significant at the specified
+  adjusted p-value cutoff in either comparison.
 }
 \description{
-Produces an effect-size scatter plot for two DE results (cell type and region pairs)
-and returns a ggplot object.
+Produces an effect-size scatter plot for two DE results defined by cell type and
+region pairs, and returns a ggplot object.
 }
 \details{
-Drawing order:
-- If plot_only_significant is FALSE: non-significant points are drawn first (light grey),
-  then significant points are drawn on top (cornflowerblue).
-- If plot_only_significant is TRUE: only significant points are drawn (cornflowerblue).
+All genes are plotted as black points. The plotting range is determined from the
+genes that pass the adjusted p-value cutoff in at least one of the two DE results.
 
-Annotations:
-- Spearman rho^2 (computed on sig_idx) is annotated in the top-left corner.
-- If add_fit is TRUE and rho^2 > 0.5: a robust linear fit (HC1) is added using genes
-  significant in BOTH tests. The 95% CI for the slope (beta) is annotated bottom-right.
-  The fit line is colored "tomato" unless the CI includes 1, in which case it is "lightgrey".
+Spearman rho^2 is computed on the same subset of genes, namely those significant
+in at least one comparison, and is annotated in the top-left corner of the plot.
 }

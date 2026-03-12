@@ -233,22 +233,6 @@ plot_de_scatter_svg <- function(
 
     out_file <- file.path(outDir, fileStr)
 
-    p <- bican.mccarroll.de.analysis::plot_de_scatter_gg(
-        df,
-        cell_type1,
-        cell_type2,
-        region1,
-        region2,
-        fdr_cutoff = fdr_cutoff,
-        add_fit = add_fit
-    )
-
-    for (i in seq_along(p$layers)) {
-        if (inherits(p$layers[[i]]$geom, "GeomPoint")) {
-            p$layers[[i]]$aes_params$colour <- "black"
-        }
-    }
-
     format_cell_type <- function(x) {
         x <- gsub("_", " ", x)
         paste0(toupper(substr(x, 1, 1)), substr(x, 2, nchar(x)))
@@ -277,7 +261,14 @@ plot_de_scatter_svg <- function(
         sep = "\n"
     )
 
-    p <- p +
+    p <- bican.mccarroll.de.analysis::plot_de_scatter_gg(
+        df,
+        cell_type1,
+        cell_type2,
+        region1,
+        region2,
+        fdr_cutoff = fdr_cutoff
+    ) +
         ggplot2::labs(
             x = xlab_string,
             y = ylab_string
@@ -285,7 +276,8 @@ plot_de_scatter_svg <- function(
         ggplot2::theme_classic() +
         ggplot2::theme(
             axis.title.x = ggplot2::element_text(size = ggplot2::rel(2)),
-            axis.title.y = ggplot2::element_text(size = ggplot2::rel(2))
+            axis.title.y = ggplot2::element_text(size = ggplot2::rel(2)),
+            axis.text = ggplot2::element_text(size = ggplot2::rel(1.75))
         )
 
     ggplot2::ggsave(

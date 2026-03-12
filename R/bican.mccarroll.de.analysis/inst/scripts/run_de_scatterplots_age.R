@@ -25,10 +25,8 @@ gene_to_chr <- bican.mccarroll.de.analysis::read_gene_to_chr(gene_to_chr_file)
 de_ri_age <- bican.mccarroll.de.analysis::read_de_results(de_region_interaction_dir, test, ct_file, gene_to_chr)
 
 ## Within-cell-type, across-region comparisons
-bican.mccarroll.de.analysis::plot_de_scatter(de_ri_age, "MSN_D1_matrix", "MSN_D1_matrix", "CaH", "Pu", fdr_cutoff = fdr_cutoff, add_fit = add_fit)
-bican.mccarroll.de.analysis::plot_de_scatter(de_ri_age, "MSN_D1_matrix", "MSN_D1_matrix", "CaH", "Pu", fdr_cutoff = fdr_cutoff, add_fit = add_fit, xlab_prefix="DE Age ")
 
-p1<-bican.mccarroll.de.analysis::plot_de_scatter_gg(de_ri_age, "MSN_D1_matrix", "MSN_D1_matrix", "CaH", "Pu", fdr_cutoff = fdr_cutoff, add_fit = add_fit, xlab_prefix="DE Age ")
+p1<-bican.mccarroll.de.analysis::plot_de_scatter_gg(de_ri_age, "MSN_D1_matrix", "MSN_D1_matrix", "CaH", "Pu", fdr_cutoff = fdr_cutoff, xlab_prefix="DE Age ")
 
 print (p1)
 p1 <- p1 + ggplot2::theme_classic() +
