@@ -10,6 +10,9 @@ generate_ctp_ratio_table(
   denominator,
   cell_type_col = "annotation",
   region_list = c("CaH", "Pu", "NAC"),
+  brain_region_col = "brain_region_abbreviation_simple",
+  donor_col = "donor_external_id",
+  ratio_name = NA,
   z_score_threshold = NULL
 )
 }

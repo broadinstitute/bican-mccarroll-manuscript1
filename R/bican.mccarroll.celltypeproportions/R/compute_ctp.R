@@ -152,11 +152,6 @@ compute_mean_cell_type_metrics <- function(df, group_cols, cell_type_col, metric
 #'
 #' @return None
 save_ctp <- function(ctp_df, out_file) {
-
-  # round floats
-  ctp_df_out <- ctp_df |>
-    dplyr::mutate(across(where(is.double), ~ round(.x, 6)))
-
   # save file
   write.table(ctp_df_out, file = out_file, sep = "\t", row.names = FALSE, quote = FALSE)
 }
