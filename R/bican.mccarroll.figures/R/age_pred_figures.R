@@ -818,6 +818,7 @@ age_prediction_examples <- function(
     donor_pred$age<-donor_pred$age*10
     donor_pred$pred_mean<-donor_pred$pred_mean*10
     donor_pred$resid_mean<-donor_pred$resid_mean*10
+    donor_pred$resid_sd<-donor_pred$resid_sd*10
 
     gam_fit$age<-gam_fit$age*10
     gam_fit$gam_pred<-gam_fit$gam_pred*10
@@ -827,7 +828,6 @@ age_prediction_examples <- function(
 
         dp <- donor_pred[donor_pred$cell_type == cell_type & donor_pred$region == region, ]
         gf <- gam_fit[gam_fit$cell_type == cell_type & gam_fit$region == region, ]
-
 
         p<-bican.mccarroll.differentialexpression::plot_mc_donor_predictions(
             donor_predictions = dp,
