@@ -166,7 +166,8 @@ def run_kmeans_heatmap(input_path, K, desired_order=None, show_cluster_labels=Fa
                        celltype_order=None, celltype_label_map=None,
                        heatmap_output_path=None, cluster_counts_output_path=None,
                        cluster_assignments_output_path=None,
-                       use_sequential_cluster_labels=False):
+                       use_sequential_cluster_labels=False,
+                       figsize=(12, 9)):
     """Run K-means clustering and generate the effect-size heatmap.
 
     Intended workflow:
@@ -264,7 +265,7 @@ def run_kmeans_heatmap(input_path, K, desired_order=None, show_cluster_labels=Fa
         vmin=-2,
         vmax=2,
         swap_axes=True,
-        figsize=(12, 9),
+        figsize=figsize,
         show=False,
     )
 
