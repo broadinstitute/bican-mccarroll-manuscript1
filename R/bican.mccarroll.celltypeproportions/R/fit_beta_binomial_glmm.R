@@ -412,7 +412,7 @@ plot_donor_residual_correlation_heatmap <- function(model, regions, cell_type,
   ) +
     ggplot2::geom_tile() +
     ggplot2::geom_text(ggplot2::aes(label=round(spearman_rho, 2))) +
-    ggplot2::scale_fill_gradient2(low="blue", mid="white", high="red", midpoint=0, limits=c(-1, 1)) +
+    ggplot2::scale_fill_gradient2(low="#3b4cc0", mid="white", high="#b40426", midpoint=0, limits=c(-1, 1)) +
     ggplot2::labs(
       x=NULL,
       y=NULL,

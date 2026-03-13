@@ -658,7 +658,7 @@ plot_correlation_heatmap <- function(
     ggplot2::aes(x=var1, y=forcats::fct_rev(var2))
   ) +
     ggplot2::geom_tile(ggplot2::aes(fill=rho)) +
-    ggplot2::scale_fill_gradient2(low="blue", mid="white", high="red", midpoint=0, limits=c(-1, 1)) +
+    ggplot2::scale_fill_gradient2(low="#3b4cc0", mid="white", high="#b40426", midpoint=0, limits=c(-1, 1)) +
     # vertical separator lines
     ggplot2::geom_segment(
       data = data.frame(x = boundary_positions + 0.5),
