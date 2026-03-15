@@ -18,7 +18,8 @@
 #' @param height Numeric.  SVG height in pixels (divided by res for inches).  Default 3000.
 #' @param res Numeric.  Scaling factor for width/height.  Default 300.
 #' @param title Character scalar.  Plot title.
-#'
+#' @param celltype_order_file.  Optional character scalar.  Path to a text file with one cell type per line, specifying the order of rows and columns in the heatmap.  Row names should match those in the R-squared matrix.
+#' @param celltype_label_map_file.  Tab-delimited 2-column file with header: cell_type_name and pretty_label.  This maps existing row names to "pretty" labels for display.
 #' @return The \code{ComplexHeatmap::Heatmap} object (invisibly).
 #'
 #' @export
@@ -33,7 +34,9 @@ plot_cell_type_pairwise_cor <- function(r_squared_path,
                                         width = 10,
                                         height = 10,
                                         #title = "Pairwise R\u00B2 of eQTL effect sizes across cell types",
-                                        title=NULL) {
+                                        title=NULL,
+                                        celltype_order_file=NULL,
+                                        celltype_label_map_file=NULL) {
 
     celltype_label_map <- c(
         "MSN_D2_matrix__CaH"      = "MSN D2 matrix (CaH)",
@@ -55,10 +58,45 @@ plot_cell_type_pairwise_cor <- function(r_squared_path,
         "microglia__CaH"           = "Microglia (CaH)"
     )
 
+
+
+    if (!is.null(celltype_label_map_file)) {
+        custom_label_map <- data.table::fread(celltype_label_map_file)
+
+        if (!all(c("cell_type_name", "pretty_label") %in% names(custom_label_map))) {
+            stop("celltype_label_map_file must have columns: cell_type_name, pretty_label")
+        }
+
+        custom_label_map_vec <- stats::setNames(
+            custom_label_map[["pretty_label"]],
+            custom_label_map[["cell_type_name"]]
+        )
+
+        celltype_label_map <- c(
+            celltype_label_map[!(names(celltype_label_map) %in% names(custom_label_map_vec))],
+            custom_label_map_vec
+        )
+    }
+
+    if (!is.null(celltype_order_file)) {
+        celltype_order <- data.table::fread(celltype_order_file, header=F)$V1
+        if (!all(celltype_order %in% names(celltype_label_map))) {
+            stop("All cell types in celltype_order_file must be present in celltype_label_map")
+        }
+        celltype_label_map <- celltype_label_map[celltype_order]
+    }
+
+
     dt <- data.table::fread(r_squared_path)
-    rn <- dt[["cell_type"]]
     dt[, cell_type := NULL]
     cor_matrix_r_squared <- as.matrix(dt)
+
+    #filter to only cell types in label map
+    rn <- colnames(cor_matrix_r_squared)
+    idx=match(names(celltype_label_map), rn)
+    cor_matrix_r_squared=cor_matrix_r_squared[idx, idx, drop=FALSE]
+    #the rn order has changed / been filtered.
+    rn <- colnames(cor_matrix_r_squared)
 
     # Map row and column names to human-readable labels
     labels <- ifelse(rn %in% names(celltype_label_map),

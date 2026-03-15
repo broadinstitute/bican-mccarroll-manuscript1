@@ -119,14 +119,14 @@ plot_trade_analysis <- function(
         ggplot2::theme(
         axis.text.y = ggplot2::element_blank(),
         axis.ticks.y = ggplot2::element_blank(),
-        axis.title.x = ggplot2::element_text(size = ggplot2::rel(1.75)),
+        axis.title.x = ggplot2::element_text(size = ggplot2::rel(1.5)),
         axis.text.x  = ggplot2::element_text(size = ggplot2::rel(2.25)),
         axis.ticks.x = ggplot2::element_line(linewidth = 0.7),
         plot.margin = ggplot2::margin(5.5, 5.5, 5.5, 12)
     )
 
     p_bar_age <- p_bar_age + ggplot2::geom_col(fill = "black")
-
+    p_bar_age <- p_bar_age + ggplot2::xlab("Transcriptome-wide impact (TRADE)")
 
     save_plot_svg(p_bar_age,
                   out_file = "trade_dataset1_age_autosomes_barplot.svg",

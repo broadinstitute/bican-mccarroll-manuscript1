@@ -120,7 +120,9 @@ plot_kmeans_age <- function(
     z=bican.mccarroll.de.analysis::plot_kmeans_heatmap_with_cluster_labels(
         region_obj$lfc_mat_z,
         region_obj$lfc_mat,
-        scaling_factor = scaling_factor
+        scaling_factor = scaling_factor,
+        fontsize_col=16,
+        fontsize_row=16
     )
 
     grDevices::dev.off()

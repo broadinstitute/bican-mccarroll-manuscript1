@@ -1,15 +1,15 @@
-# source("R/paths.R")
-#
-# options(
-#     bican.mccarroll.figures.data_root_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis",
-#
-#     bican.mccarroll.figures.out_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
-#
-#     bican.mccarroll.figures.cache_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
-# )
+source("R/paths.R")
+
+options(
+    bican.mccarroll.figures.data_root_dir =
+        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis",
+
+    bican.mccarroll.figures.out_dir =
+        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
+
+    bican.mccarroll.figures.cache_dir =
+        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
+)
 
 # de_dir<-gene_to_chr_file<-ct_file<-outDir<-data_cache_dir<- NULL
 
@@ -43,11 +43,12 @@ plot_de_volcano <- function(
 
     region_use <- NA
     ct <- "microglia"
+    rasterize_points <- TRUE
 
     fdr_cutoff <- 0.05
     abs_log_fc_cutoff <- log2(1.05)
 
-    chr_color_map=c("X"="cornflowerblue", "Y"="tomato", "autosome"="black")
+    chr_color_map=c("X   "="cornflowerblue", "Y   "="tomato", "autosome   "="black")
 
     ###############################################
     #Gather the sex DE data averaged across regions
@@ -64,6 +65,7 @@ plot_de_volcano <- function(
 
     test="female_vs_male"
     sex_df <- modify_chromosome_labels(sex_df)
+    sex_df$chr<- paste0(sex_df$chr, "   ")
 
     p1<-bican.mccarroll.de.analysis::plot_de_volcano_gg(
         sex_df,
@@ -74,7 +76,7 @@ plot_de_volcano <- function(
         show_title = FALSE,
         chr_color_map=chr_color_map)
 
-    p1<-add_style_volcano(p1)
+    p1<-add_style_volcano(p1, rasterize_points = rasterize_points)
     p1 <- p1 + ggplot2::labs(x = "Sex DE log2 fold change")
 
     fileStr <- paste("de_volcano_", test, "_", ct, ".svg", sep = "")
@@ -83,7 +85,7 @@ plot_de_volcano <- function(
         filename = out_file,
         plot = p1,
         width = 6,
-        height = 4,
+        height = 6,
         units = "in"
     )
 
@@ -99,6 +101,8 @@ plot_de_volcano <- function(
 
     age_df=modify_chromosome_labels(age_df)
 
+    age_df$chr<- paste0(age_df$chr, "   ")
+
     p2<-bican.mccarroll.de.analysis::plot_de_volcano_gg(
         age_df,
         cell_type_use = ct,
@@ -108,7 +112,7 @@ plot_de_volcano <- function(
         show_title = FALSE,
         chr_color_map=chr_color_map)
 
-    p2<-add_style_volcano(p2)
+    p2<-add_style_volcano(p2, rasterize_points = rasterize_points)
     p2 <- p2 + ggplot2::labs(x = "Age DE log2 fold change")
     fileStr <- paste("de_volcano_", test, "_", ct, ".svg", sep = "")
     out_file <- file.path(paths$outDir, fileStr)
@@ -117,25 +121,48 @@ plot_de_volcano <- function(
         filename = out_file,
         plot = p2,
         width = 6,
-        height = 4,
+        height = 6,
         units = "in"
     )
 
     invisible(out_file)
 }
 
-add_style_volcano<-function (p) {
+add_style_volcano <- function(p, rasterize_points = FALSE) {
+
+    if (rasterize_points) {
+        for (i in seq_along(p$layers)) {
+            layer <- p$layers[[i]]
+            if (inherits(layer$geom, "GeomPoint")) {
+                p$layers[[i]] <- ggrastr::rasterise(layer, dpi = 600)
+            }
+        }
+    }
+
     p <- p +
         ggplot2::theme_classic() +
         ggplot2::theme(
             axis.title.x = ggplot2::element_text(size = ggplot2::rel(2)),
             axis.title.y = ggplot2::element_text(size = ggplot2::rel(2)),
-            legend.text = ggplot2::element_text(size = ggplot2::rel(1.5))
+            axis.text.x  = ggplot2::element_text(size = ggplot2::rel(2)),
+            axis.text.y  = ggplot2::element_text(size = ggplot2::rel(2)),
+            legend.text  = ggplot2::element_text(size = ggplot2::rel(1.5))
+        ) +
+        ggplot2::theme(
+            legend.position = "top",
+            legend.text = ggplot2::element_text(
+                margin = ggplot2::margin(r = 10)
+            )
         ) +
         ggplot2::guides(
-            color = ggplot2::guide_legend(override.aes = list(size = 2.5))
+            color = ggplot2::guide_legend(
+                nrow = 1,
+                ncol = 3,
+                override.aes = list(size = 4)
+            )
         )
-    return (p)
+
+    return(p)
 }
 
 #Drop mitochondria, then map to "X", "Y", or "autosome"

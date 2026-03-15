@@ -19,7 +19,7 @@
 #         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
 # )
 
-
+# data_dir = NULL; data_name = "donor_rxn_DGEList"; data_cache_dir = NULL; cellTypeListFile = NULL; outDir = NULL; clustering_min_genes = 150; num_clusters = 3
 #########################################
 # DE GENE DISCOVERY AND FILTERING PLOTS
 #########################################
@@ -132,7 +132,7 @@ plot_de_filtering_trajectories <- function(
 
     output_svg <- file.path(outDir, "de_filtering_plot.svg")
     ggplot2::ggsave(filename = output_svg, plot = p, device = svglite::svglite,
-                    width = 8, height = 8)
+                    width = 9, height = 3)
 
     logger::log_info("Saved DE filtering trajectory plot to {output_svg}")
     invisible(NULL)
@@ -221,7 +221,8 @@ plot_de_filtering_examples <- function(
 
         ct_lab <- gsub("_", " ", cell_type, fixed = TRUE)
         plot_list[[cell_type]] <- make_celltype_row(
-            z$scatter_effect, z$scatter_fdr, ct_lab
+            z$scatter_effect, z$scatter_fdr, ct_lab,
+            strip_size=14, axis_title_size=12, axis_text_size=9
         )
     }
 
@@ -236,13 +237,14 @@ plot_de_filtering_examples <- function(
     invisible(NULL)
 }
 
+
 #this plot requires:
 # df columns: [cell_type, base_level, comparison_level, frac_genes_discovered]
 # clusters_df columns: [cell_type, cluster]
 make_filtering_cluster_panels <- function(
         df,
         clusters_df,
-        ncol = 2,
+        ncol = 3,
         legend_position = c(0.02, 0.02),   # default: lower left
         legend_justification = c(0, 0),
         panel_titles = NULL,
@@ -666,16 +668,35 @@ plot_eqtl_filtering_examples <- function(
     baseline_data_dir <- paths$baseline_eqtl_data_dir
     comparison_data_dir <- paths$comparison_eqtl_data_dir
 
-    make_celltype_row <- function(p_left, p_right, label, strip_size = 14, gutter = 8) {
+    make_celltype_row <- function(p_left, p_right, label, strip_size = 14,
+                                  axis_title_size = 10, axis_text_size = 9) {
 
-        p_left <- p_left + ggplot2::labs(title = NULL) +
-            ggplot2::theme(plot.margin = ggplot2::margin(0, gutter, 0, 0))
+        axis_theme <- ggplot2::theme(
+            axis.title = ggplot2::element_text(size = axis_title_size),
+            axis.text = ggplot2::element_text(size = axis_text_size)
+        )
 
-        p_right <- p_right + ggplot2::labs(title = NULL) +
-            ggplot2::theme(plot.margin = ggplot2::margin(0, 0, 0, gutter))
 
-        panels <- cowplot::plot_grid(p_left, p_right, ncol = 2, align = "hv",
-                                     axis = "tblr")
+        p_left <- p_left + ggplot2::labs(title = NULL) + axis_theme +
+            ggplot2::theme(plot.margin = ggplot2::margin(0, 0, 0, 0))
+
+        #modify the axis names
+        xlab=paste("eQTL effect size", baseline_name, sep = " ")
+        ylab=paste("eQTL effect size", comparison_name, sep = " ")
+
+        p_left <- p_left + ggplot2::labs(x = xlab, y = ylab)
+
+        p_right <- p_right + ggplot2::labs(title = NULL) + axis_theme +
+            ggplot2::theme(plot.margin = ggplot2::margin(0, 0, 0, 0))
+
+        #modify the axis names
+        xlab=paste("-log10(eQTL empiric p-value)", baseline_name, sep = " ")
+        ylab=paste("-log10(eQTL empiric p-value)", comparison_name, sep = " ")
+        p_right <- p_right + ggplot2::labs(x = xlab, y = ylab)
+
+        panels <- cowplot::plot_grid(
+            p_left, p_right, ncol = 2, align = "hv", axis = "tblr"
+        )
 
         strip <- cowplot::ggdraw() +
             cowplot::draw_label(label, fontface = "bold", size = strip_size, x = 0.5)

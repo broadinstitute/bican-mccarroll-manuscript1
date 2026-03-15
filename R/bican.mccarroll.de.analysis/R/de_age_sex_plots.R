@@ -1519,8 +1519,8 @@ plot_kmeans_heatmap_with_cluster_labels <- function(k_means_mat,
       gt,
       grobs = grid::textGrob(
         labelStr,
-        y = grid::unit(0.8, "npc"),
-        gp = grid::gpar(fontsize = 12)
+        y = grid::unit(0.7, "npc"),
+        gp = grid::gpar(fontsize = 16)
       ),
       t = nrow(gt),
       l = 1,
