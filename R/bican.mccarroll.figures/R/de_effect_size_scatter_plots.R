@@ -68,17 +68,17 @@ de_sex_age_scatter_plots <- function(
     #Main figure plot group
     #########################
 
-    plot_de_scatter_svg(
-        df = sex_df,
-        test = "sex",
-        cell_type1 = "OPC",
-        cell_type2 = "astrocyte",
-        region1 = "CaH",
-        region2 = "CaH",
-        xlab_prefix="Sex DE, ",
-        outDir = paths$outDir,
-        fdr_cutoff = 0.05,
-        add_fit = TRUE)
+    # plot_de_scatter_svg(
+    #     df = sex_df,
+    #     test = "sex",
+    #     cell_type1 = "OPC",
+    #     cell_type2 = "astrocyte",
+    #     region1 = "CaH",
+    #     region2 = "CaH",
+    #     xlab_prefix="Sex DE, ",
+    #     outDir = paths$outDir,
+    #     fdr_cutoff = 0.05,
+    #     add_fit = TRUE)
 
     plot_de_scatter_svg(
         df = age_df,
@@ -221,7 +221,8 @@ plot_de_scatter_svg <- function(
         fdr_cutoff = 0.05,
         add_fit = TRUE,
         width = 6,
-        height = 6) {
+        height = 6,
+        rasterize_points=TRUE) {
 
     fileStr <- paste(
         "de_scatter_plot_",
@@ -232,22 +233,6 @@ plot_de_scatter_svg <- function(
         sep = "")
 
     out_file <- file.path(outDir, fileStr)
-
-    p <- bican.mccarroll.de.analysis::plot_de_scatter_gg(
-        df,
-        cell_type1,
-        cell_type2,
-        region1,
-        region2,
-        fdr_cutoff = fdr_cutoff,
-        add_fit = add_fit
-    )
-
-    for (i in seq_along(p$layers)) {
-        if (inherits(p$layers[[i]]$geom, "GeomPoint")) {
-            p$layers[[i]]$aes_params$colour <- "black"
-        }
-    }
 
     format_cell_type <- function(x) {
         x <- gsub("_", " ", x)
@@ -277,7 +262,14 @@ plot_de_scatter_svg <- function(
         sep = "\n"
     )
 
-    p <- p +
+    p <- bican.mccarroll.de.analysis::plot_de_scatter_gg(
+        df,
+        cell_type1,
+        cell_type2,
+        region1,
+        region2,
+        fdr_cutoff = fdr_cutoff
+    ) +
         ggplot2::labs(
             x = xlab_string,
             y = ylab_string
@@ -285,8 +277,18 @@ plot_de_scatter_svg <- function(
         ggplot2::theme_classic() +
         ggplot2::theme(
             axis.title.x = ggplot2::element_text(size = ggplot2::rel(2)),
-            axis.title.y = ggplot2::element_text(size = ggplot2::rel(2))
+            axis.title.y = ggplot2::element_text(size = ggplot2::rel(2)),
+            axis.text = ggplot2::element_text(size = ggplot2::rel(1.75))
         )
+
+    if (rasterize_points) {
+        for (i in seq_along(p$layers)) {
+            layer <- p$layers[[i]]
+            if (inherits(layer$geom, "GeomPoint")) {
+                p$layers[[i]] <- ggrastr::rasterise(layer, dpi = 600)
+            }
+        }
+    }
 
     ggplot2::ggsave(
         filename = out_file,

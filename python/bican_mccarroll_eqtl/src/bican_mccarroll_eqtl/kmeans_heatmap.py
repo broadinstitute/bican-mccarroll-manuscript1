@@ -8,6 +8,8 @@ import anndata as ad
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
+import matplotlib as mpl
+
 
 # Default cell type display order and label map
 DEFAULT_CELLTYPE_ORDER = [
@@ -166,7 +168,8 @@ def run_kmeans_heatmap(input_path, K, desired_order=None, show_cluster_labels=Fa
                        celltype_order=None, celltype_label_map=None,
                        heatmap_output_path=None, cluster_counts_output_path=None,
                        cluster_assignments_output_path=None,
-                       use_sequential_cluster_labels=False):
+                       use_sequential_cluster_labels=False,
+                       figsize=(16, 12)):
     """Run K-means clustering and generate the effect-size heatmap.
 
     Intended workflow:
@@ -253,6 +256,12 @@ def run_kmeans_heatmap(input_path, K, desired_order=None, show_cluster_labels=Fa
         counts.columns = ["gene_cluster", "n_genes"]
         counts.to_csv(cluster_counts_output_path, sep="\t", index=False)
 
+
+    # Force the font to be consistent with other figures
+
+    old_font = mpl.rcParams["font.family"]
+    mpl.rcParams["font.family"] = "Arial"
+
     # --- Output 3: heatmap ---
     sc.pl.heatmap(
         adata,
@@ -264,7 +273,7 @@ def run_kmeans_heatmap(input_path, K, desired_order=None, show_cluster_labels=Fa
         vmin=-2,
         vmax=2,
         swap_axes=True,
-        figsize=(12, 9),
+        figsize=figsize,
         show=False,
     )
 
@@ -276,12 +285,15 @@ def run_kmeans_heatmap(input_path, K, desired_order=None, show_cluster_labels=Fa
             group_axis = ax
             break
 
+    if group_axis is not None:
+        group_axis.set_xlabel("Genes")
+
     if group_axis is not None and use_sequential_cluster_labels:
         tick_positions = group_axis.get_xticks()
         group_axis.set_xticks(tick_positions)
         group_axis.set_xticklabels([str(i + 1) for i in range(len(tick_positions))])
 
-    for text in plt.gcf().findobj(match=plt.Text):
+    for text in fig.findobj(match=plt.Text):
         text.set_fontsize(16)
 
     # plt.suptitle(
@@ -297,6 +309,8 @@ def run_kmeans_heatmap(input_path, K, desired_order=None, show_cluster_labels=Fa
 
     plt.close()
 
+    # put the old font back
+    mpl.rcParams["font.family"] = old_font
     return adata, input_matrix
 
 

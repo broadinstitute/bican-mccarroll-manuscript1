@@ -177,21 +177,37 @@ age_prediction_error_plots <- function(
 
     mean_abs_error_all_plot <- plots$p_mae + ggplot2::labs(fill = "Mean Abs Error")
 
+    mean_abs_error_all_plot<- mean_abs_error_all_plot +
+        ggplot2::theme(
+        axis.title.x = ggplot2::element_text(size = ggplot2::rel(2)),
+        axis.title.y = ggplot2::element_text(size = ggplot2::rel(2)),
+        axis.text = ggplot2::element_text(size = ggplot2::rel(1.75))
+    )
+
     save_plot_svg(
         plot = mean_abs_error_all_plot,
         out_file = "all_data_model_mean_absolute_errors_across_cell_type_region.svg",
-        out_dir = paths$outDir, width = 14, height = 7
+        out_dir = paths$outDir, width = 10, height = 7
     )
 
+    plot_list <- list(
+        plots$p_feat_mae,
+        plots$p_nuc_mae,
+        plots$p_umi_mae
+    )
+
+    plot_list<-lapply(plot_list, add_style_age_feature_errors)
+
     feature_error_all <- cowplot::plot_grid(
-        plots$p_feat_mae, plots$p_nuc_mae,
-        plots$p_umi_mae, ncol = 1, nrow = 3
+        plotlist = plot_list,
+        ncol = 1,
+        nrow = 3
     )
 
     feature_error_all <- cowplot::ggdraw() +
         cowplot::draw_label(
             "Mean Absolute Error",
-            x = 0.02, y = 0.5, angle = 90, vjust = 0.5, size = 12
+            x = 0.02, y = 0.5, angle = 90, vjust = 0.5, size = 18
         ) +
         cowplot::draw_plot(feature_error_all, x = 0.04, y = 0, width = 0.92, height = 1)
 
@@ -201,15 +217,24 @@ age_prediction_error_plots <- function(
         out_dir = paths$outDir, width = 5, height = 7
     )
 
+    plot_list <- list(
+        plots$p_feat_y20,
+        plots$p_nuc_y20,
+        plots$p_umi_y20
+    )
+
+    plot_list<-lapply(plot_list, add_style_age_feature_errors)
+
     feature_error_y20 <- cowplot::plot_grid(
-        plots$p_feat_y20, plots$p_nuc_y20,
-        plots$p_umi_y20, ncol = 1, nrow = 3
+        plotlist = plot_list,
+        ncol = 1,
+        nrow = 3
     )
 
     feature_error_y20 <- cowplot::ggdraw() +
         cowplot::draw_label(
             "Mean Absolute Error",
-            x = 0.02, y = 0.5, angle = 90, vjust = 0.5, size = 12
+            x = 0.02, y = 0.5, angle = 90, vjust = 0.5, size = 18
         ) +
         cowplot::draw_plot(feature_error_y20, x = 0.04, y = 0, width = 0.92, height = 1)
 
@@ -221,6 +246,30 @@ age_prediction_error_plots <- function(
 
     invisible(NULL)
 }
+
+add_style_age_feature_errors <- function(p) {
+
+    p <- p +
+        ggplot2::theme_classic() +
+        ggplot2::theme(
+            axis.title.x = ggplot2::element_text(size = ggplot2::rel(1.75)),
+            axis.text.x  = ggplot2::element_text(size = ggplot2::rel(2)),
+            axis.text.y  = ggplot2::element_text(size = ggplot2::rel(2))
+        )
+
+    for (i in seq_along(p$layers)) {
+        layer <- p$layers[[i]]
+        if (inherits(layer$geom, "GeomText")) {
+            if (!is.null(layer$aes_params$label) &&
+                grepl("adj R2", layer$aes_params$label)) {
+                p$layers[[i]]$aes_params$size <- 5
+            }
+        }
+    }
+
+    return(p)
+}
+
 
 
 #' Manuscript figure: residual correlation heatmap + Jaccard overlap heatmap
@@ -317,7 +366,7 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(
         mode = "within_region", region = region,
         value_var = "resid_mean_corrected",
         title = corr_title, annotate_cells = TRUE,
-        row_fontsize = 10, col_fontsize = 10, cell_fontsize = 9,
+        row_fontsize = 12, col_fontsize = 12, cell_fontsize = 9,
         legend_title=correlation_legend_title
     )
 
@@ -326,7 +375,7 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(
         mode = "within_region", region = region,
         title = jac_title, coef_thresh = 0,
         annotate_cells = TRUE,
-        row_fontsize = 10, col_fontsize = 10, cell_fontsize = 9,
+        row_fontsize = 12, col_fontsize = 12, cell_fontsize = 9,
         row_order_names = corr_out$row_order_names,
         column_order_names = corr_out$column_order_names,
         legend_title = jaccard_legend_title
@@ -349,8 +398,6 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(
     p_corr <- cowplot::ggdraw(g_corr)
     p_jac  <- cowplot::ggdraw(g_jac)
 
-    #Steve wants me to switch the order.
-    #final <- cowplot::plot_grid(p_jac, p_corr, nrow = 1, rel_widths = c(1, 1))
     final <- cowplot::plot_grid(p_corr, p_jac, nrow = 1, rel_widths = c(1, 1))
 
     save_plot_svg(
@@ -358,7 +405,7 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(
         out_file = sprintf(
             "age_prediction_residual_corr_and_jaccard_region_%s.svg", region
         ),
-        out_dir = paths$outDir, width = 14, height = 7
+        out_dir = paths$outDir, width = 15, height = 6.2
     )
 
     invisible(final)
@@ -436,8 +483,8 @@ age_prediction_residual_corr_and_jaccard_heatmaps_cell_type <- function(
     #drop title for manuscript
     corr_title <- ""
     jac_title <- ""
-    row_fontsize=12
-    col_fontsize=12
+    row_fontsize=14
+    col_fontsize=14
     correlation_legend_title<-"Residual age\ncorrelation"
     jaccard_legend_title<-"Gene overlap\n(Jaccard index)"
 
@@ -491,7 +538,7 @@ age_prediction_residual_corr_and_jaccard_heatmaps_cell_type <- function(
         out_file = sprintf(
             "age_prediction_residual_corr_and_jaccard_cell_type_%s.svg", cell_type
         ),
-        out_dir = paths$outDir, width = 14, height = 7
+        out_dir = paths$outDir, width = 15, height = 6.2
     )
 
     invisible(final)
@@ -576,9 +623,11 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(
             ggplot2::labs(title = paste0(x_group, " vs ", y_group), x = NULL, y = NULL) +
             ggplot2::theme(
                 legend.position = "none",
-                plot.title = ggplot2::element_text(hjust = 0, size = 10),
+                plot.title = ggplot2::element_text(hjust = 0, size = 16),
                 axis.title.x = ggplot2::element_blank(),
-                axis.title.y = ggplot2::element_blank()
+                axis.title.y = ggplot2::element_blank(),
+                axis.text.x = ggplot2::element_text(size = ggplot2::rel(1.5)),
+                axis.text.y = ggplot2::element_text(size = ggplot2::rel(1.5))
             )
 
         if (is.null(legend_plot)) {
@@ -596,7 +645,7 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(
     core <- cowplot::plot_grid(
         grid,
         cowplot::ggdraw() +
-            cowplot::draw_label("Corrected residual (predicted - actual)", size = 11),
+            cowplot::draw_label("Corrected residual (predicted - actual)", size = 16),
         ncol = 1, rel_heights = c(1, 0.12)
     )
 
@@ -608,7 +657,7 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(
         cowplot::draw_label(
             "Corrected residual (predicted - actual)",
             angle = 90, x = left_pad * 0.35, y = 0.5,
-            vjust = 0.5, size = 11
+            vjust = 0.5, size = 16
         )
 
     final_padded <- cowplot::ggdraw() +
@@ -707,9 +756,11 @@ age_prediction_uncorrected_residual_pairwise_scatter_region <- function(
             ggplot2::labs(title = paste0(x_group, " vs ", y_group), x = NULL, y = NULL) +
             ggplot2::theme(
                 legend.position = "none",
-                plot.title = ggplot2::element_text(hjust = 0, size = 10),
+                plot.title = ggplot2::element_text(hjust = 0, size = 16),
                 axis.title.x = ggplot2::element_blank(),
-                axis.title.y = ggplot2::element_blank()
+                axis.title.y = ggplot2::element_blank(),
+                axis.text.x = ggplot2::element_text(size = ggplot2::rel(1.5)),
+                axis.text.y = ggplot2::element_text(size = ggplot2::rel(1.5))
             )
 
         if (is.null(legend_plot)) {
@@ -732,7 +783,7 @@ age_prediction_uncorrected_residual_pairwise_scatter_region <- function(
     core <- cowplot::plot_grid(
         grid,
         cowplot::ggdraw() +
-            cowplot::draw_label("Uncorrected residual (predicted - actual)", size = 11),
+            cowplot::draw_label("Uncorrected residual (predicted - actual)", size = 16),
         ncol = 1, rel_heights = c(1, 0.12)
     )
 
@@ -742,7 +793,7 @@ age_prediction_uncorrected_residual_pairwise_scatter_region <- function(
         cowplot::draw_plot(core, x = left_pad, y = 0, width = 1 - left_pad, height = 1) +
         cowplot::draw_label(
             "Uncorrected residual (predicted - actual)",
-            angle = 90, x = left_pad * 0.35, y = 0.5, vjust = 0.5, size = 11
+            angle = 90, x = left_pad * 0.35, y = 0.5, vjust = 0.5, size = 16
         )
 
     final_padded <- cowplot::ggdraw() +
@@ -816,6 +867,7 @@ age_prediction_examples <- function(
     donor_pred$age<-donor_pred$age*10
     donor_pred$pred_mean<-donor_pred$pred_mean*10
     donor_pred$resid_mean<-donor_pred$resid_mean*10
+    donor_pred$resid_sd<-donor_pred$resid_sd*10
 
     gam_fit$age<-gam_fit$age*10
     gam_fit$gam_pred<-gam_fit$gam_pred*10
@@ -825,7 +877,6 @@ age_prediction_examples <- function(
 
         dp <- donor_pred[donor_pred$cell_type == cell_type & donor_pred$region == region, ]
         gf <- gam_fit[gam_fit$cell_type == cell_type & gam_fit$region == region, ]
-
 
         p<-bican.mccarroll.differentialexpression::plot_mc_donor_predictions(
             donor_predictions = dp,

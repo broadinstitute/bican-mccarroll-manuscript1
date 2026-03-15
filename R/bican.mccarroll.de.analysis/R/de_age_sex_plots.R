@@ -342,28 +342,36 @@ plot_de_volcano_gg <- function(de_dt,
 
 #' Scatter plot comparing DE effect sizes
 #'
+#' Produces an effect-size scatter plot for two DE results defined by cell type and
+#' region pairs, and returns a ggplot object.
+#'
+#' All genes are plotted as black points. The plotting range is determined from the
+#' genes that pass the adjusted p-value cutoff in at least one of the two DE results.
+#'
+#' Spearman rho^2 is computed on the same subset of genes, namely those significant
+#' in at least one comparison, and is annotated in the top-left corner of the plot.
+#'
 #' @param de_dt A prepared DE data.table from prep_de/read_de_results.
 #' @param cell_type_a First cell type.
 #' @param cell_type_b Second cell type.
 #' @param region_a Region for A, or NA for region-combined results.
 #' @param region_b Region for B, or NA for region-combined results.
-#' @param fdr_cutoff Adjusted p-value threshold.
-#' @param add_fit Whether to add a robust linear fit when rho^2 is high.
-#' @param xlab_prefix Optional prefix string added to x-axis label.
-#' @param plot_only_significant If TRUE, only plot genes where at least one test is significant.
-#' @return Invisibly returns NULL.
+#' @param fdr_cutoff Adjusted p-value threshold used to define the subset for
+#'   rho^2 calculation and plot limits.
+#' @param xlab_prefix Optional prefix string added to the x-axis label.
+#'
+#' @return A ggplot object, or NULL if no genes are significant at the specified
+#'   adjusted p-value cutoff in either comparison.
 #' @export
-plot_de_scatter <- function(de_dt,
-                            cell_type_a,
-                            cell_type_b,
-                            region_a = NA,
-                            region_b = NA,
-                            fdr_cutoff = 0.05,
-                            add_fit = TRUE,
-                            xlab_prefix = NULL,
-                            plot_only_significant = FALSE) {
+plot_de_scatter_gg <- function(de_dt,
+                               cell_type_a,
+                               cell_type_b,
+                               region_a = NA,
+                               region_b = NA,
+                               fdr_cutoff = 0.05,
+                               xlab_prefix = NULL) {
 
-  cell_type <- region <- chr <- gene <- adj_p_val <- log_fc <- NULL
+  cell_type <- region <- NULL
   adj_p_val.x <- adj_p_val.y <- log_fc.x <- log_fc.y <- NULL
 
   if (is.na(region_a)) {
@@ -387,197 +395,11 @@ plot_de_scatter <- function(de_dt,
 
   sig_idx <- (m$adj_p_val.x < fdr_cutoff) | (m$adj_p_val.y < fdr_cutoff)
 
-  if (isTRUE(plot_only_significant)) {
-    m <- m[sig_idx, ]
-    if (nrow(m) == 0L) {
-      return(invisible(NULL))
-    }
-    sig_idx <- rep(TRUE, nrow(m))
+  if (!any(sig_idx)) {
+    return(NULL)
   }
 
-  if (isTRUE(plot_only_significant)) {
-    rng <- m[, max(abs(c(log_fc.x, log_fc.y)))]
-  } else {
-    rng <- m[sig_idx, max(abs(c(log_fc.x, log_fc.y)))]
-  }
-  rng <- c(-rng, rng)
-
-  xlab_string <- paste("Effect size, log2",
-                       paste(name_a, region_a, sep = ", "),
-                       sep = "\n")
-  if (!is.null(xlab_prefix)) {
-    xlab_string <- paste0(xlab_prefix, xlab_string)
-  }
-
-  ylab_string <- paste(paste(name_b, region_b, sep = ", "),
-                       "Effect size, log2",
-                       sep = "\n")
-
-  graphics::par(pty = "s", mar = c(6, 6, 4, 2))
-
-  if (isTRUE(plot_only_significant)) {
-
-    graphics::plot(
-      m$log_fc.x,
-      m$log_fc.y,
-      pch = 20,
-      col = "cornflowerblue",
-      xlim = rng,
-      ylim = rng,
-      xlab = xlab_string,
-      ylab = ylab_string
-    )
-
-  } else {
-
-    graphics::plot(
-      m$log_fc.x,
-      m$log_fc.y,
-      pch = 20,
-      col = "lightgrey",
-      xlim = rng,
-      ylim = rng,
-      xlab = xlab_string,
-      ylab = ylab_string
-    )
-
-    graphics::points(
-      m$log_fc.x[sig_idx],
-      m$log_fc.y[sig_idx],
-      pch = 20,
-      col = "cornflowerblue"
-    )
-  }
-
-  graphics::abline(h = 0, v = 0, lty = 2)
-  graphics::abline(0, 1, lty = 2)
-
-  ct <- m[sig_idx,
-          stats::cor.test(log_fc.x, log_fc.y, method = "spearman")
-  ]
-
-  rho_sqrd <- round(ct$estimate^2, 2)
-
-  graphics::legend(
-    "topleft",
-    legend = bquote(rho^2 == .(rho_sqrd)),
-    bty = "n"
-  )
-
-  if (rho_sqrd > 0.5 && isTRUE(add_fit)) {
-
-    fit_dt <- m[(adj_p_val.x < fdr_cutoff) & (adj_p_val.y < fdr_cutoff), ]
-    fit_dt <- fit_dt[!is.na(log_fc.x) & !is.na(log_fc.y), ]
-
-    n <- nrow(fit_dt)
-
-    if (n < 3L || length(unique(fit_dt$log_fc.x)) < 2L) {
-      return(invisible(NULL))
-    }
-
-    fit <- stats::lm(log_fc.y ~ log_fc.x, data = fit_dt)
-
-    coef_tab <- lmtest::coeftest(
-      fit,
-      vcov = sandwich::vcovHC(fit, type = "HC1")
-    )
-
-    b <- coef_tab["log_fc.x", "Estimate"]
-    b_se <- coef_tab["log_fc.x", "Std. Error"]
-    b_ci <- b + c(-1, 1) * 1.96 * b_se
-
-    fit_color <- "tomato"
-
-    if (b_ci[1] <= 1 && b_ci[2] >= 1) {
-      fit_color <- "lightgrey"
-    }
-
-    graphics::abline(fit, lty = 2, col = fit_color)
-
-    graphics::legend(
-      "bottomright",
-      legend = bquote(beta == .(round(b_ci[1], 2)) * " - " * .(round(b_ci[2], 2))),
-      bty = "n"
-    )
-  }
-
-  invisible(NULL)
-}
-
-#' Scatter plot comparing DE effect sizes (ggplot2)
-#'
-#' Produces an effect-size scatter plot for two DE results (cell type and region pairs)
-#' and returns a ggplot object.
-#'
-#' Drawing order:
-#' - If plot_only_significant is FALSE: non-significant points are drawn first (light grey),
-#'   then significant points are drawn on top (cornflowerblue).
-#' - If plot_only_significant is TRUE: only significant points are drawn (cornflowerblue).
-#'
-#' Annotations:
-#' - Spearman rho^2 (computed on sig_idx) is annotated in the top-left corner.
-#' - If add_fit is TRUE and rho^2 > 0.5: a robust linear fit (HC1) is added using genes
-#'   significant in BOTH tests. The 95% CI for the slope (beta) is annotated bottom-right.
-#'   The fit line is colored "tomato" unless the CI includes 1, in which case it is "lightgrey".
-#'
-#' @param de_dt A prepared DE data.table from prep_de/read_de_results.
-#' @param cell_type_a First cell type.
-#' @param cell_type_b Second cell type.
-#' @param region_a Region for A, or NA for region-combined results.
-#' @param region_b Region for B, or NA for region-combined results.
-#' @param fdr_cutoff Adjusted p-value threshold.
-#' @param add_fit Whether to add a robust linear fit when rho^2 is high.
-#' @param xlab_prefix Optional prefix string added to x-axis label.
-#' @param plot_only_significant If TRUE, only plot genes where at least one test is significant.
-#' @return A ggplot object, or NULL if plot_only_significant is TRUE and no genes are significant.
-#' @export
-plot_de_scatter_gg <- function(de_dt,
-                               cell_type_a,
-                               cell_type_b,
-                               region_a = NA,
-                               region_b = NA,
-                               fdr_cutoff = 0.05,
-                               add_fit = TRUE,
-                               xlab_prefix = NULL,
-                               plot_only_significant = FALSE) {
-
-  cell_type <- region <- NULL
-  adj_p_val.x <- adj_p_val.y <- log_fc.x <- log_fc.y <- sig_any <- NULL
-
-  if (is.na(region_a)) {
-    x <- de_dt[cell_type == cell_type_a & is.na(region), ]
-  } else {
-    x <- de_dt[cell_type == cell_type_a & region == region_a, ]
-  }
-
-  if (is.na(region_b)) {
-    y <- de_dt[cell_type == cell_type_b & is.na(region), ]
-  } else {
-    y <- de_dt[cell_type == cell_type_b & region == region_b, ]
-  }
-
-  name_a <- paste0(toupper(substr(cell_type_a, 1, 1)),
-                   substr(cell_type_a, 2, nchar(cell_type_a)))
-  name_b <- paste0(toupper(substr(cell_type_b, 1, 1)),
-                   substr(cell_type_b, 2, nchar(cell_type_b)))
-
-  m <- merge(x, y, by = c("chr", "gene"))
-
-  sig_idx <- (m$adj_p_val.x < fdr_cutoff) | (m$adj_p_val.y < fdr_cutoff)
-
-  if (isTRUE(plot_only_significant)) {
-    m <- m[sig_idx, ]
-    if (nrow(m) == 0L) {
-      return(NULL)
-    }
-    sig_idx <- rep(TRUE, nrow(m))
-  }
-
-  if (isTRUE(plot_only_significant)) {
-    rng <- m[, max(abs(c(log_fc.x, log_fc.y)), na.rm = TRUE)]
-  } else {
-    rng <- m[sig_idx, max(abs(c(log_fc.x, log_fc.y)), na.rm = TRUE)]
-  }
+  rng <- m[sig_idx, max(abs(c(log_fc.x, log_fc.y)), na.rm = TRUE)]
   rng <- c(-rng, rng)
 
   xlab_string <- paste("Effect size, log2",
@@ -592,10 +414,8 @@ plot_de_scatter_gg <- function(de_dt,
                        sep = "\n")
 
   m_plot <- data.table::as.data.table(m)
-  m_plot[, sig_any := sig_idx]
 
-  # Spearman rho^2 computed on the same subset as the base function (sig_idx)
-  ct <- m_plot[sig_any == TRUE,
+  ct <- m_plot[sig_idx,
                stats::cor.test(log_fc.x, log_fc.y, method = "spearman")]
 
   rho_sqrd <- round(as.numeric(ct$estimate)^2, 2)
@@ -617,90 +437,18 @@ plot_de_scatter_gg <- function(de_dt,
     ) +
     ggplot2::annotate(
       "text",
-      x = -Inf, y = Inf,
+      x = -Inf,
+      y = Inf,
       label = rho_label,
       parse = TRUE,
-      hjust = -0.05, vjust = 1.1
-    )
-
-  if (isTRUE(plot_only_significant)) {
-
-    p <- p + ggplot2::geom_point(
-      color = "cornflowerblue",
+      hjust = -0.05,
+      vjust = 1.1,
+      size = 8
+    ) +
+    ggplot2::geom_point(
+      color = "black",
       size = 1.2
     )
-
-  } else {
-
-    # Draw nonsig first, then sig on top (matches base behavior)
-    p <- p +
-      ggplot2::geom_point(
-        data = m_plot[sig_any == FALSE],
-        color = "lightgrey",
-        size = 1.2
-      ) +
-      ggplot2::geom_point(
-        data = m_plot[sig_any == TRUE],
-        color = "cornflowerblue",
-        size = 1.2
-      )
-  }
-
-  if (rho_sqrd > 0.5 && isTRUE(add_fit)) {
-
-    fit_dt <- m_plot[(adj_p_val.x < fdr_cutoff) & (adj_p_val.y < fdr_cutoff), ]
-    fit_dt <- fit_dt[!is.na(log_fc.x) & !is.na(log_fc.y), ]
-
-    n <- nrow(fit_dt)
-
-    if (n >= 3L && length(unique(fit_dt$log_fc.x)) >= 2L) {
-
-      if (!requireNamespace("lmtest", quietly = TRUE)) {
-        stop("Package 'lmtest' is required for add_fit = TRUE.")
-      }
-      if (!requireNamespace("sandwich", quietly = TRUE)) {
-        stop("Package 'sandwich' is required for add_fit = TRUE.")
-      }
-
-      fit <- stats::lm(log_fc.y ~ log_fc.x, data = fit_dt)
-
-      coef_tab <- lmtest::coeftest(
-        fit,
-        vcov = sandwich::vcovHC(fit, type = "HC1")
-      )
-
-      b <- coef_tab["log_fc.x", "Estimate"]
-      b_se <- coef_tab["log_fc.x", "Std. Error"]
-      b_ci <- b + c(-1, 1) * 1.96 * b_se
-
-      fit_color <- "tomato"
-      if (b_ci[1] <= 1 && b_ci[2] >= 1) {
-        fit_color <- "lightgrey"
-      }
-
-      beta_label <- paste0(
-        "beta == ",
-        round(b_ci[1], 2),
-        " * ' - ' * ",
-        round(b_ci[2], 2)
-      )
-
-      p <- p +
-        ggplot2::geom_abline(
-          intercept = stats::coef(fit)[["(Intercept)"]],
-          slope = stats::coef(fit)[["log_fc.x"]],
-          linetype = 2,
-          color = fit_color
-        ) +
-        ggplot2::annotate(
-          "text",
-          x = Inf, y = -Inf,
-          label = beta_label,
-          parse = TRUE,
-          hjust = 1.05, vjust = -0.6
-        )
-    }
-  }
 
   p
 }
@@ -1771,8 +1519,8 @@ plot_kmeans_heatmap_with_cluster_labels <- function(k_means_mat,
       gt,
       grobs = grid::textGrob(
         labelStr,
-        y = grid::unit(0.8, "npc"),
-        gp = grid::gpar(fontsize = 12)
+        y = grid::unit(0.7, "npc"),
+        gp = grid::gpar(fontsize = 16)
       ),
       t = nrow(gt),
       l = 1,
