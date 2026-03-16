@@ -1,15 +1,15 @@
-source("R/paths.R")
-
-options(
-    bican.mccarroll.figures.data_root_dir =
-        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis",
-
-    bican.mccarroll.figures.out_dir =
-        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
-
-    bican.mccarroll.figures.cache_dir =
-        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
-)
+# source("R/paths.R")
+#
+# options(
+#     bican.mccarroll.figures.data_root_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis",
+#
+#     bican.mccarroll.figures.out_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
+#
+#     bican.mccarroll.figures.cache_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
+# )
 
 # de_dir<-gene_to_chr_file<-ct_file<-outDir<-data_cache_dir<- NULL
 
@@ -238,6 +238,11 @@ resolve_de_volcano_paths <- function(
 
     out <- .resolve_out_dir(outDir)
     cache <- .resolve_cache_dir(data_cache_dir)
+
+    #if a cache wasn't set, then use the differential_expression subdirectiory.
+    if (is.null(data_cache_dir)) {
+        cache <- file.path(cache, "differential_expression")
+    }
 
     .ensure_dir(out)
     .ensure_dir(cache)
