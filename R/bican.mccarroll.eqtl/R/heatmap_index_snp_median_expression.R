@@ -75,6 +75,9 @@ get_heatmap_index_snp_median_expression <- function(index_snp_path,
     data.table::setcolorder(result_dt, c("Gene", ct_keys))
 
     # Filter to heatmap genes
+    #Make R CMD CHECK Happy
+    Gene <- NULL
+
     result_dt <- result_dt[Gene %in% heatmap_genes]
     logger::log_info("Filtered to {nrow(result_dt)} heatmap genes")
 

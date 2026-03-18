@@ -42,6 +42,9 @@ get_pval_nominal_matrix <- function(eqtl_dir,
 
     result_dt <- data.table::fread(egene_union_pairs_path)
     result_dt[, pair_key := paste0(phenotype_id, "_", variant_id)]
+
+    #Make R CMD CHECK Happy
+    qval <- NULL
     result_dt[, qval := NULL]
 
     for (i in seq_len(nrow(region_cell_type_dt))) {
@@ -62,6 +65,8 @@ get_pval_nominal_matrix <- function(eqtl_dir,
         }
 
         # Read all-pairs pval_nominal and join to eGene union
+        #Make R CMD CHECK Happy
+        phenotype_id <- variant_id <- pair_key <- i.pval_nominal <-NULL
         allpairs_dt <- data.table::fread(
             allpairs_file,
             select = c("phenotype_id", "variant_id", "pval_nominal"),
@@ -75,6 +80,8 @@ get_pval_nominal_matrix <- function(eqtl_dir,
         logger::log_info("  Matched {sum(!is.na(result_dt[[col_name]]))} of {nrow(result_dt)} pairs")
     }
 
+    #Make R CMD CHECK Happy
+    pair_key <- NULL
     result_dt[, pair_key := NULL]
 
     if (!is.null(output_path)) {

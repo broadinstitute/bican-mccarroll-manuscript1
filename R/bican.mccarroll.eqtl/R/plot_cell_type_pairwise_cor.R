@@ -16,10 +16,9 @@
 #'   heatmap is saved to this path as an SVG file.
 #' @param width Numeric.  SVG width in pixels (divided by res for inches).  Default 3150.
 #' @param height Numeric.  SVG height in pixels (divided by res for inches).  Default 3000.
-#' @param res Numeric.  Scaling factor for width/height.  Default 300.
 #' @param title Character scalar.  Plot title.
-#' @param celltype_order_file.  Optional character scalar.  Path to a text file with one cell type per line, specifying the order of rows and columns in the heatmap.  Row names should match those in the R-squared matrix.
-#' @param celltype_label_map_file.  Tab-delimited 2-column file with header: cell_type_name and pretty_label.  This maps existing row names to "pretty" labels for display.
+#' @param celltype_order_file  Optional character scalar.  Path to a text file with one cell type per line, specifying the order of rows and columns in the heatmap.  Row names should match those in the R-squared matrix.
+#' @param celltype_label_map_file  Tab-delimited 2-column file with header: cell_type_name and pretty_label.  This maps existing row names to "pretty" labels for display.
 #' @return The \code{ComplexHeatmap::Heatmap} object (invisibly).
 #'
 #' @export
@@ -86,6 +85,9 @@ plot_cell_type_pairwise_cor <- function(r_squared_path,
         celltype_label_map <- celltype_label_map[celltype_order]
     }
 
+
+    #Make R CMD CHECK Happy
+    cell_type <- NULL
 
     dt <- data.table::fread(r_squared_path)
     dt[, cell_type := NULL]

@@ -57,11 +57,18 @@ get_pval_nominal_threshold_matrix <- function(eqtl_dir,
             next
         }
 
-        index_dt <- index_dt[, .(phenotype_id, variant_id, pval_nominal_threshold)]
+        #Make R CMD CHECK Happy
+        phenotype_id <- variant_id <- pval_nominal_threshold <- NULL
+
+        index_dt <- index_dt[, list(phenotype_id, variant_id, pval_nominal_threshold)]
 
         col_name <- subdir
+
+        #Make R CMD CHECK Happy
+        i.pval_nominal_threshold <- phenotype_id <- variant_id <- NULL
+
         result_dt[index_dt, (col_name) := i.pval_nominal_threshold,
-                  on = .(phenotype_id, variant_id)]
+                  on = list(phenotype_id, variant_id)]
 
         logger::log_info("  Matched {sum(!is.na(result_dt[[col_name]]))} of {nrow(result_dt)} pairs")
     }

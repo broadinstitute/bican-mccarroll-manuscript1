@@ -109,6 +109,9 @@ plot_gene_snp <- function(gene,
     names(genotype_v) <- colnames(genotype_matrix)
 
     # --- Read expression & reshape to long format ---
+    #Make R CMD CHECK Happy
+    pid <- NULL
+
     logger::log_info("Reading expression from: {expression_path}")
     expr_dt <- data.table::fread(expression_path)
     gene_dt <- expr_dt[expr_dt$pid == gene]
@@ -121,6 +124,9 @@ plot_gene_snp <- function(gene,
 
     # Split "donorID_celltype__region" — donor is before first "_",
     # cell_type is everything after
+    #Make R CMD CHECK Happy
+    donor <- donor_cell_type <- cell_type <- genotype <- NULL
+
     long_dt[, donor := sub("_.*", "", donor_cell_type)]
     long_dt[, cell_type := sub("^[^_]+_", "", donor_cell_type)]
     long_dt[, donor_cell_type := NULL]
@@ -129,6 +135,9 @@ plot_gene_snp <- function(gene,
     long_dt[, genotype := genotype_v[donor]]
 
     # Remove unascertained genotypes, compute log expression and dosage
+    #Make R CMD CHECK Happy
+    log_expression <- expression <- dosage <- .N <- NULL
+
     long_dt <- long_dt[genotype != "./."]
     long_dt[, log_expression := log2(expression + 1)]
     long_dt[, dosage := data.table::fifelse(
@@ -158,12 +167,15 @@ plot_gene_snp <- function(gene,
         by = cell_type
     ]
 
+    #Make R CMD CHECK Happy
+    pval <- pval_adj <- p_label <- cell_type_label<- allele_genotype<- NULL
+
     pval_dt[, pval_adj := stats::p.adjust(pval, method = "BH")]
     pval_dt[, p_label := paste0("p = ", signif(pval_adj, digits = 3))]
 
     # --- Merge p-values back and prepare plot data ---
     plot_dt <- data.table::merge.data.table(
-        long_dt, pval_dt[, .(cell_type, pval_adj, p_label)],
+        long_dt, pval_dt[, list(cell_type, pval_adj, p_label)],
         by = "cell_type",
         all.x = TRUE
     )
@@ -187,9 +199,12 @@ plot_gene_snp <- function(gene,
     )]
 
     # --- P-value label positions ---
+    #Make R CMD CHECK Happy
+    allele_genotype <- log_expression <- p_label <- y_pos <- cell_type_label <- y_pos <- NULL
+
     global_y_pos <- max(plot_dt$log_expression, na.rm = TRUE) + 0.3
 
-    label_dt <- plot_dt[, .(pval_adj = pval_adj[1], p_label = p_label[1]),
+    label_dt <- plot_dt[, list(pval_adj = pval_adj[1], p_label = p_label[1]),
                         by = cell_type_label]
     label_dt[, y_pos := global_y_pos]
     label_dt <- label_dt[!is.na(pval_adj) & pval_adj < 0.05]
