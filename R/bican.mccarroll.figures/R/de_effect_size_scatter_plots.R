@@ -374,6 +374,10 @@ get_or_build_de_cache <- function(
 
     out <- .resolve_out_dir(outDir)
     cache <- .resolve_cache_dir(data_cache_dir)
+    #if a cache wasn't set, then use the differential_expression subdirectiory.
+    if (is.null(data_cache_dir)) {
+        cache <- file.path(cache, "differential_expression")
+    }
 
     .ensure_dir(out)
     .ensure_dir(cache)

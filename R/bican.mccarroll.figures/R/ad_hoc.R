@@ -63,7 +63,7 @@ grey_white_comparison<-function () {
     grDevices::pdf(outFile)
 
     for (spec in plot_specs) {
-        bican.mccarroll.de.analysis::plot_de_scatter(
+        bican.mccarroll.de.analysis::plot_de_scatter_gg(
             de_dt = df,
             cell_type_a = spec$cell_type_a,
             cell_type_b = spec$cell_type_b,

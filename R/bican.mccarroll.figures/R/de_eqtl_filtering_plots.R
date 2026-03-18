@@ -24,6 +24,14 @@
 # DE GENE DISCOVERY AND FILTERING PLOTS
 #########################################
 
+
+.plot_all<-function () {
+    plot_eqtl_filtering_trajectories()
+    plot_eqtl_filtering_examples()
+    plot_de_filtering_trajectories()
+    plot_de_filtering_examples()
+}
+
 # This produces the change in the number of DE genes discovered at each level of filtering
 
 #' Clustered trajectories of DE gene discovery across filtering levels
@@ -383,7 +391,8 @@ make_filtering_cluster_panels <- function(
     data_root_dir <- .resolve_data_root_dir()
 
     if (is.null(outDir)) outDir <- getOption("bican.mccarroll.figures.out_dir", default = NULL)
-    if (is.null(data_cache_dir)) data_cache_dir <- getOption("bican.mccarroll.figures.cache_dir", default = NULL)
+    if (is.null(data_cache_dir)) cache_dir <- getOption("bican.mccarroll.figures.cache_dir", default = NULL)
+    if (!is.null(data_cache_dir)) cache_dir <- data_cache_dir
 
     if (is.null(outDir)) {
         stop(
@@ -391,15 +400,19 @@ make_filtering_cluster_panels <- function(
             "Set the option or pass outDir explicitly."
         )
     }
-    if (is.null(data_cache_dir)) {
+    if (is.null(cache_dir)) {
         stop(
             "data_cache_dir is NULL and option 'bican.mccarroll.figures.cache_dir' is not set. ",
             "Set the option or pass data_cache_dir explicitly."
         )
     }
 
+    #if a cache wasn't set, then use the differential_expression subdirectiory.
+    if (is.null(data_cache_dir)) {
+        cache_dir <- file.path(cache_dir, "eQTL")
+    }
     .ensure_dir(outDir)
-    .ensure_dir(data_cache_dir)
+    .ensure_dir(cache_dir)
 
     # Defaults under the data root dir
     if (is.null(eqtl_data_dir)) eqtl_data_dir <- "eqtls/results"
@@ -423,7 +436,7 @@ make_filtering_cluster_panels <- function(
         comparison_eqtl_data_dir = comparison_eqtl_data_dir,
         cellTypeListFile = cellTypeListFile,
         outDir = outDir,
-        data_cache_dir = data_cache_dir
+        data_cache_dir = cache_dir
     )
 }
 
@@ -437,7 +450,7 @@ make_filtering_cluster_panels <- function(
     data_root_dir <- .resolve_data_root_dir()
 
     if (is.null(outDir)) outDir <- getOption("bican.mccarroll.figures.out_dir", default = NULL)
-    if (is.null(data_cache_dir)) data_cache_dir <- getOption("bican.mccarroll.figures.cache_dir", default = NULL)
+    if (is.null(data_cache_dir)) cache_dir <- getOption("bican.mccarroll.figures.cache_dir", default = NULL)
 
     if (is.null(outDir)) {
         stop(
@@ -445,15 +458,20 @@ make_filtering_cluster_panels <- function(
             "Set the option or pass outDir explicitly."
         )
     }
-    if (is.null(data_cache_dir)) {
+    if (is.null(cache_dir)) {
         stop(
             "data_cache_dir is NULL and option 'bican.mccarroll.figures.cache_dir' is not set. ",
             "Set the option or pass data_cache_dir explicitly."
         )
     }
 
+    #if a cache wasn't set, then use the differential_expression subdirectiory.
+    if (is.null(data_cache_dir)) {
+        cache_dir <- file.path(cache_dir, "differential_expression")
+    }
+
     .ensure_dir(outDir)
-    .ensure_dir(data_cache_dir)
+    .ensure_dir(cache_dir)
 
     if (is.null(baseline_de_results_dir)) {
         baseline_de_results_dir <- "differential_expression/results/LEVEL_3/sex_age/cell_type"
@@ -475,7 +493,7 @@ make_filtering_cluster_panels <- function(
         comparison_de_results_dir = comparison_de_results_dir,
         cellTypeListFile = cellTypeListFile,
         outDir = outDir,
-        data_cache_dir = data_cache_dir
+        data_cache_dir = cache_dir
     )
 }
 
@@ -483,12 +501,6 @@ make_filtering_cluster_panels <- function(
 # EQTL GENE DISCOCVERY AND FILTERING PLOTS
 #########################################
 
-.plot_all_eqtl<-function () {
-    plot_eqtl_filtering_trajectories()
-    plot_eqtl_filtering_examples()
-    plot_de_filtering_trajectories()
-    plot_de_filtering_examples()
-}
 
 
 #' Clustered trajectories of eGene yield across eQTL filtering levels

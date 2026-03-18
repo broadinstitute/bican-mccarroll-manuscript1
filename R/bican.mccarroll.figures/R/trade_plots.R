@@ -136,214 +136,74 @@ plot_trade_analysis <- function(
     # Dataset 2: region subset, age (AUTOSOMES ONLY)
     # --------------------------------------------------------------------------
 
-    cache_file <- file.path(paths$data_cache_dir,
-                            "trade_dataset2_age_subset_region_autosomes.tsv")
-
-    if (file.exists(cache_file)) {
-        trade_auto <- data.table::fread(cache_file)
-    } else {
-
-        de_dt <- bican.mccarroll.differentialexpression::load_trade_data(
-            data_path = paths$de_region_subset_dir, contrast = "age",
-            gene_to_chr_path = paths$gene_to_chr_path,
-            cellTypeListFile = paths$ct_file, regions_use = NULL)
-
-        de_dt <- filter_ic_to_non_neurons(de_dt)
-        trade_auto <- run_trade_autosomes(de_dt)
-
-        utils::write.table(trade_auto, file = cache_file, sep = "\t",
-                           row.names = FALSE, col.names = TRUE, quote = FALSE)
-    }
-
-    cell_types <- c("MSN_D1_matrix","MSN_D1_striosome","MSN_D2_matrix","MSN_D2_striosome",
-                    "glutamatergic_L23IT","glutamatergic_L4IT","glutamatergic_L5IT","glutamatergic_L6IT",
-                    "GABA_TAC3-PLPP4","GABA_PTHLH-PVALB","GABA_PVALB","GABA_SST","GABA_VIP","GABA_LAMP5",
-                    "astrocyte","OPC","oligodendrocyte","microglia")
-
-    p_heat_age <- bican.mccarroll.differentialexpression::trade_heatmap(
-        trade_auto, cell_types_use = cell_types,
-        region_order = region_order, value_var = "trade_twi")
-
-    save_plot_svg(p_heat_age,
-                  out_file = "trade_dataset2_age_subset_region_autosomes_heatmap.svg",
-                  out_dir = paths$outDir, width=5, height=8)
-
-    # --------------------------------------------------------------------------
-    # Dataset 3: region interaction, age (AUTOSOMES ONLY)
-    # --------------------------------------------------------------------------
-
-    cache_file <- file.path(paths$data_cache_dir,
-                            "trade_dataset3_age_interaction_region_autosomes.tsv")
-
-    if (file.exists(cache_file)) {
-        trade_auto <- data.table::fread(cache_file)
-    } else {
-
-        de_dt <- bican.mccarroll.differentialexpression::load_trade_data(
-            data_path = paths$de_region_interaction_dir, contrast = "age",
-            gene_to_chr_path = paths$gene_to_chr_path,
-            cellTypeListFile = paths$ct_file, regions_use = NULL)
-
-        de_dt <- filter_ic_to_non_neurons(de_dt)
-        trade_auto <- run_trade_autosomes(de_dt)
-
-        utils::write.table(trade_auto, file = cache_file, sep = "\t",
-                           row.names = FALSE, col.names = TRUE, quote = FALSE)
-    }
-
-    p_heat_age <- bican.mccarroll.differentialexpression::trade_heatmap(
-        trade_auto, cell_types_use = NULL,
-        region_order = region_order, value_var = "trade_twi")
-
-    save_plot_svg(p_heat_age,
-                  out_file = "trade_dataset3_age_interaction_region_autosomes_heatmap.svg",
-                  out_dir = paths$outDir, width=5, height=8)
+    # cache_file <- file.path(paths$data_cache_dir,
+    #                         "trade_dataset2_age_subset_region_autosomes.tsv")
+    #
+    # if (file.exists(cache_file)) {
+    #     trade_auto <- data.table::fread(cache_file)
+    # } else {
+    #
+    #     de_dt <- bican.mccarroll.differentialexpression::load_trade_data(
+    #         data_path = paths$de_region_subset_dir, contrast = "age",
+    #         gene_to_chr_path = paths$gene_to_chr_path,
+    #         cellTypeListFile = paths$ct_file, regions_use = NULL)
+    #
+    #     de_dt <- filter_ic_to_non_neurons(de_dt)
+    #     trade_auto <- run_trade_autosomes(de_dt)
+    #
+    #     utils::write.table(trade_auto, file = cache_file, sep = "\t",
+    #                        row.names = FALSE, col.names = TRUE, quote = FALSE)
+    # }
+    #
+    # cell_types <- c("MSN_D1_matrix","MSN_D1_striosome","MSN_D2_matrix","MSN_D2_striosome",
+    #                 "glutamatergic_L23IT","glutamatergic_L4IT","glutamatergic_L5IT","glutamatergic_L6IT",
+    #                 "GABA_TAC3-PLPP4","GABA_PTHLH-PVALB","GABA_PVALB","GABA_SST","GABA_VIP","GABA_LAMP5",
+    #                 "astrocyte","OPC","oligodendrocyte","microglia")
+    #
+    # p_heat_age <- bican.mccarroll.differentialexpression::trade_heatmap(
+    #     trade_auto, cell_types_use = cell_types,
+    #     region_order = region_order, value_var = "trade_twi")
+    #
+    # save_plot_svg(p_heat_age,
+    #               out_file = "trade_dataset2_age_subset_region_autosomes_heatmap.svg",
+    #               out_dir = paths$outDir, width=5, height=8)
+    #
+    # # --------------------------------------------------------------------------
+    # # Dataset 3: region interaction, age (AUTOSOMES ONLY)
+    # # --------------------------------------------------------------------------
+    #
+    # cache_file <- file.path(paths$data_cache_dir,
+    #                         "trade_dataset3_age_interaction_region_autosomes.tsv")
+    #
+    # if (file.exists(cache_file)) {
+    #     trade_auto <- data.table::fread(cache_file)
+    # } else {
+    #
+    #     de_dt <- bican.mccarroll.differentialexpression::load_trade_data(
+    #         data_path = paths$de_region_interaction_dir, contrast = "age",
+    #         gene_to_chr_path = paths$gene_to_chr_path,
+    #         cellTypeListFile = paths$ct_file, regions_use = NULL)
+    #
+    #     de_dt <- filter_ic_to_non_neurons(de_dt)
+    #     trade_auto <- run_trade_autosomes(de_dt)
+    #
+    #     utils::write.table(trade_auto, file = cache_file, sep = "\t",
+    #                        row.names = FALSE, col.names = TRUE, quote = FALSE)
+    # }
+    #
+    # p_heat_age <- bican.mccarroll.differentialexpression::trade_heatmap(
+    #     trade_auto, cell_types_use = NULL,
+    #     region_order = region_order, value_var = "trade_twi")
+    #
+    # save_plot_svg(p_heat_age,
+    #               out_file = "trade_dataset3_age_interaction_region_autosomes_heatmap.svg",
+    #               out_dir = paths$outDir, width=5, height=8)
 
     invisible(NULL)
 }
 
 
 
-# plot_trade_analysis_barplots <- function(
-#         de_dir = NULL,
-#         de_region_subset_dir = NULL,
-#         de_region_interaction_dir = NULL,
-#         gene_to_chr_path = NULL,
-#         ct_file = NULL,
-#         data_cache_dir = NULL,
-#         outDir = NULL) {
-#
-#     paths <- resolve_trade_paths(
-#         de_dir = de_dir,
-#         de_region_subset_dir = de_region_subset_dir,
-#         de_region_interaction_dir = de_region_interaction_dir,
-#         gene_to_chr_path = gene_to_chr_path,
-#         ct_file = ct_file,
-#         data_cache_dir = data_cache_dir,
-#         outDir = outDir)
-#
-#     region_order <- c("CaH", "Pu", "NAC", "ic", "DFC")
-#     cell_types_use <- scan(paths$ct_file, what = character(), quiet = TRUE)
-#
-#     run_trade_autosomes <- function(de_dt) {
-#         chr <- NULL  # R CMD CHECK
-#         de_auto <- de_dt[chr %in% 1:22]
-#         bican.mccarroll.differentialexpression::run_trade(de_auto)
-#     }
-#
-#     filter_ic_to_non_neurons <- function(de_dt) {
-#         region <- cell_type <- NULL  # R CMD CHECK
-#         non_neuron_types <- c("astrocyte", "OPC", "oligodendrocyte", "microglia")
-#         de_dt[!(region == "ic" & !(cell_type %in% non_neuron_types))]
-#     }
-#
-#
-#     # --------------------------------------------------------------------------
-#     # Dataset 3: regions interaction, age (AUTOSOMES ONLY)
-#     # --------------------------------------------------------------------------
-#
-#     cache_file <- file.path(paths$data_cache_dir,
-#                             "trade_dataset3_age_interaction_region_autosomes.tsv")
-#
-#     if (file.exists(cache_file)) {
-#         trade_auto <- data.table::fread(cache_file)
-#     } else {
-#
-#         de_dt <- bican.mccarroll.differentialexpression::load_trade_data(
-#             data_path = paths$de_region_interaction_dir, contrast = "age",
-#             gene_to_chr_path = paths$gene_to_chr_path,
-#             cellTypeListFile = paths$ct_file, regions_use = NULL)
-#
-#         de_dt <- filter_ic_to_non_neurons(de_dt)
-#         trade_auto <- run_trade_autosomes(de_dt)
-#
-#         utils::write.table(trade_auto, file = cache_file, sep = "\t",
-#                            row.names = FALSE, col.names = TRUE, quote = FALSE)
-#     }
-#
-#
-#     hard_coded_cell_type_order<- c(
-#         "MSN_D1_matrix",
-#         "MSN_D1_striosome",
-#         "MSN_D2_matrix",
-#         "MSN_D2_striosome",
-#         "glutamatergic_L23IT",
-#         "glutamatergic_L4IT",
-#         "glutamatergic_L5IT",
-#         "glutamatergic_L6IT",
-#         "GABA_PTHLH-PVALB",
-#         "GABA_TAC3-PLPP4",
-#         "GABA_PVALB",
-#         "GABA_SST",
-#         "GABA_VIP",
-#         "GABA_LAMP5",
-#         "astrocyte",
-#         "OPC",
-#         "oligodendrocyte",
-#         "microglia"
-#     )
-#
-#     regions <- unique(trade_auto$region)
-#     result <- list()
-#
-#     for (r in regions) {
-#         d <- data.table::copy(trade_auto)
-#         d <- d[region == r, ]
-#
-#         p <- bican.mccarroll.differentialexpression::trade_barplot(
-#             d, cell_types_use = hard_coded_cell_type_order, value_var = "trade_twi")
-#
-#         # Add title = region name
-#         p <- p + ggplot2::ggtitle(r) +
-#             ggplot2::theme(
-#                 plot.title = ggplot2::element_text(hjust = 0.5)
-#             )
-#
-#         result[[as.character(r)]] <- p
-#     }
-#
-#     # Arrange into 3 rows x 2 cols (fills by row by default)
-#     big_plot <- cowplot::plot_grid(
-#         plotlist = unname(result),
-#         nrow = 3,
-#         ncol = 2,
-#         align = "hv"
-#     )
-#
-#     # One cell type at a time, for cell types that are in at least 2 regions.
-#     cell_types <- unique(trade_auto$cell_type)
-#
-#     result <- list()
-#
-#     for (ct in cell_types) {
-#         d <- data.table::copy(trade_auto)
-#         d <- d[cell_type == ct, ]
-#         if (dim (d)[1] <2) {
-#             next
-#         }
-#         p <- trade_barplot_regions(d, regions_use = region_order, value_var = "trade_twi")
-#
-#         # Add title = cell type
-#         p <- p +
-#             ggplot2::ggtitle(ct) +
-#             ggplot2::theme(
-#                 plot.title = ggplot2::element_text(hjust = 0.5)
-#             )
-#
-#         result[[as.character(ct)]] <- p
-#     }
-#
-#     big_plot <- cowplot::plot_grid(
-#         plotlist = unname(result),
-#         nrow = 4,
-#         ncol = 3,
-#         align = "hv"
-#     )
-#
-#     big_plot
-#     invisible (big_plot)
-#
-# }
 
 resolve_trade_paths <- function(
         de_dir = NULL,
@@ -382,6 +242,11 @@ resolve_trade_paths <- function(
 
     out <- .resolve_out_dir(outDir)
     cache <- .resolve_cache_dir(data_cache_dir)
+
+    #if a cache wasn't set, then use the differential_expression subdirectiory.
+    if (is.null(data_cache_dir)) {
+        cache <- file.path(cache, "differential_expression")
+    }
 
     .ensure_dir(out)
     .ensure_dir(cache)

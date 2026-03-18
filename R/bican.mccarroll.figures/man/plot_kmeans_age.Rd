@@ -38,15 +38,16 @@ root.}
 \item{outDir}{Output directory for generated SVG plots. If \code{NULL},
 resolved via configured output directory options.}
 
-\item{data_cache_dir}{Directory used to store cached RDS objects for each
-heatmap. If \code{NULL}, resolved via configured cache directory options.}
+\item{data_cache_dir}{Directory used to store cached text matrix files for
+each heatmap. If \code{NULL}, resolved via configured cache directory
+options.}
 }
 \description{
 Produces two manuscript-ready K-means clustering heatmaps based on age
 differential expression results: (1) a region-combined heatmap used for
 gene clustering and (2) a region-specific heatmap using the same gene
-ordering. Intermediate objects required for plotting are cached as RDS
-files (one per plot) to avoid recomputation.
+ordering. Intermediate objects required for plotting are cached as text
+files to avoid recomputation.
 }
 \details{
 Column names in the matrices are cleaned prior to plotting by replacing

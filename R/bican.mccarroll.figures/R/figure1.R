@@ -63,7 +63,7 @@ plot_sample_covariate_correlations<-function (
         outDir = outDir
     )
 
-    cache_file <- file.path(paths$data_cache_dir, "plot_sample_covariate_correlations_cache.txt")
+    cache_file <- file.path(paths$data_cache_dir, "/data_schematic/plot_sample_covariate_correlations_cache.txt")
 
     if (file.exists(cache_file)) {
         logger::log_info("Using cached data from {cache_file}")

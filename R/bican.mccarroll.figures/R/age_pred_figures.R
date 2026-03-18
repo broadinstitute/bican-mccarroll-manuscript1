@@ -14,7 +14,7 @@
 #     bican.mccarroll.figures.cache_dir =
 #         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
 # )
-#
+
 # cellTypeListFile <- metacell_dir <- age_de_results_dir <- contig_yaml_file <- reduced_gtf_file <- data_cache_dir <- outDir <- NULL
 
 # Private
@@ -601,6 +601,10 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(
             donor_pred$cell_type %in% cell_type_list,
     ]
 
+    #To be consistent with other manuscript plots, format age in years instead of decades
+    #This only changes the legend values.
+    donor_pred$age <- donor_pred$age * 10
+
     prs <- utils::combn(cell_type_list, 2, simplify = FALSE)
 
     plots <- list()
@@ -733,6 +737,10 @@ age_prediction_uncorrected_residual_pairwise_scatter_region <- function(
         donor_pred$region == region &
             donor_pred$cell_type %in% cell_type_list,
     ]
+
+    #To be consistent with other manuscript plots, format age in years instead of decades
+    #This only changes the legend values.
+    donor_pred$age <- donor_pred$age * 10
 
     prs <- utils::combn(cell_type_list, 2, simplify = FALSE)
 
@@ -953,7 +961,7 @@ get_age_prediction_results<-function (metacell_dir="/broad/bican_um1_mccarroll/R
                               data_cache_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
                               ) {
 
-    cache_dir <- file.path(data_cache_dir, "age_prediction_cache")
+    cache_dir <- file.path(data_cache_dir, "age_prediction")
     if (!dir.exists(cache_dir)) {
         dir.create(cache_dir, recursive = TRUE)
     }
@@ -1004,7 +1012,7 @@ read_age_prediction_results <- function(cache_dir) {
     files <- list(
         donor_predictions = "age_prediction_results_donor_predictions.txt",
         gam_fit           = "age_prediction_results_gam_fit.txt",
-        model_metrics     = "age_prediction_results_model_metrics.txt",
+        #model_metrics     = "age_prediction_results_model_metrics.txt",
         model_coefficients     = "age_prediction_results_model_coefficients.txt"
     )
 
@@ -1023,11 +1031,12 @@ read_age_prediction_results <- function(cache_dir) {
 
     # If we reach here, all files exist.
     # Any read error should propagate as a real error.
+    # we don't use the metrics for any of the analysis, we calculate from the other results.
     result <- list(
         donor_predictions = data.table::fread(paths[1], sep = "\t", header = TRUE, data.table = FALSE),
         gam_fit           = data.table::fread(paths[2], sep = "\t", header = TRUE, data.table = FALSE),
-        model_metrics     = data.table::fread(paths[3], sep = "\t", header = TRUE, data.table = FALSE),
-        model_coefficients   = data.table::fread(paths[4], sep = "\t", header = TRUE, data.table = FALSE)
+        #model_metrics     = data.table::fread(paths[3], sep = "\t", header = TRUE, data.table = FALSE),
+        model_coefficients   = data.table::fread(paths[3], sep = "\t", header = TRUE, data.table = FALSE)
     )
 
     result
