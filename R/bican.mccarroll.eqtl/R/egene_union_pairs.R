@@ -36,6 +36,9 @@ get_egene_union_pairs <- function(eqtl_dir,
                                   qval_threshold = 0.05,
                                   output_path = NULL) {
 
+    #Make R CMD CHECK Happy
+    phenotype_id <- variant_id <- qval <- NULL
+
     region_cell_type_dt <- data.table::fread(region_cell_type_path)
 
     results <- vector("list", nrow(region_cell_type_dt))
@@ -59,9 +62,12 @@ get_egene_union_pairs <- function(eqtl_dir,
     combined <- data.table::rbindlist(results)
 
     # Deduplicate to unique (phenotype_id, variant_id) pairs, keeping lowest qval
+    #Make R CMD CHECK Happy
+    phenotype_id <- variant_id <- qval <- NULL
+
     data.table::setorder(combined, phenotype_id, variant_id, qval)
     result <- combined[!duplicated(combined, by = c("phenotype_id", "variant_id")),
-                       .(phenotype_id, variant_id, qval)]
+                       list(phenotype_id, variant_id, qval)]
 
     logger::log_info("Total unique eGene-variant pairs: {nrow(result)}")
 

@@ -75,6 +75,8 @@ get_index_snp_slope_matrix_with_impute <- function(slope_matrix_path,
     )
 
     # Sort by gene for reproducible row order (k-means is order-sensitive)
+    #Make R CMD CHECK Happy
+    phenotype_id <- NULL
     data.table::setorder(index_dt, phenotype_id)
 
     if (!is.null(output_path)) {

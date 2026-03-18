@@ -39,6 +39,9 @@ get_slope_matrix <- function(eqtl_dir,
 
     region_cell_type_dt <- data.table::fread(region_cell_type_path)
 
+    #Make R CMD CHECK Happy
+    phenotype_id <- variant_id <- qval <- pair_key <- NULL
+
     slope_dt <- data.table::fread(egene_union_pairs_path)
     slope_dt[, pair_key := paste0(phenotype_id, "_", variant_id)]
     slope_dt[, qval := NULL]
@@ -69,6 +72,8 @@ get_slope_matrix <- function(eqtl_dir,
         allpairs_dt[, pair_key := paste0(phenotype_id, "_", variant_id)]
 
         # Left join: keep all eGene pairs, add slope for this cell type/region
+        #Make R CMD CHECK Happy
+        i.slope <- NULL
         col_name <- subdir
         slope_dt[allpairs_dt, (col_name) := i.slope, on = "pair_key"]
 
