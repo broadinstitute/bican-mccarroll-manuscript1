@@ -18,8 +18,8 @@
 #' Produces two manuscript-ready K-means clustering heatmaps based on age
 #' differential expression results: (1) a region-combined heatmap used for
 #' gene clustering and (2) a region-specific heatmap using the same gene
-#' ordering. Intermediate objects required for plotting are cached as RDS
-#' files (one per plot) to avoid recomputation.
+#' ordering. Intermediate objects required for plotting are cached as text
+#' files to avoid recomputation.
 #'
 #' Column names in the matrices are cleaned prior to plotting by replacing
 #' double underscores ("__") and single underscores ("_") with spaces for
@@ -44,8 +44,9 @@
 #'   root.
 #' @param outDir Output directory for generated SVG plots. If \code{NULL},
 #'   resolved via configured output directory options.
-#' @param data_cache_dir Directory used to store cached RDS objects for each
-#'   heatmap. If \code{NULL}, resolved via configured cache directory options.
+#' @param data_cache_dir Directory used to store cached text matrix files for
+#'   each heatmap. If \code{NULL}, resolved via configured cache directory
+#'   options.
 #'
 #' @export
 plot_kmeans_age <- function(
@@ -74,8 +75,8 @@ plot_kmeans_age <- function(
     k_use <- 19
     cluster_level_order <- c(2, 10, 6, 3, 5, 14, 9, 13, 4, 1, 15, 19, 18, 7, 17, 8, 11, 12)
 
-    cache_combined <- file.path(paths$data_cache_dir, "kmeans_qc_age_heatmap_region_combined.rds")
-    cache_region <- file.path(paths$data_cache_dir, "kmeans_qc_age_heatmap_region_specific.rds")
+    cache_combined <- file.path(paths$data_cache_dir, "kmeans_qc_age_heatmap_region_combined")
+    cache_region <- file.path(paths$data_cache_dir, "kmeans_qc_age_heatmap_region_specific")
 
     # K-means clustering plot with region-combined DE results
 
@@ -97,8 +98,8 @@ plot_kmeans_age <- function(
         scaling_factor = scaling_factor,
         k = k_use,
         cluster_level_order = cluster_level_order,
-        fontsize_col=16,
-        fontsize_row=16
+        fontsize_col = 16,
+        fontsize_row = 16
     )
 
     grDevices::dev.off()
@@ -117,12 +118,12 @@ plot_kmeans_age <- function(
     out_file <- file.path(paths$outDir, "kmeans_qc_age_heatmap_region_specific.svg")
     grDevices::svg(out_file, width = 14, height = 7)
 
-    z=bican.mccarroll.de.analysis::plot_kmeans_heatmap_with_cluster_labels(
+    z <- bican.mccarroll.de.analysis::plot_kmeans_heatmap_with_cluster_labels(
         region_obj$lfc_mat_z,
         region_obj$lfc_mat,
         scaling_factor = scaling_factor,
-        fontsize_col=16,
-        fontsize_row=16
+        fontsize_col = 16,
+        fontsize_row = 16
     )
 
     grDevices::dev.off()
@@ -153,10 +154,100 @@ clean_matrix_colnames <- function(mat) {
     mat
 }
 
+.get_kmeans_combined_cache_files <- function(cache_file) {
+
+    list(
+        lfc_mat_z = paste0(cache_file, "_lfc_mat_z.txt"),
+        lfc_mat = paste0(cache_file, "_lfc_mat.txt")
+    )
+}
+
+.get_kmeans_region_cache_files <- function(cache_file) {
+
+    list(
+        lfc_mat = paste0(cache_file, "_lfc_mat.txt")
+    )
+}
+
+.write_matrix_txt <- function(mat, file) {
+
+    if (!is.matrix(mat)) {
+        stop("Expected a matrix.")
+    }
+
+    mat_dt <- data.table::data.table(
+        gene = rownames(mat),
+        mat,
+        check.names = FALSE
+    )
+
+    data.table::fwrite(mat_dt, file, sep = "\t")
+}
+
+.read_matrix_txt <- function(file) {
+
+    mat_df <- data.table::fread(file, sep = "\t", data.table = FALSE)
+
+    mat <- as.matrix(mat_df[, -1, drop = FALSE])
+    rownames(mat) <- mat_df[[1]]
+
+    mat
+}
+
+.combined_kmeans_cache_exists <- function(cache_file) {
+
+    cache_files <- .get_kmeans_combined_cache_files(cache_file)
+
+    file.exists(cache_files$lfc_mat_z) && file.exists(cache_files$lfc_mat)
+}
+
+.region_kmeans_cache_exists <- function(cache_file) {
+
+    cache_files <- .get_kmeans_region_cache_files(cache_file)
+
+    file.exists(cache_files$lfc_mat)
+}
+
+.read_kmeans_combined_cache <- function(cache_file) {
+
+    cache_files <- .get_kmeans_combined_cache_files(cache_file)
+
+    list(
+        lfc_mat_z = .read_matrix_txt(cache_files$lfc_mat_z),
+        lfc_mat = .read_matrix_txt(cache_files$lfc_mat)
+    )
+}
+
+.read_kmeans_region_cache <- function(cache_file, combined_cache_file) {
+
+    region_cache_files <- .get_kmeans_region_cache_files(cache_file)
+    combined_cache_files <- .get_kmeans_combined_cache_files(combined_cache_file)
+
+    list(
+        lfc_mat_z = .read_matrix_txt(combined_cache_files$lfc_mat_z),
+        lfc_mat = .read_matrix_txt(region_cache_files$lfc_mat)
+    )
+}
+
+.write_kmeans_combined_cache <- function(cache_file, obj) {
+
+    cache_files <- .get_kmeans_combined_cache_files(cache_file)
+
+    .write_matrix_txt(obj$lfc_mat_z, cache_files$lfc_mat_z)
+    .write_matrix_txt(obj$lfc_mat, cache_files$lfc_mat)
+}
+
+.write_kmeans_region_cache <- function(cache_file, obj) {
+
+    cache_files <- .get_kmeans_region_cache_files(cache_file)
+
+    .write_matrix_txt(obj$lfc_mat, cache_files$lfc_mat)
+}
+
 get_or_build_kmeans_combined_cache_age <- function(cache_file, paths) {
 
-    if (file.exists(cache_file)) {
-        return(readRDS(cache_file))
+    if (.combined_kmeans_cache_exists(cache_file)) {
+        return(.read_kmeans_combined_cache(cache_file))
     }
 
     test <- "age"
@@ -209,7 +300,7 @@ get_or_build_kmeans_combined_cache_age <- function(cache_file, paths) {
         lfc_mat = de_age_mat_list$lfc_mat
     )
 
-    saveRDS(obj, cache_file)
+    .write_kmeans_combined_cache(cache_file, obj)
 
     obj
 }
@@ -217,14 +308,18 @@ get_or_build_kmeans_combined_cache_age <- function(cache_file, paths) {
 
 get_or_build_kmeans_region_cache_age <- function(cache_file, combined_cache_file, paths) {
 
-    if (file.exists(cache_file)) {
-        return(readRDS(cache_file))
+    if (.region_kmeans_cache_exists(cache_file) &&
+        .combined_kmeans_cache_exists(combined_cache_file)) {
+        return(.read_kmeans_region_cache(cache_file, combined_cache_file))
     }
 
     test <- "age"
     regions_use_region_lfc <- c("CaH", "DFC")
 
-    combined_obj <- readRDS(combined_cache_file)
+    combined_obj <- get_or_build_kmeans_combined_cache_age(
+        cache_file = combined_cache_file,
+        paths = paths
+    )
 
     cell_types_use <- bican.mccarroll.de.analysis::read_cell_types(paths$ct_file)
 
@@ -249,7 +344,7 @@ get_or_build_kmeans_region_cache_age <- function(cache_file, combined_cache_file
         lfc_mat = de_ri_age_lfc_mat
     )
 
-    saveRDS(obj, cache_file)
+    .write_kmeans_region_cache(cache_file, obj)
 
     obj
 }
