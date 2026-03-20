@@ -95,6 +95,8 @@ run_eqtl_manuscript_pipeline <- function(
         out_dir,
         region_cell_type_path,
         vcf_path,
+        gtf_path,
+        gnomad_path,
         K,
         cluster_order,
         qval = 0.01,
@@ -224,21 +226,7 @@ run_eqtl_manuscript_pipeline <- function(
     )
 
     .run_eqtl_manuscript_pipeline_step(
-        step_label = "Step 8: get_index_snp_start_distance",
-        output_path = paths$start_distance_path,
-        force = force,
-        fun = function() {
-            bican.mccarroll.eqtl::get_index_snp_start_distance(
-                eqtl_dir = eqtl_dir,
-                region_cell_type_path = region_cell_type_path,
-                index_snp_matrix_path = paths$index_snp_path,
-                output_path = paths$start_distance_path
-            )
-        }
-    )
-
-    .run_eqtl_manuscript_pipeline_step(
-        step_label = "Step 9: combine_expression_across_cell_types",
+        step_label = "Step 8: combine_expression_across_cell_types",
         output_path = paths$combined_expression_path,
         force = force,
         fun = function() {
@@ -261,28 +249,86 @@ run_eqtl_manuscript_pipeline <- function(
         height=2
     )
 
+    # # step 10
+    # .run_eqtl_manuscript_pipeline_kmeans(
+    #     out_dir = out_dir,
+    #     K = K,
+    #     cluster_order = cluster_order,
+    #     force = force
+    # )
 
-    .run_eqtl_manuscript_pipeline_kmeans(
-        out_dir = out_dir,
-        K = K,
-        cluster_order = cluster_order,
-        force = force
+    .run_eqtl_manuscript_pipeline_step(
+        step_label = "Step 11: get_index_snp_median_expression_matrix",
+        output_path = paths$median_expression_path,
+        force = force,
+        fun = function() {
+            bican.mccarroll.eqtl::get_index_snp_median_expression_matrix(
+                region_cell_type_path = region_cell_type_path,
+                expression_path = paths$combined_expression_path,
+                index_snp_path = paths$index_snp_path,
+                output_path = paths$median_expression_path
+            )
+        }
     )
 
-    # .run_eqtl_manuscript_pipeline_step(
-    #     step_label = "Step 11: plot_eqtl_distance_to_tss_boxplot",
-    #     output_path = paths$boxplot_output,
-    #     force = force,
-    #     fun = function() {
-    #         bican.mccarroll.eqtl::plot_eqtl_distance_to_tss_boxplot(
-    #             index_snp_matrix_path = paths$index_snp_path,
-    #             cluster_assignments_path = paths$cluster_assignments_path,
-    #             start_distance_path = paths$start_distance_path,
-    #             output_path = paths$boxplot_output,
-    #             orientation = "horizontal"
-    #         )
-    #     }
-    # )
+    .run_eqtl_manuscript_pipeline_step(
+        step_label = "Step 12: get_cluster_expression_fraction",
+        output_path = paths$cluster_expression_fraction_path,
+        force = force,
+        fun = function() {
+            bican.mccarroll.eqtl::get_cluster_expression_fraction(
+                median_expression_path = paths$median_expression_path,
+                cluster_assignments_path = paths$cluster_assignments_path,
+                output_path = paths$cluster_expression_fraction_path,
+            )
+        }
+    )
+
+    .run_eqtl_manuscript_pipeline_step(
+        step_label = "Step 13: get_gene_biotype_from_gtf",
+        output_path = paths$gene_biotype_path,
+        force = force,
+        fun = function() {
+            bican.mccarroll.eqtl::get_gene_biotype_from_gtf(
+                gtf_path = gtf_path,
+                index_snp_matrix_path = paths$index_snp_path,
+                output_path = paths$gene_biotype_path
+            )
+        }
+    )
+
+    .run_eqtl_manuscript_pipeline_step(
+        step_label = "Step 14: effect_size_vs_loeuf_by_celltype",
+        output_path = paths$effect_size_vs_loeuf_by_celltype_plot_path,
+        force = force,
+        fun = function() {
+            bican.mccarroll.eqtl::effect_size_vs_loeuf_by_celltype(
+                tensorqtl_dir = eqtl_dir,
+                gnomad_path = gnomad_path,
+                gene_biotype_path = paths$gene_biotype_path,
+                plot_output_path = paths$effect_size_vs_loeuf_by_celltype_plot_path
+            )
+        }
+    )
+
+     .run_eqtl_manuscript_pipeline_step(
+        step_label = "Step 15: effect_size_vs_loeuf_by_cluster_mean_sig",
+        output_path = paths$effect_size_vs_loeuf_by_cluster_mean_sig_plot_path,
+        force = force,
+        fun = function() {
+            bican.mccarroll.eqtl::effect_size_vs_loeuf_by_cluster_mean_sig(
+                slope_matrix_path = paths$slope_path,
+                pval_nominal_path = paths$pval_path,
+                pval_threshold_path = paths$pval_thresh_path,
+                index_snp_path = paths$index_snp_path,
+                cluster_path = paths$cluster_assignments_path,
+                gnomad_path = gnomad_path,
+                gene_biotype_path = paths$gene_biotype_path,
+                regression_output_path = paths$effect_size_vs_loeuf_by_cluster_mean_sig_regression_path,
+                plot_output_path = paths$effect_size_vs_loeuf_by_cluster_mean_sig_plot_path,
+            )
+        }
+    )
 
     cat("\n===== All steps completed! =====\n")
 
@@ -303,6 +349,8 @@ run_eqtl_manuscript_pipeline_defaults <- function(
         out_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/eqtl_analysis_pipeline_run_jim",
         region_cell_type_path = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/manuscript_data/region_cell_type.tsv",
         vcf_path = "/broad/bican_um1_mccarroll/vcfs/2025-05-05/gvs_concat_outputs_2025-05-05T14-10-02.donors_renamed_filtered_norm.vcf.gz",
+        gtf_path = "/broad/bican_um1_mccarroll/RNAseq/analysis/cellarium_upload/CAP_freeze_2/GRCh38_ensembl_v43.gtf",
+        gnomad_path = "/broad/bican_um1_mccarroll/RNAseq/analysis/jyuan_kshakir_eqtl/gnomad.v4.1.constraint_metrics.tsv",
         K = 13,
         cluster_order = "11,0,5,4,2,12,9,1,6,3,7,10,8",
         qval = 0.01,
@@ -318,6 +366,8 @@ run_eqtl_manuscript_pipeline_defaults <- function(
         out_dir = out_dir,
         region_cell_type_path = region_cell_type_path,
         vcf_path = vcf_path,
+        gtf_path = gtf_path,
+        gnomad_path = gnomad_path,
         K = K,
         cluster_order = cluster_order,
         qval = qval,
@@ -348,34 +398,34 @@ run_eqtl_manuscript_pipeline_defaults <- function(
     invisible(out)
 }
 
-.run_eqtl_manuscript_pipeline_kmeans <- function(
-        out_dir,
-        K,
-        cluster_order,
-        force) {
-
-    cat("\n===== Step 10: K-means clustering (Python) =====\n")
-
-    args <- c(
-        "--out-dir", out_dir,
-        sprintf("--K=%d", K),
-        "--desired-order", cluster_order
-    )
-
-    if (isTRUE(force)) {
-        args <- c(args, "--force")
-    }
-
-    cat("Running:", paste("test-eqtl-pipeline", paste(args, collapse = " ")), "\n")
-
-    exit_code <- system2("test-eqtl-pipeline", args)
-
-    if (!identical(exit_code, 0L)) {
-        stop("Python K-means pipeline failed")
-    }
-
-    invisible(NULL)
-}
+# .run_eqtl_manuscript_pipeline_kmeans <- function(
+#         out_dir,
+#         K,
+#         cluster_order,
+#         force) {
+#
+#     cat("\n===== Step 10: K-means clustering (Python) =====\n")
+#
+#     args <- c(
+#         "--out-dir", out_dir,
+#         sprintf("--K=%d", K),
+#         "--desired-order", cluster_order
+#     )
+#
+#     if (isTRUE(force)) {
+#         args <- c(args, "--force")
+#     }
+#
+#     cat("Running:", paste("test-eqtl-pipeline", paste(args, collapse = " ")), "\n")
+#
+#     exit_code <- system2("test-eqtl-pipeline", args)
+#
+#     if (!identical(exit_code, 0L)) {
+#         stop("Python K-means pipeline failed")
+#     }
+#
+#     invisible(NULL)
+# }
 
 .run_eqtl_manuscript_pipeline_gene_snp_plots <- function(
         out_dir,
@@ -386,7 +436,7 @@ run_eqtl_manuscript_pipeline_defaults <- function(
         width=20,
         height=4) {
 
-    cat("\n===== Step 12: plot_gene_snp =====\n")
+    cat("\n===== Step 9: plot_gene_snp =====\n")
 
     for (case in gene_snp_cases) {
         out_file <- file.path(
@@ -450,10 +500,6 @@ run_eqtl_manuscript_pipeline_defaults <- function(
             out_dir,
             paste0("cell_type_cor_plot_qval_", qval, ".svg")
         ),
-        start_distance_path = file.path(
-            out_dir,
-            paste0("index_snp_start_distance_qval_", qval, ".tsv")
-        ),
         combined_expression_path = file.path(
             out_dir,
             "combined_tpm_expression_across_cell_types.tsv"
@@ -462,9 +508,29 @@ run_eqtl_manuscript_pipeline_defaults <- function(
             out_dir,
             paste0("cluster_assignments_qval_", qval, "_k", K, ".tsv")
         ),
-        boxplot_output = file.path(
+        median_expression_path = file.path(
             out_dir,
-            "eqtl_distance_to_tss_boxplot.svg"
+            paste0("index_snp_median_expression_qval_", qval, ".tsv")
+        ),
+        cluster_expression_fraction_path = file.path(
+            out_dir,
+            paste0("cluster_expression_fraction_in_expected_celltype_qval_", qval, "_k", K, ".tsv")
+        ),
+        gene_biotype_path = file.path(
+            out_dir,
+            paste0("gene_biotype_qval_", qval, ".tsv")
+        ),
+        effect_size_vs_loeuf_by_cluster_mean_sig_plot_path = file.path(
+            out_dir,
+            paste0("effect_size_vs_loeuf_by_cluster_mean_sig_qval_", qval, "_k", K, ".svg")
+        ),
+        effect_size_vs_loeuf_by_cluster_mean_sig_regression_path = file.path(
+            out_dir,
+            paste0("effect_size_vs_loeuf_by_cluster_mean_sig_regression_qval_", qval, "_k", K, ".tsv")
+        ),
+        effect_size_vs_loeuf_by_celltype_plot_path = file.path(
+            out_dir,
+            paste0("effect_size_vs_loeuf_by_celltype_qval_", qval, ".svg")
         )
     )
 }
