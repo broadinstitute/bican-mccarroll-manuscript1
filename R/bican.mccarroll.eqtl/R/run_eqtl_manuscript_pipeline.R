@@ -249,13 +249,13 @@ run_eqtl_manuscript_pipeline <- function(
         height=2
     )
 
-    # # step 10
-    # .run_eqtl_manuscript_pipeline_kmeans(
-    #     out_dir = out_dir,
-    #     K = K,
-    #     cluster_order = cluster_order,
-    #     force = force
-    # )
+    # step 10
+    .run_eqtl_manuscript_pipeline_kmeans(
+        out_dir = out_dir,
+        K = K,
+        cluster_order = cluster_order,
+        force = force
+    )
 
     .run_eqtl_manuscript_pipeline_step(
         step_label = "Step 11: get_index_snp_median_expression_matrix",
@@ -398,34 +398,34 @@ run_eqtl_manuscript_pipeline_defaults <- function(
     invisible(out)
 }
 
-# .run_eqtl_manuscript_pipeline_kmeans <- function(
-#         out_dir,
-#         K,
-#         cluster_order,
-#         force) {
-#
-#     cat("\n===== Step 10: K-means clustering (Python) =====\n")
-#
-#     args <- c(
-#         "--out-dir", out_dir,
-#         sprintf("--K=%d", K),
-#         "--desired-order", cluster_order
-#     )
-#
-#     if (isTRUE(force)) {
-#         args <- c(args, "--force")
-#     }
-#
-#     cat("Running:", paste("test-eqtl-pipeline", paste(args, collapse = " ")), "\n")
-#
-#     exit_code <- system2("test-eqtl-pipeline", args)
-#
-#     if (!identical(exit_code, 0L)) {
-#         stop("Python K-means pipeline failed")
-#     }
-#
-#     invisible(NULL)
-# }
+.run_eqtl_manuscript_pipeline_kmeans <- function(
+        out_dir,
+        K,
+        cluster_order,
+        force) {
+
+    cat("\n===== Step 10: K-means clustering (Python) =====\n")
+
+    args <- c(
+        "--out-dir", out_dir,
+        sprintf("--K=%d", K),
+        "--desired-order", cluster_order
+    )
+
+    if (isTRUE(force)) {
+        args <- c(args, "--force")
+    }
+
+    cat("Running:", paste("test-eqtl-pipeline", paste(args, collapse = " ")), "\n")
+
+    exit_code <- system2("test-eqtl-pipeline", args)
+
+    if (!identical(exit_code, 0L)) {
+        stop("Python K-means pipeline failed")
+    }
+
+    invisible(NULL)
+}
 
 .run_eqtl_manuscript_pipeline_gene_snp_plots <- function(
         out_dir,
