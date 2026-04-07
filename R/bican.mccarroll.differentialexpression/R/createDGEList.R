@@ -291,7 +291,7 @@ getSimpleDGEList<-function (metacell_file) {
     # Create DGEList
     dge <- edgeR::DGEList(counts = mat)
     dge$samples$donors <- donors
-    dge$samples$cell_types <- cell_types
+    dge$samples$cell_type <- cell_types
     return (dge)
 
 }
