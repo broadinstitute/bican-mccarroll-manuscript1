@@ -222,17 +222,17 @@ build_eQTL_covariates<-function (manifest_file, metacell_dir, cell_metadata_file
 # metacell_file_list=list ("/broad/mccarroll/dropulation/data/aggregated_data/OCD_single_village/2025-07-28_OCD_V1_BA46/maxprob_0.8_doublet_exclude/2025-07-28_OCD_V1_BA46.maxprob_0.8_doublet_exclude.donor_cell_type.metacells.txt.gz", "/broad/mccarroll/dropulation/data/aggregated_data/OCD_single_village/2025-07-31_OCD_V2_BA46/maxprob_0.8_doublet_exclude/2025-07-31_OCD_V2_BA46.maxprob_0.8_doublet_exclude.donor_cell_type.metacells.txt.gz")
 # outDir="/broad/mccarroll/dropulation/data/aggregated_data/differential_expression_test"
 
-# Reads data from an ScRnaAggregationWorkflow metacell file, and creates the corresponding metadata stub to be filled in
+#' Reads data from an ScRnaAggregationWorkflow metacell file, and creates the corresponding metadata stub to be filled in
 #
-# This assumes that the metacell column names encode the donor and cell type with a colon separator, e.g. "MD1234:Astrocyte".
-# The metadata will be created with columns for donor and cell type,
-# which can then be filled in with additional metadata from the manifest or other sources.
+#' This assumes that the metacell column names encode the donor and cell type with a colon separator, e.g. "MD1234:Astrocyte".
+#' The metadata will be created with columns for donor and cell type,
+#' which can then be filled in with additional metadata from the manifest or other sources.
 #
-# @param metacell_file_list A list of paths to metacell files to be processed.
-# @param outDir Directory where the merged DGEList object will be saved as two gzipped TSV files.
-# @param outName Prefix for the output files.
-# @param validate_round_trip Logical; if TRUE, validates the saved DGEList by loading it back and comparing to the original.
-# @export
+#' @param metacell_file_list A list of paths to metacell files to be processed.
+#' @param outDir Directory where the merged DGEList object will be saved as two gzipped TSV files.
+#' @param outName Prefix for the output files.
+#' @param validate_round_trip Logical; if TRUE, validates the saved DGEList by loading it back and comparing to the original.
+#' @export
 createMetadataForAggregationWorkflow<-function (metacell_file_list, outDir, outName="donor_rxn_DGEList", validate_round_trip=T ) {
 
     n_rows=length(metacell_file_list)
