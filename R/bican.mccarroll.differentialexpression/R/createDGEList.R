@@ -214,6 +214,89 @@ build_eQTL_covariates<-function (manifest_file, metacell_dir, cell_metadata_file
     logger::log_info(paste("Finished Writing eQTL covariates to:", outDir))
 }
 
+
+########################################################################
+# A slightly adhoc transform for our ScRnaAggregationWorkflow workflow
+########################################################################
+
+# metacell_file_list=list ("/broad/mccarroll/dropulation/data/aggregated_data/OCD_single_village/2025-07-28_OCD_V1_BA46/maxprob_0.8_doublet_exclude/2025-07-28_OCD_V1_BA46.maxprob_0.8_doublet_exclude.donor_cell_type.metacells.txt.gz", "/broad/mccarroll/dropulation/data/aggregated_data/OCD_single_village/2025-07-31_OCD_V2_BA46/maxprob_0.8_doublet_exclude/2025-07-31_OCD_V2_BA46.maxprob_0.8_doublet_exclude.donor_cell_type.metacells.txt.gz")
+# outDir="/broad/mccarroll/dropulation/data/aggregated_data/differential_expression_test"
+
+# Reads data from an ScRnaAggregationWorkflow metacell file, and creates the corresponding metadata stub to be filled in
+#
+# This assumes that the metacell column names encode the donor and cell type with a colon separator, e.g. "MD1234:Astrocyte".
+# The metadata will be created with columns for donor and cell type,
+# which can then be filled in with additional metadata from the manifest or other sources.
+#
+# @param metacell_file_list A list of paths to metacell files to be processed.
+# @param outDir Directory where the merged DGEList object will be saved as two gzipped TSV files.
+# @param outName Prefix for the output files.
+# @param validate_round_trip Logical; if TRUE, validates the saved DGEList by loading it back and comparing to the original.
+# @export
+createMetadataForAggregationWorkflow<-function (metacell_file_list, outDir, outName="donor_rxn_DGEList", validate_round_trip=T ) {
+
+    n_rows=length(metacell_file_list)
+    dge_list <- vector("list", length = n_rows)
+
+    for (i in seq_len(n_rows)) {
+        metacell_file=metacell_file_list[[i]]
+        logger::log_info(paste("Processing metacell file", i, "of", n_rows, ":", metacell_file))
+        dge_list[[i]] <- getSimpleDGEList(metacell_file)
+    }
+
+    dge_list <- Filter(Negate(is.null), dge_list)
+    if (length(dge_list) == 0) stop("No valid DGELists generated.")
+
+    # Get union of all gene names
+    gene_union <- Reduce(union, lapply(dge_list, function(x) rownames(x$counts)))
+
+    # Pad all DGELists to the union
+    dge_list <- lapply(dge_list, pad_dge_to_union, all_genes = gene_union)
+
+    # Combine using edgeR::cbind
+    dge_merged <- do.call(cbind, dge_list)
+
+    # write to disk if the outDir and outName are provided
+    if (!is.null(outDir) && !is.null(outName)) {
+        saveDGEList(dge_merged, dir = outDir, prefix = outName)
+        if (validate_round_trip) {
+            r=loadDGEList(dir = outDir, prefix = outName)
+            compareDGEList(dge_merged, r)
+        }
+    }
+
+
+}
+
+
+# I'm not sure I like ":" as a separator, so I'll replace with _
+getSimpleDGEList<-function (metacell_file) {
+    mat <- data.table::fread(metacell_file)
+    if (dim (mat)[2]<2) {
+        warning("file didn't have any donors: ", metacell_file)
+        return (NULL)
+    }
+    gene_names <- mat[[1]]
+    mat <- as.matrix(mat[, -1, with = FALSE])
+    rownames(mat) <- gene_names
+
+    donors <- colnames(mat)
+    z=strsplit(donors, ":", fixed = TRUE)
+    donors=sapply(z, function(x) x[1])  # Take the first part as donor
+    cell_types=sapply(z, function(x) x[2])  # Take the second part as cell
+
+    mat_colnames_new <- paste0(donors, "_", cell_types)
+    colnames(mat) <- mat_colnames_new
+
+    # Create DGEList
+    dge <- edgeR::DGEList(counts = mat)
+    dge$samples$donors <- donors
+    dge$samples$cell_types <- cell_types
+    return (dge)
+
+}
+
+
 #' Process a Single Metacell Count Matrix
 #'
 #' Reads a single pseudobulk count matrix, renames its columns using donor, cell type, and region
