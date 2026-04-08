@@ -416,8 +416,9 @@ prepare_data_for_differential_expression<-function (data_dir, data_name, randVar
     logger::log_info(paste("Loading DGEList from:", data_dir, "with prefix:", data_name))
     dge=bican.mccarroll.differentialexpression::loadDGEList(data_dir, prefix = data_name)
 
+    #This isn't needed!
     #restrict to the groups that should be used for variance partition (which is the same as differential expression).
-    dge=dge[,dge$samples$differential_expression==TRUE, keep.lib.sizes = TRUE]
+    #dge=dge[,dge$samples$differential_expression==TRUE, keep.lib.sizes = TRUE]
 
     #if the num_nuclei variable is present, convert it to log10 for regressions
     if ("num_nuclei" %in% colnames(dge$samples)) {
