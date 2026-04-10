@@ -560,8 +560,10 @@ buildVariancePartitionModelFormula<-function (fixedVars, randVars) {
 auto_factorize_df <- function(df, factor_cols = NULL) {
     stopifnot(is.data.frame(df))
 
+    # intersect the user-provided factor_cols with the actual columns
+    # in the data frame
     if (!is.null(factor_cols)) {
-        stopifnot(all(factor_cols %in% names(df)))
+        factor_cols <- intersect(factor_cols, names(df))
     }
 
     convert_column <- function(col, col_name, factor_cols) {
