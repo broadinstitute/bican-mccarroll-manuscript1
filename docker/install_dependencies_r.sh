@@ -21,8 +21,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# Installs the Python and R packages.
-
 # Based on / hat tip:
 #   - https://github.com/broadinstitute/Drop-seq/blob/master/src/docker/R/common/install.sh
 #   - https://cloud.r-project.org/bin/linux/ubuntu/
@@ -38,86 +36,11 @@ set -euo pipefail
 
 src_dir=$(realpath "$(dirname "${BASH_SOURCE[0]}")"/..)
 
-# Set noninteractive mode for apt-get to avoid prompts during package installation.
-
-export DEBIAN_FRONTEND=noninteractive
-
 # Load the DISTRIB_CODENAME and DISTRIB_RELEASE variables.
 
 source /etc/lsb-release
 
-# Install dependencies needed to update apt sources.
-
-apt-get -qq update
-apt-get -qq install wget
-
-# Setup apt sources for R and R version info for r-base-core.
-
-wget -qO- https://cloud.r-project.org/bin/linux/ubuntu/marutter_pubkey.asc >> /etc/apt/trusted.gpg.d/cran_ubuntu_key.asc
-echo "deb https://cloud.r-project.org/bin/linux/ubuntu ${DISTRIB_CODENAME}-cran40/" >> /etc/apt/sources.list
-
-r_version=4.5.3
-r_base_version=${r_version}-1.${DISTRIB_RELEASE/./}.0
-
-# Install other dependencies.
-
-apt-get -qq update
-apt-get -qq install --no-install-recommends \
-    automake \
-    bcftools \
-    build-essential \
-    cmake \
-    curl \
-    file \
-    gfortran \
-    git \
-    libblas-dev \
-    libbz2-dev \
-    libcurl4-openssl-dev \
-    libgeos-dev \
-    libglpk40 \
-    libgsl-dev \
-    libhdf5-dev \
-    libjpeg-dev \
-    liblapack-dev \
-    liblzma-dev \
-    libopenblas-dev \
-    libpng-dev \
-    libpq-dev \
-    libssl-dev \
-    libtool \
-    libxml2-dev \
-    libz-dev \
-    pkg-config \
-    tk \
-    zlib1g-dev \
-    r-base-core="${r_base_version}"
-
-# Install python packages.
-
-uv_dir=/tmp/uv
-envs_dir="$src_dir"/python
-base_dir=/usr/local/bican-mccarroll-manuscript1
-pythons_dir="$base_dir"/pythons
-venv_dir=$base_dir/venv
-
-export UV_PYTHON_INSTALL_DIR=$pythons_dir
-export UV_TOOL_DIR=$venv_dir
-export UV_TOOL_BIN_DIR=$base_dir
-export PATH=$PATH:$uv_dir:$base_dir
-
-## Install uv.
-curl -LsSf https://astral.sh/uv/install.sh | env UV_UNMANAGED_INSTALL=$uv_dir sh
-
-## Install the python environments from the local checkout.
-for pyproject_toml in "$envs_dir"/*/pyproject.toml; do
-  env_name=$(basename "$(dirname "$pyproject_toml")")
-  env_dir="$envs_dir"/"$env_name"
-  echo "Building $env_name"
-  uv tool install "$env_dir"
-done
-
-# Install R packages.
+# Install R dependencies.
 
 ## Get the R home directory location.
 RHOME=$(R RHOME)
@@ -131,7 +54,7 @@ EOF
 ## Install the packages from the local checkout.
 Rscript -e '
 source("'"$src_dir"'/R/tools/install_packages.R");
-install_all_packages(path="'"$src_dir"'");
+install_all_packages(path="'"$src_dir"'", dependencies_only=TRUE);
 '
 
 # Cleanup.

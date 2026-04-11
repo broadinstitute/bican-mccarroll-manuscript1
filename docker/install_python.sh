@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # MIT License
 #
 # Copyright 2026 Broad Institute
@@ -20,21 +21,36 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-FROM ubuntu:24.04
+set -x
+set -euo pipefail
 
-COPY docker/install_dependencies_apt.sh /tmp/bican-mccarroll-manuscript1/docker/
-RUN /tmp/bican-mccarroll-manuscript1/docker/install_dependencies_apt.sh
+# Get the path to the top-level directory of the repository.
 
-COPY docker/install_dependencies_r.sh /tmp/bican-mccarroll-manuscript1/docker/
-COPY --parents R/tools R/*/DESCRIPTION /tmp/bican-mccarroll-manuscript1/
-RUN /tmp/bican-mccarroll-manuscript1/docker/install_dependencies_r.sh
+src_dir=$(realpath "$(dirname "${BASH_SOURCE[0]}")"/..)
 
-COPY docker/install_r.sh /tmp/bican-mccarroll-manuscript1/docker/
-COPY R /tmp/bican-mccarroll-manuscript1/R/
-RUN /tmp/bican-mccarroll-manuscript1/docker/install_r.sh
+# Install python packages.
 
-COPY docker/install_python.sh /tmp/bican-mccarroll-manuscript1/docker/
-COPY python /tmp/bican-mccarroll-manuscript1/python/
-RUN /tmp/bican-mccarroll-manuscript1/docker/install_python.sh
+uv_dir=/tmp/uv
+envs_dir="$src_dir"/python
+base_dir=/usr/local/bican-mccarroll-manuscript1
+pythons_dir="$base_dir"/pythons
+venv_dir=$base_dir/venv
 
-ENV PATH=/usr/local/bican-mccarroll-manuscript1:$PATH
+export UV_PYTHON_INSTALL_DIR=$pythons_dir
+export UV_TOOL_DIR=$venv_dir
+export UV_TOOL_BIN_DIR=$base_dir
+export PATH=$PATH:$uv_dir:$base_dir
+
+## Install uv.
+curl -LsSf https://astral.sh/uv/install.sh | env UV_UNMANAGED_INSTALL=$uv_dir sh
+
+## Install the python environments from the local checkout.
+for pyproject_toml in "$envs_dir"/*/pyproject.toml; do
+  env_name=$(basename "$(dirname "$pyproject_toml")")
+  env_dir="$envs_dir"/"$env_name"
+  echo "Building $env_name"
+  uv tool install "$env_dir"
+done
+
+# Cleanup.
+rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
