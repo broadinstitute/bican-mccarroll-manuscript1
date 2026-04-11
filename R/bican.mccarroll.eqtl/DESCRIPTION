@@ -2,9 +2,32 @@ Package: bican.mccarroll.eqtl
 Type: Package
 Title: Eqtl analysis for the bican manuscript
 Version: 0.1.0
-Imports: data.table, ggplot2, ggvenn, cowplot, digest, logger, rlang,
-    ComplexHeatmap, circlize, grid, grDevices, stats, utils,
-    VariantAnnotation, GenomicRanges, IRanges, ggbeeswarm
+Depends: R (>= 4.1)
+Imports:
+    ComplexHeatmap,
+    GenomicRanges,
+    IRanges,
+    VariantAnnotation,
+    circlize,
+    coloc,
+    cowplot,
+    data.table,
+    digest,
+    dplyr,
+    ggbeeswarm,
+    ggplot2,
+    ggvenn,
+    grDevices,
+    grid,
+    logger,
+    purrr,
+    readr,
+    rlang,
+    stats,
+    tibble,
+    tidyr,
+    tidyselect,
+    utils
 Remotes:
     bioc::ComplexHeatmap,
     bioc::VariantAnnotation,
@@ -15,6 +38,11 @@ Authors@R: c(
       "James", "Nemesh",
       email = "nemesh@broadinstitute.org",
       role = c("aut", "cre")
+    ),
+    person(
+      "Khalid", "Shakir",
+      email = "kshakir@broadinstitute.org",
+      role = c("aut", "ctb")
     )
   )
 Description: Eqtl analysis for the bican manuscript.  Yay.
