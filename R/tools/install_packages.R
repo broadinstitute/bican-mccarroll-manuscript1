@@ -9,6 +9,7 @@ install_all_packages <- function(
             "R/bican.mccarroll.figures"
         ),
         dependencies = TRUE,
+        dependencies_only = FALSE,
         upgrade = "never",
         force = FALSE) {
 
@@ -34,6 +35,18 @@ install_all_packages <- function(
             )
             # exit now if the library failed to install
             library(basename(subdir), character.only = TRUE)
+        }
+    } else if (dependencies_only) {
+        for (subdir in pkgs) {
+            message("Installing dependencies for ", subdir, " from local path: ", path)
+            deps <- remotes::dev_package_deps(
+                pkgdir = file.path(path, subdir),
+                dependencies = dependencies
+            )
+            deps <- deps[!startsWith(deps$package, "bican.mccarroll."), ]
+            update(deps, upgrade = upgrade, force = force)
+            # exit now if a dependency failed to install
+            lapply(deps$package, library, character.only = TRUE)
         }
     } else {
         for (subdir in pkgs) {
