@@ -82,10 +82,6 @@ runVariancePartition<-function (data_dir, data_name, randVars, fixedVars, outPDF
     d=prepare_data_for_differential_expression(data_dir, data_name, randVars, fixedVars)
     dge=d$dge;fixedVars=d$fixedVars;randVars=d$randVars
 
-    # REMOVE THIS HACK AFTER TESTING. If you don't set compute_baseline, you deserve what you get.
-    #z=metadata_donor_outlier_splitting(dge, randVars, compute_baseline = compute_baseline)
-    #randVars=z$randVars;dge=z$dge
-
     # Variance Partition by cell type
     cell_type_list=unique(dge$samples$cell_type)
     plotList=list()
@@ -490,9 +486,14 @@ run_variance_partition <- function(dge_subset, fixedVars, randVars, verbose = TR
     #rv <- drop_single_level_rand_effects(rv, metadata=dge_subset$samples, verbose = TRUE)
 
     # Build formula string
-    rand_part <- paste0("(1|", rv, ")", collapse = " + ")
-    fixed_part <- paste(fixedVars, collapse = " + ")
-    formula_str <- paste(fixed_part, rand_part, sep = " + ")
+    # Need to catch if there are no random variables.
+    if (length(rv)==0) {
+        formula_str <- paste(fixedVars, collapse = " + ")
+    } else {
+        rand_part <- paste0("(1|", rv, ")", collapse = " + ")
+        fixed_part <- paste(fixedVars, collapse = " + ")
+        formula_str <- paste(fixed_part, rand_part, sep = " + ")
+    }
     form <- stats::as.formula(paste(" ~ ", formula_str))
 
     if (verbose) {
@@ -508,31 +509,7 @@ run_variance_partition <- function(dge_subset, fixedVars, randVars, verbose = TR
     #running in batches with logging.
     varPart <- profile_variancePartition_runtime(exprObj = v, formula = form, data = dge_subset$samples, batch_size = 1000, BPPARAM = param, verbose=FALSE)
 
-    # logger::log_info(paste("Running variance partition with", n_cores, "cores"))
-    # varPart2 <- variancePartition::fitExtractVarPartModel(exprObj=v, formula=form, data=dge_subset$samples, BPPARAM = param)
-    # varPartFull <- variancePartition::fitVarPartModel(exprObj=v[1:4], formula=form, data=dge_subset$samples[1:4], BPPARAM = param)
-    # logger::log_info(paste("Variance partition completed with", nrow(varPart), "genes."))
-
     return(varPart)
-
-    # r=as.data.frame(varPart)
-
-    # plot_stratified_gene(dgeThis, varPart, variable="age", gene_name = NULL, main = NULL)
-    # plot_stratified_gene(dgeThis, varPart, variable="pmi_hr", gene_name = NULL, main = NULL)
-    # plot_stratified_gene(dgeThis, varPart, variable="toxicology_group", gene_name = NULL, main = NULL)
-    # plot_stratified_gene(dgeThis, varPart, variable="single_cell_assay", gene_name = NULL, main = NULL)
-    #
-    # plotAdjustedResidualsByGroup(dgeThis, fixedVars, randVars, variable="age", gene = NULL)
-    # plotAdjustedResidualsByGroup(dgeThis, fixedVars, randVars, variable="frac_contamination", gene = NULL)
-    # plotAdjustedResidualsByGroup(dgeThis, fixedVars, randVars, variable="pmi_hr", gene = NULL)
-    #
-    # plotAdjustedResidualsByGroup(dgeThis, fixedVars, randVars, variable="toxicology_group", gene = NULL)
-    # plotAdjustedResidualsByGroup(dgeThis, fixedVars, randVars, variable="single_cell_assay", gene = NULL)
-    #
-    # plotPercentBars(varPart[rownames(varPart)=="CD2AP", ])
-    # plotPercentBars(varPart[rownames(varPart)=="FAM66C", ])
-
-
 }
 
 #' Build a Variance Partitioning Model Formula

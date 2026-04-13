@@ -85,6 +85,11 @@ runMDSPlots<-function (data_dir, data_name, additionalDonorMetadata=NULL, randVa
     dge <- prep$dge
     required_vars <- prep$required_vars
 
+    #make the output directory if needed
+    if (!is.null(outMDSPlotRoot) && !dir.exists(outMDSPlotRoot)) {
+        dir.create(outMDSPlotRoot, recursive = TRUE)
+    }
+
     # MDS plots by cell type
     cell_type_list=unique(dge$samples$cell_type)
     plotList=list()
@@ -210,10 +215,6 @@ prepareMDSPlotData <- function(
             logger::log_warn("No 'donor' column found in additional metadata; skipping merge.")
         }
     }
-
-    # filter to the list of metacells that should be used for MDS
-    idx <- which(dge$sample$MDS == TRUE)
-    dge <- dge[, idx, keep.lib.sizes = TRUE]
 
     # validate required vars are present
     required_vars <- c(randVars, fixedVars)
