@@ -1,5 +1,5 @@
-#library(tidyverse)
-#library(logger)
+# library(tidyverse)
+# library(logger)
 
 # ctp_dir <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/yooolivi/cell_type_proportions/LEVEL_0"
 
@@ -28,7 +28,9 @@
 #  unexpected_neuron_df = unexpected_neuron_df,
 #  conformity_threshold = 3.75,
 #  conformity_method = "pearson",
-#  neuron_fraction_threshold = 0.2
+#  neuron_fraction_threshold = 0.2,
+#   drop_low_nuclei_outliers = FALSE,
+#   drop_unexpected_neuron_outliers = FALSE
 # )
 
 
@@ -157,7 +159,8 @@ compute_ctp_conformity_scores <- function(transformed_ctp_df, method = "pearson"
 #' @return Dataframe with sample_id, total_nuclei, z_log10_total_nuclei, nuclei_count_outlier, total_neurons, unexpected_neuron_fraction, unexpected_neuron_outlier, conformity_score, modified_z_conformity_score, conformity_outlier, and overall_outlier (TRUE/FALSE).
 identify_ctp_outliers_one_region <- function(
   ctp_region_df, cell_type_col, conformity_threshold=3.75, conformity_method="pearson", 
-  neuron_ctp_df=NULL, unexpected_neuron_types=NULL, neuron_fraction_threshold=0.2
+  neuron_ctp_df=NULL, unexpected_neuron_types=NULL, neuron_fraction_threshold=0.2,
+  drop_low_nuclei_outliers = TRUE, drop_unexpected_neuron_outliers = TRUE
 ) {
 
   # identify low nuclei count outliers
@@ -172,9 +175,6 @@ identify_ctp_outliers_one_region <- function(
       dplyr::filter(unexpected_neuron_outlier) |>
       dplyr::pull(sample_id)
 
-    ctp_region_df_filtered <- ctp_region_df |>
-      dplyr::filter(!(sample_id %in% low_nuclei_outliers)) |>
-      dplyr::filter(!(sample_id %in% unexpected_neuron_outliers))
   } else {
     # logger::log_info("No unexpected neurons provided, no outliers will be identified based on unexpected neuron fraction")
     unexpected_neuron_outliers_df <- data.frame(
@@ -183,9 +183,32 @@ identify_ctp_outliers_one_region <- function(
       unexpected_neuron_fraction = NA,
       unexpected_neuron_outlier = FALSE
     )
+  }
 
+  # filter out low nuclei and unexpected neuron outliers before computing conformity scores
+
+  if (drop_low_nuclei_outliers & drop_unexpected_neuron_outliers) {
+    logger::log_info("Dropping low nuclei count and unexpected neuron outliers before computing conformity scores for region")
     ctp_region_df_filtered <- ctp_region_df |>
-      dplyr::filter(!(sample_id %in% low_nuclei_outliers))
+      dplyr::filter(
+        !(sample_id %in% low_nuclei_outliers) &
+        !(sample_id %in% unexpected_neuron_outliers)
+      )
+  } else if (drop_low_nuclei_outliers) {
+    logger::log_info("Dropping low nuclei count outliers but not unexpected neuron outliers before computing conformity scores for region")
+    ctp_region_df_filtered <- ctp_region_df |>
+      dplyr::filter(
+        !(sample_id %in% low_nuclei_outliers)
+      )
+  } else if (drop_unexpected_neuron_outliers) {
+    logger::log_info("Dropping unexpected neuron outliers but not low nuclei count outliers before computing conformity scores for region")
+    ctp_region_df_filtered <- ctp_region_df |>
+      dplyr::filter(
+        !(sample_id %in% unexpected_neuron_outliers)
+      )
+  } else {
+    logger::log_info("Not dropping any samples before computing conformity scores for region")
+    ctp_region_df_filtered <- ctp_region_df
   }
 
   # transform CTP and compute conformity scores (dropping low nuclei and neuron outliers first)
@@ -231,11 +254,13 @@ identify_ctp_outliers_one_region <- function(
 #' @param neuron_fraction_threshold Optional threshold for fraction of unexpected neurons above which a sample is considered an outlier (default 0.2).
 #' @param out_file Optional file path to save the outlier summary dataframe as a tab-delimited text file (default NULL, no file saved).
 #'
-#' @return Dataframe with sample_id, brain_region, total_nuclei, z_log10_total_nuclei, nuclei_count_outlier, total_neurons, unexpected_neuron_fraction, unexpected_neuron_outlier, conformity_score, modified_z_conformity_score, conformity_outlier, and overall_outlier (TRUE/FALSE) for each sample and brain region.
+#' @return Dataframe with sample_id, brain_region, total_nuclei, z_log10_total_nuclei, nuclei_count_outlier, total_neurons, unexpected_neuron_fraction, 
+#' unexpected_neuron_outlier, conformity_score, modified_z_conformity_score, conformity_outlier, and overall_outlier (TRUE/FALSE) for each sample and brain region.
 identify_ctp_outliers <- function(
   ctp_df, cell_type_col, region_col, 
   conformity_threshold=3.75, conformity_method="pearson", 
   neuron_ctp_df=NULL, unexpected_neuron_df=NULL, neuron_fraction_threshold=NULL, 
+  drop_low_nuclei_outliers = TRUE, drop_unexpected_neuron_outliers = TRUE,
   out_file=NULL
 ) {
 
@@ -267,7 +292,9 @@ identify_ctp_outliers <- function(
         conformity_method = conformity_method,
         neuron_ctp_df = neuron_ctp_region_df,
         unexpected_neuron_types = unexpected_neuron_types_region,
-        neuron_fraction_threshold = neuron_fraction_threshold
+        neuron_fraction_threshold = neuron_fraction_threshold,
+        drop_low_nuclei_outliers = drop_low_nuclei_outliers,
+        drop_unexpected_neuron_outliers = drop_unexpected_neuron_outliers
       )
 
     } else {
@@ -277,7 +304,9 @@ identify_ctp_outliers <- function(
         ctp_region_df = ctp_region_df,
         cell_type_col = cell_type_col,
         conformity_threshold = conformity_threshold,
-        conformity_method = conformity_method
+        conformity_method = conformity_method,
+        drop_low_nuclei_outliers = drop_low_nuclei_outliers,
+        drop_unexpected_neuron_outliers = drop_unexpected_neuron_outliers
       )
     }
 
