@@ -1,7 +1,7 @@
 # Load required libraries
-# library(edgeR)
-# library(data.table)
-# library(mltools)
+library(edgeR)
+library(data.table)
+library(mltools)
 
 # metacell_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
 # manifest_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metadata/DE_manifest.txt"
@@ -314,7 +314,7 @@ getSimpleDGEList<-function (metacell_file) {
 #' @import data.table edgeR
 #' @keywords internal
 
-#manifest_row=manifest[1];
+#manifest_row=manifest[7];
 process_metacell_file <- function(manifest_row, metacell_dir, cell_metadata, metadata_columns, split_id=TRUE) {
     file_path <- file.path(metacell_dir, paste0(manifest_row$output_name, ".metacells.txt.gz"))
 
@@ -603,51 +603,44 @@ getAnnotations <- function(metricsDF,
 #' @export
 # df_expr= cell_metadata; python_filter_string=manifest[26]$cell_type_filter_str
 filter_df_auto_df_name <- function(df_expr, python_filter_string) {
-    # Capture the unevaluated expression (e.g., df2)
-    df_name <- as.character(substitute(df_expr))
-
-    # Evaluate the dataframe itself
-    df <- eval(substitute(df_expr), envir = parent.frame())
-
-    # Replace adata.obs["col"] with dfname$col
-    expr <- gsub('adata\\.obs\\[["\']([^"\']+)["\']\\]',
-                 paste0(df_name, '$\\1'), python_filter_string)
-
-    # Evaluate the logical expression
-    idx <- eval(parse(text = expr), envir = parent.frame())
-
-    # Return the subset of the dataframe
-    result <- df[which(idx), ]
-
-    return (result)
-}
-
-#' Filter a Data Frame Using a Python-Style Expression, incl. .isin()
-filter_df_auto_df_name <- function(df_expr, python_filter_string) {
     df_name <- as.character(substitute(df_expr))
     df <- eval(substitute(df_expr), envir = parent.frame())
 
     expr <- python_filter_string
 
-    # .isin(['A','B']) or .isin(('A','B')) -> %in% c('A','B')
-    expr <- gsub("\\.isin\\s*\\(\\s*\\[", " %in% c(", expr, perl = TRUE)
-    expr <- gsub("\\.isin\\s*\\(\\s*\\(", " %in% c(", expr, perl = TRUE)
-    expr <- gsub("\\]\\s*\\)", ")", expr, perl = TRUE)
-    expr <- gsub("\\)\\s*\\)", ")", expr, perl = TRUE)
+    # .isin(['A','B']) -> %in% c('A','B')
+    expr <- gsub(
+        "\\.isin\\s*\\(\\s*\\[([^\\]]*)\\]\\s*\\)",
+        " %in% c(\\1)",
+        expr,
+        perl = TRUE
+    )
 
-    # Optional: normalize Python literals
+    # .isin(('A','B')) -> %in% c('A','B')
+    expr <- gsub(
+        "\\.isin\\s*\\(\\s*\\(([^()]*)\\)\\s*\\)",
+        " %in% c(\\1)",
+        expr,
+        perl = TRUE
+    )
+
+    # Normalize Python literals
     expr <- gsub("\\bNone\\b", "NA", expr, perl = TRUE)
     expr <- gsub("\\bTrue\\b", "TRUE", expr, perl = TRUE)
     expr <- gsub("\\bFalse\\b", "FALSE", expr, perl = TRUE)
 
-    # adata.obs["col"] -> df$col
-    expr <- gsub('adata\\.obs\\[\\s*["\']([^"\']+)["\']\\s*\\]',
-                 paste0(df_name, '$\\1'), expr, perl = TRUE)
+    # adata.obs["col"] or adata.obs['col'] -> df_name$col
+    expr <- gsub(
+        'adata\\.obs\\[\\s*["\']([^"\']+)["\']\\s*\\]',
+        paste0(df_name, "$\\1"),
+        expr,
+        perl = TRUE
+    )
 
     idx <- eval(parse(text = expr), envir = parent.frame())
+
     df[which(idx), , drop = FALSE]
 }
-
 
 #' Filter Cell Metadata by Brain Region Abbreviation
 #'
