@@ -15,7 +15,7 @@ compute_ctp_conformity_scores(
 
 \item{method}{Correlation method to use (default "pearson").}
 
-\item{threshold}{Threshold for modified Z-score to identify conformity outliers (default 3.75).}
+\item{threshold}{Threshold for absolute value of modified Z-score to identify conformity outliers (default 3.75).}
 }
 \value{
 Dataframe with sample_id, conformity_score, modified_z_conformity_score, and conformity_outlier (TRUE/FALSE).

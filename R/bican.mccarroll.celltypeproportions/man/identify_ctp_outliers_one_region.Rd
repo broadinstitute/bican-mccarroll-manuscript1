@@ -11,7 +11,9 @@ identify_ctp_outliers_one_region(
   conformity_method = "pearson",
   neuron_ctp_df = NULL,
   unexpected_neuron_types = NULL,
-  neuron_fraction_threshold = 0.2
+  neuron_fraction_threshold = 0.2,
+  drop_low_nuclei_outliers = TRUE,
+  drop_unexpected_neuron_outliers = TRUE
 )
 }
 \arguments{

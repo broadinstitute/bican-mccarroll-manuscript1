@@ -4,14 +4,15 @@
 \alias{compute_mean_cell_type_metrics}
 \title{Computes mean metrics per cell type for a given grouping.}
 \usage{
-compute_mean_cell_type_metrics(df, group_cols, cell_type_col, metric_cols)
+compute_mean_cell_type_metrics(df, group_cols, cell_type_cols, metric_cols)
 }
 \arguments{
 \item{df}{Dataframe containing cell metadata.}
 
 \item{group_cols}{Character vector of columns to group by (e.g., donor ID)}
 
-\item{cell_type_col}{Column name representing cell type annotations.}
+\item{cell_type_cols}{Column name representing cell type annotations.
+If multiple columns are provided, then values will be concatenated.}
 
 \item{metric_cols}{Character vector of metric columns to compute means for.}
 }

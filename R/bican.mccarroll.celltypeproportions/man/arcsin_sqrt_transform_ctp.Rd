@@ -9,7 +9,7 @@ arcsin_sqrt_transform_ctp(ctp_df, cell_type_col)
 \arguments{
 \item{ctp_df}{Dataframe of cell type counts and proportions (one row per cell type).}
 
-\item{cell_type_col}{Name of the column in ctp_df that contains the cell}
+\item{cell_type_col}{Name of the column in ctp_df that contains the cell type.}
 }
 \value{
 Wide dataframe of arcsin square root transformed CTP fractions, with sample_id as rownames and cell types as columns.

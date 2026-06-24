@@ -8,10 +8,13 @@ identify_ctp_outliers(
   ctp_df,
   cell_type_col,
   region_col,
-  unexpected_neuron_df,
   conformity_threshold = 3.75,
   conformity_method = "pearson",
-  neuron_fraction_threshold = 0.2,
+  neuron_ctp_df = NULL,
+  unexpected_neuron_df = NULL,
+  neuron_fraction_threshold = NULL,
+  drop_low_nuclei_outliers = TRUE,
+  drop_unexpected_neuron_outliers = TRUE,
   out_file = NULL
 )
 }
@@ -22,18 +25,21 @@ identify_ctp_outliers(
 
 \item{region_col}{Name of the column in ctp_df that contains the brain region.}
 
-\item{unexpected_neuron_df}{Dataframe of unexpected neuron types for each brain region, with columns for region and cell type.}
-
 \item{conformity_threshold}{Threshold for modified Z-score to identify conformity outliers (default 3.75).}
 
 \item{conformity_method}{Correlation method to use for conformity scores (default "pearson")}
 
-\item{neuron_fraction_threshold}{Threshold for fraction of unexpected neurons above which a sample is considered an outlier (default 0.2).}
+\item{neuron_ctp_df}{Optional dataframe of neuron-only CTP data for all samples and brain regions (one row per neuron cell type).}
+
+\item{unexpected_neuron_df}{Optional dataframe of unexpected neuron types for each brain region, with columns for region and cell type.}
+
+\item{neuron_fraction_threshold}{Optional threshold for fraction of unexpected neurons above which a sample is considered an outlier (default 0.2).}
 
 \item{out_file}{Optional file path to save the outlier summary dataframe as a tab-delimited text file (default NULL, no file saved).}
 }
 \value{
-Dataframe with sample_id, brain_region, total_nuclei, z_log10_total_nuclei, nuclei_count_outlier, total_neurons, unexpected_neuron_fraction, unexpected_neuron_outlier, conformity_score, modified_z_conformity_score, conformity_outlier, and overall_outlier (TRUE/FALSE) for each sample and brain region.
+Dataframe with sample_id, brain_region, total_nuclei, z_log10_total_nuclei, nuclei_count_outlier, total_neurons, unexpected_neuron_fraction, 
+unexpected_neuron_outlier, conformity_score, modified_z_conformity_score, conformity_outlier, and overall_outlier (TRUE/FALSE) for each sample and brain region.
 }
 \description{
 Identify outliers in CTP data for multiple brain regions based on low nuclei counts, unexpected neuron fractions, and conformity scores.

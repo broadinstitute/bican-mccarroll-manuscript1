@@ -7,10 +7,9 @@
 compute_ctp_and_metrics(
   df,
   group_cols,
-  cell_type_col,
+  cell_type_cols,
   metric_cols = NULL,
   filters = NULL,
-  group_filters = NULL,
   out_file = NULL
 )
 }
@@ -19,13 +18,12 @@ compute_ctp_and_metrics(
 
 \item{group_cols}{Character vector of columns to group by (e.g., donor ID)}
 
-\item{cell_type_col}{Column name representing cell type annotations.}
+\item{cell_type_cols}{Column name representing cell type annotations.
+If multiple columns are provided, then values will be concatenated.}
 
 \item{metric_cols}{Optional; Character vector of metric columns to compute means for.}
 
 \item{filters}{Optional; Character vector of filtering expressions.}
-
-\item{group_filters}{Optional;  Filtering expressions to apply within groups.}
 
 \item{out_file}{Optional; Output file to save the results}
 }

@@ -370,7 +370,7 @@ plot_donor_residual_correlation_scatter <- function(model, region1, region2, cel
     ggplot2::labs(
       title=sprintf("%s abundance residuals", cell_type),
       #subtitle=sprintf("N=%s donors", n_donors),
-      fill="age"
+      col="age"
     ) +
     ggplot2::xlim(min_residual, max_residual) +
     ggplot2::ylim(min_residual, max_residual) +
