@@ -109,7 +109,6 @@ build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, me
     return(dge_merged)
 }
 
-
 #' Build eQTL covariates for tensorQTL
 #'
 #' This is functionally very similar to build_merged_dge, but the eQTL data keeps each
@@ -689,7 +688,7 @@ replace_na_strings <- function(df) {
 #' value to `"NextGEM:GEMX"` in the input data frame.
 #'
 #' @param metricsDF A data frame containing at least the columns
-#'   `single_cell_assay`, `donor_external_id`, and `brain_region_abbreviation`.
+#'   `single_cell_assay`, `donor_external_id`, and `brain_region_abbreviation_simple`.
 #'  Each row represents a nuclei for a donor with a corresponding assay type / region
 #' @param has_village Logical; if \code{TRUE}, the metricsDF contains a metadata column
 #' that can be used to distinguish a donor run in two different villages from each other.
@@ -697,6 +696,10 @@ replace_na_strings <- function(df) {
 #'   with more than one distinct `single_cell_assay` in a region, the `single_cell_assay`
 #'   value is set to `"mixed"` in all rows for that donor-region combination.
 addMixedAssayType <- function(metricsDF, has_village = TRUE) {
+
+    if (!"single_cell_assay" %in% colnames(metricsDF))
+        return (metricsDF)
+
     # Columns that define a distinct donor-region-(village) combination
     base_cols <- c("donor_external_id", "brain_region_abbreviation_simple")
     label_cols <- if (has_village && ("village" %in% colnames(metricsDF))) {
