@@ -18,18 +18,150 @@
 # cellTypeListFile <- metacell_dir <- age_de_results_dir <- contig_yaml_file <- reduced_gtf_file <- data_cache_dir <- outDir <- NULL
 
 # Private
-.age_prediction_all<-function () {
+.age_prediction_all <- function() {
 
-    age_prediction_error_plots()
-    age_prediction_residual_corr_and_jaccard_heatmaps_region()
-    age_prediction_residual_corr_and_jaccard_heatmaps_cell_type()
-    age_prediction_corrected_residual_pairwise_scatter_region()
-    age_prediction_uncorrected_residual_pairwise_scatter_region()
-    age_prediction_examples()
-    age_prediction_mean_residual_correlation_plots()
+    .age_prediction_all_one()
 
 }
 
+.age_prediction_all_alpha_fixed_0_5 <- function() {
+
+    .age_prediction_all_one(
+        use_age_de_results = FALSE,
+        optimize_alpha = FALSE,
+        alpha_fixed = 0.5
+    )
+
+}
+
+.age_prediction_all_optimize_alpha <- function() {
+
+    .age_prediction_all_one(
+        use_age_de_results = FALSE,
+        optimize_alpha = TRUE,
+        alpha_fixed = 0
+    )
+
+}
+
+.age_prediction_all_one <- function(
+        cellTypeListFile = NULL,
+        metacell_dir = NULL,
+        data_name = "donor_rxn_DGEList",
+        age_de_results_dir = NULL,
+        use_age_de_results = TRUE,
+        contig_yaml_file = NULL,
+        reduced_gtf_file = NULL,
+        n_cores = 14,
+        data_cache_dir = NULL,
+        outDir = NULL,
+        optimize_alpha = FALSE,
+        alpha_fixed = 0) {
+
+    age_prediction_error_plots(
+        cellTypeListFile = cellTypeListFile,
+        metacell_dir = metacell_dir,
+        data_name = data_name,
+        age_de_results_dir = age_de_results_dir,
+        use_age_de_results = use_age_de_results,
+        contig_yaml_file = contig_yaml_file,
+        reduced_gtf_file = reduced_gtf_file,
+        n_cores = n_cores,
+        data_cache_dir = data_cache_dir,
+        outDir = outDir,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
+    )
+
+    age_prediction_residual_corr_and_jaccard_heatmaps_region(
+        cellTypeListFile = cellTypeListFile,
+        metacell_dir = metacell_dir,
+        data_name = data_name,
+        age_de_results_dir = age_de_results_dir,
+        use_age_de_results = use_age_de_results,
+        contig_yaml_file = contig_yaml_file,
+        reduced_gtf_file = reduced_gtf_file,
+        n_cores = n_cores,
+        data_cache_dir = data_cache_dir,
+        outDir = outDir,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
+    )
+
+    age_prediction_residual_corr_and_jaccard_heatmaps_cell_type(
+        metacell_dir = metacell_dir,
+        data_name = data_name,
+        age_de_results_dir = age_de_results_dir,
+        use_age_de_results = use_age_de_results,
+        contig_yaml_file = contig_yaml_file,
+        reduced_gtf_file = reduced_gtf_file,
+        n_cores = n_cores,
+        data_cache_dir = data_cache_dir,
+        outDir = outDir,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
+    )
+
+    age_prediction_corrected_residual_pairwise_scatter_region(
+        metacell_dir = metacell_dir,
+        data_name = data_name,
+        age_de_results_dir = age_de_results_dir,
+        use_age_de_results = use_age_de_results,
+        contig_yaml_file = contig_yaml_file,
+        reduced_gtf_file = reduced_gtf_file,
+        n_cores = n_cores,
+        data_cache_dir = data_cache_dir,
+        outDir = outDir,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
+    )
+
+    age_prediction_uncorrected_residual_pairwise_scatter_region(
+        metacell_dir = metacell_dir,
+        data_name = data_name,
+        age_de_results_dir = age_de_results_dir,
+        use_age_de_results = use_age_de_results,
+        contig_yaml_file = contig_yaml_file,
+        reduced_gtf_file = reduced_gtf_file,
+        n_cores = n_cores,
+        data_cache_dir = data_cache_dir,
+        outDir = outDir,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
+    )
+
+    age_prediction_examples(
+        metacell_dir = metacell_dir,
+        data_name = data_name,
+        age_de_results_dir = age_de_results_dir,
+        use_age_de_results = use_age_de_results,
+        contig_yaml_file = contig_yaml_file,
+        reduced_gtf_file = reduced_gtf_file,
+        n_cores = n_cores,
+        data_cache_dir = data_cache_dir,
+        outDir = outDir,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
+    )
+
+    age_prediction_mean_residual_correlation_plots(
+        cellTypeListFile = cellTypeListFile,
+        metacell_dir = metacell_dir,
+        data_name = data_name,
+        age_de_results_dir = age_de_results_dir,
+        use_age_de_results = use_age_de_results,
+        contig_yaml_file = contig_yaml_file,
+        reduced_gtf_file = reduced_gtf_file,
+        n_cores = n_cores,
+        data_cache_dir = data_cache_dir,
+        outDir = outDir,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
+    )
+
+    invisible(NULL)
+
+}
 
 #' Plot residual age–prediction correlation distributions across cell types
 #'
@@ -71,17 +203,23 @@ age_prediction_mean_residual_correlation_plots <- function(
         metacell_dir = NULL,
         data_name = "donor_rxn_DGEList",
         age_de_results_dir = NULL,
+        use_age_de_results = TRUE,
         contig_yaml_file = NULL,
         reduced_gtf_file = NULL,
         n_cores = 14,
         data_cache_dir = NULL,
-        outDir = NULL) {
+        outDir = NULL,
+        optimize_alpha = FALSE,
+        alpha_fixed = 0) {
 
     paths <- .resolve_age_pred_paths(
         cellTypeListFile = cellTypeListFile, metacell_dir = metacell_dir,
         age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
         reduced_gtf_file = reduced_gtf_file, data_cache_dir = data_cache_dir,
-        outDir = outDir
+        outDir = outDir,
+        use_age_de_results = use_age_de_results,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
     )
 
     cell_types <- utils::read.table(paths$cellTypeListFile, header = FALSE)$V1
@@ -91,7 +229,9 @@ age_prediction_mean_residual_correlation_plots <- function(
         age_de_results_dir = paths$age_de_results_dir,
         contig_yaml_file = paths$contig_yaml_file,
         reduced_gtf_file = paths$reduced_gtf_file,
-        n_cores = n_cores, data_cache_dir = paths$data_cache_dir
+        n_cores = n_cores, data_cache_dir = paths$data_cache_dir,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
     )
 
     model_predictions <- results$donor_predictions
@@ -142,17 +282,23 @@ age_prediction_error_plots <- function(
         metacell_dir = NULL,
         data_name = "donor_rxn_DGEList",
         age_de_results_dir = NULL,
+        use_age_de_results = TRUE,
         contig_yaml_file = NULL,
         reduced_gtf_file = NULL,
         n_cores = 14,
         data_cache_dir = NULL,
-        outDir = NULL) {
+        outDir = NULL,
+        optimize_alpha = FALSE,
+        alpha_fixed = 0) {
 
     paths <- .resolve_age_pred_paths(
         cellTypeListFile = cellTypeListFile, metacell_dir = metacell_dir,
         age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
         reduced_gtf_file = reduced_gtf_file, data_cache_dir = data_cache_dir,
-        outDir = outDir
+        outDir = outDir,
+        use_age_de_results = use_age_de_results,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
     )
 
     cell_types <- utils::read.table(paths$cellTypeListFile, header = FALSE)$V1
@@ -162,10 +308,21 @@ age_prediction_error_plots <- function(
         age_de_results_dir = paths$age_de_results_dir,
         contig_yaml_file = paths$contig_yaml_file,
         reduced_gtf_file = paths$reduced_gtf_file,
-        n_cores = n_cores, data_cache_dir = paths$data_cache_dir
+        n_cores = n_cores, data_cache_dir = paths$data_cache_dir,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
     )
 
     model_predictions <- results$donor_predictions
+
+    model_mae_summary <- compute_model_level_mae(model_predictions)
+
+    logger::log_info(sprintf(
+        "Model-level mean absolute error: median %.1f years; range %.1f-%.1f years",
+        model_mae_summary$median_mae_years,
+        model_mae_summary$min_mae_years,
+        model_mae_summary$max_mae_years
+    ))
 
     r <- bican.mccarroll.differentialexpression::summarize_age_prediction_results(
         model_predictions, cell_types
@@ -247,6 +404,26 @@ age_prediction_error_plots <- function(
     invisible(NULL)
 }
 
+compute_model_level_mae <- function(a) {
+
+    a$abs_error_years <- abs(a$resid_mean) * 10
+
+    model_mae <- stats::aggregate(
+        abs_error_years ~ cell_type + region,
+        data = a,
+        FUN = mean,
+        na.rm = TRUE
+    )
+
+    list(
+        model_mae = model_mae,
+        median_mae_years = stats::median(model_mae$abs_error_years, na.rm = TRUE),
+        min_mae_years = min(model_mae$abs_error_years, na.rm = TRUE),
+        max_mae_years = max(model_mae$abs_error_years, na.rm = TRUE)
+    )
+
+}
+
 add_style_age_feature_errors <- function(p) {
 
     p <- p +
@@ -300,18 +477,24 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(
         metacell_dir = NULL,
         data_name = "donor_rxn_DGEList",
         age_de_results_dir = NULL,
+        use_age_de_results = TRUE,
         contig_yaml_file = NULL,
         reduced_gtf_file = NULL,
         n_cores = 14,
         data_cache_dir = NULL,
-        outDir = NULL) {
+        outDir = NULL,
+        optimize_alpha = FALSE,
+        alpha_fixed = 0) {
 
     paths <- .resolve_age_pred_paths(
         cellTypeListFile = cellTypeListFile, metacell_dir = metacell_dir,
         age_de_results_dir = age_de_results_dir,
         contig_yaml_file = contig_yaml_file,
         reduced_gtf_file = reduced_gtf_file,
-        data_cache_dir = data_cache_dir, outDir = outDir
+        data_cache_dir = data_cache_dir, outDir = outDir,
+        use_age_de_results = use_age_de_results,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
     )
 
     cell_types <- utils::read.table(paths$cellTypeListFile, header = FALSE)$V1
@@ -321,7 +504,9 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(
         age_de_results_dir = paths$age_de_results_dir,
         contig_yaml_file = paths$contig_yaml_file,
         reduced_gtf_file = paths$reduced_gtf_file,
-        n_cores = n_cores, data_cache_dir = paths$data_cache_dir
+        n_cores = n_cores, data_cache_dir = paths$data_cache_dir,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
     )
 
     model_predictions <- results$donor_predictions
@@ -438,17 +623,23 @@ age_prediction_residual_corr_and_jaccard_heatmaps_cell_type <- function(
         metacell_dir = NULL,
         data_name = "donor_rxn_DGEList",
         age_de_results_dir = NULL,
+        use_age_de_results = TRUE,
         contig_yaml_file = NULL,
         reduced_gtf_file = NULL,
         n_cores = 14,
         data_cache_dir = NULL,
-        outDir = NULL) {
+        outDir = NULL,
+        optimize_alpha = FALSE,
+        alpha_fixed = 0) {
 
     paths <- .resolve_age_pred_paths(
         metacell_dir = metacell_dir,
         age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
         reduced_gtf_file = reduced_gtf_file, data_cache_dir = data_cache_dir,
-        outDir = outDir
+        outDir = outDir,
+        use_age_de_results = use_age_de_results,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
     )
 
     results <- get_age_prediction_results(
@@ -456,7 +647,9 @@ age_prediction_residual_corr_and_jaccard_heatmaps_cell_type <- function(
         age_de_results_dir = paths$age_de_results_dir,
         contig_yaml_file = paths$contig_yaml_file,
         reduced_gtf_file = paths$reduced_gtf_file,
-        n_cores = n_cores, data_cache_dir = paths$data_cache_dir
+        n_cores = n_cores, data_cache_dir = paths$data_cache_dir,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
     )
 
     model_predictions <- results$donor_predictions
@@ -572,18 +765,24 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(
         metacell_dir = NULL,
         data_name = "donor_rxn_DGEList",
         age_de_results_dir = NULL,
+        use_age_de_results = TRUE,
         contig_yaml_file = NULL,
         reduced_gtf_file = NULL,
         n_cores = 14,
         data_cache_dir = NULL,
         outDir = NULL,
+        optimize_alpha = FALSE,
+        alpha_fixed = 0,
         ncol = 3) {
 
     paths <- .resolve_age_pred_paths(
         metacell_dir = metacell_dir,
         age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
         reduced_gtf_file = reduced_gtf_file, data_cache_dir = data_cache_dir,
-        outDir = outDir
+        outDir = outDir,
+        use_age_de_results = use_age_de_results,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
     )
 
     results <- get_age_prediction_results(
@@ -591,7 +790,9 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(
         age_de_results_dir = paths$age_de_results_dir,
         contig_yaml_file = paths$contig_yaml_file,
         reduced_gtf_file = paths$reduced_gtf_file,
-        n_cores = n_cores, data_cache_dir = paths$data_cache_dir
+        n_cores = n_cores, data_cache_dir = paths$data_cache_dir,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
     )
 
     donor_pred <- results$donor_predictions
@@ -709,18 +910,24 @@ age_prediction_uncorrected_residual_pairwise_scatter_region <- function(
         metacell_dir = NULL,
         data_name = "donor_rxn_DGEList",
         age_de_results_dir = NULL,
+        use_age_de_results = TRUE,
         contig_yaml_file = NULL,
         reduced_gtf_file = NULL,
         n_cores = 14,
         data_cache_dir = NULL,
         outDir = NULL,
+        optimize_alpha = FALSE,
+        alpha_fixed = 0,
         ncol = 3) {
 
     paths <- .resolve_age_pred_paths(
         metacell_dir = metacell_dir,
         age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
         reduced_gtf_file = reduced_gtf_file, data_cache_dir = data_cache_dir,
-        outDir = outDir
+        outDir = outDir,
+        use_age_de_results = use_age_de_results,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
     )
 
     results <- get_age_prediction_results(
@@ -728,7 +935,9 @@ age_prediction_uncorrected_residual_pairwise_scatter_region <- function(
         age_de_results_dir = paths$age_de_results_dir,
         contig_yaml_file = paths$contig_yaml_file,
         reduced_gtf_file = paths$reduced_gtf_file,
-        n_cores = n_cores, data_cache_dir = paths$data_cache_dir
+        n_cores = n_cores, data_cache_dir = paths$data_cache_dir,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
     )
 
     donor_pred <- results$donor_predictions
@@ -847,17 +1056,23 @@ age_prediction_examples <- function(
         metacell_dir = NULL,
         data_name = "donor_rxn_DGEList",
         age_de_results_dir = NULL,
+        use_age_de_results = TRUE,
         contig_yaml_file = NULL,
         reduced_gtf_file = NULL,
         n_cores = 14,
         data_cache_dir = NULL,
-        outDir = NULL) {
+        outDir = NULL,
+        optimize_alpha = FALSE,
+        alpha_fixed = 0) {
 
     paths <- .resolve_age_pred_paths(
         metacell_dir = metacell_dir,
         age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
         reduced_gtf_file = reduced_gtf_file, data_cache_dir = data_cache_dir,
-        outDir = outDir
+        outDir = outDir,
+        use_age_de_results = use_age_de_results,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
     )
 
     results <- get_age_prediction_results(
@@ -865,7 +1080,9 @@ age_prediction_examples <- function(
         age_de_results_dir = paths$age_de_results_dir,
         contig_yaml_file = paths$contig_yaml_file,
         reduced_gtf_file = paths$reduced_gtf_file,
-        n_cores = n_cores, data_cache_dir = paths$data_cache_dir
+        n_cores = n_cores, data_cache_dir = paths$data_cache_dir,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
     )
 
     donor_pred <- results$donor_predictions
@@ -958,10 +1175,18 @@ get_age_prediction_results<-function (metacell_dir="/broad/bican_um1_mccarroll/R
                               contig_yaml_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metadata/GRCh38_ensembl_v43.contig_groups.yaml",
                               reduced_gtf_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metadata/GRCh38_ensembl_v43.reduced.gtf.gz",
                               n_cores=14,
-                              data_cache_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
+                              data_cache_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache",
+                               optimize_alpha = FALSE,
+                               alpha_fixed = 0
                               ) {
 
-    cache_dir <- file.path(data_cache_dir, "age_prediction")
+    cache_dir <- file.path(
+        data_cache_dir,
+        .age_prediction_cache_subdir(
+            optimize_alpha = optimize_alpha,
+            alpha_fixed = alpha_fixed
+        )
+    )
     if (!dir.exists(cache_dir)) {
         dir.create(cache_dir, recursive = TRUE)
     }
@@ -986,8 +1211,8 @@ get_age_prediction_results<-function (metacell_dir="/broad/bican_um1_mccarroll/R
             result_dir = cache_dir,
             contig_yaml_file = contig_yaml_file,
             reduced_gtf_file = reduced_gtf_file,
-            optimize_alpha = FALSE,
-            alpha_fixed = 0,
+            optimize_alpha = optimize_alpha,
+            alpha_fixed = alpha_fixed,
             n_cores = n_cores)
 
         #read in all the files and return
@@ -1042,6 +1267,43 @@ read_age_prediction_results <- function(cache_dir) {
     result
 }
 
+.age_prediction_output_subdir <- function(optimize_alpha = FALSE, alpha_fixed = 0) {
+
+    if (!isTRUE(optimize_alpha) && identical(as.numeric(alpha_fixed), 0)) {
+        return(NULL)
+    }
+
+    .age_prediction_analysis_label(
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
+    )
+}
+
+.age_prediction_cache_subdir <- function(optimize_alpha = FALSE, alpha_fixed = 0) {
+
+    label <- .age_prediction_analysis_label(
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
+    )
+
+    if (!isTRUE(optimize_alpha) && identical(as.numeric(alpha_fixed), 0)) {
+        return("age_prediction")
+    }
+
+    paste0("age_prediction_", label)
+}
+
+.age_prediction_analysis_label <- function(optimize_alpha = FALSE, alpha_fixed = 0) {
+
+    alpha_label <- gsub("\\.", "_", as.character(alpha_fixed))
+
+    if (isTRUE(optimize_alpha)) {
+        return(paste0("optimize_alpha_TRUE_alpha_fixed_", alpha_label))
+    }
+
+    paste0("optimize_alpha_FALSE_alpha_fixed_", alpha_label)
+}
+
 save_plot_svg <- function(plot, out_file, out_dir = ".", width = 14, height = 7) {
     out_svg <- file.path(out_dir, out_file)
 
@@ -1060,7 +1322,10 @@ save_plot_svg <- function(plot, out_file, out_dir = ".", width = 14, height = 7)
         contig_yaml_file = NULL,
         reduced_gtf_file = NULL,
         outDir = NULL,
-        data_cache_dir = NULL
+        data_cache_dir = NULL,
+        use_age_de_results = TRUE,
+        optimize_alpha = FALSE,
+        alpha_fixed = 0
 ) {
     root <- .resolve_data_root_dir(NULL)
 
@@ -1089,6 +1354,15 @@ save_plot_svg <- function(plot, out_file, out_dir = ".", width = 14, height = 7)
     }
 
     out <- .resolve_out_dir(outDir)
+    analysis_subdir <- .age_prediction_output_subdir(
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
+    )
+
+    if (!is.null(analysis_subdir)) {
+        out <- file.path(out, analysis_subdir)
+    }
+
     cache <- .resolve_cache_dir(data_cache_dir)
 
     .ensure_dir(out)
@@ -1098,7 +1372,11 @@ save_plot_svg <- function(plot, out_file, out_dir = ".", width = 14, height = 7)
         data_root_dir      = root,
         cellTypeListFile   = pick_in(cellTypeListFile, "cellTypeListFile"),
         metacell_dir       = pick_in(metacell_dir, "metacell_dir"),
-        age_de_results_dir = pick_in(age_de_results_dir, "age_de_results_dir"),
+        age_de_results_dir = if (isTRUE(use_age_de_results)) {
+            pick_in(age_de_results_dir, "age_de_results_dir")
+        } else {
+            NULL
+        },
         contig_yaml_file   = pick_in(contig_yaml_file, "contig_yaml_file"),
         reduced_gtf_file   = pick_in(reduced_gtf_file, "reduced_gtf_file"),
         outDir             = out,
