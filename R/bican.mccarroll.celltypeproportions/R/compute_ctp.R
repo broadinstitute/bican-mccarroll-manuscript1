@@ -235,6 +235,52 @@ load_and_compute_ctp_and_metrics <- function(cell_metadata_file, group_cols, cel
   return(ctp_df)
 }
 
+#' Recompute CTP from an existing CTP dataframe - either with a subset of the
+#' existing grouping variables, or a new cell type label.
+#'
+#' This is useful for quickly recomputing CTP from an existing dataframe
+#' rather than having to load the entire cell metadata file in again. The
+#' tradeoff is that you cannot compute any single-cell metrics.
+#'
+#' @param ctp_df Dataframe of cell type proportions.
+#' @param group_cols Character vector of columns to group by (e.g., donor ID)
+#' @param cell_type_col Column name representing cell type annotations.
+#' @param cell_type_label_map Dataframe with 2 columns: the first column should
+#' match the existing cell type labels in the `cell_type_col` of the `ctp_df`,
+#' and the second column should have the new cell type labels to group by.
+#'
+#' @return Dataframe with recomputed cell type proportions based on the new grouping.
+regroup_ctp <- function(ctp_df, group_cols, cell_type_col, cell_type_label_map) {
+
+  # check format of new annotation map
+  if(ncol(cell_type_label_map) != 2) {
+    stop("`cell_type_label_map` must have exactly 2 columns: the first for the {cell_type_col} and the second for the new grouping variable.")
+  }
+
+  new_cell_type_col <- colnames(cell_type_label_map)[2]
+
+  # compute CTP using the counts from the original
+  new_ctp_df <- ctp_df |>
+    dplyr::left_join(cell_type_label_map) |>
+    dplyr::group_by(dplyr::across(dplyr::all_of(group_cols)), !!rlang::sym(new_cell_type_col)) |>
+    dplyr::summarise(
+      n_nuclei = sum(n_nuclei)
+    ) |>
+    dplyr::group_by(dplyr::across(dplyr::all_of(group_cols))) |>
+    dplyr::mutate(
+      total_nuclei = sum(n_nuclei),
+      fraction_nuclei = n_nuclei / total_nuclei
+    ) |>
+    dplyr::ungroup() |>
+    dplyr::mutate(
+      sample_id = paste(!!!rlang::syms(group_cols), sep = "_")
+    ) |>
+    dplyr::select(sample_id, dplyr::everything())
+
+  return(new_ctp_df)
+
+}
+
 
 #' Generate Cell-Type Proportion (CTP) Ratio Table
 #'
@@ -394,6 +440,8 @@ load_and_generate_ctp_ratio_table <- function(
   
   return(ratio_df)
 }
+
+
 
 
 #' Extract sample-level metadata from cell-level metadata, applying optional filters and grouping.
