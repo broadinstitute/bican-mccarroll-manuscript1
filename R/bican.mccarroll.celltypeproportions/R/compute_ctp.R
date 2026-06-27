@@ -464,7 +464,7 @@ extract_sample_metadata <- function(df, group_cols, donor_metadata_cols, metadat
 
   sample_metadata <- filtered_df |>
     dplyr::mutate(
-      sample_id = paste(!!!rlang::syms(group_cols), sep = "_")
+      sample_id = paste(!!!rlang::syms(group_cols), sep = "__")
     ) |>
     dplyr::select(
       sample_id, dplyr::all_of(group_cols), dplyr::all_of(donor_metadata_cols), dplyr::all_of(metadata_cols_to_group)
