@@ -27,6 +27,9 @@ cell type, brain region, donor ID, and the CTP metric.}
 \item{filter_col}{Column of dataframe to apply the filter on (e.g., cell type
 column or brain region column).}
 
+\item{pivot_cols}{Columns to pivot on to create wide format (e.g., cell type
+column or brain region column).}
+
 \item{cell_type_col}{Column of dataframe containing cell type labels.}
 
 \item{region_col}{Column of dataframe containing brain region labels.}
@@ -37,13 +40,10 @@ column or brain region column).}
 
 \item{drop_outliers}{Whether to filter out rows marked as outliers
 (if an "outlier" column exists in the dataframe). Default is TRUE.}
-
-\item{pivot_col}{Column to pivot on to create wide format (e.g., cell type
-column or brain region column).}
 }
 \value{
 A wide-format dataframe with rows for each donor and columns for each
-cell type or brain region (depending on the pivot_col), containing the specified CTP metric.
+cell type or brain region (depending on the pivot_cols), containing the specified CTP metric.
 }
 \description{
 Make a wide-format dataframe of donor cell type proportions, with columns

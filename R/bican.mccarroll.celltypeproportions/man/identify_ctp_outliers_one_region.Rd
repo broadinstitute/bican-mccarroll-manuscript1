@@ -30,6 +30,10 @@ identify_ctp_outliers_one_region(
 \item{unexpected_neuron_types}{Optional vector of neuron types considered unexpected for the brain region.}
 
 \item{neuron_fraction_threshold}{Threshold for fraction of unexpected neurons above which a sample is considered an outlier (default 0.2).}
+
+\item{drop_low_nuclei_outliers}{Whether to drop low nuclei count outliers before computing conformity scores (default TRUE).}
+
+\item{drop_unexpected_neuron_outliers}{Whether to drop unexpected neuron outliers before computing conformity scores (default TRUE).}
 }
 \value{
 Dataframe with sample_id, total_nuclei, z_log10_total_nuclei, nuclei_count_outlier, total_neurons, unexpected_neuron_fraction, unexpected_neuron_outlier, conformity_score, modified_z_conformity_score, conformity_outlier, and overall_outlier (TRUE/FALSE).

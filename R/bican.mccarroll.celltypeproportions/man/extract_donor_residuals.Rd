@@ -7,7 +7,8 @@
 extract_donor_residuals(
   model,
   brain_region_col = "brain_region_abbreviation_simple",
-  donor_col = "donor_external_id"
+  donor_col = "donor_external_id",
+  donor_covariates = c("age_decades")
 )
 }
 \arguments{
@@ -16,6 +17,9 @@ extract_donor_residuals(
 \item{brain_region_col}{Name of the column in the model data that corresponds to brain region.}
 
 \item{donor_col}{Name of the column in the model data that corresponds to donor.}
+
+\item{donor_covariates}{Optional character vector of additional donor-level covariate column names to include in the output dataframe.
+Default is age_decades, which is included in the model data by default. If NULL, no additional covariates will be included.}
 }
 \value{
 Dataframe containing donor-level residuals for each brain region in wide format,

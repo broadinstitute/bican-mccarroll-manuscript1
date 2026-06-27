@@ -1,17 +1,35 @@
 Package: bican.mccarroll.celltypeproportions
 Type: Package
-Title: What the Package Does (Title Case)
+Title: CTP analysis for the BICAN manuscript
 Version: 0.1.0
+Imports:
+    Hmisc,
+    broom.mixed,
+    dplyr,
+    forcats,
+    ggplot2,
+    ggpubr,
+    ggrepel,
+    glmmTMB,
+    logger,
+    purrr,
+    reformulas,
+    rlang,
+    scales,
+    stats,
+    tibble,
+    tidyr,
+    utils,
+    variancePartition
 Authors@R: c(
     person(
-      "Jane", "Doe",
-      email = "jane@example.com",
+      "Olivia", "Yoo",
+      email = "yooolivi@broadinstitute.org",
       role = c("aut", "cre")
     )
   )
-Description: More about what it does (maybe more than one line).
-    Continuation lines should be indented.
-License: What license is it under?
+Description: CTP analysis for the BICAN manuscript.  Yay.
+License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 7.3.3

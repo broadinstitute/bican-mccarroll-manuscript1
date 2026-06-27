@@ -40,6 +40,8 @@ If provided, z-scores of ratios will be computed per brain region.}
 
 \item{z_score_threshold}{Optional; Numeric threshold for flagging outliers based on z-scores of ratios. 
 If provided, a new column `outlier` will be added to the output indicating whether each sample is an outlier.}
+
+\item{out_file}{Optional; Output file to save the generated ratio table.}
 }
 \value{
 A data frame with calculated ratios and optional z-scores and outlier flags, grouped by specified columns.

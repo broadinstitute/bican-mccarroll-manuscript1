@@ -1,24 +1,24 @@
-#
+
 # root_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis"
 # figures_out_dir = "/broad/mccarroll/yooolivi/projects/bican/manuscript_1_figures/figures"
 # figures_cache_dir = "/broad/mccarroll/yooolivi/projects/bican/manuscript_1_figures/data_cache"
-#
+
 # sample_ctp <- read.table(
 #   file.path(figures_cache_dir, "donor_region.annotation.ctp.txt"),
 #   sep="\t", header=TRUE, stringsAsFactors = FALSE
 # )
-#
+
 # d1_d2_ratio_df <- read.table(
 #   file.path(figures_cache_dir, "donor_region.D1_D2_MSN_ratio.txt"),
 #   sep="\t", header=TRUE, stringsAsFactors = FALSE
 # )
-#
+
 # glia_neuron_ratio_df <- read.table(
 #   file.path(figures_cache_dir, "donor_region.glial_neuron_ratios.txt"),
 #   sep="\t", header=TRUE, stringsAsFactors = FALSE
 # )
-#
-#
+
+
 # plot_ctp_correlation(
 #   sample_ctp,
 #   "CaH",
@@ -26,7 +26,7 @@
 #   "astrocyte",
 #   "extreme_ventral_MSN"
 # )
-#
+
 # plot_ctp_region_correlation(
 #   ctp_df=sample_ctp,
 #   cell_type="OPC",
@@ -45,7 +45,7 @@
 #   donor_col="donor_external_id",
 #   compute_correlation=TRUE
 # )
-#
+
 # plot_ratio_region_correlation(
 #   ratio_df=d1_d2_ratio_df,
 #   region1="CaH",
@@ -56,14 +56,18 @@
 #   drop_outliers=TRUE,
 #   compute_correlation=TRUE
 # )
-#
-#
+
+
 # plot_correlation_heatmap(
 #   ctp_df=sample_ctp,
 #   cell_types=c("astrocyte", "OPC", "oligodendrocyte", "microglia"),
 #   regions=c("CaH", "Pu", "NAC")
 # )
 
+
+utils::globalVariables(c("var1", "var2", "outlier", "celltype_region",
+                         "cell_type1", "region1", "cell_type2", "region2",
+                         "rho", "var", "cell_type", "pos", "max_pos", "x", "y"))
 
 #' Make a wide-format dataframe of donor cell type proportions, with columns
 #' for each cell type or brain region.
@@ -74,7 +78,7 @@
 #' (e.g., a specific cell type or brain region).
 #' @param filter_col Column of dataframe to apply the filter on (e.g., cell type
 #' column or brain region column).
-#' @param pivot_col Column to pivot on to create wide format (e.g., cell type
+#' @param pivot_cols Columns to pivot on to create wide format (e.g., cell type
 #' column or brain region column).
 #' @param cell_type_col Column of dataframe containing cell type labels.
 #' @param region_col Column of dataframe containing brain region labels.
@@ -84,7 +88,7 @@
 #' (if an "outlier" column exists in the dataframe). Default is TRUE.
 #'
 #' @return A wide-format dataframe with rows for each donor and columns for each
-#' cell type or brain region (depending on the pivot_col), containing the specified CTP metric.
+#' cell type or brain region (depending on the pivot_cols), containing the specified CTP metric.
 make_donor_ctp_wide <- function(
     ctp_df,
     filter_value=NULL,
@@ -109,14 +113,14 @@ make_donor_ctp_wide <- function(
 
   if (!is.null(pivot_cols)) {
     wide_df <- ctp_df |>
-      dplyr::select(all_of(c(donor_col, pivot_cols, metric_col))) |>
+      dplyr::select(dplyr::all_of(c(donor_col, pivot_cols, metric_col))) |>
       tidyr::pivot_wider(
-        names_from = all_of(pivot_cols),
-        values_from = all_of(metric_col)
+        names_from = dplyr::all_of(pivot_cols),
+        values_from = dplyr::all_of(metric_col)
       )
   } else {
     wide_df <- ctp_df |>
-      dplyr::select(all_of(c(donor_col, metric_col)))
+      dplyr::select(dplyr::all_of(c(donor_col, metric_col)))
   }
 
   return(wide_df)
@@ -171,7 +175,7 @@ plot_metric_correlation <- function(
 ) {
 
   plot_df <- ctp_df_wide |>
-    dplyr::select(all_of(c(var1, var2))) |>
+    dplyr::select(dplyr::all_of(c(var1, var2))) |>
     tidyr::drop_na()
 
   max_value <- max(plot_df[[var1]], plot_df[[var2]], na.rm = TRUE)
@@ -254,6 +258,7 @@ plot_metric_correlation <- function(
 #' @param cell_type2 Second cell type to compare on the y-axis.
 #' @param region_col Column of dataframe containing brain region labels.
 #' @param donor_col Column of dataframe containing donor IDs.
+#' @param metric_col Column of dataframe containing the CTP metric to be analyzed (e.g., fraction of nuclei).
 #' @param drop_outliers Whether to filter out rows marked as outliers (if any).
 #' @param compute_correlation Whether to compute and annotate the scatterplot with Spearman correlation.
 #' @param correlation_rho Optional pre-computed Spearman correlation.
@@ -314,6 +319,7 @@ plot_ctp_correlation <- function(
 #' @param region2 Second brain region to compare on the y-axis.
 #' @param region_col Column of dataframe containing brain region labels.
 #' @param donor_col Column of dataframe containing donor IDs.
+#' @param metric_col Column of dataframe containing the CTP metric to be analyzed (e.g., fraction of nuclei).
 #' @param drop_outliers Whether to filter out rows marked as outliers (if any).
 #' @param compute_correlation Whether to compute and annotate the scatterplot with Spearman correlation.
 #' @param correlation_rho Optional pre-computed Spearman correlation.
@@ -435,12 +441,12 @@ compute_ctp_correlations <- function(
     dplyr::filter(.data[[cell_type_col]] %in% cell_types) |>
     dplyr::filter(.data[[region_col]] %in% regions) |>
     dplyr::mutate(celltype_region = paste(.data[[cell_type_col]], .data[[region_col]], sep="__")) |>
-    dplyr::select(all_of(c(donor_col, metric_col)), celltype_region) |>
-    tidyr::pivot_wider(names_from = celltype_region, values_from = all_of(metric_col))
+    dplyr::select(dplyr::all_of(c(donor_col, metric_col)), celltype_region) |>
+    tidyr::pivot_wider(names_from = celltype_region, values_from = dplyr::all_of(metric_col))
 
   # compute correlations
   cor_res <- Hmisc::rcorr(
-    as.matrix(wide_ctp_df |> dplyr::select(-all_of(donor_col))),
+    as.matrix(wide_ctp_df |> dplyr::select(-dplyr::all_of(donor_col))),
     type="spearman")
 
   # pull correlation coefficients and p-values into long format dataframes

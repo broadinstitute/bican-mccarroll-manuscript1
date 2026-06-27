@@ -36,6 +36,8 @@ cell type, brain region, donor ID, and fraction of nuclei.}
 
 \item{donor_col}{Column of dataframe containing donor IDs.}
 
+\item{metric_col}{Column of dataframe containing the CTP metric to be analyzed (e.g., fraction of nuclei).}
+
 \item{drop_outliers}{Whether to filter out rows marked as outliers (if any).}
 
 \item{compute_correlation}{Whether to compute and annotate the scatterplot with Spearman correlation.}

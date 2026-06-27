@@ -1,21 +1,20 @@
-#
 # figures_cache_dir = "/broad/mccarroll/yooolivi/projects/bican/manuscript_1_figures/data_cache"
-#
+
 # sample_ctp <- read.table(
 #   file.path(figures_cache_dir, "donor_region.annotation_sub_class_complete.ctp.txt"),
 #   sep="\t", header=TRUE, stringsAsFactors = FALSE
 # )
-#
+
 # sample_metadata <- read.table(
 #   file.path(figures_cache_dir, "donor_region.sample_metadata.txt"),
 #   sep="\t", header=TRUE, stringsAsFactors=FALSE
 # )
-#
+
 # cell_type_col <- "annotation_sub_class_complete"
 # fixed_effects <- c("age_decades", "sex", "brain_region_abbreviation_simple", "mean_frac_contamination")
 # random_effects <- c("donor_external_id", "village")
 # cell_types <- c("astrocyte", "microglia", "oligodendrocyte", "OPC")
-#
+
 # glmm_results <- fit_glmm_and_extract_fixed_effects(
 #   sample_ctp = sample_ctp,
 #   sample_metadata = sample_metadata,
@@ -24,22 +23,24 @@
 #   fixed_effects = fixed_effects,
 #   random_effects = random_effects
 # )
-#
-# fixed_effect_volcano_plot(glmm_results$fixed_effects_df, "age_decades")
+
+# fixed_effect_volcano_plot(glmm_results$fixed_effects_df, "age_decades", cell_type_col)
 # fixed_effect_pvalue_barplot(glmm_results$fixed_effects_df, c("age_decades", "sexM"), cell_type_col)
-#
+
 # plot_donor_residual_correlation_scatter(
 #   glmm_results$glmm_list[["astrocyte"]],
 #   region1="CaH",
 #   region2="Pu",
 #   cell_type="astrocyte"
 # )
-#
+
 # plot_donor_residual_correlation_heatmap(
 #   glmm_results$glmm_list[["astrocyte"]],
 #   regions=c("CaH", "Pu", "NAC", "ic", "DFC"),
 #   cell_type="astrocyte"
 # )
+
+utils::globalVariables(c("term", "estimate", "p.value", "conf.low", "conf.high", "residual", "spearman_rho"))
 
 #' Combine cell type proportions and metadata dataframe.
 #'
@@ -116,7 +117,7 @@ fit_beta_binomial_glmm <- function(sample_df, cell_type, cell_type_col, fixed_ef
   cell_type_df <- sample_df |>
     dplyr::filter(.data[[cell_type_col]] == cell_type)
 
-  formula <- as.formula(
+  formula <- stats::as.formula(
     paste0("cbind(n_nuclei, n_other) ~ ",
            paste(fixed_effects, collapse = " + "), " + (1 | ",
            paste(random_effects, collapse = ") + (1 | "), ")")
@@ -126,8 +127,8 @@ fit_beta_binomial_glmm <- function(sample_df, cell_type, cell_type_col, fixed_ef
   cell_type_binomial_glmm <- glmmTMB::glmmTMB(formula, data = cell_type_df, family = stats::binomial(link = "logit"))
 
   # check for overdispersion in the binomial model fit
-  rp <- residuals(cell_type_binomial_glmm, type = "pearson")
-  phi_hat <- sum(rp^2) / df.residual(cell_type_binomial_glmm)
+  rp <- stats::residuals(cell_type_binomial_glmm, type = "pearson")
+  phi_hat <- sum(rp^2) / stats::df.residual(cell_type_binomial_glmm)
 
   # if overdispersion is present, fit a beta-binomial model instead
   if (phi_hat > 1.5) {
@@ -207,7 +208,7 @@ extract_many_beta_binomial_fixed_effects <- function(glmm_list, cell_type_col, o
   combined_fixed_effects_df <- dplyr::bind_rows(fixed_effects_dfs)
 
   if(!is.null(out_file)) {
-    write.table(combined_fixed_effects_df, out_file,
+    utils::write.table(combined_fixed_effects_df, out_file,
                 sep="\t", row.names=FALSE, quote=FALSE)
   }
 
@@ -223,6 +224,11 @@ extract_many_beta_binomial_fixed_effects <- function(glmm_list, cell_type_col, o
 #' @param cell_type_col Column name in `sample_df` that contains cell type labels, and to use for the cell type column in the output fixed effects dataframe.
 #' @param fixed_effects Character vector of column names in `sample_df` to include as fixed effects in the models.
 #' @param random_effects Character vector of column names in `sample_df` to include as random effects in the models.
+#' @param min_nuclei Minimum number of nuclei for any of the specified cell types. Samples with fewer than this number of nuclei for any of the specified cell types will be filtered out before fitting the models.
+#' @param denominator_types If not using the total number of nuclei as the denominator,
+#' specify which cell types to include in the denominator by providing a character
+#' vector of cell type names. If NULL, the total number of nuclei for each sample
+#' will be used as the denominator (i.e., n_other = total_nuclei - n_nuclei).
 #' @param out_file Optional file path to save the combined fixed effects dataframe as a tab-delimited text file.
 #'
 #' @return List containing the named list of fitted beta-binomial GLMM objects for each cell type and the combined fixed effects dataframe for all models.
@@ -247,14 +253,14 @@ fit_glmm_and_extract_fixed_effects <- function(sample_ctp, sample_metadata, cell
 extract_beta_binomial_fitted_values <- function(glmm_model) {
 
   # get proportions from model fit
-  model_data <- model.frame(glmm_model)
+  model_data <- stats::model.frame(glmm_model)
   response_matrix <- model_data[["cbind(n_nuclei, n_other)"]]
   observed_fraction <- response_matrix[, 1] / rowSums(response_matrix)
   model_data$observed_fraction <- observed_fraction
 
   # get marginal predictions from model fit
   # (i.e., predictions based on fixed effects only, without random effects)
-  model_data$fitted_fraction <- predict(glmm_model, type = "response", re.form = NA)
+  model_data$fitted_fraction <- stats::predict(glmm_model, type = "response", re.form = NA)
   model_data$residual <- model_data$observed_fraction - model_data$fitted_fraction
 
   return(model_data)
@@ -266,11 +272,12 @@ extract_beta_binomial_fitted_values <- function(glmm_model) {
 #'
 #' @param fixed_effects_df Dataframe containing the fixed effects estimates, confidence intervals, and cell type information for all specified models.
 #' @param fixed_effect Name of the fixed effect for which to generate the volcano plot
+#' @param cell_type_col Column name in `fixed_effects_df` that contains cell type labels.
 #'
 #' @return ggplot object representing the volcano plot for the specified fixed effect,
 #' showing effect size (log-odds) on the x-axis and -log10(p-value) on the y-axis,
 #' with points colored by cell type and error bars representing confidence intervals.
-fixed_effect_volcano_plot <- function(fixed_effects_df, fixed_effect) {
+fixed_effect_volcano_plot <- function(fixed_effects_df, fixed_effect, cell_type_col) {
 
   plot_df <- fixed_effects_df |>
     dplyr::filter(term == fixed_effect)
@@ -313,17 +320,20 @@ fixed_effect_pvalue_barplot <- function(fixed_effects_df, fixed_effects, cell_ty
 #' @param model Fitted beta-binomial GLMM object for a specific cell type.
 #' @param brain_region_col Name of the column in the model data that corresponds to brain region.
 #' @param donor_col Name of the column in the model data that corresponds to donor.
+#' @param donor_covariates Optional character vector of additional donor-level covariate column names to include in the output dataframe.
+#' Default is age_decades, which is included in the model data by default. If NULL, no additional covariates will be included.
 #'
 #' @return Dataframe containing donor-level residuals for each brain region in wide format,
 #' with one row per donor and columns for each brain region's residuals.
 extract_donor_residuals <- function(model,
                                     brain_region_col="brain_region_abbreviation_simple",
-                                    donor_col="donor_external_id") {
+                                    donor_col="donor_external_id",
+                                    donor_covariates=c("age_decades")) {
 
   model_fitted_values <- extract_beta_binomial_fitted_values(model)
 
   donor_residuals <- model_fitted_values |>
-    dplyr::select(!!rlang::sym(donor_col), !!rlang::sym(brain_region_col), age_decades, residual) |>
+    dplyr::select(!!rlang::sym(donor_col), !!rlang::sym(brain_region_col), dplyr::all_of(donor_covariates), residual) |>
     tidyr::pivot_wider(names_from = !!rlang::sym(brain_region_col), values_from = residual)
 
   return(donor_residuals)
@@ -340,23 +350,25 @@ extract_donor_residuals <- function(model,
 #' @param cell_type Name of the cell type corresponding to the fitted model (for labeling)
 #' @param brain_region_col Name of the column in the model data that corresponds to brain region.
 #' @param donor_col Name of the column in the model data that corresponds to donor.
+#' @param age_col Name of the column in the model data that corresponds to donor age (for coloring points).
 #'
 #' @return ggplot object representing the scatter plot comparing donor-level residuals
 #' between the two specified brain regions for the given cell type,
 #' with points colored by age, a linear regression line added, and identity line.
 plot_donor_residual_correlation_scatter <- function(model, region1, region2, cell_type,
                                                    brain_region_col="brain_region_abbreviation_simple",
-                                                   donor_col="donor_external_id") {
+                                                   donor_col="donor_external_id",
+                                                   age_col="age_decades") {
 
   donor_residuals <- extract_donor_residuals(model, brain_region_col, donor_col)
 
   plot_df <- donor_residuals |>
-    dplyr::select(!!rlang::sym(donor_col), age_decades, !!rlang::sym(region1), !!rlang::sym(region2)) |>
-    na.omit()
+    dplyr::select(!!rlang::sym(donor_col), !!rlang::sym(age_col), !!rlang::sym(region1), !!rlang::sym(region2)) |>
+    stats::na.omit()
 
   n_donors <- plot_df[[donor_col]] |> unique() |> length()
-  min_residual <- min(plot_df |> dplyr::select(-!!rlang::sym(donor_col), -age_decades), na.rm = TRUE)
-  max_residual <- max(plot_df |> dplyr::select(-!!rlang::sym(donor_col), -age_decades), na.rm = TRUE)
+  min_residual <- min(plot_df |> dplyr::select(-!!rlang::sym(donor_col), -!!rlang::sym(age_col)), na.rm = TRUE)
+  max_residual <- max(plot_df |> dplyr::select(-!!rlang::sym(donor_col), -!!rlang::sym(age_col)), na.rm = TRUE)
 
   ggplot2::ggplot(
     plot_df,
@@ -364,7 +376,7 @@ plot_donor_residual_correlation_scatter <- function(model, region1, region2, cel
   ) +
     ggplot2::theme_bw() +
     ggplot2::geom_abline(slope=1, intercept=0, lty="dashed", col="gray") +
-    ggplot2::geom_point(ggplot2::aes(col=age_decades*10)) +
+    ggplot2::geom_point(ggplot2::aes(col=!!rlang::sym(age_col))) +
     ggplot2::geom_smooth(method="lm", col="red", se=FALSE) +
     ggpubr::stat_cor(method="spearman", cor.coef.name="rho") +
     ggplot2::labs(
@@ -394,12 +406,12 @@ plot_donor_residual_correlation_heatmap <- function(model, regions, cell_type,
                                                     brain_region_col="brain_region_abbreviation_simple",
                                                     donor_col="donor_external_id") {
 
-  donor_residuals <- extract_donor_residuals(model, brain_region_col, donor_col)
+  donor_residuals <- extract_donor_residuals(model, brain_region_col, donor_col, donor_covariates=NULL)
 
   cor_df <- donor_residuals |>
-    dplyr::select(-!!rlang::sym(donor_col), -age_decades) |>
+    dplyr::select(-!!rlang::sym(donor_col)) |>
     as.matrix() |>
-    cor(method="spearman", use="pairwise.complete.obs") |>
+    stats::cor(method="spearman", use="pairwise.complete.obs") |>
     as.data.frame() |>
     tibble::rownames_to_column("region1") |>
     tidyr::pivot_longer(-region1, names_to="region2", values_to="spearman_rho")
@@ -429,4 +441,3 @@ plot_donor_residual_correlation_heatmap <- function(model, regions, cell_type,
     )
 
 }
-

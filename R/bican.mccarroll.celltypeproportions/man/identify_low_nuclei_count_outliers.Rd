@@ -10,7 +10,7 @@ identify_low_nuclei_count_outliers(ctp_df, z_threshold = -1.96)
 \item{ctp_df}{Dataframe of cell type counts and proportions (one row per cell type).}
 
 \item{z_threshold}{Z-score threshold below which a sample is considered an outlier 
-Default -1.96, corresponding to the lower 2.5% of a normal distribution.}
+Default -1.96, corresponding to the lower 2.5\% of a normal distribution.}
 }
 \value{
 Dataframe with sample_id, total_nuclei, z_log10_total_nuclei, and nuclei_count_outlier (TRUE/FALSE).

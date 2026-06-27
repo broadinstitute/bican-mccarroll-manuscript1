@@ -35,6 +35,10 @@ identify_ctp_outliers(
 
 \item{neuron_fraction_threshold}{Optional threshold for fraction of unexpected neurons above which a sample is considered an outlier (default 0.2).}
 
+\item{drop_low_nuclei_outliers}{Whether to drop low nuclei count outliers before computing conformity scores (default TRUE).}
+
+\item{drop_unexpected_neuron_outliers}{Whether to drop unexpected neuron outliers before computing conformity scores (default TRUE).}
+
 \item{out_file}{Optional file path to save the outlier summary dataframe as a tab-delimited text file (default NULL, no file saved).}
 }
 \value{

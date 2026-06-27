@@ -6,6 +6,12 @@
 \usage{
 get_mode(x)
 }
+\arguments{
+\item{x}{A vector of values.}
+}
+\value{
+The mode of the vector.
+}
 \description{
 Calculate the mode of a vector, ignoring NA values.
 }

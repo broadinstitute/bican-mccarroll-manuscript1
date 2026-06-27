@@ -11,7 +11,8 @@ plot_donor_residual_correlation_scatter(
   region2,
   cell_type,
   brain_region_col = "brain_region_abbreviation_simple",
-  donor_col = "donor_external_id"
+  donor_col = "donor_external_id",
+  age_col = "age_decades"
 )
 }
 \arguments{
@@ -26,6 +27,8 @@ plot_donor_residual_correlation_scatter(
 \item{brain_region_col}{Name of the column in the model data that corresponds to brain region.}
 
 \item{donor_col}{Name of the column in the model data that corresponds to donor.}
+
+\item{age_col}{Name of the column in the model data that corresponds to donor age (for coloring points).}
 }
 \value{
 ggplot object representing the scatter plot comparing donor-level residuals

@@ -47,6 +47,7 @@
 #
 # plot_variance_partition_results(vp_results_by_cell)
 
+utils::globalVariables(c("logit_fraction_nuclei", "variable", "variance_explained"))
 
 #' Compute logit transformations of cell type abundances.
 #'
@@ -58,7 +59,7 @@
 compute_logit_CTP <- function(sample_ctp, cell_type_col, pseudocount=0.5) {
 
   ctp_logit <- sample_ctp |>
-    dplyr::select(sample_id, all_of(cell_type_col), n_nuclei) |>
+    dplyr::select(sample_id, dplyr::all_of(cell_type_col), n_nuclei) |>
     dplyr::mutate(n_nuclei = ifelse(n_nuclei == 0, pseudocount, n_nuclei)) |>
     dplyr::group_by(sample_id) |>
     dplyr::mutate(total_nuclei = sum(n_nuclei)) |>
@@ -67,7 +68,7 @@ compute_logit_CTP <- function(sample_ctp, cell_type_col, pseudocount=0.5) {
       fraction_nuclei = n_nuclei / total_nuclei,
       logit_fraction_nuclei = log(fraction_nuclei / (1 - fraction_nuclei))
     ) |>
-    dplyr::select(sample_id, all_of(cell_type_col), logit_fraction_nuclei) |>
+    dplyr::select(sample_id, dplyr::all_of(cell_type_col), logit_fraction_nuclei) |>
     dplyr::arrange(sample_id) |>
     tidyr::pivot_wider(
       names_from = sample_id,
@@ -196,8 +197,8 @@ extract_cell_type_specific_qc_covariates <- function(sample_ctp, cell_type, cell
     dplyr::filter(.data[[cell_type_col]] == cell_type)
 
   cell_type_qc_covariates <- cell_type_df |>
-    dplyr::select(sample_id, all_of(cell_type_col), all_of(qc_covariate_cols)) |>
-    dplyr::distinct()
+    dplyr::select(sample_id, dplyr::all_of(cell_type_col), dplyr::all_of(qc_covariate_cols)) |>
+    dplyr::distinct() |>
     dplyr::arrange(sample_id)
 
   return(cell_type_qc_covariates)
@@ -225,7 +226,7 @@ prepare_vp_input_one_cell_type <- function(sample_ctp, sample_metadata, cell_typ
   # duplicate to get past number of rows check for VP
   ctp_logit_cell_type <- ctp_logit[c(cell_type, cell_type), ,]
 
-  metadata_cell_type <- bind_cols(
+  metadata_cell_type <- dplyr::bind_cols(
     metadata[colnames(ctp_logit_cell_type), ],
     qc_covariates
   )
@@ -256,7 +257,7 @@ fit_vp_one_cell_type <- function(sample_ctp, sample_metadata, formula, cell_type
   ctp_logit_cell_type <- vp_input$ctp_logit
   metadata_cell_type <- vp_input$metadata
 
-  cell_type_varPart <- fitExtractVarPartModel(ctp_logit_cell_type, formula, metadata_cell_type)[cell_type,]
+  cell_type_varPart <- variancePartition::fitExtractVarPartModel(ctp_logit_cell_type, formula, metadata_cell_type)[cell_type,]
 
   return(cell_type_varPart)
 

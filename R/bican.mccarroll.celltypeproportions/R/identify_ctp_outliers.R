@@ -1,6 +1,3 @@
-# library(tidyverse)
-# library(logger)
-
 # ctp_dir <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/yooolivi/cell_type_proportions/LEVEL_0"
 
 # sample_ctp <- read.table(
@@ -33,12 +30,19 @@
 #   drop_unexpected_neuron_outliers = FALSE
 # )
 
+utils::globalVariables(c("z_log10_total_nuclei",
+                         "unexpected_neuron", "unexpected_neurons", "total_neurons",
+                         "unexpected_neuron_fraction",
+                         "fraction_nuclei", "fraction_nuclei_transformed",
+                         "conformity_score", "modified_z_conformity_score",
+                         "nuclei_count_outlier", "unexpected_neuron_outlier", "conformity_outlier", "median", "mad"))
+
 
 #' Identify samples to drop based on low nuclei counts.
 #'
 #' @param ctp_df Dataframe of cell type counts and proportions (one row per cell type).
 #' @param z_threshold Z-score threshold below which a sample is considered an outlier 
-#'    Default -1.96, corresponding to the lower 2.5% of a normal distribution.
+#'    Default -1.96, corresponding to the lower 2.5\% of a normal distribution.
 #'
 #' @return Dataframe with sample_id, total_nuclei, z_log10_total_nuclei, and nuclei_count_outlier (TRUE/FALSE).
 identify_low_nuclei_count_outliers <- function(ctp_df, z_threshold = -1.96) {
@@ -125,16 +129,16 @@ arcsin_sqrt_transform_ctp <- function(ctp_df, cell_type_col) {
 compute_ctp_conformity_scores <- function(transformed_ctp_df, method = "pearson", threshold=3.75) {
 
   samples <- rownames(transformed_ctp_df)
-  cor_mat <- cor(t(transformed_ctp_df), method = method)
+  cor_mat <- stats::cor(t(transformed_ctp_df), method = method)
   diag(cor_mat) <- NA
 
   sample_conformity_df <- data.frame(
     sample_id = rownames(cor_mat),
-    conformity_score = apply(cor_mat, 1, median, na.rm = TRUE)
+    conformity_score = apply(cor_mat, 1, stats::median, na.rm = TRUE)
   ) |>
     dplyr::mutate(
-      median = median(conformity_score, na.rm = TRUE),
-      mad = mad(conformity_score, na.rm = TRUE),
+      median = stats::median(conformity_score, na.rm = TRUE),
+      mad = stats::mad(conformity_score, na.rm = TRUE),
       modified_z_conformity_score = (conformity_score - median) / mad,
     ) |>
     dplyr::select(-median, -mad) |>
@@ -155,7 +159,9 @@ compute_ctp_conformity_scores <- function(transformed_ctp_df, method = "pearson"
 #' @param neuron_ctp_df Optional dataframe of neuron-only CTP data for the same brain region (one row per neuron cell type).
 #' @param unexpected_neuron_types Optional vector of neuron types considered unexpected for the brain region.
 #' @param neuron_fraction_threshold Threshold for fraction of unexpected neurons above which a sample is considered an outlier (default 0.2).
-#'
+#' @param drop_low_nuclei_outliers Whether to drop low nuclei count outliers before computing conformity scores (default TRUE).
+#' @param drop_unexpected_neuron_outliers Whether to drop unexpected neuron outliers before computing conformity scores (default TRUE).
+#' 
 #' @return Dataframe with sample_id, total_nuclei, z_log10_total_nuclei, nuclei_count_outlier, total_neurons, unexpected_neuron_fraction, unexpected_neuron_outlier, conformity_score, modified_z_conformity_score, conformity_outlier, and overall_outlier (TRUE/FALSE).
 identify_ctp_outliers_one_region <- function(
   ctp_region_df, cell_type_col, conformity_threshold=3.75, conformity_method="pearson", 
@@ -252,6 +258,8 @@ identify_ctp_outliers_one_region <- function(
 #' @param neuron_ctp_df Optional dataframe of neuron-only CTP data for all samples and brain regions (one row per neuron cell type).
 #' @param unexpected_neuron_df Optional dataframe of unexpected neuron types for each brain region, with columns for region and cell type.
 #' @param neuron_fraction_threshold Optional threshold for fraction of unexpected neurons above which a sample is considered an outlier (default 0.2).
+#' @param drop_low_nuclei_outliers Whether to drop low nuclei count outliers before computing conformity scores (default TRUE).
+#' @param drop_unexpected_neuron_outliers Whether to drop unexpected neuron outliers before computing conformity scores (default TRUE).
 #' @param out_file Optional file path to save the outlier summary dataframe as a tab-delimited text file (default NULL, no file saved).
 #'
 #' @return Dataframe with sample_id, brain_region, total_nuclei, z_log10_total_nuclei, nuclei_count_outlier, total_neurons, unexpected_neuron_fraction, 
@@ -323,7 +331,7 @@ identify_ctp_outliers <- function(
 
   if(!is.null(out_file)) {
     logger::log_info("Saving outlier summary to {out_file}")
-    write.table(outlier_summary_all_regions, file = out_file, sep = "\t", quote = FALSE, row.names = FALSE)
+    utils::write.table(outlier_summary_all_regions, file = out_file, sep = "\t", quote = FALSE, row.names = FALSE)
   }
 
   return(outlier_summary_all_regions)

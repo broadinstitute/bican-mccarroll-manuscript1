@@ -32,6 +32,9 @@
 # )
 
 
+utils::globalVariables(c("sample_id", "n_nuclei", "total_nuclei", "log10_nuclei",
+                         ".data", "numerator_sum", "denominator_sum", "ratio", "z_ratio"))
+
 #' Filters dataframe.
 #'
 #' @param df Dataframe to filter.
@@ -83,20 +86,20 @@ compute_ctp <- function(df, group_cols, cell_type_cols) {
   # Concatenate cell type columns if there are multiple
   sample_df <- df |>
     tidyr::unite(
-      sample_id, all_of(group_cols), sep = "__", remove = FALSE
+      sample_id, dplyr::all_of(group_cols), sep = "__", remove = FALSE
       ) |>
     tidyr::unite(
       !!rlang::sym(cell_type_col),
-      all_of(cell_type_cols), sep="__", remove=FALSE
+      dplyr::all_of(cell_type_cols), sep="__", remove=FALSE
     )
 
   # Extract sample information for later joining
   sample_info <- sample_df |>
-    dplyr::select(sample_id, all_of(group_cols)) |>
+    dplyr::select(sample_id, dplyr::all_of(group_cols)) |>
     dplyr::distinct()
 
   ctp_df <- sample_df |>
-    tidyr::unite(sample_id, all_of(group_cols), sep = "__", remove = FALSE) |>
+    tidyr::unite(sample_id, dplyr::all_of(group_cols), sep = "__", remove = FALSE) |>
     dplyr::group_by(sample_id, !!rlang::sym(cell_type_col)) |>
     dplyr::summarise(n_nuclei = dplyr::n(), .groups = 'drop') |>
     dplyr::group_by(sample_id) |>
@@ -110,7 +113,7 @@ compute_ctp <- function(df, group_cols, cell_type_cols) {
   nuclei_counts <- ctp_df |>
     dplyr::select(sample_id, total_nuclei) |>
     dplyr::distinct() |>
-    na.omit() |>
+    stats::na.omit() |>
     dplyr::mutate(log10_nuclei = log10(total_nuclei)) |>
     dplyr::mutate(z_log10_nuclei = as.numeric(scale(log10_nuclei))) |>
     dplyr::select(-log10_nuclei)
@@ -119,7 +122,7 @@ compute_ctp <- function(df, group_cols, cell_type_cols) {
     dplyr::select(-total_nuclei) |>
     dplyr::left_join(sample_info, by ="sample_id") |>
     dplyr::left_join(nuclei_counts, by = "sample_id") |>
-    dplyr::select(sample_id, all_of(group_cols), everything())
+    dplyr::select(sample_id, dplyr::all_of(group_cols), dplyr::everything())
 
   return(final_df)
 }
@@ -148,19 +151,19 @@ compute_mean_cell_type_metrics <- function(df, group_cols, cell_type_cols, metri
 
   # Compute mean metrics
   mean_metrics_df <- df |>
-    tidyr::unite(sample_id, all_of(group_cols), sep = "__", remove = FALSE) |>
-    tidyr::unite(!!rlang::sym(cell_type_col), all_of(cell_type_cols), sep="__", remove=FALSE) |>
+    tidyr::unite(sample_id, dplyr::all_of(group_cols), sep = "__", remove = FALSE) |>
+    tidyr::unite(!!rlang::sym(cell_type_col), dplyr::all_of(cell_type_cols), sep="__", remove=FALSE) |>
     dplyr::group_by(sample_id, !!rlang::sym(cell_type_col)) |>
     dplyr::summarise(
-      across(
-        all_of(metric_cols),
+      dplyr::across(
+        dplyr::all_of(metric_cols),
         ~ mean(.x, na.rm = TRUE)
       ),
       .groups = "drop"
     ) |>
     dplyr::rename_with(
       ~ paste0("mean_", .x),
-      all_of(metric_cols)
+      dplyr::all_of(metric_cols)
     )
 
   return(mean_metrics_df)
@@ -198,7 +201,7 @@ compute_ctp_and_metrics <- function(df, group_cols, cell_type_cols, metric_cols 
   # Save CTP if specified
   if (!is.null(out_file)) {
     logger::log_info("Saving cell type proportions and metrics to {out_file}")
-    write.table(
+    utils::write.table(
       ctp_df, file = out_file, sep = "\t", row.names = FALSE, quote = FALSE
     )
   }
@@ -224,7 +227,7 @@ load_and_compute_ctp_and_metrics <- function(cell_metadata_file, group_cols, cel
 
   # Read input file
   logger::log_info("Loading cell metadata from {cell_metadata_file}")
-  df <- read.table(cell_metadata_file, sep = "\t", header = TRUE, stringsAsFactors = FALSE)
+  df <- utils::read.table(cell_metadata_file, sep = "\t", header = TRUE, stringsAsFactors = FALSE)
 
   # Compute CTP and metrics (if specified)
   ctp_df <- compute_ctp_and_metrics(df, group_cols, cell_type_cols, metric_cols, filters, out_file)
@@ -253,6 +256,7 @@ load_and_compute_ctp_and_metrics <- function(cell_metadata_file, group_cols, cel
 #'   If provided, z-scores of ratios will be computed per brain region.
 #' @param z_score_threshold Optional; Numeric threshold for flagging outliers based on z-scores of ratios. 
 #'   If provided, a new column `outlier` will be added to the output indicating whether each sample is an outlier.
+#' @param out_file Optional; Output file to save the generated ratio table.
 #' 
 #' @return A data frame with calculated ratios and optional z-scores and outlier flags, grouped by specified columns.
 generate_ctp_ratio_table <- function(
@@ -317,7 +321,7 @@ generate_ctp_ratio_table <- function(
   if (!is.null(brain_region_col)) {
     logger::log_info("Brain region column provided: {brain_region_col}. Computing z-scores of ratios per brain region.")
     ratio_df <- ratio_df |>
-      dplyr::group_by(dplyr::across(all_of(brain_region_col))) |>
+      dplyr::group_by(dplyr::across(dplyr::all_of(brain_region_col))) |>
       dplyr::mutate(
         z_ratio = as.numeric(scale(ratio))
       ) |>
@@ -336,7 +340,7 @@ generate_ctp_ratio_table <- function(
 
   if(!is.null(out_file)) {
     logger::log_info("Saving CTP ratio table to {out_file}")
-    write.table(ratio_df, file = out_file, sep = "\t", row.names = FALSE, quote = FALSE)
+    utils::write.table(ratio_df, file = out_file, sep = "\t", row.names = FALSE, quote = FALSE)
   }
   
   return(ratio_df)
@@ -373,7 +377,7 @@ load_and_generate_ctp_ratio_table <- function(
 ) {
   
   logger::log_info("Loading CTP data from {ctp_file}")
-  ctp_df <- read.table(ctp_file, sep = "\t", header = TRUE, stringsAsFactors = FALSE)
+  ctp_df <- utils::read.table(ctp_file, sep = "\t", header = TRUE, stringsAsFactors = FALSE)
   
   ratio_df <- generate_ctp_ratio_table(
     ctp_df = ctp_df,
@@ -415,13 +419,13 @@ extract_sample_metadata <- function(df, group_cols, donor_metadata_cols, metadat
       sample_id = paste(!!!rlang::syms(group_cols), sep = "_")
     ) |>
     dplyr::select(
-      sample_id, all_of(group_cols), all_of(donor_metadata_cols), all_of(metadata_cols_to_group)
+      sample_id, dplyr::all_of(group_cols), dplyr::all_of(donor_metadata_cols), dplyr::all_of(metadata_cols_to_group)
     ) |>
     dplyr::distinct() |>
     dplyr::group_by(sample_id) |>
     dplyr::mutate(
       dplyr::across(
-        all_of(metadata_cols_to_group),
+        dplyr::all_of(metadata_cols_to_group),
         ~ paste(sort(unique(.x)), collapse=":")
       )
     ) |>
@@ -430,7 +434,7 @@ extract_sample_metadata <- function(df, group_cols, donor_metadata_cols, metadat
 
   if (!is.null(out_file)) {
     logger::log_info("Saving sample metadata to {out_file}")
-    write.table(sample_metadata, file = out_file, sep = "\t", row.names = FALSE, quote = FALSE)
+    utils::write.table(sample_metadata, file = out_file, sep = "\t", row.names = FALSE, quote = FALSE)
   }
 
   return(sample_metadata)
@@ -457,7 +461,7 @@ load_and_extract_sample_metadata <- function(cell_metadata_file, group_cols, don
 
   # read input file
   logger::log_info("Loading cell metadata from {cell_metadata_file}")
-  df <- read.table(cell_metadata_file, sep = "\t", header = TRUE, stringsAsFactors = FALSE)
+  df <- utils::read.table(cell_metadata_file, sep = "\t", header = TRUE, stringsAsFactors = FALSE)
 
   # extract sample metadata
   sample_metadata <- extract_sample_metadata(df, group_cols, donor_metadata_cols, metadata_cols_to_group, filters, out_file)

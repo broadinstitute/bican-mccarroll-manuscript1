@@ -29,6 +29,13 @@ fit_glmm_and_extract_fixed_effects(
 
 \item{random_effects}{Character vector of column names in `sample_df` to include as random effects in the models.}
 
+\item{min_nuclei}{Minimum number of nuclei for any of the specified cell types. Samples with fewer than this number of nuclei for any of the specified cell types will be filtered out before fitting the models.}
+
+\item{denominator_types}{If not using the total number of nuclei as the denominator,
+specify which cell types to include in the denominator by providing a character
+vector of cell type names. If NULL, the total number of nuclei for each sample
+will be used as the denominator (i.e., n_other = total_nuclei - n_nuclei).}
+
 \item{out_file}{Optional file path to save the combined fixed effects dataframe as a tab-delimited text file.}
 }
 \value{

@@ -4,12 +4,14 @@
 \alias{fixed_effect_volcano_plot}
 \title{Generate a volcano plot for a specific fixed effect from the combined fixed effects dataframe.}
 \usage{
-fixed_effect_volcano_plot(fixed_effects_df, fixed_effect)
+fixed_effect_volcano_plot(fixed_effects_df, fixed_effect, cell_type_col)
 }
 \arguments{
 \item{fixed_effects_df}{Dataframe containing the fixed effects estimates, confidence intervals, and cell type information for all specified models.}
 
 \item{fixed_effect}{Name of the fixed effect for which to generate the volcano plot}
+
+\item{cell_type_col}{Column name in `fixed_effects_df` that contains cell type labels.}
 }
 \value{
 ggplot object representing the volcano plot for the specified fixed effect,
