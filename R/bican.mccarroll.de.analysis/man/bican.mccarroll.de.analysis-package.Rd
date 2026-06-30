@@ -13,6 +13,7 @@ Steve Burger will add text here.
 
 Authors:
 \itemize{
+  \item Steven Burger \email{sburger@broadinstitute.org}
   \item James Nemesh \email{nemesh@broadinstitute.org}
 }
 

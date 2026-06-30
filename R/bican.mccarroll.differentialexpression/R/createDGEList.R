@@ -187,6 +187,9 @@ build_eQTL_covariates<-function (manifest_file, metacell_dir, cell_metadata_file
         idx=match(donor_list, donor_metadata$donor_external_id)
         donor_metadata<-donor_metadata[idx, metadata_columns_this, drop = FALSE]
 
+        #add a check that there are no NA values!  eQTL hates those.
+        check_no_na(donor_metadata)
+
         #one hot encode the categorical variables - force categorical values first.
         donor_metadata<-encode_as_factor(donor_metadata, force_category_columns)
         X <- mltools::one_hot(as.data.table(donor_metadata))
@@ -200,7 +203,6 @@ build_eQTL_covariates<-function (manifest_file, metacell_dir, cell_metadata_file
         donor_metadata_final<-data.frame("id"=rownames(Xt), Xt, row.names = NULL)
         colnames(donor_metadata_final)<- c("id", rownames (donor_metadata))
         metadata_list[[i]] <- donor_metadata_final
-
     }
 
     # write to disk
@@ -213,6 +215,21 @@ build_eQTL_covariates<-function (manifest_file, metacell_dir, cell_metadata_file
     logger::log_info(paste("Finished Writing eQTL covariates to:", outDir))
 }
 
+check_no_na <- function(df) {
+    na_counts <- colSums(is.na(df))
+
+    bad_cols <- names(na_counts)[na_counts > 0]
+
+    if (length(bad_cols) > 0) {
+        msg <- paste0(
+            "NA values found in column(s):\n",
+            paste0("  ", bad_cols, " (", na_counts[bad_cols], " NA)", collapse = "\n")
+        )
+        stop(msg, call. = FALSE)
+    }
+
+    invisible(TRUE)
+}
 
 ########################################################################
 # A slightly adhoc transform for our ScRnaAggregationWorkflow workflow

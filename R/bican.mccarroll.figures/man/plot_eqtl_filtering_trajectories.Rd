@@ -61,9 +61,9 @@ constructed but not saved.
 \code{\link[bican.mccarroll.eqtl]{compare_all_eQTL_runs}}
   \code{\link[bican.mccarroll.eqtl]{eqtl_cluster_filtering_trajectories}}
 
-Other sample filtering figures: 
-\code{\link{plot_de_filtering_examples}()},
-\code{\link{plot_de_filtering_trajectories}()},
-\code{\link{plot_eqtl_filtering_examples}()}
+Other sample filtering figures:
+\code{\link[=plot_de_filtering_examples]{plot_de_filtering_examples()}},
+\code{\link[=plot_de_filtering_trajectories]{plot_de_filtering_trajectories()}},
+\code{\link[=plot_eqtl_filtering_examples]{plot_eqtl_filtering_examples()}}
 }
 \concept{sample filtering figures}

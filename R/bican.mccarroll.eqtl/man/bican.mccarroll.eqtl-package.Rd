@@ -13,6 +13,7 @@ Tools for comparing eQTL analysis
 
 Authors:
 \itemize{
+  \item James Nemesh \email{nemesh@broadinstitute.org}
   \item Khalid Shakir \email{kshakir@broadinstitute.org} [contributor]
 }
 
