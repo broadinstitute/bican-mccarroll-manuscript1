@@ -83,8 +83,8 @@ de_sex_age_scatter_plots <- function(
     plot_de_scatter_svg(
         df = age_df,
         test = "age",
-        cell_type1 = "MSN_D1_matrix",
-        cell_type2 = "MSN_D2_matrix",
+        cell_type1 = "SPN_D1_matrix",
+        cell_type2 = "SPN_D2_matrix",
         region1 = "CaH",
         region2 = "NAC",
         xlab_prefix="Age DE, ",
@@ -95,8 +95,8 @@ de_sex_age_scatter_plots <- function(
     plot_de_scatter_svg(
         df = age_df,
         test = "age",
-        cell_type1 = "MSN_D1_matrix",
-        cell_type2 = "MSN_D2_matrix",
+        cell_type1 = "SPN_D1_matrix",
+        cell_type2 = "SPN_D2_matrix",
         region1 = "CaH",
         region2 = "CaH",
         xlab_prefix="Age DE, ",
@@ -135,8 +135,8 @@ de_sex_age_scatter_plots <- function(
     plot_de_scatter_svg(
         df = age_df,
         test = "age",
-        cell_type1 = "MSN_D1_matrix",
-        cell_type2 = "MSN_D1_matrix",
+        cell_type1 = "SPN_D1_matrix",
+        cell_type2 = "SPN_D1_matrix",
         region1 = "CaH",
         region2 = "Pu",
         xlab_prefix="Age DE, ",
@@ -147,8 +147,8 @@ de_sex_age_scatter_plots <- function(
     plot_de_scatter_svg(
         df = age_df,
         test = "age",
-        cell_type1 = "MSN_D1_matrix",
-        cell_type2 = "MSN_D1_matrix",
+        cell_type1 = "SPN_D1_matrix",
+        cell_type2 = "SPN_D1_matrix",
         region1 = "CaH",
         region2 = "NAC",
         xlab_prefix="Age DE, ",
@@ -159,8 +159,8 @@ de_sex_age_scatter_plots <- function(
     plot_de_scatter_svg(
         df = age_df,
         test = "age",
-        cell_type1 = "MSN_D1_matrix",
-        cell_type2 = "MSN_D1_matrix",
+        cell_type1 = "SPN_D1_matrix",
+        cell_type2 = "SPN_D1_matrix",
         region1 = "Pu",
         region2 = "NAC",
         xlab_prefix="Age DE, ",
@@ -356,13 +356,13 @@ get_or_build_de_cache <- function(
             "differential_expression/results",
 
         de_region_interaction_dir =
-            "differential_expression/results/LEVEL_3/sex_age/cell_type_region_interaction_absolute_effects",
+            "differential_expression/results/LEVEL_6/sex_age/cell_type_region_interaction_absolute_effects",
 
         gene_to_chr_file =
-            "sburger_tmp/gene_to_chromosome.txt",
+            "metadata/gene_to_chromosome.txt",
 
         ct_file =
-            "sburger_tmp/cell_types_use.txt"
+            "differential_expression/metadata/cell_types_for_de_filtering_plot.txt"
     )
 
     pick_in <- function(x, key) {

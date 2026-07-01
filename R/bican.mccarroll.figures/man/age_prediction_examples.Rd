@@ -5,7 +5,7 @@
 \title{Plot age prediction errors and predictor-specific error summaries}
 \usage{
 age_prediction_examples(
-  cell_type_list = c("astrocyte", "OPC", "microglia", "MSN_D1"),
+  cell_type_list = c("astrocyte", "OPC", "microglia", "SPN_D1"),
   region = "CaH",
   metacell_dir = NULL,
   data_name = "donor_rxn_DGEList",

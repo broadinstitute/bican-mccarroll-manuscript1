@@ -83,7 +83,7 @@ plot_de_filtering_trajectories <- function(
         cellTypeListFile = NULL,
         outDir = NULL,
         clustering_min_genes = 150,
-        num_clusters = 3) {
+        num_clusters = 2) {
 
     paths <- .resolve_de_paths(
         baseline_de_results_dir = data_dir,
@@ -424,8 +424,8 @@ make_filtering_cluster_panels <- function(
 
     # Defaults under the data root dir
     if (is.null(eqtl_data_dir)) eqtl_data_dir <- "eqtls/results"
-    if (is.null(baseline_eqtl_data_dir)) baseline_eqtl_data_dir <- "eqtls/results/LEVEL_3"
-    if (is.null(comparison_eqtl_data_dir)) comparison_eqtl_data_dir <- "eqtls/results/LEVEL_4"
+    if (is.null(baseline_eqtl_data_dir)) baseline_eqtl_data_dir <- "eqtls/results/LEVEL_6"
+    if (is.null(comparison_eqtl_data_dir)) comparison_eqtl_data_dir <- "eqtls/results/LEVEL_8"
 
     if (is.null(cellTypeListFile)) {
         cellTypeListFile <- "differential_expression/metadata/cell_types_for_de_filtering_plot.txt"
@@ -482,10 +482,10 @@ make_filtering_cluster_panels <- function(
     .ensure_dir(cache_dir)
 
     if (is.null(baseline_de_results_dir)) {
-        baseline_de_results_dir <- "differential_expression/results/LEVEL_3/sex_age/cell_type"
+        baseline_de_results_dir <- "differential_expression/results/LEVEL_6/sex_age/cell_type"
     }
     if (is.null(comparison_de_results_dir)) {
-        comparison_de_results_dir <- "differential_expression/results/LEVEL_4/sex_age/cell_type"
+        comparison_de_results_dir <- "differential_expression/results/LEVEL_8/sex_age/cell_type"
     }
     if (is.null(cellTypeListFile)) {
         cellTypeListFile <- "differential_expression/metadata/cell_types_for_de_filtering_plot.txt"

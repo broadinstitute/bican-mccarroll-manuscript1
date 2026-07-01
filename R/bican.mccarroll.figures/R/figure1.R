@@ -63,7 +63,7 @@ plot_sample_covariate_correlations<-function (
         outDir = outDir
     )
 
-    cache_file <- file.path(paths$data_cache_dir, "/data_schematic/plot_sample_covariate_correlations_cache.txt")
+    cache_file <- file.path(paths$data_cache_dir, "data_schematic/plot_sample_covariate_correlations_cache.txt")
 
     if (file.exists(cache_file)) {
         logger::log_info("Using cached data from {cache_file}")
@@ -73,6 +73,9 @@ plot_sample_covariate_correlations<-function (
         logger::log_info(
             "No cached data from {cache_file} regenerating data from sources.  This can take a few minutes"
         )
+        dir=dirname(cache_file)
+        if (!dir.exists(dir))
+            dir.create(dir)
 
         prep <- bican.mccarroll.differentialexpression::prepareMDSPlotData(
             data_dir = paths$metacell_dir,
@@ -115,11 +118,11 @@ plot_sample_covariate_correlations<-function (
     grDevices::dev.off()
 
     #################################
-    # Make a second copy, without PMI, Tox
+    # Make a second copy, without Tox
     ################################
 
     randVars=c("donor", "imputed_sex", "biobank", "single_cell_assay", "region", "hbcac_status")
-    fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pct_intronic", "frac_contamination")
+    fixedVars=c("age", "PC1", "PC2", "PC3", "PC4", "PC5", "pmi_hr", "pct_intronic", "frac_contamination")
 
     required_vars <- unique(c(randVars, fixedVars))
     required_vars<-intersect(required_vars, colnames(df))
@@ -133,7 +136,7 @@ plot_sample_covariate_correlations<-function (
     rownames(corr_matrix) <- as.vector(pretty_map[rownames(corr_matrix)])
 
     groups <- list(
-        donor  = c("Imputed sex", "Biobank", "Age", "Genetic PC1", "Genetic PC2", "Genetic PC3", "Genetic PC4", "Genetic PC5", "HBCAC status"),
+        donor  = c("Imputed sex", "Biobank", "Age", "Genetic PC1", "Genetic PC2", "Genetic PC3", "Genetic PC4", "Genetic PC5", "HBCAC status", "PMI (hours)"),
         sample = c("Region", "Single-cell assay"),
         cell   = c("Percent intronic", "Fraction contamination")
     )

@@ -2,13 +2,13 @@
 #
 # options(
 #     bican.mccarroll.figures.data_root_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis",
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis",
 #
 #     bican.mccarroll.figures.out_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository",
 #
 #     bican.mccarroll.figures.cache_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository/data_cache"
 # )
 
 # de_dir<-gene_to_chr_file<-ct_file<-outDir<-data_cache_dir<- NULL
@@ -220,13 +220,13 @@ resolve_de_volcano_paths <- function(
 
     rel <- list(
         de_dir =
-            "differential_expression/results/LEVEL_3/sex_age/cell_type",
+            "differential_expression/results/LEVEL_6/sex_age/cell_type",
 
         gene_to_chr_file =
-            "sburger_tmp/gene_to_chromosome.txt",
+            "metadata/gene_to_chromosome.txt",
 
         ct_file =
-            "sburger_tmp/cell_types_use.txt"
+            "differential_expression/metadata/cell_types_for_de_filtering_plot.txt"
     )
 
     pick_in <- function(x, key) {

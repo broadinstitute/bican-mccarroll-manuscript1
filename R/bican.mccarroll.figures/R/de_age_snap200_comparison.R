@@ -1,19 +1,49 @@
 library(ggplot2)
 
-# This code is slightly more adhoc and uses external data to answer reviewer questions.
-# plot_bican_snap_manifest(manifest_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/external_comparison_snap200/metadata/bican_dfc_snap_age_de_overlap_manifest.tsv", out_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/external_comparison_snap200/results")
+# plot_de_primary_secondary_manifest(
+#     manifest_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/external_comparison_snap200/metadata/bican_dfc_snap_age_de_overlap_manifest.tsv",
+#     out_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/external_comparison_snap200/results",
+#     primary_dataset = "bican",
+#     secondary_dataset = "snap",
+#     primary_label = "BICAN",
+#     secondary_label = "SNAP",
+#     effect_name = "age effects"
+# )
+
+# plot_de_primary_secondary_manifest(
+#     manifest_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/external_comparison_PMID_40903571/metadata/PMID_40903571_bican_dfc_age_de_overlap_manifest.tsv",
+#     out_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/external_comparison_PMID_40903571/results",
+#     primary_dataset = "PMID_40903571",
+#     secondary_dataset = "bican",
+#     primary_label = "PMID 40903571",
+#     secondary_label = "BICAN",
+#     effect_name = "age effects"
+# )
 
 
 ## ------------------------------------------------------------------
 ## Top-level functions
 ## ------------------------------------------------------------------
 
-plot_bican_snap_manifest <- function(
+plot_de_primary_secondary_manifest <- function(
         manifest_file,
         out_dir = NULL,
+        primary_dataset = "bican",
+        secondary_dataset = "snap",
+        primary_label = NULL,
+        secondary_label = NULL,
+        effect_name = "age effects",
         alpha = 0.05,
         width = 7,
         height = 7) {
+
+    if (is.null(primary_label)) {
+        primary_label <- make_dataset_label(primary_dataset)
+    }
+
+    if (is.null(secondary_label)) {
+        secondary_label <- make_dataset_label(secondary_dataset)
+    }
 
     manifest <- read.table(
         manifest_file,
@@ -23,7 +53,7 @@ plot_bican_snap_manifest <- function(
         check.names = FALSE
     )
 
-    required_cols <- c("cell_type", "bican", "snap")
+    required_cols <- c("cell_type", primary_dataset, secondary_dataset)
     missing_cols <- setdiff(required_cols, colnames(manifest))
 
     if (length(missing_cols) > 0) {
@@ -37,21 +67,39 @@ plot_bican_snap_manifest <- function(
         dir.create(out_dir, recursive = TRUE)
     }
 
+    validate_manifest_files(
+        manifest = manifest,
+        file_cols = c(primary_dataset, secondary_dataset)
+    )
+
     results <- vector("list", nrow(manifest))
     names(results) <- manifest$cell_type
 
     sign_results <- vector("list", nrow(manifest))
     names(sign_results) <- manifest$cell_type
 
+    output_prefix <- make_output_prefix(primary_dataset, secondary_dataset)
+
     for (i in seq_len(nrow(manifest))) {
         cell_type <- manifest$cell_type[i]
 
-        res <- plot_bican_snap_cell_type(
+        logger::log_info("Processing cell type ", cell_type)
+
+        res <- plot_de_primary_secondary_cell_type(
             cell_type = cell_type,
-            bican_file = manifest$bican[i],
-            snap_file = manifest$snap[i],
+            primary_file = manifest[[primary_dataset]][i],
+            secondary_file = manifest[[secondary_dataset]][i],
+            primary_dataset = primary_dataset,
+            secondary_dataset = secondary_dataset,
+            primary_label = primary_label,
+            secondary_label = secondary_label,
+            effect_name = effect_name,
             alpha = alpha
         )
+
+        if (is.null(res)) {
+            next
+        }
 
         results[[cell_type]] <- res
         sign_results[[cell_type]] <- res$sign_test
@@ -60,8 +108,10 @@ plot_bican_snap_manifest <- function(
             out_file <- file.path(
                 out_dir,
                 sprintf(
-                    "bican_snap_age_effect_scatter_%s.svg",
-                    gsub("[^A-Za-z0-9_.-]+", "_", cell_type)
+                    "%s_%s_scatter_%s.svg",
+                    output_prefix,
+                    sanitize_filename(effect_name),
+                    sanitize_filename(cell_type)
                 )
             )
 
@@ -77,11 +127,32 @@ plot_bican_snap_manifest <- function(
 
     sign_results <- do.call(rbind, sign_results)
 
-    sign_summary_plot <- plot_sign_test_summary(sign_results)
+    if (is.null(sign_results) || nrow(sign_results) == 0) {
+        warning("No cell types had overlapping primary-significant genes.")
+        return(invisible(list(
+            per_cell_type = results,
+            sign_results = sign_results,
+            sign_summary_plot = NULL
+        )))
+    }
+
+    sign_summary_plot <- plot_sign_test_summary(
+        sign_results = sign_results,
+        primary_label = primary_label,
+        secondary_label = secondary_label,
+        effect_name = effect_name
+    )
 
     if (!is.null(out_dir)) {
         ggplot2::ggsave(
-            filename = file.path(out_dir, "bican_snap_sign_test_summary.svg"),
+            filename = file.path(
+                out_dir,
+                sprintf(
+                    "%s_%s_sign_test_summary.svg",
+                    output_prefix,
+                    sanitize_filename(effect_name)
+                )
+            ),
             plot = sign_summary_plot,
             device = "svg",
             width = 8,
@@ -90,14 +161,21 @@ plot_bican_snap_manifest <- function(
 
         write.table(
             sign_results,
-            file = file.path(out_dir, "bican_snap_sign_test_summary.tsv"),
+            file = file.path(
+                out_dir,
+                sprintf(
+                    "%s_%s_sign_test_summary.tsv",
+                    output_prefix,
+                    sanitize_filename(effect_name)
+                )
+            ),
             sep = "\t",
             quote = FALSE,
             row.names = FALSE
         )
     }
 
-    invisible (list(
+    invisible(list(
         per_cell_type = results,
         sign_results = sign_results,
         sign_summary_plot = sign_summary_plot
@@ -105,45 +183,67 @@ plot_bican_snap_manifest <- function(
 }
 
 
-plot_bican_snap_cell_type <- function(cell_type, bican_file, snap_file, alpha = 0.05) {
-    df <- make_bican_snap_df(
-        bican_file = bican_file,
-        snap_file = snap_file,
+plot_de_primary_secondary_cell_type <- function(
+        cell_type,
+        primary_file,
+        secondary_file,
+        primary_dataset = "bican",
+        secondary_dataset = "snap",
+        primary_label = NULL,
+        secondary_label = NULL,
+        effect_name = "age effects",
+        alpha = 0.05) {
+
+    if (is.null(primary_label)) {
+        primary_label <- make_dataset_label(primary_dataset)
+    }
+
+    if (is.null(secondary_label)) {
+        secondary_label <- make_dataset_label(secondary_dataset)
+    }
+
+    df <- make_de_primary_secondary_df(
+        primary_file = primary_file,
+        secondary_file = secondary_file,
         alpha = alpha
     )
 
+    if (nrow(df) == 0) {
+        return(NULL)
+    }
+
     sign_res <- sign_test_fraction(
-        x = df$snap_logFC,
-        y = df$bican_logFC
+        x = df$secondary_logFC,
+        y = df$primary_logFC
     )
 
     cor_val <- stats::cor(
-        df$snap_logFC,
-        df$bican_logFC,
+        df$secondary_logFC,
+        df$primary_logFC,
         use = "complete.obs"
     )
 
-    lims <- range(c(df$snap_logFC, df$bican_logFC), na.rm = TRUE)
-
-    title <- cell_type
+    lims <- range(c(df$secondary_logFC, df$primary_logFC), na.rm = TRUE)
 
     subtitle <- sprintf(
-        "BICAN-significant genes: %.1f%% same sign in SNAP (%d/%d); cor=%.2f",
+        "%s-significant genes: %.1f%% same sign in %s (%d/%d); cor=%.2f",
+        primary_label,
         100 * sign_res$frac,
+        secondary_label,
         sign_res$k,
         sign_res$n,
         cor_val
     )
 
-    p <- ggplot(df, aes(x = snap_logFC, y = bican_logFC)) +
+    p <- ggplot(df, aes(x = secondary_logFC, y = primary_logFC)) +
         geom_point(na.rm = TRUE, size = 1.2, alpha = 0.6) +
         geom_abline(intercept = 0, slope = 1, color = "black") +
         coord_cartesian(xlim = lims, ylim = lims) +
         labs(
-            title = title,
+            title = cell_type,
             subtitle = subtitle,
-            x = "SNAP logFC",
-            y = "BICAN logFC"
+            x = sprintf("%s logFC", secondary_label),
+            y = sprintf("%s logFC", primary_label)
         ) +
         theme_bw(base_size = 12) +
         theme(
@@ -157,6 +257,11 @@ plot_bican_snap_cell_type <- function(cell_type, bican_file, snap_file, alpha = 
         plot = p,
         sign_test = data.frame(
             cell_type = cell_type,
+            primary_dataset = primary_dataset,
+            secondary_dataset = secondary_dataset,
+            primary_label = primary_label,
+            secondary_label = secondary_label,
+            effect_name = effect_name,
             k = sign_res$k,
             n = sign_res$n,
             fraction = sign_res$frac,
@@ -174,12 +279,24 @@ plot_bican_snap_cell_type <- function(cell_type, bican_file, snap_file, alpha = 
 ## Plotting helpers
 ## ------------------------------------------------------------------
 
-plot_sign_test_summary <- function(sign_results) {
+plot_sign_test_summary <- function(
+        sign_results,
+        primary_label = "BICAN",
+        secondary_label = "SNAP",
+        effect_name = "age effects") {
+
     sign_results <- sign_results[order(sign_results$percent), ]
 
     sign_results$cell_type <- factor(
         sign_results$cell_type,
         levels = sign_results$cell_type
+    )
+
+    title <- sprintf(
+        "%s-significant %s: sign concordance in %s",
+        primary_label,
+        effect_name,
+        secondary_label
     )
 
     ggplot(sign_results, aes(x = cell_type, y = percent)) +
@@ -193,7 +310,7 @@ plot_sign_test_summary <- function(sign_results) {
         labs(
             x = NULL,
             y = "% same sign",
-            title = "BICAN-significant age effects: sign concordance in SNAP"
+            title = title
         ) +
         theme_bw(base_size = 12)
 }
@@ -203,21 +320,21 @@ plot_sign_test_summary <- function(sign_results) {
 ## Data helpers
 ## ------------------------------------------------------------------
 
-make_bican_snap_df <- function(bican_file, snap_file, alpha = 0.05) {
-    bican <- read_de_result(bican_file)
-    snap <- read_de_result(snap_file)
+make_de_primary_secondary_df <- function(primary_file, secondary_file, alpha = 0.05) {
+    primary <- read_de_result(primary_file)
+    secondary <- read_de_result(secondary_file)
 
-    common_genes <- intersect(rownames(bican), rownames(snap))
+    common_genes <- intersect(rownames(primary), rownames(secondary))
 
-    genes <- rownames(bican)[bican$adj.P.Val < alpha]
+    genes <- rownames(primary)[primary$adj.P.Val < alpha]
     genes <- intersect(genes, common_genes)
 
     data.frame(
         gene = genes,
-        snap_logFC = snap[genes, "logFC"],
-        snap_adjP = snap[genes, "adj.P.Val"],
-        bican_logFC = bican[genes, "logFC"],
-        bican_adjP = bican[genes, "adj.P.Val"],
+        secondary_logFC = secondary[genes, "logFC"],
+        secondary_adjP = secondary[genes, "adj.P.Val"],
+        primary_logFC = primary[genes, "logFC"],
+        primary_adjP = primary[genes, "adj.P.Val"],
         stringsAsFactors = FALSE
     )
 }
@@ -243,7 +360,83 @@ read_de_result <- function(file) {
         ))
     }
 
+    if (is.null(rownames(x)) || any(rownames(x) == seq_len(nrow(x)))) {
+        warning(
+            "Input file may not have gene IDs as row names: ",
+            file,
+            call. = FALSE
+        )
+    }
+
     x
+}
+
+
+validate_manifest_files <- function(manifest, file_cols) {
+    missing_cols <- setdiff(file_cols, colnames(manifest))
+
+    if (length(missing_cols) > 0) {
+        stop(
+            "Missing expected manifest columns: ",
+            paste(missing_cols, collapse = ", "),
+            call. = FALSE
+        )
+    }
+
+    missing_files <- lapply(file_cols, function(col) {
+        files <- manifest[[col]]
+        missing_idx <- which(is.na(files) | !file.exists(files))
+
+        if (length(missing_idx) == 0) {
+            return(NULL)
+        }
+
+        data.frame(
+            row = missing_idx,
+            cell_type = manifest$cell_type[missing_idx],
+            column = col,
+            file = files[missing_idx],
+            stringsAsFactors = FALSE
+        )
+    })
+
+    missing_files <- do.call(rbind, missing_files)
+
+    if (!is.null(missing_files) && nrow(missing_files) > 0) {
+        print(missing_files, row.names = FALSE)
+
+        stop(
+            "Missing files found in manifest: ",
+            nrow(missing_files),
+            call. = FALSE
+        )
+    }
+
+    logger::log_info("All manifest files found")
+    invisible(TRUE)
+}
+
+
+## ------------------------------------------------------------------
+## Utility helpers
+## ------------------------------------------------------------------
+
+sanitize_filename <- function(x) {
+    gsub("[^A-Za-z0-9_.-]+", "_", x)
+}
+
+
+make_dataset_label <- function(x) {
+    toupper(gsub("_", " ", x))
+}
+
+
+make_output_prefix <- function(primary_dataset, secondary_dataset) {
+    sprintf(
+        "%s_significant_validated_in_%s",
+        sanitize_filename(primary_dataset),
+        sanitize_filename(secondary_dataset)
+    )
 }
 
 

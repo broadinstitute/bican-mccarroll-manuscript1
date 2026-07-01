@@ -73,7 +73,10 @@ plot_kmeans_age <- function(
 
     scaling_factor <- 1
     k_use <- 19
+
+    #TODO fix this ordering.
     cluster_level_order <- c(2, 10, 6, 3, 5, 14, 9, 13, 4, 1, 15, 19, 18, 7, 17, 8, 11, 12)
+    cluster_level_order <- seq(1,19,1)
 
     cache_combined <- file.path(paths$data_cache_dir, "kmeans_qc_age_heatmap_region_combined")
     cache_region <- file.path(paths$data_cache_dir, "kmeans_qc_age_heatmap_region_specific")
@@ -363,23 +366,23 @@ resolve_kmeans_paths <- function(
     root <- .resolve_data_root_dir(NULL)
 
     rel <- list(
-        ct_file =
-            "sburger_tmp/cell_types_use.txt",
-
         gene_to_chr_file =
-            "sburger_tmp/gene_to_chromosome.txt",
+            "metadata/gene_to_chromosome.txt",
+
+        ct_file =
+            "differential_expression/metadata/cell_types_for_de_filtering_plot.txt",
 
         cell_metadata_file =
             "metadata/CAP_cell_metadata.annotated.txt.gz",
 
         metacells_file =
-            "metacells/LEVEL_3/donor_rxn_DGEList_counts.tsv.gz",
+            "metacells/LEVEL_6/donor_rxn_DGEList_counts.tsv.gz",
 
         de_dir =
-            "differential_expression/results/LEVEL_3/sex_age/cell_type",
+            "differential_expression/results/LEVEL_6/sex_age/cell_type",
 
         de_region_interaction_dir =
-            "differential_expression/results/LEVEL_3/sex_age/cell_type_region_interaction_absolute_effects"
+            "differential_expression/results/LEVEL_6/sex_age/cell_type_region_interaction_absolute_effects"
     )
 
     pick_in <- function(x, key) {

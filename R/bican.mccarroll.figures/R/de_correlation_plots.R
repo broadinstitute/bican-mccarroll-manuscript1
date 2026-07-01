@@ -266,13 +266,13 @@ resolve_de_cor_paths <- function(
 
     rel <- list(
         de_region_interaction_dir =
-            "differential_expression/results/LEVEL_3/sex_age/cell_type_region_interaction_absolute_effects",
+            "differential_expression/results/LEVEL_6/sex_age/cell_type_region_interaction_absolute_effects",
 
         gene_to_chr_file =
-            "sburger_tmp/gene_to_chromosome.txt",
+            "metadata/gene_to_chromosome.txt",
 
         ct_file =
-            "sburger_tmp/cell_types_use.txt"
+            "differential_expression/metadata/cell_types_for_de_filtering_plot.txt"
     )
 
     pick_in <- function(x, key) {

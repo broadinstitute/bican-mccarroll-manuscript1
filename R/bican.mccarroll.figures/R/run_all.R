@@ -4,13 +4,13 @@
 run_all<-function () {
     options(
         bican.mccarroll.figures.data_root_dir =
-            "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis",
+            "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis",
 
         bican.mccarroll.figures.out_dir =
-            "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
+            "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository",
 
         bican.mccarroll.figures.cache_dir =
-            "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
+            "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository/data_cache"
     )
 
     bican.mccarroll.figures::plot_sample_covariate_correlations()

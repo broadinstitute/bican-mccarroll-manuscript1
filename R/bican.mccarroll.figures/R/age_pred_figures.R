@@ -6,13 +6,13 @@
 #
 # options(
 #     bican.mccarroll.figures.data_root_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis",
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis",
 #
 #     bican.mccarroll.figures.out_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository",
 #
 #     bican.mccarroll.figures.cache_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository/data_cache"
 # )
 
 # cellTypeListFile <- metacell_dir <- age_de_results_dir <- contig_yaml_file <- reduced_gtf_file <- data_cache_dir <- outDir <- NULL
@@ -34,12 +34,131 @@
 
 }
 
-.age_prediction_all_optimize_alpha <- function() {
+# .age_prediction_all_optimize_alpha <- function() {
+#
+#     .age_prediction_all_one(
+#         use_age_de_results = FALSE,
+#         optimize_alpha = TRUE,
+#         alpha_fixed = 0
+#     )
+#
+# }
 
-    .age_prediction_all_one(
-        use_age_de_results = FALSE,
-        optimize_alpha = TRUE,
+
+# this is for reviewers and is more hard-coded.
+# Uses the BICAN DE initial features, but predicts in the SNAP controls data set.
+# SNAP200 region is BA46, and this compares to the BICAN DFC region
+# the age DE results are soft linked, with the region token modified so the results can be found.
+.age_prediction_snap200_bican_DE_genes<-function () {
+
+    metacell_dir="/broad/mccarroll/dropulation/analysis/SNAP200_controls/metacells/out"
+    age_de_results_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/results/LEVEL_6_for_SNAP200/sex_age/cell_type_region_interaction_absolute_effects"
+    cellTypeListFile = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/metadata/cell_types_for_snap200_age_plots.txt"
+    data_name = "donor_rxn_DGEList"
+
+    paths<- .resolve_age_pred_paths(
+        cellTypeListFile = NULL,
+        metacell_dir = metacell_dir,
+        age_de_results_dir = age_de_results_dir,
+        contig_yaml_file = NULL,
+        reduced_gtf_file = NULL,
+        outDir = NULL,
+        data_cache_dir = NULL,
+        use_age_de_results = TRUE,
+        optimize_alpha = FALSE,
         alpha_fixed = 0
+    )
+
+    age_de_results_dir=paths$age_de_results_dir
+    use_age_de_results=T
+    contig_yaml_file=paths$contig_yaml_file
+    reduced_gtf_file=paths$reduced_gtf_file
+    n_cores=12
+    data_cache_dir=paste(paths$data_cache_dir,"/SNAP200_age", sep="")
+    outDir=paste(paths$outDir,"/SNAP200_age", sep="")
+    optimize_alpha=FALSE
+    alpha_fixed=0
+    region="BA46"
+    cell_type_list = c("astrocyte", "OPC", "microglia", "glut_L23_IT")
+
+    age_prediction_error_plots(
+        cellTypeListFile = cellTypeListFile,
+        metacell_dir = metacell_dir,
+        data_name = data_name,
+        age_de_results_dir = age_de_results_dir,
+        use_age_de_results = use_age_de_results,
+        contig_yaml_file = contig_yaml_file,
+        reduced_gtf_file = reduced_gtf_file,
+        n_cores = n_cores,
+        data_cache_dir = data_cache_dir,
+        outDir = outDir,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
+    )
+
+
+    age_prediction_residual_corr_and_jaccard_heatmaps_region(
+        region=region,
+        cellTypeListFile = cellTypeListFile,
+        metacell_dir = metacell_dir,
+        data_name = data_name,
+        age_de_results_dir = age_de_results_dir,
+        use_age_de_results = use_age_de_results,
+        contig_yaml_file = contig_yaml_file,
+        reduced_gtf_file = reduced_gtf_file,
+        n_cores = n_cores,
+        data_cache_dir = data_cache_dir,
+        outDir = outDir,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
+    )
+
+    age_prediction_corrected_residual_pairwise_scatter_region(
+        cell_type_list = cell_type_list,
+        region=region,
+        metacell_dir = metacell_dir,
+        data_name = data_name,
+        age_de_results_dir = age_de_results_dir,
+        use_age_de_results = use_age_de_results,
+        contig_yaml_file = contig_yaml_file,
+        reduced_gtf_file = reduced_gtf_file,
+        n_cores = n_cores,
+        data_cache_dir = data_cache_dir,
+        outDir = outDir,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
+    )
+
+    age_prediction_uncorrected_residual_pairwise_scatter_region(
+        cell_type_list = cell_type_list,
+        region=region,
+        metacell_dir = metacell_dir,
+        data_name = data_name,
+        age_de_results_dir = age_de_results_dir,
+        use_age_de_results = use_age_de_results,
+        contig_yaml_file = contig_yaml_file,
+        reduced_gtf_file = reduced_gtf_file,
+        n_cores = n_cores,
+        data_cache_dir = data_cache_dir,
+        outDir = outDir,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
+    )
+
+    age_prediction_examples(
+        cell_type_list = cell_type_list,
+        region=region,
+        metacell_dir = metacell_dir,
+        data_name = data_name,
+        age_de_results_dir = age_de_results_dir,
+        use_age_de_results = use_age_de_results,
+        contig_yaml_file = contig_yaml_file,
+        reduced_gtf_file = reduced_gtf_file,
+        n_cores = n_cores,
+        data_cache_dir = data_cache_dir,
+        outDir = outDir,
+        optimize_alpha = optimize_alpha,
+        alpha_fixed = alpha_fixed
     )
 
 }
@@ -314,6 +433,11 @@ age_prediction_error_plots <- function(
     )
 
     model_predictions <- results$donor_predictions
+
+    #change outputs to be in years instead of decades
+    model_predictions$age=model_predictions$age*10
+    model_predictions$pred_mean=model_predictions$pred_mean*10
+    model_predictions$pred_mean_corrected=model_predictions$pred_mean_corrected*10
 
     model_mae_summary <- compute_model_level_mae(model_predictions)
 
@@ -760,7 +884,7 @@ age_prediction_residual_corr_and_jaccard_heatmaps_cell_type <- function(
 #' @return Invisibly returns the assembled ggplot object.
 #' @export
 age_prediction_corrected_residual_pairwise_scatter_region <- function(
-        cell_type_list = c("astrocyte", "OPC", "microglia", "MSN_D1"),
+        cell_type_list = c("astrocyte", "OPC", "microglia", "SPN_D1"),
         region = "CaH",
         metacell_dir = NULL,
         data_name = "donor_rxn_DGEList",
@@ -905,7 +1029,7 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(
 #' @return Invisibly returns the assembled ggplot object.
 #' @export
 age_prediction_uncorrected_residual_pairwise_scatter_region <- function(
-        cell_type_list = c("astrocyte", "OPC", "microglia", "MSN_D1"),
+        cell_type_list = c("astrocyte", "OPC", "microglia", "SPN_D1"),
         region = "CaH",
         metacell_dir = NULL,
         data_name = "donor_rxn_DGEList",
@@ -1051,7 +1175,7 @@ age_prediction_uncorrected_residual_pairwise_scatter_region <- function(
 #'
 #' @export
 age_prediction_examples <- function(
-        cell_type_list = c("astrocyte", "OPC", "microglia", "MSN_D1"),
+        cell_type_list = c("astrocyte", "OPC", "microglia", "SPN_D1"),
         region = "CaH",
         metacell_dir = NULL,
         data_name = "donor_rxn_DGEList",
@@ -1169,9 +1293,9 @@ age_prediction_examples <- function(
 # Generation of raw data for all plots for age prediction.
 # These results will be cached.
 # This returns a list of dataframes that can be used for plotting.
-get_age_prediction_results<-function (metacell_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metacells/LEVEL_3",
+get_age_prediction_results<-function (metacell_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metacells/LEVEL_6",
                               data_name="donor_rxn_DGEList",
-                              age_de_results_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results/old/LEVEL_3/sex_age/cell_type_region_interaction_absolute_effects",
+                              age_de_results_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results/LEVEL_3/sex_age/cell_type_region_interaction_absolute_effects",
                               contig_yaml_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metadata/GRCh38_ensembl_v43.contig_groups.yaml",
                               reduced_gtf_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metadata/GRCh38_ensembl_v43.reduced.gtf.gz",
                               n_cores=14,
@@ -1334,10 +1458,10 @@ save_plot_svg <- function(plot, out_file, out_dir = ".", width = 14, height = 7)
             "differential_expression/metadata/cell_types_for_de_filtering_plot.txt",
 
         metacell_dir =
-            "metacells/LEVEL_3",
+            "metacells/LEVEL_6",
 
         age_de_results_dir =
-            "differential_expression/results/LEVEL_3/sex_age/cell_type_region_interaction_absolute_effects",
+            "differential_expression/results/LEVEL_6/sex_age/cell_type_region_interaction_absolute_effects",
 
         contig_yaml_file =
             "metadata/GRCh38_ensembl_v43.contig_groups.yaml",
