@@ -10,13 +10,13 @@
 #
 # options(
 #     bican.mccarroll.figures.data_root_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis",
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis",
 #
 #     bican.mccarroll.figures.out_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository",
 #
 #     bican.mccarroll.figures.cache_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository/data_cache"
 # )
 
 # data_dir = NULL; data_name = "donor_rxn_DGEList"; data_cache_dir = NULL; cellTypeListFile = NULL; outDir = NULL; clustering_min_genes = 150; num_clusters = 3
@@ -83,7 +83,7 @@ plot_de_filtering_trajectories <- function(
         cellTypeListFile = NULL,
         outDir = NULL,
         clustering_min_genes = 150,
-        num_clusters = 3) {
+        num_clusters = 2) {
 
     paths <- .resolve_de_paths(
         baseline_de_results_dir = data_dir,
@@ -93,6 +93,9 @@ plot_de_filtering_trajectories <- function(
     )
 
     data_dir <- paths$baseline_de_results_dir
+    #the root directory is 3 levels up from the baseline.
+    data_dir <- dirname(dirname(dirname(paths$baseline_de_results_dir)))
+
     cellTypeListFile <- paths$cellTypeListFile
     outDir <- paths$outDir
     data_cache_dir <- paths$data_cache_dir
@@ -105,9 +108,11 @@ plot_de_filtering_trajectories <- function(
                                 stringsAsFactors = FALSE)
     } else {
         logger::log_info("No cached data from {cache_file} regenerating data from sources")
+
+
         df <- bican.mccarroll.differentialexpression::compare_all_age_de_runs(
             data_dir, outDir = NULL,
-            filter_levels = c(0, 1, 2, 3, 4),
+            filter_levels = c(0, 1, 2, 3, 4, 5, 6, 7, 8),
             fdr_cutoff = 0.05,
             clustering_min_genes = clustering_min_genes,
             num_clusters = num_clusters
@@ -136,11 +141,11 @@ plot_de_filtering_trajectories <- function(
         df2, K = num_clusters
     )
 
-    p <- make_filtering_cluster_panels(df2, res$clusters, legend_scale = 0.8)
+    p <- make_filtering_cluster_panels(df2, res$clusters, legend_scale = 0.7, legend_position=c(0.02, 0.7), legend_ncol=2)
 
     output_svg <- file.path(outDir, "de_filtering_plot.svg")
     ggplot2::ggsave(filename = output_svg, plot = p, device = svglite::svglite,
-                    width = 9, height = 3)
+                    width = 12, height = 4)
 
     logger::log_info("Saved DE filtering trajectory plot to {output_svg}")
     invisible(NULL)
@@ -173,11 +178,11 @@ plot_de_filtering_trajectories <- function(
 #' @family sample filtering figures
 #' @export
 plot_de_filtering_examples <- function(
-        cell_type_list = c("astrocyte", "microglia", "MSN_D1", "glutamatergic_IT"),
+        cell_type_list = c("astrocyte", "microglia", "SPN_D1", "glut_IT"),
         baseline_data_dir = NULL,
         comparison_data_dir = NULL,
-        baseline_name = "LEVEL 3",
-        comparison_name = "LEVEL 4",
+        baseline_name = "LEVEL 6",
+        comparison_name = "LEVEL 7",
         outDir = NULL) {
 
     paths <- .resolve_de_paths(
@@ -256,7 +261,8 @@ make_filtering_cluster_panels <- function(
         legend_position = c(0.02, 0.02),   # default: lower left
         legend_justification = c(0, 0),
         panel_titles = NULL,
-        legend_scale = 1                   # NEW: scale factor for inset legend
+        legend_scale = 1,
+        legend_ncol = 1                    # number of legend columns
 ) {
     cell_type <- comparison_level <- frac_genes_discovered <- base_level <- cluster <- NULL
 
@@ -311,6 +317,9 @@ make_filtering_cluster_panels <- function(
                 x = "Filtering level",
                 y = "Fraction of genes discovered"
             ) +
+            ggplot2::guides(
+                color = ggplot2::guide_legend(ncol = legend_ncol, byrow = TRUE)
+            ) +
             ggplot2::theme_bw() +
             ggplot2::theme(
                 plot.title = ggplot2::element_text(hjust = 0.5),
@@ -334,7 +343,6 @@ make_filtering_cluster_panels <- function(
     plots <- lapply(ks, make_one)
     cowplot::plot_grid(plotlist = plots, ncol = ncol, align = "hv")
 }
-
 
 .add_baseline_comparison_level_de <- function(df) {
     ## Expect exactly one non-zero comparison level per (cell_type, base_level)
@@ -416,8 +424,8 @@ make_filtering_cluster_panels <- function(
 
     # Defaults under the data root dir
     if (is.null(eqtl_data_dir)) eqtl_data_dir <- "eqtls/results"
-    if (is.null(baseline_eqtl_data_dir)) baseline_eqtl_data_dir <- "eqtls/results/LEVEL_3"
-    if (is.null(comparison_eqtl_data_dir)) comparison_eqtl_data_dir <- "eqtls/results/LEVEL_4"
+    if (is.null(baseline_eqtl_data_dir)) baseline_eqtl_data_dir <- "eqtls/results/LEVEL_6"
+    if (is.null(comparison_eqtl_data_dir)) comparison_eqtl_data_dir <- "eqtls/results/LEVEL_8"
 
     if (is.null(cellTypeListFile)) {
         cellTypeListFile <- "differential_expression/metadata/cell_types_for_de_filtering_plot.txt"
@@ -474,10 +482,10 @@ make_filtering_cluster_panels <- function(
     .ensure_dir(cache_dir)
 
     if (is.null(baseline_de_results_dir)) {
-        baseline_de_results_dir <- "differential_expression/results/LEVEL_3/sex_age/cell_type"
+        baseline_de_results_dir <- "differential_expression/results/LEVEL_6/sex_age/cell_type"
     }
     if (is.null(comparison_de_results_dir)) {
-        comparison_de_results_dir <- "differential_expression/results/LEVEL_4/sex_age/cell_type"
+        comparison_de_results_dir <- "differential_expression/results/LEVEL_8/sex_age/cell_type"
     }
     if (is.null(cellTypeListFile)) {
         cellTypeListFile <- "differential_expression/metadata/cell_types_for_de_filtering_plot.txt"

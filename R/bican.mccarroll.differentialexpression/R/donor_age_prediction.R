@@ -182,6 +182,7 @@ predict_age_by_celltype<-function (data_dir, data_name, result_dir, age_de_resul
 #'
 #' @export
 predict_age_by_celltype_region <- function(data_dir, data_name, result_dir, age_de_results_dir,
+                                           cellTypeListFile=NULL,
                                            outPDFFile = NULL,
                                            contig_yaml_file, reduced_gtf_file,
                                            donor_col = "donor", age_col = "age",
@@ -205,6 +206,13 @@ predict_age_by_celltype_region <- function(data_dir, data_name, result_dir, age_
     dge=filter_dge_to_donor_age(dge, donor_age_range)
 
     cell_type_list <- unique(dge$samples$cell_type)
+    #optionally subset to a list of cell types.
+    if (!is.null(cellTypeListFile)) {
+        ctl=read.table(cellTypeListFile)$V1
+        cell_type_list=intersect(cell_type_list, ctl)
+        logger::log_info("Filtering to [", length(cell_type_list), "] distinct cell types")
+    }
+
     lineStr <- strrep("=", 80)
 
     if (!is.null(outPDFFile)) {

@@ -77,7 +77,7 @@ plot_donor_gex_vs_age <- function(ct_file = NULL,
     ## ============================================================
 
     gene_list <- c("PCLO","CAPS2","STX3","MCTP2","JPH1","SLIT1","SEMA5A","TSHZ3","IQGAP1","SIPA1L2","CTNNAL1","DNMBP","KIF13B","EPB41L4A","LAMB1","FBLN5","TLL1","ABI3BP","PTPN13","PTPRK","DENND3","LRRK1","MKNK1","SGSM1","ABCG1","LEPR","C2","PPP1R1B","GPR88","RGS9","RGS12","ADCY3","PDE1B","PKIA","KCNQ3","SCN4B","SYT6","SYT12","LRRTM3","SYNDIG1","ASTN2","PCDH9","EPHA5","SLITRK2","ADGRB2","CSMD2","HMGCS1","MSMO1","MICOS10","PEX5","ABCD2","SAT1","DCX","FOXG1")
-    heatmap_key <- "MSN_D1_matrix__CaH"
+    heatmap_key <- "SPN_D1_matrix__CaH"
     gs_gaps <- c(5,8,14,18,24,27,34,36,46,52)
 
     out_file <- file.path(paths$outDir, "donor_age_D1_matrix_heatmap.svg")
@@ -99,10 +99,10 @@ plot_donor_gex_vs_age <- function(ct_file = NULL,
 
     gene_list <- c("FKBP5", "RGS9", "RYR3", "GRIA1", "CLEC2B")
 
-    keys <- c("MSN_D1_matrix__CaH", "glutamatergic_L23IT__DFC", "astrocyte__CaH",
+    keys <- c("SPN_D1_matrix__CaH", "glut_L23_IT__DFC", "astrocyte__CaH",
               "OPC__CaH", "oligodendrocyte__CaH", "microglia__CaH")
 
-    nice_names <- c("D1 matrix MSN", "L23IT glutamatergic\nneuron", "Astrocyte",
+    nice_names <- c("D1 matrix SPN", "L23IT glutamatergic\nneuron", "Astrocyte",
                     "OPC", "Oligodendrocyte", "Microglia")
 
     plot_list <- list()
@@ -320,7 +320,7 @@ load_or_build_donor_gex_age_cache <- function(paths) {
     }
 
     if (is.null(ct_file)) {
-        ct_file <- file.path(data_root_dir, "sburger_tmp", "cell_types_use.txt")
+        ct_file <- file.path(data_root_dir, "differential_expression/metadata/cell_types_for_de_filtering_plot.txt")
     }
 
     if (is.null(cell_metadata_file)) {
@@ -337,7 +337,7 @@ load_or_build_donor_gex_age_cache <- function(paths) {
         metacells_file <- file.path(
             data_root_dir,
             "metacells",
-            "LEVEL_3",
+            "LEVEL_6",
             "donor_rxn_DGEList_counts.tsv.gz"
         )
     }

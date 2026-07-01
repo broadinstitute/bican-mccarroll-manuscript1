@@ -58,9 +58,9 @@ The figure is saved as `eqtl_filtering_cell_type_examples.svg` in `outDir`.
 \code{\link[bican.mccarroll.eqtl]{plot_pair_effects}}
   \code{\link[bican.mccarroll.eqtl]{plot_pair_pvals}}
 
-Other sample filtering figures: 
-\code{\link{plot_de_filtering_examples}()},
-\code{\link{plot_de_filtering_trajectories}()},
-\code{\link{plot_eqtl_filtering_trajectories}()}
+Other sample filtering figures:
+\code{\link[=plot_de_filtering_examples]{plot_de_filtering_examples()}},
+\code{\link[=plot_de_filtering_trajectories]{plot_de_filtering_trajectories()}},
+\code{\link[=plot_eqtl_filtering_trajectories]{plot_eqtl_filtering_trajectories()}}
 }
 \concept{sample filtering figures}

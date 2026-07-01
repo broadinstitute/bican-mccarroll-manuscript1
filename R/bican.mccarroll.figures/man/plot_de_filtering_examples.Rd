@@ -5,11 +5,11 @@
 \title{Example DE changes between two analysis levels for selected cell types}
 \usage{
 plot_de_filtering_examples(
-  cell_type_list = c("astrocyte", "microglia", "MSN_D1", "glutamatergic_IT"),
+  cell_type_list = c("astrocyte", "microglia", "SPN_D1", "glut_IT"),
   baseline_data_dir = NULL,
   comparison_data_dir = NULL,
-  baseline_name = "LEVEL 3",
-  comparison_name = "LEVEL 4",
+  baseline_name = "LEVEL 6",
+  comparison_name = "LEVEL 7",
   outDir = NULL
 )
 }
@@ -44,9 +44,9 @@ The figure is saved as `de_filtering_cell_type_examples.svg` in `outDir`.
 \seealso{
 \code{\link[bican.mccarroll.differentialexpression]{compare_age_de_run}}
 
-Other sample filtering figures: 
-\code{\link{plot_de_filtering_trajectories}()},
-\code{\link{plot_eqtl_filtering_examples}()},
-\code{\link{plot_eqtl_filtering_trajectories}()}
+Other sample filtering figures:
+\code{\link[=plot_de_filtering_trajectories]{plot_de_filtering_trajectories()}},
+\code{\link[=plot_eqtl_filtering_examples]{plot_eqtl_filtering_examples()}},
+\code{\link[=plot_eqtl_filtering_trajectories]{plot_eqtl_filtering_trajectories()}}
 }
 \concept{sample filtering figures}

@@ -1,15 +1,15 @@
-# source("R/paths.R")
-#
-# options(
-#     bican.mccarroll.figures.data_root_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis",
-#
-#     bican.mccarroll.figures.out_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository",
-#
-#     bican.mccarroll.figures.cache_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache"
-# )
+source("R/paths.R")
+
+options(
+    bican.mccarroll.figures.data_root_dir =
+        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis",
+
+    bican.mccarroll.figures.out_dir =
+        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository",
+
+    bican.mccarroll.figures.cache_dir =
+        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository/data_cache"
+)
 
 #de_dir <- de_region_subset_dir <- de_region_interaction_dir <- gene_to_chr_path <- ct_file <- data_cache_dir <- outDir <- NULL
 
@@ -84,8 +84,8 @@ plot_trade_analysis <- function(
         de_dt[!(region == "ic" & !(cell_type %in% non_neuron_types))]
     }
 
-    cell_types_use <- c("MSN_D1_matrix","MSN_D1_striosome","MSN_D2_matrix","MSN_D2_striosome",
-                        "glutamatergic_L23IT","glutamatergic_L4IT","glutamatergic_L5IT","glutamatergic_L6IT",
+    cell_types_use <- c("SPN_D1_matrix","SPN_D1_striosome","SPN_D2_matrix","SPN_D2_striosome",
+                        "glut_L23_IT","glut_L4_IT","glut_L5_IT","glut_L6_IT",
                         "GABA_TAC3-PLPP4","GABA_PTHLH-PVALB","GABA_PVALB","GABA_SST","GABA_VIP","GABA_LAMP5",
                         "astrocyte","OPC","oligodendrocyte","microglia")
     # --------------------------------------------------------------------------
@@ -115,15 +115,21 @@ plot_trade_analysis <- function(
         value_var = "trade_twi")
 
     #drop the axis labels and ticks that match up to the k-means plot.
-    p_bar_age <- p_bar_age+
+    p_bar_age <- p_bar_age +
         ggplot2::theme(
-        axis.text.y = ggplot2::element_blank(),
-        axis.ticks.y = ggplot2::element_blank(),
-        axis.title.x = ggplot2::element_text(size = ggplot2::rel(1.5)),
-        axis.text.x  = ggplot2::element_text(size = ggplot2::rel(2.25)),
-        axis.ticks.x = ggplot2::element_line(linewidth = 0.7),
-        plot.margin = ggplot2::margin(5.5, 5.5, 5.5, 12)
-    )
+            axis.text.y = ggplot2::element_blank(),
+            axis.ticks.y = ggplot2::element_blank(),
+            axis.title.x = ggplot2::element_text(size = ggplot2::rel(1.5)),
+            axis.text.x  = ggplot2::element_text(size = ggplot2::rel(2.25)),
+            axis.ticks.x = ggplot2::element_line(linewidth = 0.7),
+            plot.margin = ggplot2::margin(5.5, 5.5, 5.5, 12)
+        ) +
+        ggplot2::geom_col(fill = "black") +
+        ggplot2::xlab("Transcriptome-wide impact (TRADE)") +
+        ggplot2::scale_x_continuous(
+            breaks = c(0, 0.001, 0.002),
+            labels = c("0.000", "0.001", "0.002")
+        )
 
     p_bar_age <- p_bar_age + ggplot2::geom_col(fill = "black")
     p_bar_age <- p_bar_age + ggplot2::xlab("Transcriptome-wide impact (TRADE)")
@@ -218,13 +224,13 @@ resolve_trade_paths <- function(
 
     rel <- list(
         de_dir =
-            "differential_expression/results/LEVEL_3/sex_age/cell_type",
+            "differential_expression/results/LEVEL_6/sex_age/cell_type",
 
         de_region_subset_dir =
-            "differential_expression/results/LEVEL_3/sex_age/cell_type_subset_region",
+            "differential_expression/results/LEVEL_6/sex_age/cell_type_subset_region",
 
         de_region_interaction_dir =
-            "differential_expression/results/LEVEL_3/sex_age/cell_type_region_interaction_absolute_effects",
+            "differential_expression/results/LEVEL_6/sex_age/cell_type_region_interaction_absolute_effects",
 
         gene_to_chr_path =
             "metadata/gene_to_chromosome.txt",
@@ -262,7 +268,6 @@ resolve_trade_paths <- function(
         data_cache_dir            = cache
     )
 }
-
 
 
 

@@ -66,5 +66,10 @@ configure paths explicitly in their session or script.
 \author{
 \strong{Maintainer}: James Nemesh \email{nemesh@broadinstitute.org}
 
+Authors:
+\itemize{
+  \item James Nemesh \email{nemesh@broadinstitute.org}
+}
+
 }
 \keyword{internal}

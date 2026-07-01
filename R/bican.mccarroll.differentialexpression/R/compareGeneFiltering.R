@@ -162,7 +162,7 @@ compare_all_age_de_runs<-function (data_dir, outDir=NULL, filter_levels=c(0,1,2,
 #'
 #' @export
 compare_age_de_runs<-function (old_data_dir, new_data_dir, baseline_name, comparison_name, outPDF, outFile=NULL, fdr_cutoff=0.05) {
-    suffix="_age_DE_results.txt"
+    suffix="__age_DE_results.txt"
     f=list.files(old_data_dir, pattern=suffix, full.names = F)
     cell_types_list=sub(suffix, "", f)
 

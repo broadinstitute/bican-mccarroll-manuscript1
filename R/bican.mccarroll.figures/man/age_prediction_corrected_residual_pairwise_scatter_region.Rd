@@ -5,16 +5,19 @@
 \title{Manuscript figure: pairwise corrected residual scatterplots within a region}
 \usage{
 age_prediction_corrected_residual_pairwise_scatter_region(
-  cell_type_list = c("astrocyte", "OPC", "microglia", "MSN_D1"),
+  cell_type_list = c("astrocyte", "OPC", "microglia", "SPN_D1"),
   region = "CaH",
   metacell_dir = NULL,
   data_name = "donor_rxn_DGEList",
   age_de_results_dir = NULL,
+  use_age_de_results = TRUE,
   contig_yaml_file = NULL,
   reduced_gtf_file = NULL,
   n_cores = 14,
   data_cache_dir = NULL,
   outDir = NULL,
+  optimize_alpha = FALSE,
+  alpha_fixed = 0,
   ncol = 3
 )
 }

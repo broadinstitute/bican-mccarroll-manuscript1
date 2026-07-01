@@ -63,9 +63,9 @@ When `outDir` is not `NULL`, the figure is saved as `de_filtering_plot.svg` in
 \code{\link[bican.mccarroll.differentialexpression]{compare_all_age_de_runs}}
   \code{\link[bican.mccarroll.differentialexpression]{cluster_filtering_trajectories}}
 
-Other sample filtering figures: 
-\code{\link{plot_de_filtering_examples}()},
-\code{\link{plot_eqtl_filtering_examples}()},
-\code{\link{plot_eqtl_filtering_trajectories}()}
+Other sample filtering figures:
+\code{\link[=plot_de_filtering_examples]{plot_de_filtering_examples()}},
+\code{\link[=plot_eqtl_filtering_examples]{plot_eqtl_filtering_examples()}},
+\code{\link[=plot_eqtl_filtering_trajectories]{plot_eqtl_filtering_trajectories()}}
 }
 \concept{sample filtering figures}
