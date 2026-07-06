@@ -52,6 +52,10 @@
 #'   against the baseline.
 #' @param fdr_threshold Numeric scalar. FDR threshold used by downstream
 #'   comparison routines (default 0.05).
+#' @param cellTypeList a vector of cell types to compare.  This will subset
+#' the existing input data.
+#' @param regionList a vector of regions to compare.  This will subset the
+#' existing input data.
 #' @param cache_dir Character scalar. Cache directory used by downstream routines
 #'   to avoid re-reading large files.
 #'
@@ -62,7 +66,8 @@
 #' @importFrom logger log_info
 #' @importFrom utils write.table
 #' @export
-compare_all_eQTL_runs<-function (data_dir, outDir=NULL, filter_levels=c(0,1,2,3,4), fdr_threshold=0.05, cache_dir) {
+compare_all_eQTL_runs<-function (data_dir, outDir=NULL, filter_levels=c(0,1,2,3,4), fdr_threshold=0.05,
+                                 cellTypeList=NULL,regionList=NULL, cache_dir) {
     base_level=filter_levels[1]
     results=list()
     for (i in 1:(length(filter_levels)-1)) {
@@ -77,7 +82,9 @@ compare_all_eQTL_runs<-function (data_dir, outDir=NULL, filter_levels=c(0,1,2,3,
             outFile=paste(outDir, "/compare_eQTL_LEVEL_", base_level, "_vs_LEVEL_", comparison_level, ".txt", sep="")
         }
 
-        df=compare_eqtl_runs_ctr(baseline_data_dir, comparison_data_dir, fdr_threshold=fdr_threshold, outPDF=outPDF, outSummaryPDF=outSummaryPDF, outFile=outFile, cache_dir=cache_dir)
+        df=compare_eqtl_runs_ctr(baseline_data_dir, comparison_data_dir, fdr_threshold=fdr_threshold,
+                                 cellTypeList=cellTypeList, regionList=regionList,
+                                 outPDF=outPDF, outSummaryPDF=outSummaryPDF, outFile=outFile, cache_dir=cache_dir)
         results[[i]]=df
     }
 
@@ -135,6 +142,8 @@ compare_all_eQTL_runs<-function (data_dir, outDir=NULL, filter_levels=c(0,1,2,3,
 #'   results (e.g., \code{.../LEVEL_2}).
 #' @param fdr_threshold Numeric scalar. FDR threshold passed to
 #'   \code{compare_eqtl_runs()} (default 0.05).
+#' @param cellTypeList An optional list of cell types to restrict analysis to
+#' @param regionList An optional list of regions to restrict analysis to
 #' @param outPDF Character scalar or NULL. If non-NULL, a PDF is created and all
 #'   per-dataset plots are written to it.
 #' @param outFile Character scalar or NULL. If non-NULL, per-dataset summary
@@ -151,7 +160,9 @@ compare_all_eQTL_runs<-function (data_dir, outDir=NULL, filter_levels=c(0,1,2,3,
 #' @importFrom utils write.table
 #' @importFrom grDevices pdf dev.off
 #' @export
-compare_eqtl_runs_ctr<-function (baseline_data_dir, comparison_data_dir, fdr_threshold=0.05, outPDF=NULL, outSummaryPDF=NULL, outFile=NULL, cache_dir=NULL) {
+compare_eqtl_runs_ctr<-function (baseline_data_dir, comparison_data_dir, fdr_threshold=0.05,
+                                 cellTypeList=NULL, regionList=NULL,
+                                 outPDF=NULL, outSummaryPDF=NULL, outFile=NULL, cache_dir=NULL) {
 
     file_separator="__"
 
@@ -163,11 +174,19 @@ compare_eqtl_runs_ctr<-function (baseline_data_dir, comparison_data_dir, fdr_thr
     z=strsplit (data_sets, file_separator)
     cell_types=sapply (z, function (x) x[1])
     regions=sapply (z, function (x) x[2])
+
     df=data.frame(
         cell_type=cell_types,
         region=regions,
         stringsAsFactors = FALSE
     )
+
+    #optional filters by cell type and regions
+    if (!is.null(cellTypeList))
+        df=df[df$cell_type %in% cellTypeList,]
+
+    if (!is.null(regionList))
+        df=df[df$region %in% regionList,]
 
     #so that the comparisons are always in the same order, ignore localization differences.
     df=df[order(df$cell_type, df$region, method = "radix"),]

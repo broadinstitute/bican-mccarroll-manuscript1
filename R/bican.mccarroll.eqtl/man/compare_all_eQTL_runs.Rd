@@ -9,6 +9,8 @@ compare_all_eQTL_runs(
   outDir = NULL,
   filter_levels = c(0, 1, 2, 3, 4),
   fdr_threshold = 0.05,
+  cellTypeList = NULL,
+  regionList = NULL,
   cache_dir
 )
 }
@@ -26,6 +28,12 @@ against the baseline.}
 
 \item{fdr_threshold}{Numeric scalar. FDR threshold used by downstream
 comparison routines (default 0.05).}
+
+\item{cellTypeList}{a vector of cell types to compare.  This will subset
+the existing input data.}
+
+\item{regionList}{a vector of regions to compare.  This will subset the
+existing input data.}
 
 \item{cache_dir}{Character scalar. Cache directory used by downstream routines
 to avoid re-reading large files.}
