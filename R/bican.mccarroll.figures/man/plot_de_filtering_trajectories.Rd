@@ -11,7 +11,7 @@ plot_de_filtering_trajectories(
   cellTypeListFile = NULL,
   outDir = NULL,
   clustering_min_genes = 150,
-  num_clusters = 3
+  num_clusters = 2
 )
 }
 \arguments{

@@ -35,12 +35,9 @@
 #' @return The \code{ggplot} object (invisibly).
 #'
 #' @export
-#' @importFrom VariantAnnotation readVcf geno
-#' @importFrom GenomicRanges GRanges
-#' @importFrom IRanges IRanges
 #' @importFrom data.table fread melt tstrsplit := fifelse
 #' @importFrom ggplot2 ggplot aes geom_violin geom_text facet_wrap labs
-#'   theme_bw theme element_text element_blank unit
+#' @importFrom ggplot2 theme_bw theme element_text element_blank unit
 #' @importFrom ggbeeswarm geom_beeswarm
 #' @importFrom grDevices svg dev.off
 #' @importFrom stats lm sd p.adjust

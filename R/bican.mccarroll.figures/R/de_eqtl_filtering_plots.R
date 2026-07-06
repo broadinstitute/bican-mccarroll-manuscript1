@@ -1,23 +1,23 @@
-# library (ggplot2)
-# library (svglite)
+library (ggplot2)
+library (svglite)
 
 
 ## ------------------------------------------------------------------
 ## Set configuration (development only; comment out in package build)
 ## ------------------------------------------------------------------
 
-# source("R/paths.R")
-#
-# options(
-#     bican.mccarroll.figures.data_root_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis",
-#
-#     bican.mccarroll.figures.out_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository",
-#
-#     bican.mccarroll.figures.cache_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository/data_cache"
-# )
+source("R/paths.R")
+
+options(
+    bican.mccarroll.figures.data_root_dir =
+        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis",
+
+    bican.mccarroll.figures.out_dir =
+        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository",
+
+    bican.mccarroll.figures.cache_dir =
+        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository/data_cache"
+)
 
 # data_dir = NULL; data_name = "donor_rxn_DGEList"; data_cache_dir = NULL; cellTypeListFile = NULL; outDir = NULL; clustering_min_genes = 150; num_clusters = 3
 #########################################
@@ -540,6 +540,7 @@ make_filtering_cluster_panels <- function(
 #' @param cellTypeListFile Path to a one-column text file listing cell types to
 #'   include in the plot. Cell types not present in the data are reported via a
 #'   warning.
+#' @param regions The list of regions to include in analysis.
 #' @param data_cache_dir Directory used to store and read cached intermediate
 #'   data for this figure.
 #'
@@ -558,12 +559,15 @@ plot_eqtl_filtering_trajectories <- function(
         fdr_threshold = 0.05,
         num_clusters = 4,
         cellTypeListFile = NULL,
+        regions=c("CaH", "DFC"),
         data_cache_dir = NULL) {
 
     paths <- .resolve_eqtl_paths(
         eqtl_data_dir = eqtl_data_dir, outDir = outDir,
         cellTypeListFile = cellTypeListFile, data_cache_dir = data_cache_dir
     )
+
+    cell_types_to_use <- utils::read.table(paths$cellTypeListFile, header = FALSE, stringsAsFactors = FALSE)[, 1]
 
     cache_file <- file.path(paths$data_cache_dir, "eqtl_filtering_plot_cache.txt")
 
@@ -579,13 +583,12 @@ plot_eqtl_filtering_trajectories <- function(
         df <- bican.mccarroll.eqtl::compare_all_eQTL_runs(
             data_dir = paths$eqtl_data_dir, outDir = NULL,
             filter_levels = filter_levels, fdr_threshold = fdr_threshold,
+            cellTypeList = cell_types_to_use, regionList=regions,
             cache_dir = eqtl_cache_dir
         )
         utils::write.table(df, file = cache_file, sep = "\t",
                            row.names = FALSE, quote = FALSE)
     }
-
-    cell_types_to_use <- utils::read.table(paths$cellTypeListFile, header = FALSE, stringsAsFactors = FALSE)[, 1]
 
     df <- df[df$cell_type %in% cell_types_to_use, ]
     missing <- setdiff(cell_types_to_use, df$cell_type)

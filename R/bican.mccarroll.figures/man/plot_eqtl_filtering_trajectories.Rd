@@ -11,6 +11,7 @@ plot_eqtl_filtering_trajectories(
   fdr_threshold = 0.05,
   num_clusters = 4,
   cellTypeListFile = NULL,
+  regions = c("CaH", "DFC"),
   data_cache_dir = NULL
 )
 }
@@ -30,6 +31,8 @@ trajectory.}
 \item{cellTypeListFile}{Path to a one-column text file listing cell types to
 include in the plot. Cell types not present in the data are reported via a
 warning.}
+
+\item{regions}{The list of regions to include in analysis.}
 
 \item{data_cache_dir}{Directory used to store and read cached intermediate
 data for this figure.}
