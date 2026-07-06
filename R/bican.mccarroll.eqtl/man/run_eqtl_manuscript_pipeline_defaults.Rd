@@ -5,14 +5,10 @@
 \title{Run the manuscript pipeline with default manuscript settings}
 \usage{
 run_eqtl_manuscript_pipeline_defaults(
-  eqtl_dir =
-    "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_3",
-  out_dir =
-    "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/eqtl_analysis_pipeline_run_jim",
-  region_cell_type_path =
-    "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/manuscript_data/region_cell_type.tsv",
-  vcf_path =
-    "/broad/bican_um1_mccarroll/vcfs/2025-05-05/gvs_concat_outputs_2025-05-05T14-10-02.donors_renamed_filtered_norm.vcf.gz",
+  eqtl_dir = NULL,
+  out_dir = NULL,
+  region_cell_type_path = NULL,
+  vcf_path = NULL,
   K = 13,
   cluster_order = "11,0,5,4,2,12,9,1,6,3,7,10,8",
   qval = 0.01,

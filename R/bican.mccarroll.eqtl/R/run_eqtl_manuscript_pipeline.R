@@ -299,10 +299,10 @@ run_eqtl_manuscript_pipeline <- function(
 #' @inheritParams run_eqtl_manuscript_pipeline
 #' @export
 run_eqtl_manuscript_pipeline_defaults <- function(
-        eqtl_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_3",
-        out_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/eqtl_analysis_pipeline_run_jim",
-        region_cell_type_path = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/manuscript_data/region_cell_type.tsv",
-        vcf_path = "/broad/bican_um1_mccarroll/vcfs/2025-05-05/gvs_concat_outputs_2025-05-05T14-10-02.donors_renamed_filtered_norm.vcf.gz",
+        eqtl_dir = NULL,
+        out_dir = NULL,
+        region_cell_type_path = NULL,
+        vcf_path = NULL,
         K = 13,
         cluster_order = "11,0,5,4,2,12,9,1,6,3,7,10,8",
         qval = 0.01,
@@ -312,6 +312,19 @@ run_eqtl_manuscript_pipeline_defaults <- function(
             list(gene = "NPAS3", chr = "chr14", pos = 32935820),
             list(gene = "CEP112", chr = "chr17", pos = 66192315)
         )) {
+
+    if (is.null(eqtl_dir)) {
+        eqtl_dir <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/results/LEVEL_3"
+    }
+    if (is.null(out_dir)) {
+        out_dir <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/eqtl_analysis_pipeline_run_jim"
+    }
+    if (is.null(region_cell_type_path)) {
+        region_cell_type_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/manuscript_data/region_cell_type.tsv"
+    }
+    if (is.null(vcf_path)) {
+        vcf_path <- "/broad/bican_um1_mccarroll/vcfs/2025-05-05/gvs_concat_outputs_2025-05-05T14-10-02.donors_renamed_filtered_norm.vcf.gz"
+    }
 
     run_eqtl_manuscript_pipeline(
         eqtl_dir = eqtl_dir,

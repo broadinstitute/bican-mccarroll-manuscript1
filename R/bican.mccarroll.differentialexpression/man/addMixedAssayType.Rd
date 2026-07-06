@@ -8,7 +8,7 @@ addMixedAssayType(metricsDF, has_village = TRUE)
 }
 \arguments{
 \item{metricsDF}{A data frame containing at least the columns
- `single_cell_assay`, `donor_external_id`, and `brain_region_abbreviation`.
+ `single_cell_assay`, `donor_external_id`, and `brain_region_abbreviation_simple`.
 Each row represents a nuclei for a donor with a corresponding assay type / region}
 
 \item{has_village}{Logical; if \code{TRUE}, the metricsDF contains a metadata column

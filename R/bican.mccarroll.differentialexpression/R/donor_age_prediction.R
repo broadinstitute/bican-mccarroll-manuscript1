@@ -158,6 +158,8 @@ predict_age_by_celltype<-function (data_dir, data_name, result_dir, age_de_resul
 #' @param age_de_results_dir Directory containing per-cell-type or per-(cell type, region)
 #'   age differential expression results used by \code{\link{get_age_de_results}} and
 #'   \code{\link{predict_age_celltype}}.
+#' @param cellTypeListFile A file containing a single column of cell type names
+#' used to restrict this analysis.
 #' @param outPDFFile Optional path to a PDF file. If provided, QC plots generated during
 #'   processing are printed to this PDF; otherwise plots are printed to the active device.
 #' @param contig_yaml_file Path to the contig-groups YAML file used by
