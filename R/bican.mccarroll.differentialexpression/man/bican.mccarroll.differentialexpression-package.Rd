@@ -14,5 +14,10 @@ and variancePartition, and visualization using GlimmaV2.
 \author{
 \strong{Maintainer}: James Nemesh \email{nemesh@broadinstitute.org}
 
+Authors:
+\itemize{
+  \item James Nemesh \email{nemesh@broadinstitute.org}
+}
+
 }
 \keyword{internal}

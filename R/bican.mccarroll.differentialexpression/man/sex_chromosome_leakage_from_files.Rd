@@ -24,17 +24,13 @@ sex_chromosome_leakage_from_files(
 \code{prefix}).}
 
 \item{cellTypeListFile}{Optional file path containing a list of cell
-types to include (passed to
-\code{\link{filter_dgelist_by_celltype_list}}). If \code{NULL}, uses
-all cell types present.}
+types to include. If \code{NULL}, uses all cell types present.}
 
 \item{outFile}{Optional tab-delimited output path for the village-level
 leakage results table. If \code{NULL}, no file is written.}
 
 \item{outFileDonorLevel}{Optional tab-delimited output path for the
-donor-level leakage results table (see
-\code{\link{compute_sex_chromosome_leakage_donor_level}}). If
-\code{NULL}, no file is written.}
+donor-level leakage results table. If \code{NULL}, no file is written.}
 
 \item{outSVG}{Optional SVG output path for the leakage summary boxplot. If
 \code{NULL}, no file is written.}
@@ -57,9 +53,5 @@ Invisibly returns a list with elements:
   }
 }
 \description{
-Wrapper around \code{\link{compute_sex_chromosome_leakage}} that loads a
-\code{DGEList} from disk (via \code{\link{loadDGEList}}), optionally
-restricts to a set of cell types (via
-\code{\link{filter_dgelist_by_celltype_list}}), computes leakage ratios,
-and optionally writes the results table and a summary plot to disk.
+Compute sex-chromosome expression leakage ratios (file interface)
 }

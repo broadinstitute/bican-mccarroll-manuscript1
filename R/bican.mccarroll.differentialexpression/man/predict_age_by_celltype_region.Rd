@@ -9,6 +9,7 @@ predict_age_by_celltype_region(
   data_name,
   result_dir,
   age_de_results_dir,
+  cellTypeListFile = NULL,
   outPDFFile = NULL,
   contig_yaml_file,
   reduced_gtf_file,
@@ -36,6 +37,9 @@ predict_age_by_celltype_region(
 \item{age_de_results_dir}{Directory containing per-cell-type or per-(cell type, region)
 age differential expression results used by \code{\link{get_age_de_results}} and
 \code{\link{predict_age_celltype}}.}
+
+\item{cellTypeListFile}{A file containing a single column of cell type names
+used to restrict this analysis.}
 
 \item{outPDFFile}{Optional path to a PDF file. If provided, QC plots generated during
 processing are printed to this PDF; otherwise plots are printed to the active device.}
