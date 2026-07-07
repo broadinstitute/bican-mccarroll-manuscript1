@@ -1,23 +1,23 @@
-library (ggplot2)
-library (svglite)
+# library (ggplot2)
+# library (svglite)
 
 
 ## ------------------------------------------------------------------
 ## Set configuration (development only; comment out in package build)
 ## ------------------------------------------------------------------
 
-source("R/paths.R")
-
-options(
-    bican.mccarroll.figures.data_root_dir =
-        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis",
-
-    bican.mccarroll.figures.out_dir =
-        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository",
-
-    bican.mccarroll.figures.cache_dir =
-        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository/data_cache"
-)
+# source("R/paths.R")
+#
+# options(
+#     bican.mccarroll.figures.data_root_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis",
+#
+#     bican.mccarroll.figures.out_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository",
+#
+#     bican.mccarroll.figures.cache_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository/data_cache"
+# )
 
 # data_dir = NULL; data_name = "donor_rxn_DGEList"; data_cache_dir = NULL; cellTypeListFile = NULL; outDir = NULL; clustering_min_genes = 150; num_clusters = 3
 #########################################
@@ -555,7 +555,7 @@ make_filtering_cluster_panels <- function(
 plot_eqtl_filtering_trajectories <- function(
         eqtl_data_dir = NULL,
         outDir = NULL,
-        filter_levels = c(0, 1, 2, 3, 4),
+        filter_levels = c(0, 1, 2, 3, 4, 5,6,7,8),
         fdr_threshold = 0.05,
         num_clusters = 4,
         cellTypeListFile = NULL,
