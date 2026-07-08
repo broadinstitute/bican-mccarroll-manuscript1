@@ -52,12 +52,12 @@ plot_gene_snp <- function(gene,
                           height = 5) {
 
     celltype_order <- c(
-        "MSN_D1_matrix__CaH",
-        "MSN_D2_matrix__CaH",
+        "SPN_D1_matrix__CaH",
+        "SPN_D2_matrix__CaH",
         "GABA_MGE_DFC__DFC",
         "GABA_CGE_DFC__DFC",
-        "GABA_MGE_CAP__CaH",
-        "glutamatergic_L23IT__DFC",
+        "GABA_MGE_STR__CaH",
+        "glut_L23_IT__DFC",
         "astrocyte__CaH",
         "oligodendrocyte__CaH",
         "OPC__CaH",
@@ -70,12 +70,12 @@ plot_gene_snp <- function(gene,
     # }
 
     celltype_label_map <- c(
-        "MSN_D1_matrix__CaH"        = "MSN D1 matrix (CaH)",
-        "MSN_D2_matrix__CaH"        = "MSN D2 matrix (CaH)",
+        "SPN_D1_matrix__CaH"        = "SPN D1 matrix (CaH)",
+        "SPN_D2_matrix__CaH"        = "SPN D2 matrix (CaH)",
         "GABA_MGE_DFC__DFC"          = "MGE-derived GABAergic (DFC)",
         "GABA_CGE_DFC__DFC"          = "CGE-derived GABAergic (DFC)",
-        "GABA_MGE_CAP__CaH"          = "MGE-derived GABAergic (CaH)",
-        "glutamatergic_L23IT__DFC"   = "Glutamatergic L2/3 IT (DFC)",
+        "GABA_MGE_STR__CaH"          = "MGE-derived GABAergic (CaH)",
+        "glut_L23_IT__DFC"   = "Glutamatergic L2/3 IT (DFC)",
         "astrocyte__CaH"             = "Astrocyte (CaH)",
         "oligodendrocyte__CaH"       = "Oligodendrocyte (CaH)",
         "OPC__CaH"                   = "OPC (CaH)",

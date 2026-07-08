@@ -79,6 +79,13 @@
 #'   genes by eQTL effect-size profile.
 #' @param cluster_order Character scalar giving the desired cluster order as a
 #'   comma-separated string used for final heatmap visualization.
+#' @param celltype_order_file Character scalar. Path to a text file with one
+#'   cell type per line, specifying the order of cell types in the
+#'   cell type-pairwise correlation heatmap and the K-means cluster heatmap.
+#' @param celltype_label_map_file Character scalar. Tab-delimited 2-column
+#'   file with header \code{cell_type_name} and \code{pretty_label}, mapping
+#'   cell type names to "pretty" labels for display in the cell type-pairwise
+#'   correlation heatmap and the K-means cluster heatmap.
 #' @param qval Numeric scalar giving the q-value threshold used to define the
 #'   union set of eGenes.
 #' @param force Logical scalar indicating whether to rerun steps even if their
@@ -97,6 +104,8 @@ run_eqtl_manuscript_pipeline <- function(
         vcf_path,
         K,
         cluster_order,
+        celltype_order_file,
+        celltype_label_map_file,
         qval = 0.01,
         force = FALSE,
         gene_snp_cases = list(
@@ -114,6 +123,8 @@ run_eqtl_manuscript_pipeline <- function(
         cluster_order = cluster_order,
         qval = qval,
         force = force,
+        celltype_order_file = celltype_order_file,
+        celltype_label_map_file = celltype_label_map_file,
         gene_snp_cases = gene_snp_cases
     )
 
@@ -218,7 +229,9 @@ run_eqtl_manuscript_pipeline <- function(
         fun = function() {
             bican.mccarroll.eqtl::plot_cell_type_pairwise_cor(
                 r_squared_path = paths$r_squared_path,
-                output_path = paths$cor_plot_path
+                output_path = paths$cor_plot_path,
+                celltype_order_file = celltype_order_file,
+                celltype_label_map_file = celltype_label_map_file
             )
         }
     )
@@ -258,7 +271,7 @@ run_eqtl_manuscript_pipeline <- function(
         gene_snp_cases = gene_snp_cases,
         force = force,
         width=30,
-        height=2
+        height=4
     )
 
 
@@ -266,7 +279,9 @@ run_eqtl_manuscript_pipeline <- function(
         out_dir = out_dir,
         K = K,
         cluster_order = cluster_order,
-        force = force
+        force = force,
+        celltype_order_file = celltype_order_file,
+        celltype_label_map_file = celltype_label_map_file
     )
 
     # .run_eqtl_manuscript_pipeline_step(
@@ -305,6 +320,8 @@ run_eqtl_manuscript_pipeline_defaults <- function(
         vcf_path = NULL,
         K = 13,
         cluster_order = "11,0,5,4,2,12,9,1,6,3,7,10,8",
+        celltype_order_file = NULL,
+        celltype_label_map_file = NULL,
         qval = 0.01,
         force = TRUE,
         gene_snp_cases = list(
@@ -325,6 +342,12 @@ run_eqtl_manuscript_pipeline_defaults <- function(
     if (is.null(vcf_path)) {
         vcf_path <- "/broad/bican_um1_mccarroll/vcfs/2025-05-05/gvs_concat_outputs_2025-05-05T14-10-02.donors_renamed_filtered_norm.vcf.gz"
     }
+    if (is.null(celltype_order_file)) {
+        celltype_order_file <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/metadata/cell_type_order_kmeans_main_figure.txt"
+    }
+    if (is.null(celltype_label_map_file)) {
+        celltype_label_map_file <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/metadata/pretty_label_map_kmeans_main_figure.txt"
+    }
 
     run_eqtl_manuscript_pipeline(
         eqtl_dir = eqtl_dir,
@@ -333,6 +356,8 @@ run_eqtl_manuscript_pipeline_defaults <- function(
         vcf_path = vcf_path,
         K = K,
         cluster_order = cluster_order,
+        celltype_order_file = celltype_order_file,
+        celltype_label_map_file = celltype_label_map_file,
         qval = qval,
         force = force,
         gene_snp_cases = gene_snp_cases
@@ -365,14 +390,18 @@ run_eqtl_manuscript_pipeline_defaults <- function(
         out_dir,
         K,
         cluster_order,
-        force) {
+        force,
+        celltype_order_file,
+        celltype_label_map_file) {
 
     cat("\n===== Step 10: K-means clustering (Python) =====\n")
 
     args <- c(
         "--out-dir", out_dir,
         sprintf("--K=%d", K),
-        "--desired-order", cluster_order
+        "--desired-order", cluster_order,
+        "--celltype-order-file", celltype_order_file,
+        "--celltype-label-map-file", celltype_label_map_file
     )
 
     if (isTRUE(force)) {
@@ -491,6 +520,8 @@ run_eqtl_manuscript_pipeline_defaults <- function(
         cluster_order,
         qval,
         force,
+        celltype_order_file,
+        celltype_label_map_file,
         gene_snp_cases) {
 
     if (!is.character(eqtl_dir) || length(eqtl_dir) != 1L || is.na(eqtl_dir)) {
@@ -547,6 +578,26 @@ run_eqtl_manuscript_pipeline_defaults <- function(
 
     if (!is.logical(force) || length(force) != 1L || is.na(force)) {
         stop("'force' must be TRUE or FALSE")
+    }
+
+    if (!is.character(celltype_order_file) ||
+        length(celltype_order_file) != 1L ||
+        is.na(celltype_order_file)) {
+        stop("'celltype_order_file' must be a single character string")
+    }
+
+    if (!file.exists(celltype_order_file)) {
+        stop("'celltype_order_file' does not exist: ", celltype_order_file)
+    }
+
+    if (!is.character(celltype_label_map_file) ||
+        length(celltype_label_map_file) != 1L ||
+        is.na(celltype_label_map_file)) {
+        stop("'celltype_label_map_file' must be a single character string")
+    }
+
+    if (!file.exists(celltype_label_map_file)) {
+        stop("'celltype_label_map_file' does not exist: ", celltype_label_map_file)
     }
 
     if (!is.list(gene_snp_cases) || length(gene_snp_cases) == 0L) {
