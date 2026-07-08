@@ -1,3 +1,15 @@
+# source ("~/bican-mccarroll-manuscript1/R/bican.mccarroll.differentialexpression/R/differential_expression.R")
+# source ("~/bican-mccarroll-manuscript1/R/bican.mccarroll.differentialexpression/R/select_marker_genes.R")
+# source ("~/bican-mccarroll-manuscript1/R/bican.mccarroll.differentialexpression/R/createDGEList.R")
+# source ("~/bican-mccarroll-manuscript1/R/bican.mccarroll.differentialexpression/R/donor_age_prediction.R")
+# data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/metacells/LEVEL_6"; data_name="donor_rxn_DGEList"
+# cellTypeListFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/metadata/cell_types_for_de_filtering_plot.txt"
+# outFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/sex_expression_leakage/results_average.txt"
+# outFileDonorLevel="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/sex_expression_leakage/results_donor.txt"
+# outSVG="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/sex_expression_leakage/results.svg"
+# xist_gene = "XIST";y_genes = c("DDX3Y", "RPS4Y1", "USP9Y")
+
+
 # Sex-chromosome expression "leakage" analysis for village pseudobulk data.
 #
 # Villages pool many donors into shared physical/sequencing space. If reads
@@ -64,6 +76,12 @@ sex_chromosome_leakage_from_files <- function(data_dir, data_name,
     }
 
     p <- plot_sex_chromosome_leakage_boxplot(leakage_df, outSVG = outSVG)
+
+
+    plots <- plot_leakage_numerator_denominator(leakage_df)
+
+    plots$expression
+    plots$expression_by_cell_type
 
     invisible(list(leakage = leakage_df, donor_leakage = donor_leakage_df, plot = p))
 }
@@ -511,4 +529,235 @@ write_sex_chromosome_leakage <- function(df, file) {
     logger::log_info(paste("Writing sex-chromosome leakage results to:", file))
     utils::write.table(df, file = file, sep = "\t", quote = FALSE, row.names = FALSE, col.names = TRUE)
     invisible(TRUE)
+}
+
+###################################################################
+# Explore the asymetry between XIST and the Y chromosome leakage
+###################################################################
+
+plot_leakage_numerator_denominator <- function(leakage_df) {
+    stopifnot(is.data.frame(leakage_df))
+
+    required_cols <- c(
+        "village", "cell_type", "n_male", "n_female",
+        "median_xist_male", "median_xist_female",
+        "median_y_male", "median_y_female",
+        "xist_leakage_ratio", "y_leakage_ratio"
+    )
+
+    missing_cols <- setdiff(required_cols, colnames(leakage_df))
+    if (length(missing_cols) > 0) {
+        stop("Missing required columns: ", paste(missing_cols, collapse = ", "))
+    }
+
+    df <- as.data.frame(leakage_df)
+
+    numeric_cols <- c(
+        "n_male", "n_female",
+        "median_xist_male", "median_xist_female",
+        "median_y_male", "median_y_female",
+        "xist_leakage_ratio", "y_leakage_ratio"
+    )
+
+    for (col in numeric_cols) {
+        df[[col]] <- as.numeric(df[[col]])
+    }
+
+    keep <- complete.cases(df[, numeric_cols]) &
+        df$n_male > 0 &
+        df$n_female > 0 &
+        df$median_xist_male > 0 &
+        df$median_xist_female > 0 &
+        df$median_y_male > 0 &
+        df$median_y_female > 0 &
+        df$xist_leakage_ratio > 0 &
+        df$y_leakage_ratio > 0
+
+    df <- df[keep, , drop = FALSE]
+
+    if (nrow(df) == 0) {
+        stop("No complete positive rows remain.")
+    }
+
+    expr_long <- rbind(
+        data.frame(
+            village = df$village,
+            cell_type = df$cell_type,
+            marker = "XIST",
+            role = "Wrong-sex numerator",
+            quantity = "male XIST",
+            value = df$median_xist_male,
+            stringsAsFactors = FALSE
+        ),
+        data.frame(
+            village = df$village,
+            cell_type = df$cell_type,
+            marker = "XIST",
+            role = "True-sex denominator",
+            quantity = "female XIST",
+            value = df$median_xist_female,
+            stringsAsFactors = FALSE
+        ),
+        data.frame(
+            village = df$village,
+            cell_type = df$cell_type,
+            marker = "Y genes",
+            role = "Wrong-sex numerator",
+            quantity = "female Y",
+            value = df$median_y_female,
+            stringsAsFactors = FALSE
+        ),
+        data.frame(
+            village = df$village,
+            cell_type = df$cell_type,
+            marker = "Y genes",
+            role = "True-sex denominator",
+            quantity = "male Y",
+            value = df$median_y_male,
+            stringsAsFactors = FALSE
+        )
+    )
+
+    expr_long$marker <- factor(expr_long$marker, levels = c("XIST", "Y genes"))
+    expr_long$role <- factor(
+        expr_long$role,
+        levels = c("Wrong-sex numerator", "True-sex denominator")
+    )
+
+    ratio_long <- rbind(
+        data.frame(
+            village = df$village,
+            cell_type = df$cell_type,
+            marker = "XIST",
+            leakage_ratio = df$xist_leakage_ratio,
+            stringsAsFactors = FALSE
+        ),
+        data.frame(
+            village = df$village,
+            cell_type = df$cell_type,
+            marker = "Y genes",
+            leakage_ratio = df$y_leakage_ratio,
+            stringsAsFactors = FALSE
+        )
+    )
+
+    ratio_long$marker <- factor(ratio_long$marker, levels = c("XIST", "Y genes"))
+
+    contrast_long <- rbind(
+        data.frame(
+            village = df$village,
+            cell_type = df$cell_type,
+            contrast = "Wrong-sex signal: female Y / male XIST",
+            value = df$median_y_female / df$median_xist_male,
+            stringsAsFactors = FALSE
+        ),
+        data.frame(
+            village = df$village,
+            cell_type = df$cell_type,
+            contrast = "True-sex signal: female XIST / male Y",
+            value = df$median_xist_female / df$median_y_male,
+            stringsAsFactors = FALSE
+        ),
+        data.frame(
+            village = df$village,
+            cell_type = df$cell_type,
+            contrast = "Leakage ratio: Y / XIST",
+            value = df$y_leakage_ratio / df$xist_leakage_ratio,
+            stringsAsFactors = FALSE
+        )
+    )
+
+    contrast_long$contrast <- factor(
+        contrast_long$contrast,
+        levels = c(
+            "Wrong-sex signal: female Y / male XIST",
+            "True-sex signal: female XIST / male Y",
+            "Leakage ratio: Y / XIST"
+        )
+    )
+
+    p_expr <- ggplot2::ggplot(
+        expr_long,
+        ggplot2::aes(x = role, y = value)
+    ) +
+        ggplot2::geom_boxplot(outlier.shape = NA) +
+        ggplot2::geom_jitter(width = 0.15, height = 0, alpha = 0.35, size = 0.9) +
+        ggplot2::facet_wrap(~ marker) +
+        ggplot2::scale_y_continuous(trans = "log10") +
+        ggplot2::labs(
+            x = NULL,
+            y = "Median expression, log10 scale",
+            title = "Wrong-sex numerator versus true-sex denominator"
+        ) +
+        ggplot2::theme_bw() +
+        ggplot2::theme(
+            axis.text.x = ggplot2::element_text(angle = 30, hjust = 1),
+            panel.grid.minor = ggplot2::element_blank()
+        )
+
+    p_expr_by_cell_type <- ggplot2::ggplot(
+        expr_long,
+        ggplot2::aes(x = marker, y = value)
+    ) +
+        ggplot2::geom_boxplot(outlier.shape = NA) +
+        ggplot2::geom_jitter(width = 0.15, height = 0, alpha = 0.3, size = 0.7) +
+        ggplot2::facet_grid(role ~ cell_type, scales = "free_y") +
+        ggplot2::scale_y_continuous(trans = "log10") +
+        ggplot2::labs(
+            x = NULL,
+            y = "Median expression, log10 scale",
+            title = "Numerator and denominator values by cell type"
+        ) +
+        ggplot2::theme_bw() +
+        ggplot2::theme(
+            axis.text.x = ggplot2::element_text(angle = 45, hjust = 1, size = 7),
+            strip.text.x = ggplot2::element_text(size = 8),
+            panel.grid.minor = ggplot2::element_blank()
+        )
+
+    p_ratios <- ggplot2::ggplot(
+        ratio_long,
+        ggplot2::aes(x = marker, y = leakage_ratio)
+    ) +
+        ggplot2::geom_boxplot(outlier.shape = NA) +
+        ggplot2::geom_jitter(width = 0.15, height = 0, alpha = 0.4, size = 0.9) +
+        ggplot2::scale_y_continuous(trans = "log10") +
+        ggplot2::labs(
+            x = NULL,
+            y = "Leakage ratio, log10 scale",
+            title = "Observed leakage ratios"
+        ) +
+        ggplot2::theme_bw() +
+        ggplot2::theme(panel.grid.minor = ggplot2::element_blank())
+
+    p_contrasts <- ggplot2::ggplot(
+        contrast_long,
+        ggplot2::aes(x = contrast, y = value)
+    ) +
+        ggplot2::geom_hline(yintercept = 1, linetype = "dashed") +
+        ggplot2::geom_boxplot(outlier.shape = NA) +
+        ggplot2::geom_jitter(width = 0.15, height = 0, alpha = 0.4, size = 0.9) +
+        ggplot2::scale_y_continuous(trans = "log10") +
+        ggplot2::labs(
+            x = NULL,
+            y = "Fold difference, log10 scale",
+            title = "Decomposing the Y/XIST leakage-ratio asymmetry"
+        ) +
+        ggplot2::theme_bw() +
+        ggplot2::theme(
+            axis.text.x = ggplot2::element_text(angle = 30, hjust = 1),
+            panel.grid.minor = ggplot2::element_blank()
+        )
+
+    list(
+        expression = p_expr,
+        expression_by_cell_type = p_expr_by_cell_type,
+        ratios = p_ratios,
+        contrasts = p_contrasts,
+        plot_data = list(
+            expression = expr_long,
+            ratios = ratio_long,
+            contrasts = contrast_long
+        )
+    )
 }

@@ -1,15 +1,15 @@
-source("R/paths.R")
-
-options(
-    bican.mccarroll.figures.data_root_dir =
-        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis",
-
-    bican.mccarroll.figures.out_dir =
-        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository",
-
-    bican.mccarroll.figures.cache_dir =
-        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository/data_cache"
-)
+# source("R/paths.R")
+#
+# options(
+#     bican.mccarroll.figures.data_root_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis",
+#
+#     bican.mccarroll.figures.out_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository",
+#
+#     bican.mccarroll.figures.cache_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository/data_cache"
+# )
 
 #de_dir <- de_region_subset_dir <- de_region_interaction_dir <- gene_to_chr_path <- ct_file <- data_cache_dir <- outDir <- NULL
 
@@ -205,6 +205,7 @@ plot_trade_analysis <- function(
     #               out_file = "trade_dataset3_age_interaction_region_autosomes_heatmap.svg",
     #               out_dir = paths$outDir, width=5, height=8)
 
+    logger::log_info("DONE plotting Trade")
     invisible(NULL)
 }
 

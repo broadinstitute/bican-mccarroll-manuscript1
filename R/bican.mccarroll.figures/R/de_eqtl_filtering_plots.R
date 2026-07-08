@@ -1,23 +1,23 @@
-library (ggplot2)
-library (svglite)
+# library (ggplot2)
+# library (svglite)
 
 
 ## ------------------------------------------------------------------
 ## Set configuration (development only; comment out in package build)
 ## ------------------------------------------------------------------
 
-source("R/paths.R")
-
-options(
-    bican.mccarroll.figures.data_root_dir =
-        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis",
-
-    bican.mccarroll.figures.out_dir =
-        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository",
-
-    bican.mccarroll.figures.cache_dir =
-        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository/data_cache"
-)
+# source("R/paths.R")
+#
+# options(
+#     bican.mccarroll.figures.data_root_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis",
+#
+#     bican.mccarroll.figures.out_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository",
+#
+#     bican.mccarroll.figures.cache_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository/data_cache"
+# )
 
 # data_dir = NULL; data_name = "donor_rxn_DGEList"; data_cache_dir = NULL; cellTypeListFile = NULL; outDir = NULL; clustering_min_genes = 150; num_clusters = 3
 #########################################
@@ -28,8 +28,17 @@ options(
 .plot_all<-function () {
     plot_eqtl_filtering_trajectories()
     plot_eqtl_filtering_examples()
+    plot_eqtl_filtering_examples(baseline_name = "LEVEL 3", comparison_name = "LEVEL 2")
+    plot_eqtl_filtering_examples(baseline_name = "LEVEL 3", comparison_name = "LEVEL 4")
+    plot_eqtl_filtering_examples(baseline_name = "LEVEL 6", comparison_name = "LEVEL 5")
+    plot_eqtl_filtering_examples(baseline_name = "LEVEL 6", comparison_name = "LEVEL 7")
+
     plot_de_filtering_trajectories()
     plot_de_filtering_examples()
+    plot_de_filtering_examples(baseline_name = "LEVEL 3", comparison_name = "LEVEL 2")
+    plot_de_filtering_examples(baseline_name = "LEVEL 3", comparison_name = "LEVEL 4")
+    plot_de_filtering_examples(baseline_name = "LEVEL 6", comparison_name = "LEVEL 5")
+    plot_de_filtering_examples(baseline_name = "LEVEL 6", comparison_name = "LEVEL 7")
 }
 
 # This produces the change in the number of DE genes discovered at each level of filtering
@@ -182,14 +191,15 @@ plot_de_filtering_examples <- function(
         baseline_data_dir = NULL,
         comparison_data_dir = NULL,
         baseline_name = "LEVEL 6",
-        comparison_name = "LEVEL 7",
+        comparison_name = "LEVEL 8",
         outDir = NULL) {
 
     paths <- .resolve_de_paths(
         baseline_de_results_dir = baseline_data_dir,
         comparison_de_results_dir = comparison_data_dir,
-        outDir = outDir
-    )
+        baseline_name=baseline_name,
+        comparison_name=comparison_name,
+        outDir = outDir)
 
     baseline_data_dir <- paths$baseline_de_results_dir
     comparison_data_dir <- paths$comparison_de_results_dir
@@ -241,7 +251,11 @@ plot_de_filtering_examples <- function(
 
     combined_plot <- cowplot::plot_grid(plotlist = plot_list, ncol = 2)
 
-    output_svg <- file.path(outDir, "de_filtering_cell_type_examples.svg")
+    bl=sub ("LEVEL ", "", baseline_name)
+    cl=sub ("LEVEL ", "", comparison_name)
+    suffix=paste(bl, "_vs_", cl, sep="")
+    outFile=paste("de_filtering_cell_type_examples_", suffix, ".svg", sep="")
+    output_svg <- file.path(outDir, outFile)
     ggplot2::ggsave(
         filename = output_svg,
         plot = combined_plot, device = svglite::svglite, width = 14, height = 7
@@ -394,7 +408,9 @@ make_filtering_cluster_panels <- function(
         comparison_eqtl_data_dir = NULL,
         cellTypeListFile = NULL,
         outDir = NULL,
-        data_cache_dir = NULL) {
+        data_cache_dir = NULL,
+        baseline_name = "LEVEL 6",
+        comparison_name = "LEVEL 8") {
 
     data_root_dir <- .resolve_data_root_dir()
 
@@ -422,10 +438,13 @@ make_filtering_cluster_panels <- function(
     .ensure_dir(outDir)
     .ensure_dir(cache_dir)
 
+    baselineLevel <- sub(" ", "_", baseline_name)
+    comparisonLevel <- sub(" ", "_", comparison_name)
+
     # Defaults under the data root dir
     if (is.null(eqtl_data_dir)) eqtl_data_dir <- "eqtls/results"
-    if (is.null(baseline_eqtl_data_dir)) baseline_eqtl_data_dir <- "eqtls/results/LEVEL_6"
-    if (is.null(comparison_eqtl_data_dir)) comparison_eqtl_data_dir <- "eqtls/results/LEVEL_8"
+    if (is.null(baseline_eqtl_data_dir)) baseline_eqtl_data_dir <- paste("eqtls/results/", baselineLevel, sep="")
+    if (is.null(comparison_eqtl_data_dir)) comparison_eqtl_data_dir <- paste("eqtls/results/", comparisonLevel, sep="")
 
     if (is.null(cellTypeListFile)) {
         cellTypeListFile <- "differential_expression/metadata/cell_types_for_de_filtering_plot.txt"
@@ -453,7 +472,9 @@ make_filtering_cluster_panels <- function(
         comparison_de_results_dir = NULL,
         cellTypeListFile = NULL,
         outDir = NULL,
-        data_cache_dir = NULL) {
+        data_cache_dir = NULL,
+        baseline_name = "LEVEL 6",
+        comparison_name = "LEVEL 8") {
 
     data_root_dir <- .resolve_data_root_dir()
 
@@ -481,11 +502,15 @@ make_filtering_cluster_panels <- function(
     .ensure_dir(outDir)
     .ensure_dir(cache_dir)
 
+
+    baselineLevel=sub (" ", "_", baseline_name)
+    comparisonLevel=sub (" ", "_", comparison_name)
+
     if (is.null(baseline_de_results_dir)) {
-        baseline_de_results_dir <- "differential_expression/results/LEVEL_6/sex_age/cell_type"
+        baseline_de_results_dir <- paste("differential_expression/results/", baselineLevel, "/sex_age/cell_type", sep="")
     }
     if (is.null(comparison_de_results_dir)) {
-        comparison_de_results_dir <- "differential_expression/results/LEVEL_8/sex_age/cell_type"
+        comparison_de_results_dir <- paste("differential_expression/results/", comparisonLevel, "/sex_age/cell_type", sep="")
     }
     if (is.null(cellTypeListFile)) {
         cellTypeListFile <- "differential_expression/metadata/cell_types_for_de_filtering_plot.txt"
@@ -555,7 +580,7 @@ make_filtering_cluster_panels <- function(
 plot_eqtl_filtering_trajectories <- function(
         eqtl_data_dir = NULL,
         outDir = NULL,
-        filter_levels = c(0, 1, 2, 3, 4),
+        filter_levels = c(0, 1, 2, 3, 4, 5,6,7,8),
         fdr_threshold = 0.05,
         num_clusters = 4,
         cellTypeListFile = NULL,
@@ -672,18 +697,20 @@ plot_eqtl_filtering_trajectories <- function(
 #' @export
 #' @family sample filtering figures
 plot_eqtl_filtering_examples <- function(
-        cell_type_list = c("astrocyte", "microglia", "MSN_D1", "OPC"),
+        cell_type_list = c("astrocyte", "microglia", "SPN_D1", "OPC"),
         region = "CaH",
         baseline_data_dir = NULL,
         comparison_data_dir = NULL,
-        baseline_name = "LEVEL 3",
-        comparison_name = "LEVEL 4",
+        baseline_name = "LEVEL 6",
+        comparison_name = "LEVEL 8",
         outDir = NULL,
         data_cache_dir = NULL) {
 
     paths <- .resolve_eqtl_paths(
         baseline_eqtl_data_dir = baseline_data_dir,
         comparison_eqtl_data_dir = comparison_data_dir,
+        baseline_name = baseline_name,
+        comparison_name = comparison_name,
         outDir = outDir,
         data_cache_dir = data_cache_dir
     )
@@ -763,8 +790,13 @@ plot_eqtl_filtering_examples <- function(
 
     combined_plot <- cowplot::plot_grid(plotlist = plot_list, ncol = 2)
 
+    bl <- sub("LEVEL ", "", baseline_name)
+    cl <- sub("LEVEL ", "", comparison_name)
+    suffix <- paste(bl, "_vs_", cl, sep="")
+    outFile <- paste("eqtl_filtering_cell_type_examples_", suffix, ".svg", sep="")
+
     ggplot2::ggsave(
-        filename = file.path(paths$outDir, "eqtl_filtering_cell_type_examples.svg"),
+        filename = file.path(paths$outDir, outFile),
         plot = combined_plot, device = svglite::svglite, width = 12, height = 6
     )
 
