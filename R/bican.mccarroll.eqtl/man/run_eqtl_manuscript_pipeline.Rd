@@ -11,6 +11,8 @@ run_eqtl_manuscript_pipeline(
   vcf_path,
   K,
   cluster_order,
+  celltype_order_file,
+  celltype_label_map_file,
   qval = 0.01,
   force = FALSE,
   gene_snp_cases = list(list(gene = "XRRA1", chr = "chr11", pos = 74935168), list(gene =
@@ -40,6 +42,15 @@ genes by eQTL effect-size profile.}
 
 \item{cluster_order}{Character scalar giving the desired cluster order as a
 comma-separated string used for final heatmap visualization.}
+
+\item{celltype_order_file}{Character scalar. Path to a text file with one
+cell type per line, specifying the order of cell types in the
+cell type-pairwise correlation heatmap and the K-means cluster heatmap.}
+
+\item{celltype_label_map_file}{Character scalar. Tab-delimited 2-column
+file with header \code{cell_type_name} and \code{pretty_label}, mapping
+cell type names to "pretty" labels for display in the cell type-pairwise
+correlation heatmap and the K-means cluster heatmap.}
 
 \item{qval}{Numeric scalar giving the q-value threshold used to define the
 union set of eGenes.}
