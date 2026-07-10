@@ -217,6 +217,15 @@ def main(argv=None):
         help="Use sequential cluster labels in the output.",
     )
 
+    parser.add_argument(
+        "--y_axis_text_size",
+        default=16,
+        help=(
+            "Size of the y-axis text in the heatmap. Default: 16."
+        )
+    )
+
+
     args = parser.parse_args(argv)
     out_dir = args.out_dir
     force = args.force
@@ -264,6 +273,7 @@ def main(argv=None):
             cluster_counts_output_path=cluster_counts_output,
             cluster_assignments_output_path=cluster_assignments_output,
             use_sequential_cluster_labels=args.use_sequential_cluster_labels,
+            y_axis_text_size=args.y_axis_text_size,
         )
         print(f"  Heatmap: {heatmap_output}")
         print(f"  Cluster counts: {cluster_counts_output}")

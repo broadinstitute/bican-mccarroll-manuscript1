@@ -163,18 +163,25 @@ def plot_k_selection(silhouette_df, output_path=None):
 
     return fig
 
-
-def run_kmeans_heatmap(input_path, K, desired_order=None, show_cluster_labels=False, random_state=42,
-                       celltype_order=None, celltype_label_map=None,
-                       heatmap_output_path=None, cluster_counts_output_path=None,
-                       cluster_assignments_output_path=None,
-                       use_sequential_cluster_labels=False,
-                       figsize=(16, 12)):
+def run_kmeans_heatmap(
+        input_path,
+        K,
+        desired_order=None,
+        show_cluster_labels=False,
+        random_state=42,
+        celltype_order=None,
+        celltype_label_map=None,
+        heatmap_output_path=None,
+        cluster_counts_output_path=None,
+        cluster_assignments_output_path=None,
+        use_sequential_cluster_labels=False,
+        figsize=(16, 12),
+        y_axis_text_size=16):
     """Run K-means clustering and generate the effect-size heatmap.
 
     Intended workflow:
       1. Run with ``desired_order=None`` to produce an initial heatmap with
-         clusters in numeric order.  Inspect the heatmap and decide on a
+         clusters in numeric order. Inspect the heatmap and decide on a
          cluster ordering that places the diagonal color blocks in the
          desired sequence.
       2. Re-run with ``desired_order=[6, 8, 1, ...]`` to produce the final
@@ -189,6 +196,8 @@ def run_kmeans_heatmap(input_path, K, desired_order=None, show_cluster_labels=Fa
     desired_order : list of int or None
         Cluster display order (e.g., [6, 8, 1, 4, 2, 3, 10, 9, 7, 5, 0]).
         If None, clusters are displayed in numeric order (0, 1, 2, ...).
+    show_cluster_labels : bool
+        Whether to show the raw cluster labels.
     random_state : int
         Random seed for KMeans.
     celltype_order : list of str or None
@@ -201,18 +210,21 @@ def run_kmeans_heatmap(input_path, K, desired_order=None, show_cluster_labels=Fa
     cluster_counts_output_path : str or None
         If provided, saves gene cluster counts TSV to this path.
     cluster_assignments_output_path : str or None
-        If provided, saves a TSV with columns ``gene`` and ``cluster``
-        mapping each gene to its K-means cluster label.
+        If provided, saves a TSV mapping each gene to its K-means cluster.
     use_sequential_cluster_labels : bool
         If True, relabel cluster labels on the heatmap as 1..K rather than
         the raw cluster IDs.
+    figsize : tuple
+        Heatmap figure size.
+    y_axis_text_size : int or float
+        Font size for the cell-type labels on the Y axis.
 
     Returns
     -------
     adata : AnnData
         With gene_clusters in obs.
     input_matrix : DataFrame
-        Original matrix with variant_id (useful for downstream).
+        Original matrix with variant_id, useful for downstream analysis.
     """
     if celltype_label_map is None:
         celltype_label_map = DEFAULT_CELLTYPE_LABEL_MAP
@@ -221,28 +233,52 @@ def run_kmeans_heatmap(input_path, K, desired_order=None, show_cluster_labels=Fa
 
     # Rename cell type labels for display
     adata.var["var_name_original"] = adata.var_names.copy()
-    adata.var_names = [celltype_label_map[v] for v in adata.var_names]
+    adata.var_names = [
+        celltype_label_map[v]
+        for v in adata.var_names
+    ]
 
     # K-means clustering
-    km = KMeans(n_clusters=K, n_init=200, max_iter=20, random_state=random_state, algorithm="elkan").fit(adata.X)
-    adata.obs["gene_clusters"] = pd.Categorical(km.labels_.astype(int))
+    km = KMeans(
+        n_clusters=K,
+        n_init=200,
+        max_iter=20,
+        random_state=random_state,
+        algorithm="elkan",
+    ).fit(adata.X)
+
+    adata.obs["gene_clusters"] = pd.Categorical(
+        km.labels_.astype(int)
+    )
 
     if desired_order is None:
-        desired_order = sorted(adata.obs["gene_clusters"].cat.categories)
+        desired_order = sorted(
+            adata.obs["gene_clusters"].cat.categories
+        )
 
-    adata.obs["gene_clusters"] = adata.obs["gene_clusters"].cat.reorder_categories(
-        desired_order, ordered=True
+    adata.obs["gene_clusters"] = (
+        adata.obs["gene_clusters"]
+        .cat.reorder_categories(
+            desired_order,
+            ordered=True,
+        )
     )
 
     # --- Output 1: cluster assignments ---
     if cluster_assignments_output_path is not None:
         assignments_df = pd.DataFrame({
             "gene": adata.obs_names,
-            "variant_id": input_matrix.loc[adata.obs_names, "variant_id"].values,
+            "variant_id": input_matrix.loc[
+                adata.obs_names,
+                "variant_id",
+            ].values,
             "cluster": adata.obs["gene_clusters"].values,
         })
+
         assignments_df.to_csv(
-            cluster_assignments_output_path, sep="\t", index=False
+            cluster_assignments_output_path,
+            sep="\t",
+            index=False,
         )
 
     # --- Output 2: cluster counts ---
@@ -253,12 +289,19 @@ def run_kmeans_heatmap(input_path, K, desired_order=None, show_cluster_labels=Fa
             .sort_index()
             .reset_index()
         )
-        counts.columns = ["gene_cluster", "n_genes"]
-        counts.to_csv(cluster_counts_output_path, sep="\t", index=False)
 
+        counts.columns = [
+            "gene_cluster",
+            "n_genes",
+        ]
+
+        counts.to_csv(
+            cluster_counts_output_path,
+            sep="\t",
+            index=False,
+        )
 
     # Force the font to be consistent with other figures
-
     old_font = mpl.rcParams["font.family"]
     mpl.rcParams["font.family"] = "Arial"
 
@@ -280,6 +323,7 @@ def run_kmeans_heatmap(input_path, K, desired_order=None, show_cluster_labels=Fa
     fig = plt.gcf()
 
     group_axis = None
+
     for ax in fig.axes:
         if ax.get_xlabel() == "gene_clusters":
             group_axis = ax
@@ -290,29 +334,49 @@ def run_kmeans_heatmap(input_path, K, desired_order=None, show_cluster_labels=Fa
 
     if group_axis is not None and use_sequential_cluster_labels:
         tick_positions = group_axis.get_xticks()
-        group_axis.set_xticks(tick_positions)
-        group_axis.set_xticklabels([str(i + 1) for i in range(len(tick_positions))])
 
+        group_axis.set_xticks(tick_positions)
+        group_axis.set_xticklabels([
+            str(i + 1)
+            for i in range(len(tick_positions))
+        ])
+
+    # Set all plot text to the default figure text size
     for text in fig.findobj(match=plt.Text):
         text.set_fontsize(16)
 
-    # plt.suptitle(
-    #     "K-means clustering of lead eQTL effect-size profiles across cell types",
-    #     fontsize=20,
-    #     fontweight="bold",
-    #     x=0.55,
-    #     y=0.95,
-    # )
+    # Override the Y-axis cell-type label size
+    heatmap_axis = max(
+        fig.axes,
+        key=lambda ax: sum(
+            bool(label.get_text())
+            for label in ax.get_yticklabels()
+        ),
+    )
+
+    heatmap_axis.tick_params(
+        axis="y",
+        labelsize=y_axis_text_size,
+    )
+
+    #try to fix the font.
+    for label in heatmap_axis.get_yticklabels():
+        label.set_fontfamily("Arial")
+        label.set_fontweight("medium")
+        label.set_fontsize(y_axis_text_size)
 
     if heatmap_output_path is not None:
-        plt.savefig(heatmap_output_path, bbox_inches="tight")
+        plt.savefig(
+            heatmap_output_path,
+            bbox_inches="tight",
+        )
 
     plt.close()
 
-    # put the old font back
+    # Restore the previous font
     mpl.rcParams["font.family"] = old_font
-    return adata, input_matrix
 
+    return adata, input_matrix
 
 def build_fisher_contingency_table(adata, input_matrix, coloc_path,
                                    contingency_output_path=None,
