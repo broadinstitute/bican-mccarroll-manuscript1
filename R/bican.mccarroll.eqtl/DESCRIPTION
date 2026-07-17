@@ -14,13 +14,17 @@ Imports:
     digest,
     ggbeeswarm,
     ggplot2,
+    ggrepel,
     ggvenn,
     grDevices,
     grid,
     logger,
     rlang,
+    scales,
     stats,
-    utils
+    utils,
+    lme4,
+    lmerTest
 Remotes:
     bioc::ComplexHeatmap,
     bioc::VariantAnnotation,
