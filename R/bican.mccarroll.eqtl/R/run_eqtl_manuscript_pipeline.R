@@ -109,8 +109,8 @@ run_eqtl_manuscript_pipeline <- function(
         qval = 0.01,
         force = FALSE,
         gene_snp_cases = list(
-            list(gene = "XRRA1", chr = "chr11", pos = 74935168),
-            list(gene = "NPAS3", chr = "chr14", pos = 32935820),
+            list(gene = "XRRA1", chr = "chr11", pos = 74868704),
+            list(gene = "NPAS3", chr = "chr14", pos = 32929955),
             list(gene = "CEP112", chr = "chr17", pos = 66192315)
         )) {
 

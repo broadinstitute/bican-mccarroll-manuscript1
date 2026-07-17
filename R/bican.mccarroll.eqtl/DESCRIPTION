@@ -20,7 +20,9 @@ Imports:
     logger,
     rlang,
     stats,
-    utils
+    utils,
+    lme4,
+    lmerTest
 Remotes:
     bioc::ComplexHeatmap,
     bioc::VariantAnnotation,
