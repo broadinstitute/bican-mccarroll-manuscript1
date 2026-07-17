@@ -38,6 +38,9 @@ run_cell_type_specific_eqtl_tests <- function(
     comparators_outfile=NULL,
     outPDF) {
 
+    # Make R CMD CHECK happy
+    . <- gene <- variant_id <- cluster <- FDR <- p_value <- NULL
+
     .require_testing_packages()
     .validate_output_path(results_outfile, "results_outfile")
     .validate_output_path(comparators_outfile, "comparators_outfile")
@@ -231,6 +234,9 @@ run_cell_type_specific_eqtl_tests <- function(
         covariate_mapping,
         force_factor_covariates = NULL
 ) {
+    # Make R CMD CHECK happy
+    .SD <- NULL
+
     covariates <- unique(covariate_mapping$output_column)
 
     factor_covariates <- unique(c(
@@ -283,6 +289,9 @@ run_cell_type_specific_eqtl_tests <- function(
     variant_id,
     cluster,
     covariates) {
+
+    # Make R CMD CHECK happy
+    ..complete_columns <- in_group <- donor <- cell_type <- region <- NULL
 
     region_varies <- data.table::uniqueN(pair_data$region) > 1L
     complete_columns <- c(
@@ -425,6 +434,10 @@ run_cell_type_specific_eqtl_tests <- function(
     gene,
     variant_id,
     cluster) {
+
+    # Make R CMD CHECK happy
+    complete_case <- donor <- expression_normalized <- in_group <- . <-
+        cell_type <- region <- cell_type_region <- NULL
 
     x <- data.table::copy(pair_data)
     x[, complete_case := complete_index]
@@ -659,7 +672,7 @@ run_cell_type_specific_eqtl_tests <- function(
 
     interaction_name <- interaction_name[[1L]]
 
-    out_contrast <- setNames(
+    out_contrast <- stats::setNames(
         numeric(length(beta)),
         coefficient_names
     )
@@ -668,7 +681,7 @@ run_cell_type_specific_eqtl_tests <- function(
     in_contrast <- out_contrast
     in_contrast[interaction_name] <- 1
 
-    interaction_contrast <- setNames(
+    interaction_contrast <- stats::setNames(
         numeric(length(beta)),
         coefficient_names
     )
@@ -729,6 +742,9 @@ run_cell_type_specific_eqtl_tests <- function(
     cluster,
     complete_data,
     failure_reason) {
+
+    # Make R CMD CHECK happy
+    in_group <- cell_type <- NULL
 
     data.table::data.table(
         gene = gene,
@@ -1434,6 +1450,9 @@ plot_eqtl_interaction_result <- function(
         "Genotype effect on normalized expression"
     }
 
+    # Make R CMD CHECK happy
+    estimate <- group <- ci_low <- ci_high <- NULL
+
     ggplot2::ggplot(
         plot_df,
         ggplot2::aes(
@@ -1516,6 +1535,11 @@ plot_gene_tpm_by_group <- function(
             call. = FALSE
         )
     }
+
+    # Make R CMD CHECK happy
+    gene <- expression_tpm <- .SD <- . <- in_group <- cell_type_region <-
+        cell_type <- region <- log10_median_tpm <- median_tpm <- group <-
+        point_label <- group_y <- point_y <- NULL
 
     eqtl_data <- data.table::as.data.table(eqtl_data)
 
@@ -2040,6 +2064,9 @@ plot_fdr_fraction_by_outgroup_count <- function(
         aggregate_nonsignificant_label
     )
 
+    # Make R CMD CHECK happy
+    x_label <- fraction <- fill_group <- n_genes <- label <- NULL
+
     ggplot2::ggplot(
         plot_data,
         ggplot2::aes(
@@ -2268,6 +2295,10 @@ plot_in_vs_out_group_slopes <- function(
         ),
         significance_levels
     )
+
+    # Make R CMD CHECK happy
+    pooled_out_group_slope <- in_group_slope <- significance <-
+        point_label <- NULL
 
     p <- ggplot2::ggplot(
         d,

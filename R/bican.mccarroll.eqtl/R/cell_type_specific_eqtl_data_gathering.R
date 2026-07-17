@@ -512,6 +512,9 @@ build_cluster_dataframe <- function(
 
 
 .read_genotypes <- function(paths, variants, donors, cell_type_regions) {
+    # Make R CMD CHECK happy
+    pid <- ..donors_available <- .N <- . <- variant_id <- donor <- N <- NULL
+
     variants <- unique(as.character(variants))
     donors <- unique(as.character(donors))
 
@@ -750,6 +753,9 @@ build_cluster_dataframe <- function(
     normalized_donors_in_file,
     tpm_donors_in_file) {
 
+    # Make R CMD CHECK happy
+    cell_type <- region <- cell_type_region <- in_group <- NULL
+
     normalized <- .read_expression_matrix(normalized_path, genes, donors)
     tpm <- .read_expression_matrix(tpm_path, genes, donors)
 
@@ -826,6 +832,9 @@ build_cluster_dataframe <- function(
 }
 
 .read_expression_matrix <- function(path, genes, donors) {
+    # Make R CMD CHECK happy
+    pid <- ..donors_available <- NULL
+
     header <- .read_bed_header(path)
     donors_available <- intersect(donors, header$donors)
 
