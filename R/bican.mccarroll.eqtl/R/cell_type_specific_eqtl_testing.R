@@ -21,6 +21,8 @@ library (data.table)
 #'   that must be coerced to factors before fitting. Unknown columns are errors.
 #' @param results_outfile Required writable path for the gene-level results TSV
 #'   or TSV.GZ file. Existing files are overwritten.
+#' @param summary_outfile outfile contains the number of genes only expressed in the cell type / cluster,
+#' and the number of genes that are testable pass/fail the FDR threshold of 0.05.
 #' @param comparators_outfile Required writable path for the long comparator TSV
 #'   or TSV.GZ file. Existing files are overwritten.
 #'
@@ -35,6 +37,7 @@ run_cell_type_specific_eqtl_tests <- function(
     covariate_mapping_file = NULL,
     force_factor_covariates = NULL,
     results_outfile,
+    summary_outfile=NULL,
     comparators_outfile=NULL,
     outPDF) {
 
@@ -43,6 +46,7 @@ run_cell_type_specific_eqtl_tests <- function(
 
     .require_testing_packages()
     .validate_output_path(results_outfile, "results_outfile")
+    .validate_output_path(summary_outfile, "summary_outfile")
     .validate_output_path(comparators_outfile, "comparators_outfile")
 
     logger::log_info("Fetching Data for analysis")
@@ -116,6 +120,20 @@ run_cell_type_specific_eqtl_tests <- function(
         na = "NA",
         compress = "auto"
     )
+
+    summary_df=buildSummaryDF(results, eqtl_data)
+
+    if (!is.null(summary_outfile)) {
+        data.table::fwrite(
+            summary_df,
+            summary_outfile,
+            sep = "\t",
+            na = "NA",
+            compress = "auto",
+            quote = FALSE
+        )
+    }
+
     if (!is.null(comparators_outfile)) {
         data.table::fwrite(
             comparators,
@@ -138,6 +156,31 @@ run_cell_type_specific_eqtl_tests <- function(
         results = as.data.frame(results),
         comparators = as.data.frame(comparators)
     ))
+}
+
+buildSummaryDF<-function (results, eqtl_data) {
+    cluster=unique(results$cluster)
+    cellTypes=paste (unique (eqtl_data[eqtl_data$in_group==1,]$cell_type), collapse=",")
+    z=results[results$n_comparator_cell_types>0 & !is.na(results$FDR),]
+
+    private_egenes=dim (results[results$n_comparator_cell_types==0,])[1]
+    num_pass_fdr=length(which(z$FDR<0.05))
+    num_miss_fdr=length(which(z$FDR>0.05))
+    num_testable=num_pass_fdr+num_miss_fdr
+    num_cluster_associated = private_egenes+ num_testable
+    pct_private=round (private_egenes/num_cluster_associated *100,1)
+    pct_interaction=round (num_pass_fdr/num_testable * 100, 1)
+
+    df=data.frame(cluster=cluster, cell_types=cellTypes,
+                  "Expression-private eGenes"=private_egenes,
+                  "Cluster-associated eGenes"=num_cluster_associated,
+                  "Cross-cell-type testable eGenes"=num_testable,
+                  "Significant interaction eGenes"=num_pass_fdr,
+                  "Expression-private %"=pct_private,
+                  "Interaction-supported %"=pct_interaction, check.names = F)
+
+    return (df)
+
 }
 
 .require_testing_packages <- function() {
@@ -291,10 +334,11 @@ run_cell_type_specific_eqtl_tests <- function(
     covariates) {
 
     # Make R CMD CHECK happy
-    ..complete_columns <- in_group <- donor <- cell_type <- region <- NULL
+    in_group <- donor <- cell_type <- region <- NULL
 
     region_varies <- data.table::uniqueN(pair_data$region) > 1L
-    complete_columns <- c(
+
+    columns_complete <- c(
         "expression_normalized",
         "genotype",
         "donor",
@@ -302,11 +346,13 @@ run_cell_type_specific_eqtl_tests <- function(
         "in_group",
         covariates
     )
+
     if (region_varies) {
-        complete_columns <- c(complete_columns, "region")
+        columns_complete <- c(columns_complete, "region")
     }
 
-    complete_index <- stats::complete.cases(pair_data[, ..complete_columns])
+    complete_index <- stats::complete.cases(pair_data[, columns_complete, with = FALSE])
+
     complete_data <- pair_data[complete_index]
 
     comparators <- .build_comparator_rows(

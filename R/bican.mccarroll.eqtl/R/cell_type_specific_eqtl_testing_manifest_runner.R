@@ -191,6 +191,7 @@ run_private_eqtl_manifest <- function(
         gathered_file = paste0(prefix, ".data.txt"),
         covariate_mapping_file = paste0(prefix, ".covariate_list.txt"),
         report_outfile = paste0(prefix, ".report.txt"),
+        summary_outfile = paste0(prefix, ".summary.txt"),
         results_outfile = paste0(prefix, ".linear_model_test.txt"),
         outPDF = paste0(prefix, ".linear_model_test.pdf")
     )
@@ -239,6 +240,7 @@ run_private_eqtl_manifest <- function(
         covariate_mapping_file = paths$covariate_mapping_file,
         force_factor_covariates = force_factor_covariates,
         results_outfile = paths$results_outfile,
+        summary_outfile = paths$summary_outfile,
         outPDF = paths$outPDF
     )
 

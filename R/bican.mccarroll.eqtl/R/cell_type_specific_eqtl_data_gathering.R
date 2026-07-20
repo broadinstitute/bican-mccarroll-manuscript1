@@ -513,7 +513,7 @@ build_cluster_dataframe <- function(
 
 .read_genotypes <- function(paths, variants, donors, cell_type_regions) {
     # Make R CMD CHECK happy
-    pid <- ..donors_available <- .N <- . <- variant_id <- donor <- N <- NULL
+    pid <- .N <- . <- variant_id <- donor <- N <- NULL
 
     variants <- unique(as.character(variants))
     donors <- unique(as.character(donors))
@@ -581,7 +581,7 @@ build_cluster_dataframe <- function(
             row_index <- match(present_variants, x$pid)
 
             values <- as.matrix(
-                x[row_index, ..donors_available]
+                x[row_index, donors_available,with=F]
             )
 
             storage.mode(values) <- "numeric"
@@ -833,7 +833,7 @@ build_cluster_dataframe <- function(
 
 .read_expression_matrix <- function(path, genes, donors) {
     # Make R CMD CHECK happy
-    pid <- ..donors_available <- NULL
+    pid <- NULL
 
     header <- .read_bed_header(path)
     donors_available <- intersect(donors, header$donors)
@@ -856,7 +856,7 @@ build_cluster_dataframe <- function(
     row_index <- match(genes, x$pid)
     present <- !is.na(row_index)
     if (any(present) && length(donors_available)) {
-        values <- as.matrix(x[row_index[present], ..donors_available])
+        values <- as.matrix(x[row_index[present], donors_available, with=F])
         storage.mode(values) <- "numeric"
         expression_matrix[present, donors_available] <- values
     }

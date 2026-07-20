@@ -5,12 +5,12 @@
 \title{Example eQTL changes between two analysis levels for selected cell types}
 \usage{
 plot_eqtl_filtering_examples(
-  cell_type_list = c("astrocyte", "microglia", "MSN_D1", "OPC"),
+  cell_type_list = c("astrocyte", "microglia", "SPN_D1", "OPC"),
   region = "CaH",
   baseline_data_dir = NULL,
   comparison_data_dir = NULL,
-  baseline_name = "LEVEL 3",
-  comparison_name = "LEVEL 4",
+  baseline_name = "LEVEL 6",
+  comparison_name = "LEVEL 8",
   outDir = NULL,
   data_cache_dir = NULL
 )

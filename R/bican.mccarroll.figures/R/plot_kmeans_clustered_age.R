@@ -72,11 +72,11 @@ plot_kmeans_age <- function(
     test <- "age"
 
     scaling_factor <- 1
-    k_use <- 19
+    k_use <- 18
 
     #TODO fix this ordering.
-    cluster_level_order <- c(2, 10, 6, 3, 5, 14, 9, 13, 4, 1, 15, 19, 18, 7, 17, 8, 11, 12)
-    cluster_level_order <- seq(1,19,1)
+    cluster_level_order <- c(1, 15, 11, 8, 9, 4, 10, 6, 12, 17, 2, 16, 13, 14, 7, 5, 18, 3)
+    #cluster_level_order <- seq(1,k_use,1)
 
     cache_combined <- file.path(paths$data_cache_dir, "kmeans_qc_age_heatmap_region_combined")
     cache_region <- file.path(paths$data_cache_dir, "kmeans_qc_age_heatmap_region_specific")
@@ -125,6 +125,8 @@ plot_kmeans_age <- function(
         region_obj$lfc_mat_z,
         region_obj$lfc_mat,
         scaling_factor = scaling_factor,
+        k = k_use,
+        cluster_level_order = cluster_level_order,
         fontsize_col = 16,
         fontsize_row = 16
     )
@@ -257,7 +259,7 @@ get_or_build_kmeans_combined_cache_age <- function(cache_file, paths) {
 
     regions_use_metacells <- c("CaH", "Pu", "NAC", "ic", "DFC")
 
-    fdr_cutoff <- 0.01
+    fdr_cutoff <- 0.05
     abs_lfc_cutoff <- log2(1.05)
     min_tpm <- 10
     regions_use_de_mats <- c("CaH", "DFC")
