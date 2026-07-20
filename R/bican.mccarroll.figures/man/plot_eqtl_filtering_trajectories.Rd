@@ -7,7 +7,7 @@
 plot_eqtl_filtering_trajectories(
   eqtl_data_dir = NULL,
   outDir = NULL,
-  filter_levels = c(0, 1, 2, 3, 4),
+  filter_levels = c(0, 1, 2, 3, 4, 5, 6, 7, 8),
   fdr_threshold = 0.05,
   num_clusters = 4,
   cellTypeListFile = NULL,

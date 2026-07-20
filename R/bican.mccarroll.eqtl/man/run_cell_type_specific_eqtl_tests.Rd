@@ -11,6 +11,7 @@ run_cell_type_specific_eqtl_tests(
   covariate_mapping_file = NULL,
   force_factor_covariates = NULL,
   results_outfile,
+  summary_outfile = NULL,
   comparators_outfile = NULL,
   outPDF
 )
@@ -35,6 +36,9 @@ that must be coerced to factors before fitting. Unknown columns are errors.}
 
 \item{results_outfile}{Required writable path for the gene-level results TSV
 or TSV.GZ file. Existing files are overwritten.}
+
+\item{summary_outfile}{outfile contains the number of genes only expressed in the cell type / cluster,
+and the number of genes that are testable pass/fail the FDR threshold of 0.05.}
 
 \item{comparators_outfile}{Required writable path for the long comparator TSV
 or TSV.GZ file. Existing files are overwritten.}

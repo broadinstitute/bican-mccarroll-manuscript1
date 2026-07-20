@@ -9,7 +9,7 @@ plot_de_filtering_examples(
   baseline_data_dir = NULL,
   comparison_data_dir = NULL,
   baseline_name = "LEVEL 6",
-  comparison_name = "LEVEL 7",
+  comparison_name = "LEVEL 8",
   outDir = NULL
 )
 }
