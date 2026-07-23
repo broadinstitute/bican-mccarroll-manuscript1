@@ -1,4 +1,6 @@
-library(ggplot2)
+# library(ggplot2)
+
+
 
 # plot_de_primary_secondary_manifest(
 #     manifest_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/external_comparison_snap200/metadata/bican_dfc_snap_age_de_overlap_manifest.tsv",
@@ -33,6 +35,7 @@ plot_de_primary_secondary_manifest <- function(
         primary_label = NULL,
         secondary_label = NULL,
         effect_name = "age effects",
+        min_num_genes=20,
         alpha = 0.05,
         width = 7,
         height = 7) {
@@ -126,6 +129,7 @@ plot_de_primary_secondary_manifest <- function(
     }
 
     sign_results <- do.call(rbind, sign_results)
+    sign_results <- sign_results[sign_results$n>=min_num_genes,]
 
     if (is.null(sign_results) || nrow(sign_results) == 0) {
         warning("No cell types had overlapping primary-significant genes.")

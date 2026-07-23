@@ -10,13 +10,13 @@ run_eqtl_manuscript_pipeline_defaults(
   region_cell_type_path = NULL,
   vcf_path = NULL,
   K = 13,
-  cluster_order = "11,0,5,4,2,12,9,1,6,3,7,10,8",
+  cluster_order = "3,6,9,5,7,1,12,0,11,10,4,8,2",
   celltype_order_file = NULL,
   celltype_label_map_file = NULL,
   qval = 0.01,
   force = TRUE,
-  gene_snp_cases = list(list(gene = "XRRA1", chr = "chr11", pos = 74935168), list(gene =
-    "NPAS3", chr = "chr14", pos = 32935820), list(gene = "CEP112", chr = "chr17", pos =
+  gene_snp_cases = list(list(gene = "XRRA1", chr = "chr11", pos = 74868704), list(gene =
+    "NPAS3", chr = "chr14", pos = 32929955), list(gene = "CEP112", chr = "chr17", pos =
     66192315))
 )
 }

@@ -212,8 +212,11 @@ def run_kmeans_heatmap(
     cluster_assignments_output_path : str or None
         If provided, saves a TSV mapping each gene to its K-means cluster.
     use_sequential_cluster_labels : bool
-        If True, relabel cluster labels on the heatmap as 1..K rather than
-        the raw cluster IDs.
+        If True, relabel clusters as 1..K (in ``desired_order`` sequence)
+        rather than the raw K-means cluster IDs. This relabeling is applied
+        to the ``gene_clusters`` categorical itself, so it is reflected
+        consistently in the heatmap, the cluster assignments output, and
+        the cluster counts output.
     figsize : tuple
         Heatmap figure size.
     y_axis_text_size : int or float
@@ -263,6 +266,14 @@ def run_kmeans_heatmap(
             ordered=True,
         )
     )
+
+    if use_sequential_cluster_labels:
+        adata.obs["gene_clusters"] = (
+            adata.obs["gene_clusters"]
+            .cat.rename_categories(
+                {raw: i + 1 for i, raw in enumerate(desired_order)}
+            )
+        )
 
     # --- Output 1: cluster assignments ---
     if cluster_assignments_output_path is not None:
@@ -331,15 +342,6 @@ def run_kmeans_heatmap(
 
     if group_axis is not None:
         group_axis.set_xlabel("Genes")
-
-    if group_axis is not None and use_sequential_cluster_labels:
-        tick_positions = group_axis.get_xticks()
-
-        group_axis.set_xticks(tick_positions)
-        group_axis.set_xticklabels([
-            str(i + 1)
-            for i in range(len(tick_positions))
-        ])
 
     # Set all plot text to the default figure text size
     for text in fig.findobj(match=plt.Text):
