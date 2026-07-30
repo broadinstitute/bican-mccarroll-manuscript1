@@ -7,8 +7,31 @@
 # file_pattern="pmi_hr"
 
 
-barplot_de_results<-function (in_dir, file_pattern, cellTypeListFile=NULL) {
-    d=parse_de_inputs(in_dir, file_pattern, cellTypeListFile)
+
+#' Plot differential expression result counts
+#'
+#' Parses differential expression result files and creates faceted bar plots
+#' showing the number of genes with positive and negative log fold changes
+#' passing an adjusted P-value threshold of 0.05.
+#'
+#' @param in_dir Directory containing the differential expression result files.
+#' @param file_pattern Pattern used to identify differential expression result
+#'   files.
+#' @param cellTypeListFile Optional path to a file specifying the cell types to
+#'   include.
+#' @param pdf_output_file Optional path for writing the plot to a PDF file.
+#'   When `NULL`, no PDF is written.
+#'
+#' @return A `ggplot` object.
+#'
+#' @export
+barplot_de_results <- function(
+        in_dir,
+        file_pattern,
+        cellTypeListFile = NULL,
+        pdf_output_file = NULL) {
+
+    d <- parse_de_inputs(in_dir, file_pattern, cellTypeListFile)
 
     setDT(d)
 
@@ -91,6 +114,12 @@ barplot_de_results<-function (in_dir, file_pattern, cellTypeListFile=NULL) {
             legend.position = "top"
         )
 
-    p
+    if (!is.null(pdf_output_file)) {
+        ggplot2::ggsave(
+            filename = pdf_output_file,
+            plot = p
+        )
+    }
+
     p
 }
