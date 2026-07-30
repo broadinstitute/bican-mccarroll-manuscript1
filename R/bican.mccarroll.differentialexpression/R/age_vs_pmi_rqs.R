@@ -10,24 +10,41 @@
 #
 #
 #
-# in_dir_age_rqs="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/results/LEVEL_6/age_pmi_rqs_complete_cases/age_pmi_rqs"
-# in_dir_age_without_rqs="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/results/LEVEL_6/age_pmi_rqs_complete_cases/age"
-# out_age_nested_model="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/results/LEVEL_6/age_pmi_rqs_complete_cases/age_effects_with_without_rqs.pdf"
+# in_dir_full_model="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/results/LEVEL_6/age_pmi_rqs_complete_cases/age_pmi_rqs"
+# in_dir_partial_model="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/results/LEVEL_6/age_pmi_rqs_complete_cases/age"
+# output_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/results/LEVEL_6/age_pmi_rqs_complete_cases/age_effects_with_without_rqs.pdf"
 
 # run age DE with and without RQS, and plot the age coefficients.
 # in both cases, we subset to the complete cases of donors with RQS, PMI, age, then test nested models.
-plot_nested_models<-function () {
 
-    full_model_de=parse_de_inputs(in_dir_age_rqs, file_pattern="age_DE", cellTypeListFile)
-    partial_model_de=parse_de_inputs(in_dir_age_without_rqs, file_pattern="age_DE", cellTypeListFile)
+
+#' Compare two nested models with and without the tested trait vs age
+#'
+#' Does adding the tested trait change the age effect size?
+#'
+#' The setup for this test is important - it's critical to have the exact same
+#' set of data points in both model runs, and only change the model by adding the
+#' tested trait to the full model.
+#'
+#' @param tested_trait The covariate added in the full model
+#' @param in_dir_full_model The directory containing the full model results
+#' @param in_dir_partial_model The directory containing the partial results
+#' @param cellTypeListFile A file containing a list of cell types to generate plots for.
+#' If null generate plots for all cell types.
+#' @param output_file A PDF report with summary plots and per cell type / region plots of the effect sizes.
+#' @export
+#' @import cowplot ggplot2 data.table
+plot_nested_models<-function (tested_trait="RQS", in_dir_full_model, in_dir_partial_model, cellTypeListFile=NULL, output_file) {
+
+    full_model_de=parse_de_inputs(in_dir_full_model, file_pattern="age_DE", cellTypeListFile)
+    partial_model_de=parse_de_inputs(in_dir_partial_model, file_pattern="age_DE", cellTypeListFile)
 
     write_age_model_comparison_pdf(
+        tested_trait=tested_trait,
         full_model_de = full_model_de,
         partial_model_de = partial_model_de,
-        output_file = out_age_nested_model
+        output_file = output_file
     )
-
-
 
 }
 
@@ -370,7 +387,8 @@ write_effect_comparison_pdf <- function(
 plot_age_model_comparison_page <- function(
         full_model_de,
         partial_model_de,
-        cell_type_value) {
+        cell_type_value,
+        tested_trait="RQS") {
 
     full_model_de <- data.table::as.data.table(full_model_de)
     partial_model_de <- data.table::as.data.table(partial_model_de)
@@ -406,7 +424,7 @@ plot_age_model_comparison_page <- function(
                 x = full_model_de,
                 y = partial_model_de,
                 x_label = "Full model age effect",
-                y_label = "Model without RQS age effect",
+                y_label = paste("Model without",tested_trait, "age effect"),
                 cell_type_value = cell_type_value,
                 region_value = region_value
             ) +
@@ -451,6 +469,7 @@ plot_age_model_comparison_page <- function(
 }
 
 write_age_model_comparison_pdf <- function(
+        tested_trait="RQS",
         full_model_de,
         partial_model_de,
         output_file = "age_effects_with_without_rqs.pdf") {
@@ -507,7 +526,8 @@ write_age_model_comparison_pdf <- function(
         page <- plot_age_model_comparison_page(
             full_model_de = full_model_de,
             partial_model_de = partial_model_de,
-            cell_type_value = cell_type_value
+            cell_type_value = cell_type_value,
+            tested_trait=tested_trait
         )
 
         print(page)
