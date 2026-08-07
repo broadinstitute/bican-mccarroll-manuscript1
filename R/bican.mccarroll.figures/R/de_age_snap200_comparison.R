@@ -22,6 +22,32 @@
 #     effect_name = "age effects"
 # )
 
+# plot_de_primary_secondary_manifest(
+#     manifest_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/external_comparison_snap200/metadata/bican_dfc_snap_sex_de_overlap_manifest.tsv",
+#     out_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/external_comparison_snap200/results",
+#     primary_dataset = "bican",
+#     secondary_dataset = "snap",
+#     primary_label = "BICAN",
+#     secondary_label = "Ling et al.",
+#     effect_name = "sex effects",
+#     gene_set = "autosome",
+#     contig_yaml_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/metadata/GRCh38_ensembl_v43.contig_groups.yaml",
+#     reduced_gtf_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/metadata/GRCh38_ensembl_v43.reduced.gtf.gz"
+# )
+
+# plot_de_primary_secondary_manifest(
+#     manifest_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/external_comparison_snap200/metadata/bican_dfc_snap_sex_de_overlap_manifest.tsv",
+#     out_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/external_comparison_snap200/results",
+#     primary_dataset = "bican",
+#     secondary_dataset = "snap",
+#     primary_label = "BICAN",
+#     secondary_label = "Ling et al.",
+#     effect_name = "sex effects",
+#     gene_set = "both",
+#     contig_yaml_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/metadata/GRCh38_ensembl_v43.contig_groups.yaml",
+#     reduced_gtf_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/metadata/GRCh38_ensembl_v43.reduced.gtf.gz"
+# )
+
 
 ## ------------------------------------------------------------------
 ## Top-level functions
@@ -35,10 +61,27 @@ plot_de_primary_secondary_manifest <- function(
         primary_label = NULL,
         secondary_label = NULL,
         effect_name = "age effects",
+        gene_set = c("both", "autosome", "xy"),
+        contig_yaml_file = NULL,
+        reduced_gtf_file = NULL,
         min_num_genes=20,
         alpha = 0.05,
         width = 7,
         height = 7) {
+
+    gene_set <- match.arg(gene_set)
+
+    validate_gene_set_metadata(
+        gene_set = gene_set,
+        contig_yaml_file = contig_yaml_file,
+        reduced_gtf_file = reduced_gtf_file
+    )
+
+    genes_to_keep <- get_de_genes_for_gene_set(
+        gene_set = gene_set,
+        contig_yaml_file = contig_yaml_file,
+        reduced_gtf_file = reduced_gtf_file
+    )
 
     if (is.null(primary_label)) {
         primary_label <- make_dataset_label(primary_dataset)
@@ -81,7 +124,11 @@ plot_de_primary_secondary_manifest <- function(
     sign_results <- vector("list", nrow(manifest))
     names(sign_results) <- manifest$cell_type
 
-    output_prefix <- make_output_prefix(primary_dataset, secondary_dataset)
+    output_prefix <- make_output_prefix(
+        primary_dataset,
+        secondary_dataset,
+        gene_set = gene_set
+    )
 
     for (i in seq_len(nrow(manifest))) {
         cell_type <- manifest$cell_type[i]
@@ -97,6 +144,8 @@ plot_de_primary_secondary_manifest <- function(
             primary_label = primary_label,
             secondary_label = secondary_label,
             effect_name = effect_name,
+            gene_set = gene_set,
+            genes_to_keep = genes_to_keep,
             alpha = alpha
         )
 
@@ -196,6 +245,8 @@ plot_de_primary_secondary_cell_type <- function(
         primary_label = NULL,
         secondary_label = NULL,
         effect_name = "age effects",
+        gene_set = "both",
+        genes_to_keep = NULL,
         alpha = 0.05) {
 
     if (is.null(primary_label)) {
@@ -209,6 +260,7 @@ plot_de_primary_secondary_cell_type <- function(
     df <- make_de_primary_secondary_df(
         primary_file = primary_file,
         secondary_file = secondary_file,
+        genes_to_keep = genes_to_keep,
         alpha = alpha
     )
 
@@ -266,6 +318,7 @@ plot_de_primary_secondary_cell_type <- function(
             primary_label = primary_label,
             secondary_label = secondary_label,
             effect_name = effect_name,
+            gene_set = gene_set,
             k = sign_res$k,
             n = sign_res$n,
             fraction = sign_res$frac,
@@ -324,7 +377,11 @@ plot_sign_test_summary <- function(
 ## Data helpers
 ## ------------------------------------------------------------------
 
-make_de_primary_secondary_df <- function(primary_file, secondary_file, alpha = 0.05) {
+make_de_primary_secondary_df <- function(
+        primary_file,
+        secondary_file,
+        genes_to_keep = NULL,
+        alpha = 0.05) {
     primary <- read_de_result(primary_file)
     secondary <- read_de_result(secondary_file)
 
@@ -332,6 +389,10 @@ make_de_primary_secondary_df <- function(primary_file, secondary_file, alpha = 0
 
     genes <- rownames(primary)[primary$adj.P.Val < alpha]
     genes <- intersect(genes, common_genes)
+
+    if (!is.null(genes_to_keep)) {
+        genes <- intersect(genes, genes_to_keep)
+    }
 
     data.frame(
         gene = genes,
@@ -435,11 +496,97 @@ make_dataset_label <- function(x) {
 }
 
 
-make_output_prefix <- function(primary_dataset, secondary_dataset) {
-    sprintf(
+make_output_prefix <- function(
+        primary_dataset,
+        secondary_dataset,
+        gene_set = "both") {
+
+    prefix <- sprintf(
         "%s_significant_validated_in_%s",
         sanitize_filename(primary_dataset),
         sanitize_filename(secondary_dataset)
+    )
+
+    if (gene_set != "both") {
+        prefix <- sprintf(
+            "%s_%s",
+            prefix,
+            sanitize_filename(gene_set)
+        )
+    }
+
+    prefix
+}
+
+
+validate_gene_set_metadata <- function(
+        gene_set,
+        contig_yaml_file,
+        reduced_gtf_file) {
+
+    one_missing <- xor(
+        is.null(contig_yaml_file),
+        is.null(reduced_gtf_file)
+    )
+
+    if (one_missing) {
+        stop(
+            "contig_yaml_file and reduced_gtf_file must either both be supplied or both be NULL.",
+            call. = FALSE
+        )
+    }
+
+    if (gene_set != "both" && is.null(contig_yaml_file)) {
+        stop(
+            sprintf(
+                "gene_set = '%s' requires contig_yaml_file and reduced_gtf_file.",
+                gene_set
+            ),
+            call. = FALSE
+        )
+    }
+
+    invisible(TRUE)
+}
+
+
+get_de_genes_for_gene_set <- function(
+        gene_set = c("both", "autosome", "xy"),
+        contig_yaml_file = NULL,
+        reduced_gtf_file = NULL) {
+
+    gene_set <- match.arg(gene_set)
+
+    if (gene_set == "both") {
+        return(NULL)
+    }
+
+    contig_groups <- yaml::yaml.load_file(contig_yaml_file)
+
+    if (gene_set == "autosome") {
+        contigs <- names(Filter(
+            function(x) identical(unname(x), "autosome"),
+            contig_groups
+        ))
+    } else {
+        contigs <- names(Filter(
+            function(x) any(unlist(x, use.names = FALSE) %in% c("X", "Y")),
+            contig_groups
+        ))
+    }
+
+    gtf <- data.table::fread(
+        reduced_gtf_file,
+        header = TRUE,
+        sep = "\t",
+        stringsAsFactors = FALSE
+    )
+
+    unique(
+        gtf[
+            gtf$chr %in% contigs & gtf$annotationType == "gene",
+            "gene_name"
+        ][[1L]]
     )
 }
 
