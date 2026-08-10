@@ -23,6 +23,17 @@
 # )
 
 # plot_de_primary_secondary_manifest(
+#     manifest_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/external_comparison_PMID_39227716/metadata/PMID_39227716_bican_dfc_age_de_overlap_manifest.tsv",
+#     out_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/external_comparison_PMID_39227716/results",
+#     primary_dataset = "bican",
+#     secondary_dataset = "PMID_39227716",
+#     primary_label = "BICAN",
+#     secondary_label = "PMID 39227716",
+#     effect_name = "age effects",
+#     min_num_genes=1 # to include the one type that is filtered.
+# )
+
+# plot_de_primary_secondary_manifest(
 #     manifest_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/external_comparison_snap200/metadata/bican_dfc_snap_sex_de_overlap_manifest.tsv",
 #     out_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/external_comparison_snap200/results",
 #     primary_dataset = "bican",
@@ -361,7 +372,7 @@ plot_sign_test_summary <- function(
         geom_text(
             aes(label = paste0(k, "/", n)),
             hjust = -0.1,
-            size = 5
+            size = 4
         ) +
         coord_flip(ylim = c(0, 105)) +
         labs(
@@ -382,8 +393,11 @@ make_de_primary_secondary_df <- function(
         secondary_file,
         genes_to_keep = NULL,
         alpha = 0.05) {
+
     primary <- read_de_result(primary_file)
     secondary <- read_de_result(secondary_file)
+
+    logger::log_info("Primary result number of signifcant genes [", length(which(primary$adj.P.Val<=0.05)), "]")
 
     common_genes <- intersect(rownames(primary), rownames(secondary))
 
