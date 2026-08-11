@@ -33,6 +33,10 @@ directory.}
 results used in model construction. If \code{NULL}, resolved under the
 data root.}
 
+\item{use_age_de_results}{Logical; if \code{TRUE}, resolve and use
+\code{age_de_results_dir} when building the model. If \code{FALSE},
+age differential expression results are not used.}
+
 \item{contig_yaml_file}{Path to the contig YAML file. If \code{NULL},
 resolved under the data root.}
 
@@ -46,6 +50,12 @@ resolved under the data root.}
 
 \item{outDir}{Output directory for the generated SVG plot. If \code{NULL},
 resolved via configured output directory options.}
+
+\item{optimize_alpha}{Logical; if \code{TRUE}, the elastic net mixing
+parameter alpha is optimized rather than fixed.}
+
+\item{alpha_fixed}{Numeric elastic net mixing parameter used when
+\code{optimize_alpha} is \code{FALSE}.}
 }
 \value{
 Invisibly returns \code{NULL}. The function is called for its

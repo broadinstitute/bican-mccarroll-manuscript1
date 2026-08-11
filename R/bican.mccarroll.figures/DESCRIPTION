@@ -2,7 +2,8 @@ Package: bican.mccarroll.figures
 Type: Package
 Title: Figures in support of McCarroll BICAN manuscript 1
 Version: 0.1.0
-Imports: bican.mccarroll.differentialexpression, bican.mccarroll.eqtl, bican.mccarroll.de.analysis, logger, ggplot2, ggrastr, svglite, ComplexHeatmap, corrplot, cowplot, data.table
+Depends: R (>= 4.1.0)
+Imports: bican.mccarroll.differentialexpression, bican.mccarroll.eqtl, bican.mccarroll.de.analysis, logger, ggplot2, ggrastr, svglite, ComplexHeatmap, corrplot, cowplot, data.table, dplyr, FNN, yaml
 Suggests: 
 Authors@R: c(
     person(

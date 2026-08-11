@@ -30,365 +30,369 @@
 #'   resolved via configured output directory options.
 #'
 #' @export
-de_sex_age_scatter_plots <- function(
-        ct_file = NULL,
-        gene_to_chr_file = NULL,
-        de_results_dir = NULL,
-        de_region_interaction_dir = NULL,
-        data_cache_dir = NULL,
-        outDir = NULL) {
+de_sex_age_scatter_plots <- function(ct_file = NULL,
+                                     gene_to_chr_file = NULL,
+                                     de_results_dir = NULL,
+                                     de_region_interaction_dir = NULL,
+                                     data_cache_dir = NULL,
+                                     outDir = NULL) {
+  paths <- .resolve_sex_age_scatter_plot_paths(
+    ct_file = ct_file,
+    gene_to_chr_file = gene_to_chr_file,
+    de_results_dir = de_results_dir,
+    de_region_interaction_dir = de_region_interaction_dir,
+    data_cache_dir = data_cache_dir,
+    outDir = outDir
+  )
 
+  cache_file_age <- file.path(paths$data_cache_dir, "de_age.tsv")
+  cache_file_sex <- file.path(paths$data_cache_dir, "de_sex.tsv")
 
-    paths <- .resolve_sex_age_scatter_plot_paths(
-        ct_file = ct_file,
-        gene_to_chr_file = gene_to_chr_file,
-        de_results_dir = de_results_dir,
-        de_region_interaction_dir = de_region_interaction_dir,
-        data_cache_dir = data_cache_dir,
-        outDir = outDir)
+  age_df <- get_or_build_de_cache(
+    test = "age",
+    cache_file = cache_file_age,
+    de_region_interaction_dir = paths$de_region_interaction_dir,
+    ct_file = paths$ct_file,
+    gene_to_chr_file = paths$gene_to_chr_file
+  )
 
-    cache_file_age <- file.path(paths$data_cache_dir, "de_age.tsv")
-    cache_file_sex <- file.path(paths$data_cache_dir, "de_sex.tsv")
+  sex_df <- get_or_build_de_cache(
+    test = "female_vs_male",
+    cache_file = cache_file_sex,
+    de_region_interaction_dir = paths$de_region_interaction_dir,
+    ct_file = paths$ct_file,
+    gene_to_chr_file = paths$gene_to_chr_file
+  )
 
-    age_df <- get_or_build_de_cache(
-        test = "age",
-        cache_file = cache_file_age,
-        de_region_interaction_dir = paths$de_region_interaction_dir,
-        ct_file = paths$ct_file,
-        gene_to_chr_file = paths$gene_to_chr_file)
+  #########################
+  # Main figure plot group
+  #########################
 
-    sex_df <- get_or_build_de_cache(
-        test = "female_vs_male",
-        cache_file = cache_file_sex,
-        de_region_interaction_dir = paths$de_region_interaction_dir,
-        ct_file = paths$ct_file,
-        gene_to_chr_file = paths$gene_to_chr_file)
+  # plot_de_scatter_svg(
+  #     df = sex_df,
+  #     test = "sex",
+  #     cell_type1 = "OPC",
+  #     cell_type2 = "astrocyte",
+  #     region1 = "CaH",
+  #     region2 = "CaH",
+  #     xlab_prefix="Sex DE, ",
+  #     outDir = paths$outDir,
+  #     fdr_cutoff = 0.05,
+  #     add_fit = TRUE)
 
-    #########################
-    #Main figure plot group
-    #########################
+  plot_de_scatter_svg(
+    df = age_df,
+    test = "age",
+    cell_type1 = "SPN_D1_matrix",
+    cell_type2 = "SPN_D2_matrix",
+    region1 = "CaH",
+    region2 = "NAC",
+    xlab_prefix = "Age DE, ",
+    outDir = paths$outDir,
+    fdr_cutoff = 0.05,
+    add_fit = TRUE
+  )
 
-    # plot_de_scatter_svg(
-    #     df = sex_df,
-    #     test = "sex",
-    #     cell_type1 = "OPC",
-    #     cell_type2 = "astrocyte",
-    #     region1 = "CaH",
-    #     region2 = "CaH",
-    #     xlab_prefix="Sex DE, ",
-    #     outDir = paths$outDir,
-    #     fdr_cutoff = 0.05,
-    #     add_fit = TRUE)
+  plot_de_scatter_svg(
+    df = age_df,
+    test = "age",
+    cell_type1 = "SPN_D1_matrix",
+    cell_type2 = "SPN_D2_matrix",
+    region1 = "CaH",
+    region2 = "CaH",
+    xlab_prefix = "Age DE, ",
+    outDir = paths$outDir,
+    fdr_cutoff = 0.05,
+    add_fit = TRUE
+  )
 
-    plot_de_scatter_svg(
-        df = age_df,
-        test = "age",
-        cell_type1 = "SPN_D1_matrix",
-        cell_type2 = "SPN_D2_matrix",
-        region1 = "CaH",
-        region2 = "NAC",
-        xlab_prefix="Age DE, ",
-        outDir = paths$outDir,
-        fdr_cutoff = 0.05,
-        add_fit = TRUE)
+  plot_de_scatter_svg(
+    df = age_df,
+    test = "age",
+    cell_type1 = "astrocyte",
+    cell_type2 = "astrocyte",
+    region1 = "CaH",
+    region2 = "DFC",
+    xlab_prefix = "Age DE, ",
+    outDir = paths$outDir,
+    fdr_cutoff = 0.05,
+    add_fit = TRUE
+  )
 
-    plot_de_scatter_svg(
-        df = age_df,
-        test = "age",
-        cell_type1 = "SPN_D1_matrix",
-        cell_type2 = "SPN_D2_matrix",
-        region1 = "CaH",
-        region2 = "CaH",
-        xlab_prefix="Age DE, ",
-        outDir = paths$outDir,
-        fdr_cutoff = 0.05,
-        add_fit = TRUE)
+  plot_de_scatter_svg(
+    df = age_df,
+    test = "age",
+    cell_type1 = "OPC",
+    cell_type2 = "astrocyte",
+    region1 = "CaH",
+    region2 = "CaH",
+    xlab_prefix = "Age DE, ",
+    outDir = paths$outDir,
+    fdr_cutoff = 0.05,
+    add_fit = TRUE
+  )
 
-    plot_de_scatter_svg(
-        df = age_df,
-        test = "age",
-        cell_type1 = "astrocyte",
-        cell_type2 = "astrocyte",
-        region1 = "CaH",
-        region2 = "DFC",
-        xlab_prefix="Age DE, ",
-        outDir = paths$outDir,
-        fdr_cutoff = 0.05,
-        add_fit = TRUE)
+  ####################
+  # Supplemental 1:
+  ####################
 
-    plot_de_scatter_svg(
-        df = age_df,
-        test = "age",
-        cell_type1 = "OPC",
-        cell_type2 = "astrocyte",
-        region1 = "CaH",
-        region2 = "CaH",
-        xlab_prefix="Age DE, ",
-        outDir = paths$outDir,
-        fdr_cutoff = 0.05,
-        add_fit = TRUE)
+  plot_de_scatter_svg(
+    df = age_df,
+    test = "age",
+    cell_type1 = "SPN_D1_matrix",
+    cell_type2 = "SPN_D1_matrix",
+    region1 = "CaH",
+    region2 = "Pu",
+    xlab_prefix = "Age DE, ",
+    outDir = paths$outDir,
+    fdr_cutoff = 0.05,
+    add_fit = TRUE
+  )
 
-    ####################
-    #Supplemental 1:
-    ####################
+  plot_de_scatter_svg(
+    df = age_df,
+    test = "age",
+    cell_type1 = "SPN_D1_matrix",
+    cell_type2 = "SPN_D1_matrix",
+    region1 = "CaH",
+    region2 = "NAC",
+    xlab_prefix = "Age DE, ",
+    outDir = paths$outDir,
+    fdr_cutoff = 0.05,
+    add_fit = TRUE
+  )
 
-    plot_de_scatter_svg(
-        df = age_df,
-        test = "age",
-        cell_type1 = "SPN_D1_matrix",
-        cell_type2 = "SPN_D1_matrix",
-        region1 = "CaH",
-        region2 = "Pu",
-        xlab_prefix="Age DE, ",
-        outDir = paths$outDir,
-        fdr_cutoff = 0.05,
-        add_fit = TRUE)
+  plot_de_scatter_svg(
+    df = age_df,
+    test = "age",
+    cell_type1 = "SPN_D1_matrix",
+    cell_type2 = "SPN_D1_matrix",
+    region1 = "Pu",
+    region2 = "NAC",
+    xlab_prefix = "Age DE, ",
+    outDir = paths$outDir,
+    fdr_cutoff = 0.05,
+    add_fit = TRUE
+  )
 
-    plot_de_scatter_svg(
-        df = age_df,
-        test = "age",
-        cell_type1 = "SPN_D1_matrix",
-        cell_type2 = "SPN_D1_matrix",
-        region1 = "CaH",
-        region2 = "NAC",
-        xlab_prefix="Age DE, ",
-        outDir = paths$outDir,
-        fdr_cutoff = 0.05,
-        add_fit = TRUE)
+  # Supplemental 2:
+  plot_de_scatter_svg(
+    df = age_df,
+    test = "age",
+    cell_type1 = "astrocyte",
+    cell_type2 = "astrocyte",
+    region1 = "CaH",
+    region2 = "Pu",
+    xlab_prefix = "Age DE, ",
+    outDir = paths$outDir,
+    fdr_cutoff = 0.05,
+    add_fit = TRUE
+  )
 
-    plot_de_scatter_svg(
-        df = age_df,
-        test = "age",
-        cell_type1 = "SPN_D1_matrix",
-        cell_type2 = "SPN_D1_matrix",
-        region1 = "Pu",
-        region2 = "NAC",
-        xlab_prefix="Age DE, ",
-        outDir = paths$outDir,
-        fdr_cutoff = 0.05,
-        add_fit = TRUE)
+  plot_de_scatter_svg(
+    df = age_df,
+    test = "age",
+    cell_type1 = "astrocyte",
+    cell_type2 = "astrocyte",
+    region1 = "CaH",
+    region2 = "NAC",
+    xlab_prefix = "Age DE, ",
+    outDir = paths$outDir,
+    fdr_cutoff = 0.05,
+    add_fit = TRUE
+  )
 
-    #Supplemental 2:
-    plot_de_scatter_svg(
-        df = age_df,
-        test = "age",
-        cell_type1 = "astrocyte",
-        cell_type2 = "astrocyte",
-        region1 = "CaH",
-        region2 = "Pu",
-        xlab_prefix="Age DE, ",
-        outDir = paths$outDir,
-        fdr_cutoff = 0.05,
-        add_fit = TRUE)
-
-    plot_de_scatter_svg(
-        df = age_df,
-        test = "age",
-        cell_type1 = "astrocyte",
-        cell_type2 = "astrocyte",
-        region1 = "CaH",
-        region2 = "NAC",
-        xlab_prefix="Age DE, ",
-        outDir = paths$outDir,
-        fdr_cutoff = 0.05,
-        add_fit = TRUE)
-
-    plot_de_scatter_svg(
-        df = age_df,
-        test = "age",
-        cell_type1 = "astrocyte",
-        cell_type2 = "astrocyte",
-        region1 = "Pu",
-        region2 = "NAC",
-        xlab_prefix="Age DE, ",
-        outDir = paths$outDir,
-        fdr_cutoff = 0.05,
-        add_fit = TRUE)
-
-
+  plot_de_scatter_svg(
+    df = age_df,
+    test = "age",
+    cell_type1 = "astrocyte",
+    cell_type2 = "astrocyte",
+    region1 = "Pu",
+    region2 = "NAC",
+    xlab_prefix = "Age DE, ",
+    outDir = paths$outDir,
+    fdr_cutoff = 0.05,
+    add_fit = TRUE
+  )
 }
 
 
-plot_de_scatter_svg <- function(
-        df,
-        test,
-        cell_type1,
-        cell_type2,
-        region1,
-        region2,
-        xlab_prefix = NULL,
-        outDir,
-        fdr_cutoff = 0.05,
-        add_fit = TRUE,
-        width = 6,
-        height = 6,
-        rasterize_points=TRUE) {
+plot_de_scatter_svg <- function(df,
+                                test,
+                                cell_type1,
+                                cell_type2,
+                                region1,
+                                region2,
+                                xlab_prefix = NULL,
+                                outDir,
+                                fdr_cutoff = 0.05,
+                                add_fit = TRUE,
+                                width = 6,
+                                height = 6,
+                                rasterize_points = TRUE) {
+  fileStr <- paste(
+    "de_scatter_plot_",
+    test,
+    "_", cell_type1, "_", cell_type2,
+    "_", region1, "_vs_", region2,
+    ".svg",
+    sep = ""
+  )
 
-    fileStr <- paste(
-        "de_scatter_plot_",
-        test,
-        "_", cell_type1, "_", cell_type2,
-        "_", region1, "_vs_", region2,
-        ".svg",
-        sep = "")
+  out_file <- file.path(outDir, fileStr)
 
-    out_file <- file.path(outDir, fileStr)
+  format_cell_type <- function(x) {
+    x <- gsub("_", " ", x)
+    paste0(toupper(substr(x, 1, 1)), substr(x, 2, nchar(x)))
+  }
 
-    format_cell_type <- function(x) {
-        x <- gsub("_", " ", x)
-        paste0(toupper(substr(x, 1, 1)), substr(x, 2, nchar(x)))
-    }
+  name1 <- format_cell_type(cell_type1)
+  name2 <- format_cell_type(cell_type2)
 
-    name1 <- format_cell_type(cell_type1)
-    name2 <- format_cell_type(cell_type2)
+  if (identical(test, "age")) {
+    effect_label <- "Age effect fold change per decade"
+  } else if (identical(test, "sex")) {
+    effect_label <- "Sex effect fold change"
+  } else {
+    effect_label <- "Effect size, log2"
+  }
 
-    if (identical(test, "age")) {
-        effect_label <- "Age effect fold change per decade"
-    } else if (identical(test, "sex")) {
-        effect_label <- "Sex effect fold change"
-    } else {
-        effect_label <- "Effect size, log2"
-    }
+  xlab_string <- paste(
+    effect_label,
+    paste0(name1, " [", region1, "]"),
+    sep = "\n"
+  )
 
-    xlab_string <- paste(
-        effect_label,
-        paste0(name1, " [", region1, "]"),
-        sep = "\n"
-    )
+  ylab_string <- paste(
+    effect_label,
+    paste0(name2, " [", region2, "]"),
+    sep = "\n"
+  )
 
-    ylab_string <- paste(
-        effect_label,
-        paste0(name2, " [", region2, "]"),
-        sep = "\n"
-    )
-
-    p <- bican.mccarroll.de.analysis::plot_de_scatter_gg(
-        df,
-        cell_type1,
-        cell_type2,
-        region1,
-        region2,
-        fdr_cutoff = fdr_cutoff
+  p <- bican.mccarroll.de.analysis::plot_de_scatter_gg(
+    df,
+    cell_type1,
+    cell_type2,
+    region1,
+    region2,
+    fdr_cutoff = fdr_cutoff
+  ) +
+    ggplot2::labs(
+      x = xlab_string,
+      y = ylab_string
     ) +
-        ggplot2::labs(
-            x = xlab_string,
-            y = ylab_string
-        ) +
-        ggplot2::theme_classic() +
-        ggplot2::theme(
-            axis.title.x = ggplot2::element_text(size = ggplot2::rel(2)),
-            axis.title.y = ggplot2::element_text(size = ggplot2::rel(2)),
-            axis.text = ggplot2::element_text(size = ggplot2::rel(1.75))
-        )
-
-    if (rasterize_points) {
-        for (i in seq_along(p$layers)) {
-            layer <- p$layers[[i]]
-            if (inherits(layer$geom, "GeomPoint")) {
-                p$layers[[i]] <- ggrastr::rasterise(layer, dpi = 600)
-            }
-        }
-    }
-
-    ggplot2::ggsave(
-        filename = out_file,
-        plot = p,
-        width = width,
-        height = height,
-        units = "in"
+    ggplot2::theme_classic() +
+    ggplot2::theme(
+      axis.title.x = ggplot2::element_text(size = ggplot2::rel(2)),
+      axis.title.y = ggplot2::element_text(size = ggplot2::rel(2)),
+      axis.text = ggplot2::element_text(size = ggplot2::rel(1.75))
     )
 
-    invisible()
+  if (rasterize_points) {
+    for (i in seq_along(p$layers)) {
+      layer <- p$layers[[i]]
+      if (inherits(layer$geom, "GeomPoint")) {
+        p$layers[[i]] <- ggrastr::rasterise(layer, dpi = 600)
+      }
+    }
+  }
+
+  ggplot2::ggsave(
+    filename = out_file,
+    plot = p,
+    width = width,
+    height = height,
+    units = "in"
+  )
+
+  invisible()
 }
 
 
-get_or_build_de_cache <- function(
-        test,
-        cache_file,
-        de_region_interaction_dir,
-        ct_file,
-        gene_to_chr_file) {
+get_or_build_de_cache <- function(test,
+                                  cache_file,
+                                  de_region_interaction_dir,
+                                  ct_file,
+                                  gene_to_chr_file) {
+  if (file.exists(cache_file)) {
+    logger::log_info("Using cached data from {cache_file}")
+    de_ri <- utils::read.table(
+      cache_file,
+      header = TRUE, sep = "\t",
+      stringsAsFactors = FALSE, check.names = FALSE
+    )
+    data.table::setDT(de_ri)
+  } else {
+    logger::log_info(
+      "No cached data from {cache_file} regenerating data from sources.  This can take a few minutes"
+    )
+    gene_to_chr <- bican.mccarroll.de.analysis::read_gene_to_chr(
+      gene_to_chr_file
+    )
 
-    if (file.exists(cache_file)) {
-        logger::log_info("Using cached data from {cache_file}")
-        de_ri <- utils::read.table(
-            cache_file, header = TRUE, sep = "\t",
-            stringsAsFactors = FALSE, check.names = FALSE)
-        data.table::setDT(de_ri)
+    de_ri <- bican.mccarroll.de.analysis::read_de_results(
+      de_region_interaction_dir,
+      test,
+      ct_file,
+      gene_to_chr
+    )
 
-    } else {
-        logger::log_info(
-            "No cached data from {cache_file} regenerating data from sources.  This can take a few minutes"
-        )
-        gene_to_chr <- bican.mccarroll.de.analysis::read_gene_to_chr(
-            gene_to_chr_file)
+    utils::write.table(
+      de_ri,
+      file = cache_file,
+      sep = "\t",
+      row.names = FALSE,
+      col.names = TRUE,
+      quote = FALSE
+    )
+  }
 
-        de_ri <- bican.mccarroll.de.analysis::read_de_results(
-            de_region_interaction_dir,
-            test,
-            ct_file,
-            gene_to_chr)
-
-        utils::write.table(
-            de_ri,
-            file = cache_file,
-            sep = "\t",
-            row.names = FALSE,
-            col.names = TRUE,
-            quote = FALSE)
-    }
-
-    de_ri
+  de_ri
 }
 
-.resolve_sex_age_scatter_plot_paths <- function(
-        de_results_dir = NULL,
-        de_region_interaction_dir = NULL,
-        gene_to_chr_file = NULL,
-        ct_file = NULL,
-        outDir = NULL,
-        data_cache_dir = NULL) {
+.resolve_sex_age_scatter_plot_paths <- function(de_results_dir = NULL,
+                                                de_region_interaction_dir = NULL,
+                                                gene_to_chr_file = NULL,
+                                                ct_file = NULL,
+                                                outDir = NULL,
+                                                data_cache_dir = NULL) {
+  root <- .resolve_data_root_dir(NULL)
 
-    root <- .resolve_data_root_dir(NULL)
+  rel <- list(
+    de_results_dir =
+      "differential_expression/results",
+    de_region_interaction_dir =
+      "differential_expression/results/LEVEL_6/sex_age/cell_type_region_interaction_absolute_effects",
+    gene_to_chr_file =
+      "metadata/gene_to_chromosome.txt",
+    ct_file =
+      "differential_expression/metadata/cell_types_for_de_filtering_plot.txt"
+  )
 
-    rel <- list(
-        de_results_dir =
-            "differential_expression/results",
-
-        de_region_interaction_dir =
-            "differential_expression/results/LEVEL_6/sex_age/cell_type_region_interaction_absolute_effects",
-
-        gene_to_chr_file =
-            "metadata/gene_to_chromosome.txt",
-
-        ct_file =
-            "differential_expression/metadata/cell_types_for_de_filtering_plot.txt"
-    )
-
-    pick_in <- function(x, key) {
-        if (is.null(x)) {
-            return(file.path(root, rel[[key]]))
-        }
-        .resolve_under_root(root, x)
+  pick_in <- function(x, key) {
+    if (is.null(x)) {
+      return(file.path(root, rel[[key]]))
     }
+    .resolve_under_root(root, x)
+  }
 
-    out <- .resolve_out_dir(outDir)
-    cache <- .resolve_cache_dir(data_cache_dir)
-    #if a cache wasn't set, then use the differential_expression subdirectiory.
-    if (is.null(data_cache_dir)) {
-        cache <- file.path(cache, "differential_expression")
-    }
+  out <- .resolve_out_dir(outDir)
+  cache <- .resolve_cache_dir(data_cache_dir)
+  # if a cache wasn't set, then use the differential_expression subdirectiory.
+  if (is.null(data_cache_dir)) {
+    cache <- file.path(cache, "differential_expression")
+  }
 
-    .ensure_dir(out)
-    .ensure_dir(cache)
+  .ensure_dir(out)
+  .ensure_dir(cache)
 
-    list(
-        data_root_dir             = root,
-        de_results_dir            = pick_in(de_results_dir, "de_results_dir"),
-        de_region_interaction_dir = pick_in(de_region_interaction_dir, "de_region_interaction_dir"),
-        gene_to_chr_file          = pick_in(gene_to_chr_file, "gene_to_chr_file"),
-        ct_file                   = pick_in(ct_file, "ct_file"),
-        outDir                    = out,
-        data_cache_dir            = cache
-    )
+  list(
+    data_root_dir             = root,
+    de_results_dir            = pick_in(de_results_dir, "de_results_dir"),
+    de_region_interaction_dir = pick_in(de_region_interaction_dir, "de_region_interaction_dir"),
+    gene_to_chr_file          = pick_in(gene_to_chr_file, "gene_to_chr_file"),
+    ct_file                   = pick_in(ct_file, "ct_file"),
+    outDir                    = out,
+    data_cache_dir            = cache
+  )
 }

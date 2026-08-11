@@ -11,7 +11,7 @@
 #         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository/data_cache"
 # )
 
-#de_region_interaction_dir <- gene_to_chr_file <- ct_file <- outDir <- data_cache_dir <- NULL
+# de_region_interaction_dir <- gene_to_chr_file <- ct_file <- outDir <- data_cache_dir <- NULL
 
 #' Plot differential expression correlation heatmaps for age (main and supplement)
 #'
@@ -44,261 +44,258 @@
 #'   options.
 #'
 #' @export
-plot_de_cor_heatmaps_age <- function(
-        de_region_interaction_dir = NULL,
-        gene_to_chr_file = NULL,
-        ct_file = NULL,
-        outDir = NULL,
-        data_cache_dir = NULL) {
+plot_de_cor_heatmaps_age <- function(de_region_interaction_dir = NULL,
+                                     gene_to_chr_file = NULL,
+                                     ct_file = NULL,
+                                     outDir = NULL,
+                                     data_cache_dir = NULL) {
+  paths <- resolve_de_cor_paths(
+    de_region_interaction_dir = de_region_interaction_dir,
+    gene_to_chr_file = gene_to_chr_file,
+    ct_file = ct_file,
+    outDir = outDir,
+    data_cache_dir = data_cache_dir
+  )
 
-    paths <- resolve_de_cor_paths(
-        de_region_interaction_dir = de_region_interaction_dir,
-        gene_to_chr_file = gene_to_chr_file,
-        ct_file = ct_file,
-        outDir = outDir,
-        data_cache_dir = data_cache_dir)
+  ## -----------------------
+  ## Hard-coded manuscript parameters
+  ## -----------------------
 
-    ## -----------------------
-    ## Hard-coded manuscript parameters
-    ## -----------------------
+  test <- "age"
 
-    test <- "age"
+  non_neuron_types <- c("astrocyte", "OPC", "oligodendrocyte", "microglia")
 
-    non_neuron_types <- c("astrocyte", "OPC", "oligodendrocyte", "microglia")
+  region_order <- c("CaH", "Pu", "NAC", "ic", "DFC")
+  regions_main <- c("CaH", "DFC")
+  regions_supp <- region_order
 
-    region_order <- c("CaH", "Pu", "NAC", "ic", "DFC")
-    regions_main <- c("CaH", "DFC")
-    regions_supp <- region_order
+  fdr_cutoff <- 0.05
 
-    fdr_cutoff <- 0.05
+  breaks <- seq(-1, 1, length.out = 101)
+  palette_colors <- c("steelblue", "white", "darkorange")
+  clustering_method <- "complete"
 
-    breaks <- seq(-1, 1, length.out = 101)
-    palette_colors <- c("steelblue", "white", "darkorange")
-    clustering_method <- "complete"
+  ## -----------------------
+  ## Small input (load once)
+  ## -----------------------
 
-    ## -----------------------
-    ## Small input (load once)
-    ## -----------------------
+  cell_types_use <- bican.mccarroll.de.analysis::read_cell_types(paths$ct_file)
 
-    cell_types_use <- bican.mccarroll.de.analysis::read_cell_types(paths$ct_file)
-
-    ## -----------------------
-    ## Plot 1: MAIN (cache = matrix only)
-    ## -----------------------
+  ## -----------------------
+  ## Plot 1: MAIN (cache = matrix only)
+  ## -----------------------
 
 
-    cache_file <- file.path(paths$data_cache_dir, "de_cor_mat_age_main_CaH_DFC.tsv")
+  cache_file <- file.path(paths$data_cache_dir, "de_cor_mat_age_main_CaH_DFC.tsv")
 
-    cor_mat_main <- get_or_build_de_cor_mat_cache(
-        cache_file = cache_file,
-        de_region_interaction_dir = paths$de_region_interaction_dir,
-        test = test,
-        ct_file = paths$ct_file,
-        gene_to_chr_file = paths$gene_to_chr_file,
-        regions_use = regions_main,
-        non_neuron_types = non_neuron_types,
-        fdr_cutoff = fdr_cutoff)
+  cor_mat_main <- get_or_build_de_cor_mat_cache(
+    cache_file = cache_file,
+    de_region_interaction_dir = paths$de_region_interaction_dir,
+    test = test,
+    ct_file = paths$ct_file,
+    gene_to_chr_file = paths$gene_to_chr_file,
+    regions_use = regions_main,
+    non_neuron_types = non_neuron_types,
+    fdr_cutoff = fdr_cutoff
+  )
 
-    #Clean up the names.
-    cor_mat_main <- clean_cor_mat_names(cor_mat_main)
+  # Clean up the names.
+  cor_mat_main <- clean_cor_mat_names(cor_mat_main)
 
-    out_file <- file.path(paths$outDir, "de_cor_heatmap_age_main_CaH_DFC.svg")
-    grDevices::svg(out_file, width = 6, height = 6)
+  out_file <- file.path(paths$outDir, "de_cor_heatmap_age_main_CaH_DFC.svg")
+  grDevices::svg(out_file, width = 6, height = 6)
 
-    #legend_title = "Spearman rho^2\nof age DE logFC"
-    legend_title = NULL
+  # legend_title = "Spearman rho^2\nof age DE logFC"
+  legend_title <- NULL
 
-    # bican.mccarroll.de.analysis::plot_de_cor_heatmap(
-    #     cor_mat_main,
-    #     clustering_method = clustering_method,
-    #     breaks = breaks,
-    #     palette_colors = palette_colors)
+  # bican.mccarroll.de.analysis::plot_de_cor_heatmap(
+  #     cor_mat_main,
+  #     clustering_method = clustering_method,
+  #     breaks = breaks,
+  #     palette_colors = palette_colors)
 
-    ht<-bican.mccarroll.de.analysis::plot_de_cor_heatmap_complex(
-        cor_mat_main,
-        clustering_method = clustering_method,
-        breaks = breaks,
-        palette_colors = palette_colors,
-        legend_title=legend_title,
-        show_dendrograms=FALSE
+  ht <- bican.mccarroll.de.analysis::plot_de_cor_heatmap_complex(
+    cor_mat_main,
+    clustering_method = clustering_method,
+    breaks = breaks,
+    palette_colors = palette_colors,
+    legend_title = legend_title,
+    show_dendrograms = FALSE
+  )
 
-    )
+  ComplexHeatmap::draw(ht)
+  grDevices::dev.off()
 
-    ComplexHeatmap::draw(ht)
-    grDevices::dev.off()
+  ## -----------------------
+  ## Plot 2: SUPP (cache = matrix only)
+  ## -----------------------
 
-    ## -----------------------
-    ## Plot 2: SUPP (cache = matrix only)
-    ## -----------------------
+  cache_file <- file.path(paths$data_cache_dir, "de_cor_mat_age_supp_all_regions.tsv")
 
-    cache_file <- file.path(paths$data_cache_dir, "de_cor_mat_age_supp_all_regions.tsv")
+  cor_mat_supp <- get_or_build_de_cor_mat_cache(
+    cache_file = cache_file,
+    de_region_interaction_dir = paths$de_region_interaction_dir,
+    test = test,
+    ct_file = paths$ct_file,
+    gene_to_chr_file = paths$gene_to_chr_file,
+    regions_use = regions_supp,
+    non_neuron_types = non_neuron_types,
+    fdr_cutoff = fdr_cutoff
+  )
 
-    cor_mat_supp <- get_or_build_de_cor_mat_cache(
-        cache_file = cache_file,
-        de_region_interaction_dir = paths$de_region_interaction_dir,
-        test = test,
-        ct_file = paths$ct_file,
-        gene_to_chr_file = paths$gene_to_chr_file,
-        regions_use = regions_supp,
-        non_neuron_types = non_neuron_types,
-        fdr_cutoff = fdr_cutoff)
+  # Clean up the names.
+  cor_mat_supp <- clean_cor_mat_names(cor_mat_supp)
 
-    #Clean up the names.
-    cor_mat_supp <- clean_cor_mat_names(cor_mat_supp)
+  out_file <- file.path(paths$outDir, "de_cor_heatmap_age_supp_all_regions.svg")
+  grDevices::svg(out_file, width = 10, height = 10)
 
-    out_file <- file.path(paths$outDir, "de_cor_heatmap_age_supp_all_regions.svg")
-    grDevices::svg(out_file, width = 10, height = 10)
+  # bican.mccarroll.de.analysis::plot_de_cor_heatmap(
+  #     cor_mat_supp,
+  #     clustering_method = clustering_method,
+  #     breaks = breaks,
+  #     palette_colors = palette_colors)
 
-    # bican.mccarroll.de.analysis::plot_de_cor_heatmap(
-    #     cor_mat_supp,
-    #     clustering_method = clustering_method,
-    #     breaks = breaks,
-    #     palette_colors = palette_colors)
+  ht2 <- bican.mccarroll.de.analysis::plot_de_cor_heatmap_complex(
+    cor_mat_supp,
+    clustering_method = clustering_method,
+    breaks = breaks,
+    palette_colors = palette_colors,
+    legend_title = legend_title,
+    show_dendrograms = FALSE
+  )
 
-    ht2<-bican.mccarroll.de.analysis::plot_de_cor_heatmap_complex(
-        cor_mat_supp,
-        clustering_method = clustering_method,
-        breaks = breaks,
-        palette_colors = palette_colors,
-        legend_title=legend_title,
-        show_dendrograms=FALSE
-    )
+  ComplexHeatmap::draw(ht2)
+  grDevices::dev.off()
 
-    ComplexHeatmap::draw(ht2)
-    grDevices::dev.off()
-
-    invisible(NULL)
+  invisible(NULL)
 }
 
 clean_cor_mat_names <- function(cor_mat) {
+  if (!is.matrix(cor_mat)) {
+    stop("clean_cor_mat_names expects a matrix.")
+  }
 
-    if (!is.matrix(cor_mat)) {
-        stop("clean_cor_mat_names expects a matrix.")
+  rn <- rownames(cor_mat)
+  cn <- colnames(cor_mat)
+
+  clean_vec <- function(x) {
+    if (is.null(x)) {
+      return(x)
     }
 
-    rn <- rownames(cor_mat)
-    cn <- colnames(cor_mat)
+    # First replace double underscores
+    x <- gsub("__", " ", x, fixed = TRUE)
 
-    clean_vec <- function(x) {
-        if (is.null(x)) return(x)
+    # Then replace single underscores
+    x <- gsub("_", " ", x, fixed = TRUE)
 
-        # First replace double underscores
-        x <- gsub("__", " ", x, fixed = TRUE)
+    x
+  }
 
-        # Then replace single underscores
-        x <- gsub("_", " ", x, fixed = TRUE)
+  rownames(cor_mat) <- clean_vec(rn)
+  colnames(cor_mat) <- clean_vec(cn)
 
-        x
-    }
-
-    rownames(cor_mat) <- clean_vec(rn)
-    colnames(cor_mat) <- clean_vec(cn)
-
-    cor_mat
+  cor_mat
 }
 
-get_or_build_de_cor_mat_cache <- function(
-        cache_file,
-        de_region_interaction_dir,
-        test,
-        ct_file,
-        gene_to_chr_file,
-        regions_use,
-        non_neuron_types,
-        fdr_cutoff) {
+get_or_build_de_cor_mat_cache <- function(cache_file,
+                                          de_region_interaction_dir,
+                                          test,
+                                          ct_file,
+                                          gene_to_chr_file,
+                                          regions_use,
+                                          non_neuron_types,
+                                          fdr_cutoff) {
+  ## Cache is the matrix only.
+  if (file.exists(cache_file)) {
+    cor_dt <- data.table::fread(cache_file)
 
-    ## Cache is the matrix only.
-    if (file.exists(cache_file)) {
+    rn <- cor_dt[[1]]
+    cor_dt[[1]] <- NULL
 
-        cor_dt <- data.table::fread(cache_file)
+    cor_mat <- as.matrix(cor_dt)
+    rownames(cor_mat) <- rn
 
-        rn <- cor_dt[[1]]
-        cor_dt[[1]] <- NULL
+    return(cor_mat)
+  }
 
-        cor_mat <- as.matrix(cor_dt)
-        rownames(cor_mat) <- rn
+  ## No cache: read what we need and compute the matrix.
+  gene_to_chr <- bican.mccarroll.de.analysis::read_gene_to_chr(gene_to_chr_file)
 
-        return(cor_mat)
-    }
+  de_ri <- bican.mccarroll.de.analysis::read_de_results(
+    de_region_interaction_dir,
+    test,
+    ct_file,
+    gene_to_chr
+  )
 
-    ## No cache: read what we need and compute the matrix.
-    gene_to_chr <- bican.mccarroll.de.analysis::read_gene_to_chr(gene_to_chr_file)
+  cell_types_use <- bican.mccarroll.de.analysis::read_cell_types(ct_file)
 
-    de_ri <- bican.mccarroll.de.analysis::read_de_results(
-        de_region_interaction_dir,
-        test,
-        ct_file,
-        gene_to_chr)
+  cor_mat <- bican.mccarroll.de.analysis::compute_de_cor_mat(
+    de_ri,
+    cell_types_use,
+    regions_use,
+    non_neuron_types,
+    fdr_cutoff = fdr_cutoff
+  )
 
-    cell_types_use <- bican.mccarroll.de.analysis::read_cell_types(ct_file)
+  ## Write matrix cache as a reviewer-friendly TSV.
+  cor_dt <- as.data.frame(cor_mat, check.names = FALSE)
+  cor_dt <- cbind(cell_type = rownames(cor_mat), cor_dt)
 
-    cor_mat <- bican.mccarroll.de.analysis::compute_de_cor_mat(
-        de_ri,
-        cell_types_use,
-        regions_use,
-        non_neuron_types,
-        fdr_cutoff = fdr_cutoff)
+  utils::write.table(
+    cor_dt,
+    file = cache_file,
+    sep = "\t",
+    row.names = FALSE,
+    col.names = TRUE,
+    quote = FALSE
+  )
 
-    ## Write matrix cache as a reviewer-friendly TSV.
-    cor_dt <- as.data.frame(cor_mat, check.names = FALSE)
-    cor_dt <- cbind(cell_type = rownames(cor_mat), cor_dt)
-
-    utils::write.table(
-        cor_dt,
-        file = cache_file,
-        sep = "\t",
-        row.names = FALSE,
-        col.names = TRUE,
-        quote = FALSE)
-
-    cor_mat
+  cor_mat
 }
 
 
-resolve_de_cor_paths <- function(
-        de_region_interaction_dir = NULL,
-        gene_to_chr_file = NULL,
-        ct_file = NULL,
-        outDir = NULL,
-        data_cache_dir = NULL) {
+resolve_de_cor_paths <- function(de_region_interaction_dir = NULL,
+                                 gene_to_chr_file = NULL,
+                                 ct_file = NULL,
+                                 outDir = NULL,
+                                 data_cache_dir = NULL) {
+  root <- .resolve_data_root_dir(NULL)
 
-    root <- .resolve_data_root_dir(NULL)
+  rel <- list(
+    de_region_interaction_dir =
+      "differential_expression/results/LEVEL_6/sex_age/cell_type_region_interaction_absolute_effects",
+    gene_to_chr_file =
+      "metadata/gene_to_chromosome.txt",
+    ct_file =
+      "differential_expression/metadata/cell_types_for_de_filtering_plot.txt"
+  )
 
-    rel <- list(
-        de_region_interaction_dir =
-            "differential_expression/results/LEVEL_6/sex_age/cell_type_region_interaction_absolute_effects",
-
-        gene_to_chr_file =
-            "metadata/gene_to_chromosome.txt",
-
-        ct_file =
-            "differential_expression/metadata/cell_types_for_de_filtering_plot.txt"
-    )
-
-    pick_in <- function(x, key) {
-        if (is.null(x)) {
-            return(file.path(root, rel[[key]]))
-        }
-        .resolve_under_root(root, x)
+  pick_in <- function(x, key) {
+    if (is.null(x)) {
+      return(file.path(root, rel[[key]]))
     }
+    .resolve_under_root(root, x)
+  }
 
-    out <- .resolve_out_dir(outDir)
-    cache <- .resolve_cache_dir(data_cache_dir)
+  out <- .resolve_out_dir(outDir)
+  cache <- .resolve_cache_dir(data_cache_dir)
 
-    #if a cache wasn't set, then use the differential_expression subdirectiory.
-    if (is.null(data_cache_dir)) {
-        cache <- file.path(cache, "differential_expression")
-    }
+  # if a cache wasn't set, then use the differential_expression subdirectiory.
+  if (is.null(data_cache_dir)) {
+    cache <- file.path(cache, "differential_expression")
+  }
 
-    .ensure_dir(out)
-    .ensure_dir(cache)
+  .ensure_dir(out)
+  .ensure_dir(cache)
 
-    list(
-        data_root_dir             = root,
-        de_region_interaction_dir = pick_in(de_region_interaction_dir, "de_region_interaction_dir"),
-        gene_to_chr_file          = pick_in(gene_to_chr_file, "gene_to_chr_file"),
-        ct_file                   = pick_in(ct_file, "ct_file"),
-        outDir                    = out,
-        data_cache_dir            = cache
-    )
+  list(
+    data_root_dir             = root,
+    de_region_interaction_dir = pick_in(de_region_interaction_dir, "de_region_interaction_dir"),
+    gene_to_chr_file          = pick_in(gene_to_chr_file, "gene_to_chr_file"),
+    ct_file                   = pick_in(ct_file, "ct_file"),
+    outDir                    = out,
+    data_cache_dir            = cache
+  )
 }

@@ -17,7 +17,7 @@
 #'
 #' @export
 get_data_root_dir <- function() {
-    getOption("bican.mccarroll.figures.data_root_dir", default = NULL)
+  getOption("bican.mccarroll.figures.data_root_dir", default = NULL)
 }
 
 
@@ -39,7 +39,7 @@ get_data_root_dir <- function() {
 #'
 #' @export
 get_out_dir <- function() {
-    getOption("bican.mccarroll.figures.out_dir", default = NULL)
+  getOption("bican.mccarroll.figures.out_dir", default = NULL)
 }
 
 #' Get the configured cache directory
@@ -59,7 +59,7 @@ get_out_dir <- function() {
 #'
 #' @export
 get_cache_dir <- function() {
-    getOption("bican.mccarroll.figures.cache_dir", default = NULL)
+  getOption("bican.mccarroll.figures.cache_dir", default = NULL)
 }
 
 #' Get all configured figure-related paths
@@ -85,11 +85,11 @@ get_cache_dir <- function() {
 #'
 #' @export
 get_figure_paths <- function() {
-    list(
-        data_root_dir = get_data_root_dir(),
-        out_dir = get_out_dir(),
-        cache_dir = get_cache_dir()
-    )
+  list(
+    data_root_dir = get_data_root_dir(),
+    out_dir = get_out_dir(),
+    cache_dir = get_cache_dir()
+  )
 }
 
 ## -------------------------------------------------------------------------
@@ -97,61 +97,73 @@ get_figure_paths <- function() {
 ## -------------------------------------------------------------------------
 
 .resolve_required_path <- function(arg_value, option_name, what) {
-    if (!is.null(arg_value)) return(arg_value)
+  if (!is.null(arg_value)) {
+    return(arg_value)
+  }
 
-    opt <- getOption(option_name, default = NULL)
-    if (is.null(opt) || !nzchar(opt)) {
-        stop(
-            what, " is not set. Either pass it explicitly or set options('",
-            option_name, "' = '/path/to/...').",
-            call. = FALSE
-        )
-    }
-    opt
+  opt <- getOption(option_name, default = NULL)
+  if (is.null(opt) || !nzchar(opt)) {
+    stop(
+      what, " is not set. Either pass it explicitly or set options('",
+      option_name, "' = '/path/to/...').",
+      call. = FALSE
+    )
+  }
+  opt
 }
 
 .resolve_data_root_dir <- function(data_root_dir = NULL) {
-    .resolve_required_path(
-        arg_value = data_root_dir,
-        option_name = "bican.mccarroll.figures.data_root_dir",
-        what = "Data root directory"
-    )
+  .resolve_required_path(
+    arg_value = data_root_dir,
+    option_name = "bican.mccarroll.figures.data_root_dir",
+    what = "Data root directory"
+  )
 }
 
 .resolve_out_dir <- function(out_dir = NULL) {
-    .resolve_required_path(
-        arg_value = out_dir,
-        option_name = "bican.mccarroll.figures.out_dir",
-        what = "Output directory"
-    )
+  .resolve_required_path(
+    arg_value = out_dir,
+    option_name = "bican.mccarroll.figures.out_dir",
+    what = "Output directory"
+  )
 }
 
 .resolve_cache_dir <- function(cache_dir = NULL) {
-    .resolve_required_path(
-        arg_value = cache_dir,
-        option_name = "bican.mccarroll.figures.cache_dir",
-        what = "Cache directory"
-    )
+  .resolve_required_path(
+    arg_value = cache_dir,
+    option_name = "bican.mccarroll.figures.cache_dir",
+    what = "Cache directory"
+  )
 }
 
 .ensure_dir <- function(path) {
-    if (!dir.exists(path)) {
-        dir.create(path, recursive = TRUE, showWarnings = FALSE)
-    }
-    invisible(NULL)
+  if (!dir.exists(path)) {
+    dir.create(path, recursive = TRUE, showWarnings = FALSE)
+  }
+  invisible(NULL)
 }
 
 .is_absolute_path <- function(p) {
-    ## POSIX absolute path or Windows drive / UNC.
-    if (!is.character(p) || length(p) != 1L || is.na(p) || p == "") return(FALSE)
-    if (substr(p, 1L, 1L) == "/") return(TRUE)
-    if (grepl("^[A-Za-z]:[\\\\/]", p)) return(TRUE)
-    if (grepl("^\\\\\\\\", p)) return(TRUE)
-    FALSE
+  ## POSIX absolute path or Windows drive / UNC.
+  if (!is.character(p) || length(p) != 1L || is.na(p) || p == "") {
+    return(FALSE)
+  }
+  if (substr(p, 1L, 1L) == "/") {
+    return(TRUE)
+  }
+  if (grepl("^[A-Za-z]:[\\\\/]", p)) {
+    return(TRUE)
+  }
+  if (grepl("^\\\\\\\\", p)) {
+    return(TRUE)
+  }
+  FALSE
 }
 
 .resolve_under_root <- function(root, p) {
-    ## If p is absolute, return as-is; if relative, interpret under root.
-    if (.is_absolute_path(p)) return(p)
-    file.path(root, p)
+  ## If p is absolute, return as-is; if relative, interpret under root.
+  if (.is_absolute_path(p)) {
+    return(p)
+  }
+  file.path(root, p)
 }

@@ -19,19 +19,15 @@
 
 # Private
 .age_prediction_all <- function() {
-
-    .age_prediction_all_one()
-
+  .age_prediction_all_one()
 }
 
 .age_prediction_all_alpha_fixed_0_5 <- function() {
-
-    .age_prediction_all_one(
-        use_age_de_results = FALSE,
-        optimize_alpha = FALSE,
-        alpha_fixed = 0.5
-    )
-
+  .age_prediction_all_one(
+    use_age_de_results = FALSE,
+    optimize_alpha = FALSE,
+    alpha_fixed = 0.5
+  )
 }
 
 # .age_prediction_all_optimize_alpha <- function() {
@@ -49,237 +45,232 @@
 # Uses the BICAN DE initial features, but predicts in the SNAP controls data set.
 # SNAP200 region is BA46, and this compares to the BICAN DFC region
 # the age DE results are soft linked, with the region token modified so the results can be found.
-.age_prediction_snap200_bican_DE_genes<-function () {
+.age_prediction_snap200_bican_DE_genes <- function() {
+  metacell_dir <- "/broad/mccarroll/dropulation/analysis/SNAP200_controls/metacells/out"
+  age_de_results_dir <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/results/LEVEL_6_for_SNAP200/sex_age/cell_type_region_interaction_absolute_effects"
+  cellTypeListFile <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/metadata/cell_types_for_snap200_age_plots.txt"
+  data_name <- "donor_rxn_DGEList"
 
-    metacell_dir="/broad/mccarroll/dropulation/analysis/SNAP200_controls/metacells/out"
-    age_de_results_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/results/LEVEL_6_for_SNAP200/sex_age/cell_type_region_interaction_absolute_effects"
-    cellTypeListFile = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/metadata/cell_types_for_snap200_age_plots.txt"
-    data_name = "donor_rxn_DGEList"
+  paths <- .resolve_age_pred_paths(
+    cellTypeListFile = NULL,
+    metacell_dir = metacell_dir,
+    age_de_results_dir = age_de_results_dir,
+    contig_yaml_file = NULL,
+    reduced_gtf_file = NULL,
+    outDir = NULL,
+    data_cache_dir = NULL,
+    use_age_de_results = TRUE,
+    optimize_alpha = FALSE,
+    alpha_fixed = 0
+  )
 
-    paths<- .resolve_age_pred_paths(
-        cellTypeListFile = NULL,
-        metacell_dir = metacell_dir,
-        age_de_results_dir = age_de_results_dir,
-        contig_yaml_file = NULL,
-        reduced_gtf_file = NULL,
-        outDir = NULL,
-        data_cache_dir = NULL,
-        use_age_de_results = TRUE,
-        optimize_alpha = FALSE,
-        alpha_fixed = 0
-    )
+  age_de_results_dir <- paths$age_de_results_dir
+  use_age_de_results <- T
+  contig_yaml_file <- paths$contig_yaml_file
+  reduced_gtf_file <- paths$reduced_gtf_file
+  n_cores <- 12
+  data_cache_dir <- paste(paths$data_cache_dir, "/SNAP200_age", sep = "")
+  outDir <- paste(paths$outDir, "/SNAP200_age", sep = "")
+  optimize_alpha <- FALSE
+  alpha_fixed <- 0
+  region <- "BA46"
+  cell_type_list <- c("astrocyte", "OPC", "microglia", "glut_L23_IT")
 
-    age_de_results_dir=paths$age_de_results_dir
-    use_age_de_results=T
-    contig_yaml_file=paths$contig_yaml_file
-    reduced_gtf_file=paths$reduced_gtf_file
-    n_cores=12
-    data_cache_dir=paste(paths$data_cache_dir,"/SNAP200_age", sep="")
-    outDir=paste(paths$outDir,"/SNAP200_age", sep="")
-    optimize_alpha=FALSE
-    alpha_fixed=0
-    region="BA46"
-    cell_type_list = c("astrocyte", "OPC", "microglia", "glut_L23_IT")
-
-    age_prediction_error_plots(
-        cellTypeListFile = cellTypeListFile,
-        metacell_dir = metacell_dir,
-        data_name = data_name,
-        age_de_results_dir = age_de_results_dir,
-        use_age_de_results = use_age_de_results,
-        contig_yaml_file = contig_yaml_file,
-        reduced_gtf_file = reduced_gtf_file,
-        n_cores = n_cores,
-        data_cache_dir = data_cache_dir,
-        outDir = outDir,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
-    )
+  age_prediction_error_plots(
+    cellTypeListFile = cellTypeListFile,
+    metacell_dir = metacell_dir,
+    data_name = data_name,
+    age_de_results_dir = age_de_results_dir,
+    use_age_de_results = use_age_de_results,
+    contig_yaml_file = contig_yaml_file,
+    reduced_gtf_file = reduced_gtf_file,
+    n_cores = n_cores,
+    data_cache_dir = data_cache_dir,
+    outDir = outDir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
 
 
-    age_prediction_residual_corr_and_jaccard_heatmaps_region(
-        region=region,
-        cellTypeListFile = cellTypeListFile,
-        metacell_dir = metacell_dir,
-        data_name = data_name,
-        age_de_results_dir = age_de_results_dir,
-        use_age_de_results = use_age_de_results,
-        contig_yaml_file = contig_yaml_file,
-        reduced_gtf_file = reduced_gtf_file,
-        n_cores = n_cores,
-        data_cache_dir = data_cache_dir,
-        outDir = outDir,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
-    )
+  age_prediction_residual_corr_and_jaccard_heatmaps_region(
+    region = region,
+    cellTypeListFile = cellTypeListFile,
+    metacell_dir = metacell_dir,
+    data_name = data_name,
+    age_de_results_dir = age_de_results_dir,
+    use_age_de_results = use_age_de_results,
+    contig_yaml_file = contig_yaml_file,
+    reduced_gtf_file = reduced_gtf_file,
+    n_cores = n_cores,
+    data_cache_dir = data_cache_dir,
+    outDir = outDir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
 
-    age_prediction_corrected_residual_pairwise_scatter_region(
-        cell_type_list = cell_type_list,
-        region=region,
-        metacell_dir = metacell_dir,
-        data_name = data_name,
-        age_de_results_dir = age_de_results_dir,
-        use_age_de_results = use_age_de_results,
-        contig_yaml_file = contig_yaml_file,
-        reduced_gtf_file = reduced_gtf_file,
-        n_cores = n_cores,
-        data_cache_dir = data_cache_dir,
-        outDir = outDir,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
-    )
+  age_prediction_corrected_residual_pairwise_scatter_region(
+    cell_type_list = cell_type_list,
+    region = region,
+    metacell_dir = metacell_dir,
+    data_name = data_name,
+    age_de_results_dir = age_de_results_dir,
+    use_age_de_results = use_age_de_results,
+    contig_yaml_file = contig_yaml_file,
+    reduced_gtf_file = reduced_gtf_file,
+    n_cores = n_cores,
+    data_cache_dir = data_cache_dir,
+    outDir = outDir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
 
-    age_prediction_uncorrected_residual_pairwise_scatter_region(
-        cell_type_list = cell_type_list,
-        region=region,
-        metacell_dir = metacell_dir,
-        data_name = data_name,
-        age_de_results_dir = age_de_results_dir,
-        use_age_de_results = use_age_de_results,
-        contig_yaml_file = contig_yaml_file,
-        reduced_gtf_file = reduced_gtf_file,
-        n_cores = n_cores,
-        data_cache_dir = data_cache_dir,
-        outDir = outDir,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
-    )
+  age_prediction_uncorrected_residual_pairwise_scatter_region(
+    cell_type_list = cell_type_list,
+    region = region,
+    metacell_dir = metacell_dir,
+    data_name = data_name,
+    age_de_results_dir = age_de_results_dir,
+    use_age_de_results = use_age_de_results,
+    contig_yaml_file = contig_yaml_file,
+    reduced_gtf_file = reduced_gtf_file,
+    n_cores = n_cores,
+    data_cache_dir = data_cache_dir,
+    outDir = outDir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
 
-    age_prediction_examples(
-        cell_type_list = cell_type_list,
-        region=region,
-        metacell_dir = metacell_dir,
-        data_name = data_name,
-        age_de_results_dir = age_de_results_dir,
-        use_age_de_results = use_age_de_results,
-        contig_yaml_file = contig_yaml_file,
-        reduced_gtf_file = reduced_gtf_file,
-        n_cores = n_cores,
-        data_cache_dir = data_cache_dir,
-        outDir = outDir,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
-    )
-
+  age_prediction_examples(
+    cell_type_list = cell_type_list,
+    region = region,
+    metacell_dir = metacell_dir,
+    data_name = data_name,
+    age_de_results_dir = age_de_results_dir,
+    use_age_de_results = use_age_de_results,
+    contig_yaml_file = contig_yaml_file,
+    reduced_gtf_file = reduced_gtf_file,
+    n_cores = n_cores,
+    data_cache_dir = data_cache_dir,
+    outDir = outDir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
 }
 
-.age_prediction_all_one <- function(
-        cellTypeListFile = NULL,
-        metacell_dir = NULL,
-        data_name = "donor_rxn_DGEList",
-        age_de_results_dir = NULL,
-        use_age_de_results = TRUE,
-        contig_yaml_file = NULL,
-        reduced_gtf_file = NULL,
-        n_cores = 14,
-        data_cache_dir = NULL,
-        outDir = NULL,
-        optimize_alpha = FALSE,
-        alpha_fixed = 0) {
+.age_prediction_all_one <- function(cellTypeListFile = NULL,
+                                    metacell_dir = NULL,
+                                    data_name = "donor_rxn_DGEList",
+                                    age_de_results_dir = NULL,
+                                    use_age_de_results = TRUE,
+                                    contig_yaml_file = NULL,
+                                    reduced_gtf_file = NULL,
+                                    n_cores = 14,
+                                    data_cache_dir = NULL,
+                                    outDir = NULL,
+                                    optimize_alpha = FALSE,
+                                    alpha_fixed = 0) {
+  age_prediction_error_plots(
+    cellTypeListFile = cellTypeListFile,
+    metacell_dir = metacell_dir,
+    data_name = data_name,
+    age_de_results_dir = age_de_results_dir,
+    use_age_de_results = use_age_de_results,
+    contig_yaml_file = contig_yaml_file,
+    reduced_gtf_file = reduced_gtf_file,
+    n_cores = n_cores,
+    data_cache_dir = data_cache_dir,
+    outDir = outDir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
 
-    age_prediction_error_plots(
-        cellTypeListFile = cellTypeListFile,
-        metacell_dir = metacell_dir,
-        data_name = data_name,
-        age_de_results_dir = age_de_results_dir,
-        use_age_de_results = use_age_de_results,
-        contig_yaml_file = contig_yaml_file,
-        reduced_gtf_file = reduced_gtf_file,
-        n_cores = n_cores,
-        data_cache_dir = data_cache_dir,
-        outDir = outDir,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
-    )
+  age_prediction_residual_corr_and_jaccard_heatmaps_region(
+    cellTypeListFile = cellTypeListFile,
+    metacell_dir = metacell_dir,
+    data_name = data_name,
+    age_de_results_dir = age_de_results_dir,
+    use_age_de_results = use_age_de_results,
+    contig_yaml_file = contig_yaml_file,
+    reduced_gtf_file = reduced_gtf_file,
+    n_cores = n_cores,
+    data_cache_dir = data_cache_dir,
+    outDir = outDir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
 
-    age_prediction_residual_corr_and_jaccard_heatmaps_region(
-        cellTypeListFile = cellTypeListFile,
-        metacell_dir = metacell_dir,
-        data_name = data_name,
-        age_de_results_dir = age_de_results_dir,
-        use_age_de_results = use_age_de_results,
-        contig_yaml_file = contig_yaml_file,
-        reduced_gtf_file = reduced_gtf_file,
-        n_cores = n_cores,
-        data_cache_dir = data_cache_dir,
-        outDir = outDir,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
-    )
+  age_prediction_residual_corr_and_jaccard_heatmaps_cell_type(
+    metacell_dir = metacell_dir,
+    data_name = data_name,
+    age_de_results_dir = age_de_results_dir,
+    use_age_de_results = use_age_de_results,
+    contig_yaml_file = contig_yaml_file,
+    reduced_gtf_file = reduced_gtf_file,
+    n_cores = n_cores,
+    data_cache_dir = data_cache_dir,
+    outDir = outDir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
 
-    age_prediction_residual_corr_and_jaccard_heatmaps_cell_type(
-        metacell_dir = metacell_dir,
-        data_name = data_name,
-        age_de_results_dir = age_de_results_dir,
-        use_age_de_results = use_age_de_results,
-        contig_yaml_file = contig_yaml_file,
-        reduced_gtf_file = reduced_gtf_file,
-        n_cores = n_cores,
-        data_cache_dir = data_cache_dir,
-        outDir = outDir,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
-    )
+  age_prediction_corrected_residual_pairwise_scatter_region(
+    metacell_dir = metacell_dir,
+    data_name = data_name,
+    age_de_results_dir = age_de_results_dir,
+    use_age_de_results = use_age_de_results,
+    contig_yaml_file = contig_yaml_file,
+    reduced_gtf_file = reduced_gtf_file,
+    n_cores = n_cores,
+    data_cache_dir = data_cache_dir,
+    outDir = outDir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
 
-    age_prediction_corrected_residual_pairwise_scatter_region(
-        metacell_dir = metacell_dir,
-        data_name = data_name,
-        age_de_results_dir = age_de_results_dir,
-        use_age_de_results = use_age_de_results,
-        contig_yaml_file = contig_yaml_file,
-        reduced_gtf_file = reduced_gtf_file,
-        n_cores = n_cores,
-        data_cache_dir = data_cache_dir,
-        outDir = outDir,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
-    )
+  age_prediction_uncorrected_residual_pairwise_scatter_region(
+    metacell_dir = metacell_dir,
+    data_name = data_name,
+    age_de_results_dir = age_de_results_dir,
+    use_age_de_results = use_age_de_results,
+    contig_yaml_file = contig_yaml_file,
+    reduced_gtf_file = reduced_gtf_file,
+    n_cores = n_cores,
+    data_cache_dir = data_cache_dir,
+    outDir = outDir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
 
-    age_prediction_uncorrected_residual_pairwise_scatter_region(
-        metacell_dir = metacell_dir,
-        data_name = data_name,
-        age_de_results_dir = age_de_results_dir,
-        use_age_de_results = use_age_de_results,
-        contig_yaml_file = contig_yaml_file,
-        reduced_gtf_file = reduced_gtf_file,
-        n_cores = n_cores,
-        data_cache_dir = data_cache_dir,
-        outDir = outDir,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
-    )
+  age_prediction_examples(
+    metacell_dir = metacell_dir,
+    data_name = data_name,
+    age_de_results_dir = age_de_results_dir,
+    use_age_de_results = use_age_de_results,
+    contig_yaml_file = contig_yaml_file,
+    reduced_gtf_file = reduced_gtf_file,
+    n_cores = n_cores,
+    data_cache_dir = data_cache_dir,
+    outDir = outDir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
 
-    age_prediction_examples(
-        metacell_dir = metacell_dir,
-        data_name = data_name,
-        age_de_results_dir = age_de_results_dir,
-        use_age_de_results = use_age_de_results,
-        contig_yaml_file = contig_yaml_file,
-        reduced_gtf_file = reduced_gtf_file,
-        n_cores = n_cores,
-        data_cache_dir = data_cache_dir,
-        outDir = outDir,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
-    )
+  age_prediction_mean_residual_correlation_plots(
+    cellTypeListFile = cellTypeListFile,
+    metacell_dir = metacell_dir,
+    data_name = data_name,
+    age_de_results_dir = age_de_results_dir,
+    use_age_de_results = use_age_de_results,
+    contig_yaml_file = contig_yaml_file,
+    reduced_gtf_file = reduced_gtf_file,
+    n_cores = n_cores,
+    data_cache_dir = data_cache_dir,
+    outDir = outDir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
 
-    age_prediction_mean_residual_correlation_plots(
-        cellTypeListFile = cellTypeListFile,
-        metacell_dir = metacell_dir,
-        data_name = data_name,
-        age_de_results_dir = age_de_results_dir,
-        use_age_de_results = use_age_de_results,
-        contig_yaml_file = contig_yaml_file,
-        reduced_gtf_file = reduced_gtf_file,
-        n_cores = n_cores,
-        data_cache_dir = data_cache_dir,
-        outDir = outDir,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
-    )
-
-    invisible(NULL)
-
+  invisible(NULL)
 }
 
 #' Plot residual age–prediction correlation distributions across cell types
@@ -303,6 +294,9 @@
 #' @param age_de_results_dir Directory containing age differential expression
 #'   results used in model construction. If \code{NULL}, resolved under the
 #'   data root.
+#' @param use_age_de_results Logical; if \code{TRUE}, resolve and use
+#'   \code{age_de_results_dir} when building the model. If \code{FALSE},
+#'   age differential expression results are not used.
 #' @param contig_yaml_file Path to the contig YAML file. If \code{NULL},
 #'   resolved under the data root.
 #' @param reduced_gtf_file Path to the reduced GTF file. If \code{NULL},
@@ -312,71 +306,73 @@
 #'   \code{NULL}, resolved via configured cache directory options.
 #' @param outDir Output directory for the generated SVG plot. If \code{NULL},
 #'   resolved via configured output directory options.
+#' @param optimize_alpha Logical; if \code{TRUE}, the elastic net mixing
+#'   parameter alpha is optimized rather than fixed.
+#' @param alpha_fixed Numeric elastic net mixing parameter used when
+#'   \code{optimize_alpha} is \code{FALSE}.
 #'
 #' @return Invisibly returns \code{NULL}. The function is called for its
 #'   side effect of writing an SVG plot to disk.
 #'
 #' @export
-age_prediction_mean_residual_correlation_plots <- function(
-        cellTypeListFile = NULL,
-        metacell_dir = NULL,
-        data_name = "donor_rxn_DGEList",
-        age_de_results_dir = NULL,
-        use_age_de_results = TRUE,
-        contig_yaml_file = NULL,
-        reduced_gtf_file = NULL,
-        n_cores = 14,
-        data_cache_dir = NULL,
-        outDir = NULL,
-        optimize_alpha = FALSE,
-        alpha_fixed = 0) {
+age_prediction_mean_residual_correlation_plots <- function(cellTypeListFile = NULL,
+                                                           metacell_dir = NULL,
+                                                           data_name = "donor_rxn_DGEList",
+                                                           age_de_results_dir = NULL,
+                                                           use_age_de_results = TRUE,
+                                                           contig_yaml_file = NULL,
+                                                           reduced_gtf_file = NULL,
+                                                           n_cores = 14,
+                                                           data_cache_dir = NULL,
+                                                           outDir = NULL,
+                                                           optimize_alpha = FALSE,
+                                                           alpha_fixed = 0) {
+  paths <- .resolve_age_pred_paths(
+    cellTypeListFile = cellTypeListFile, metacell_dir = metacell_dir,
+    age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
+    reduced_gtf_file = reduced_gtf_file, data_cache_dir = data_cache_dir,
+    outDir = outDir,
+    use_age_de_results = use_age_de_results,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
 
-    paths <- .resolve_age_pred_paths(
-        cellTypeListFile = cellTypeListFile, metacell_dir = metacell_dir,
-        age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
-        reduced_gtf_file = reduced_gtf_file, data_cache_dir = data_cache_dir,
-        outDir = outDir,
-        use_age_de_results = use_age_de_results,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
+  cell_types <- utils::read.table(paths$cellTypeListFile, header = FALSE)$V1
+
+  results <- get_age_prediction_results(
+    metacell_dir = paths$metacell_dir, data_name = data_name,
+    age_de_results_dir = paths$age_de_results_dir,
+    contig_yaml_file = paths$contig_yaml_file,
+    reduced_gtf_file = paths$reduced_gtf_file,
+    n_cores = n_cores, data_cache_dir = paths$data_cache_dir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
+
+  model_predictions <- results$donor_predictions
+
+  r <- bican.mccarroll.differentialexpression::compute_residual_age_correlations(
+    model_predictions = model_predictions
+  )
+
+  p <- bican.mccarroll.differentialexpression::plot_residual_age_correlation_distributions(r) +
+    ggplot2::theme(
+      axis.title.x = ggplot2::element_text(size = 16),
+      axis.title.y = ggplot2::element_text(size = 16),
+      axis.text.x  = ggplot2::element_text(size = 14),
+      axis.text.y  = ggplot2::element_text(size = 14)
     )
 
-    cell_types <- utils::read.table(paths$cellTypeListFile, header = FALSE)$V1
+  # drop the title for manuscript
+  p <- p + ggplot2::labs(title = NULL)
 
-    results <- get_age_prediction_results(
-        metacell_dir = paths$metacell_dir, data_name = data_name,
-        age_de_results_dir = paths$age_de_results_dir,
-        contig_yaml_file = paths$contig_yaml_file,
-        reduced_gtf_file = paths$reduced_gtf_file,
-        n_cores = n_cores, data_cache_dir = paths$data_cache_dir,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
-    )
+  save_plot_svg(
+    plot = p,
+    out_file = "age_prediction_mean_residual_correlation_comparison.svg",
+    out_dir = paths$outDir, width = 6, height = 6
+  )
 
-    model_predictions <- results$donor_predictions
-
-    r <- bican.mccarroll.differentialexpression::compute_residual_age_correlations(
-        model_predictions = model_predictions
-    )
-
-    p <- bican.mccarroll.differentialexpression::plot_residual_age_correlation_distributions(r) +
-        ggplot2::theme(
-            axis.title.x = ggplot2::element_text(size = 16),
-            axis.title.y = ggplot2::element_text(size = 16),
-            axis.text.x  = ggplot2::element_text(size = 14),
-            axis.text.y  = ggplot2::element_text(size = 14)
-        )
-
-    #drop the title for manuscript
-    p<- p + ggplot2::labs(title = NULL)
-
-    save_plot_svg(
-        plot = p,
-        out_file = "age_prediction_mean_residual_correlation_comparison.svg",
-        out_dir = paths$outDir, width = 6, height = 6
-    )
-
-    invisible(NULL)
+  invisible(NULL)
 }
 
 #' Plot age prediction error summaries
@@ -389,188 +385,189 @@ age_prediction_mean_residual_correlation_plots <- function(
 #' @param metacell_dir Directory containing metacell objects.
 #' @param data_name Name of the DGEList object to load.
 #' @param age_de_results_dir Directory containing age differential expression results.
+#' @param use_age_de_results Logical; if \code{TRUE}, resolve and use
+#'   \code{age_de_results_dir} when building the model. If \code{FALSE},
+#'   age differential expression results are not used.
 #' @param contig_yaml_file Path to contig YAML file.
 #' @param reduced_gtf_file Path to reduced GTF file.
 #' @param n_cores Number of cores to use for parallel computation.
 #' @param data_cache_dir Directory for cached intermediate data.
 #' @param outDir Output directory for generated SVG plots.
+#' @param optimize_alpha Logical; if \code{TRUE}, the elastic net mixing
+#'   parameter alpha is optimized rather than fixed.
+#' @param alpha_fixed Numeric elastic net mixing parameter used when
+#'   \code{optimize_alpha} is \code{FALSE}.
 #'
 #' @export
-age_prediction_error_plots <- function(
-        cellTypeListFile = NULL,
-        metacell_dir = NULL,
-        data_name = "donor_rxn_DGEList",
-        age_de_results_dir = NULL,
-        use_age_de_results = TRUE,
-        contig_yaml_file = NULL,
-        reduced_gtf_file = NULL,
-        n_cores = 14,
-        data_cache_dir = NULL,
-        outDir = NULL,
-        optimize_alpha = FALSE,
-        alpha_fixed = 0) {
+age_prediction_error_plots <- function(cellTypeListFile = NULL,
+                                       metacell_dir = NULL,
+                                       data_name = "donor_rxn_DGEList",
+                                       age_de_results_dir = NULL,
+                                       use_age_de_results = TRUE,
+                                       contig_yaml_file = NULL,
+                                       reduced_gtf_file = NULL,
+                                       n_cores = 14,
+                                       data_cache_dir = NULL,
+                                       outDir = NULL,
+                                       optimize_alpha = FALSE,
+                                       alpha_fixed = 0) {
+  paths <- .resolve_age_pred_paths(
+    cellTypeListFile = cellTypeListFile, metacell_dir = metacell_dir,
+    age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
+    reduced_gtf_file = reduced_gtf_file, data_cache_dir = data_cache_dir,
+    outDir = outDir,
+    use_age_de_results = use_age_de_results,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
 
-    paths <- .resolve_age_pred_paths(
-        cellTypeListFile = cellTypeListFile, metacell_dir = metacell_dir,
-        age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
-        reduced_gtf_file = reduced_gtf_file, data_cache_dir = data_cache_dir,
-        outDir = outDir,
-        use_age_de_results = use_age_de_results,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
+  cell_types <- utils::read.table(paths$cellTypeListFile, header = FALSE)$V1
+
+  results <- get_age_prediction_results(
+    metacell_dir = paths$metacell_dir, data_name = data_name,
+    age_de_results_dir = paths$age_de_results_dir,
+    contig_yaml_file = paths$contig_yaml_file,
+    reduced_gtf_file = paths$reduced_gtf_file,
+    n_cores = n_cores, data_cache_dir = paths$data_cache_dir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
+
+  model_predictions <- results$donor_predictions
+
+  # change outputs to be in years instead of decades
+  model_predictions$age <- model_predictions$age * 10
+  model_predictions$pred_mean <- model_predictions$pred_mean * 10
+  model_predictions$pred_mean_corrected <- model_predictions$pred_mean_corrected * 10
+
+  model_mae_summary <- compute_model_level_mae(model_predictions)
+
+  logger::log_info(sprintf(
+    "Model-level mean absolute error: median %.1f years; range %.1f-%.1f years",
+    model_mae_summary$median_mae_years,
+    model_mae_summary$min_mae_years,
+    model_mae_summary$max_mae_years
+  ))
+
+  r <- bican.mccarroll.differentialexpression::summarize_age_prediction_results(
+    model_predictions, cell_types
+  )
+  logger::log_info("R2={round(r$fit_all$adj.r.squared, 3)} for all data fit to num DE genes, num nuclei, num UMIs")
+  logger::log_info("R2={round(r$fit_y20$adj.r.squared, 3)} for youngest 20% data fit to num DE genes, num nuclei, num UMIs")
+
+  plots <- r$plots
+
+  mean_abs_error_all_plot <- plots$p_mae + ggplot2::labs(fill = "Mean Abs Error")
+
+  mean_abs_error_all_plot <- mean_abs_error_all_plot +
+    ggplot2::theme(
+      axis.title.x = ggplot2::element_text(size = ggplot2::rel(2)),
+      axis.title.y = ggplot2::element_text(size = ggplot2::rel(2)),
+      axis.text = ggplot2::element_text(size = ggplot2::rel(1.75))
     )
 
-    cell_types <- utils::read.table(paths$cellTypeListFile, header = FALSE)$V1
+  save_plot_svg(
+    plot = mean_abs_error_all_plot,
+    out_file = "all_data_model_mean_absolute_errors_across_cell_type_region.svg",
+    out_dir = paths$outDir, width = 10, height = 7
+  )
 
-    results <- get_age_prediction_results(
-        metacell_dir = paths$metacell_dir, data_name = data_name,
-        age_de_results_dir = paths$age_de_results_dir,
-        contig_yaml_file = paths$contig_yaml_file,
-        reduced_gtf_file = paths$reduced_gtf_file,
-        n_cores = n_cores, data_cache_dir = paths$data_cache_dir,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
-    )
+  plot_list <- list(
+    plots$p_feat_mae,
+    plots$p_nuc_mae,
+    plots$p_umi_mae
+  )
 
-    model_predictions <- results$donor_predictions
+  plot_list <- lapply(plot_list, add_style_age_feature_errors)
 
-    #change outputs to be in years instead of decades
-    model_predictions$age=model_predictions$age*10
-    model_predictions$pred_mean=model_predictions$pred_mean*10
-    model_predictions$pred_mean_corrected=model_predictions$pred_mean_corrected*10
+  feature_error_all <- cowplot::plot_grid(
+    plotlist = plot_list,
+    ncol = 1,
+    nrow = 3
+  )
 
-    model_mae_summary <- compute_model_level_mae(model_predictions)
+  feature_error_all <- cowplot::ggdraw() +
+    cowplot::draw_label(
+      "Mean Absolute Error",
+      x = 0.02, y = 0.5, angle = 90, vjust = 0.5, size = 18
+    ) +
+    cowplot::draw_plot(feature_error_all, x = 0.04, y = 0, width = 0.92, height = 1)
 
-    logger::log_info(sprintf(
-        "Model-level mean absolute error: median %.1f years; range %.1f-%.1f years",
-        model_mae_summary$median_mae_years,
-        model_mae_summary$min_mae_years,
-        model_mae_summary$max_mae_years
-    ))
+  save_plot_svg(
+    plot = feature_error_all,
+    out_file = "all_data_model_mean_absolute_errors_predictors.svg",
+    out_dir = paths$outDir, width = 5, height = 7
+  )
 
-    r <- bican.mccarroll.differentialexpression::summarize_age_prediction_results(
-        model_predictions, cell_types
-    )
-    logger::log_info("R2={round(r$fit_all$adj.r.squared, 3)} for all data fit to num DE genes, num nuclei, num UMIs")
-    logger::log_info("R2={round(r$fit_y20$adj.r.squared, 3)} for youngest 20% data fit to num DE genes, num nuclei, num UMIs")
+  plot_list <- list(
+    plots$p_feat_y20,
+    plots$p_nuc_y20,
+    plots$p_umi_y20
+  )
 
-    plots <- r$plots
+  plot_list <- lapply(plot_list, add_style_age_feature_errors)
 
-    mean_abs_error_all_plot <- plots$p_mae + ggplot2::labs(fill = "Mean Abs Error")
+  feature_error_y20 <- cowplot::plot_grid(
+    plotlist = plot_list,
+    ncol = 1,
+    nrow = 3
+  )
 
-    mean_abs_error_all_plot<- mean_abs_error_all_plot +
-        ggplot2::theme(
-        axis.title.x = ggplot2::element_text(size = ggplot2::rel(2)),
-        axis.title.y = ggplot2::element_text(size = ggplot2::rel(2)),
-        axis.text = ggplot2::element_text(size = ggplot2::rel(1.75))
-    )
+  feature_error_y20 <- cowplot::ggdraw() +
+    cowplot::draw_label(
+      "Mean Absolute Error",
+      x = 0.02, y = 0.5, angle = 90, vjust = 0.5, size = 18
+    ) +
+    cowplot::draw_plot(feature_error_y20, x = 0.04, y = 0, width = 0.92, height = 1)
 
-    save_plot_svg(
-        plot = mean_abs_error_all_plot,
-        out_file = "all_data_model_mean_absolute_errors_across_cell_type_region.svg",
-        out_dir = paths$outDir, width = 10, height = 7
-    )
+  save_plot_svg(
+    plot = feature_error_y20,
+    out_file = "y20_data_model_mean_absolute_errors_predictors.svg",
+    out_dir = paths$outDir, width = 5, height = 7
+  )
 
-    plot_list <- list(
-        plots$p_feat_mae,
-        plots$p_nuc_mae,
-        plots$p_umi_mae
-    )
-
-    plot_list<-lapply(plot_list, add_style_age_feature_errors)
-
-    feature_error_all <- cowplot::plot_grid(
-        plotlist = plot_list,
-        ncol = 1,
-        nrow = 3
-    )
-
-    feature_error_all <- cowplot::ggdraw() +
-        cowplot::draw_label(
-            "Mean Absolute Error",
-            x = 0.02, y = 0.5, angle = 90, vjust = 0.5, size = 18
-        ) +
-        cowplot::draw_plot(feature_error_all, x = 0.04, y = 0, width = 0.92, height = 1)
-
-    save_plot_svg(
-        plot = feature_error_all,
-        out_file = "all_data_model_mean_absolute_errors_predictors.svg",
-        out_dir = paths$outDir, width = 5, height = 7
-    )
-
-    plot_list <- list(
-        plots$p_feat_y20,
-        plots$p_nuc_y20,
-        plots$p_umi_y20
-    )
-
-    plot_list<-lapply(plot_list, add_style_age_feature_errors)
-
-    feature_error_y20 <- cowplot::plot_grid(
-        plotlist = plot_list,
-        ncol = 1,
-        nrow = 3
-    )
-
-    feature_error_y20 <- cowplot::ggdraw() +
-        cowplot::draw_label(
-            "Mean Absolute Error",
-            x = 0.02, y = 0.5, angle = 90, vjust = 0.5, size = 18
-        ) +
-        cowplot::draw_plot(feature_error_y20, x = 0.04, y = 0, width = 0.92, height = 1)
-
-    save_plot_svg(
-        plot = feature_error_y20,
-        out_file = "y20_data_model_mean_absolute_errors_predictors.svg",
-        out_dir = paths$outDir, width = 5, height = 7
-    )
-
-    invisible(NULL)
+  invisible(NULL)
 }
 
 compute_model_level_mae <- function(a) {
+  a$abs_error_years <- abs(a$resid_mean) * 10
 
-    a$abs_error_years <- abs(a$resid_mean) * 10
+  model_mae <- stats::aggregate(
+    abs_error_years ~ cell_type + region,
+    data = a,
+    FUN = mean,
+    na.rm = TRUE
+  )
 
-    model_mae <- stats::aggregate(
-        abs_error_years ~ cell_type + region,
-        data = a,
-        FUN = mean,
-        na.rm = TRUE
-    )
-
-    list(
-        model_mae = model_mae,
-        median_mae_years = stats::median(model_mae$abs_error_years, na.rm = TRUE),
-        min_mae_years = min(model_mae$abs_error_years, na.rm = TRUE),
-        max_mae_years = max(model_mae$abs_error_years, na.rm = TRUE)
-    )
-
+  list(
+    model_mae = model_mae,
+    median_mae_years = stats::median(model_mae$abs_error_years, na.rm = TRUE),
+    min_mae_years = min(model_mae$abs_error_years, na.rm = TRUE),
+    max_mae_years = max(model_mae$abs_error_years, na.rm = TRUE)
+  )
 }
 
 add_style_age_feature_errors <- function(p) {
+  p <- p +
+    ggplot2::theme_classic() +
+    ggplot2::theme(
+      axis.title.x = ggplot2::element_text(size = ggplot2::rel(1.75)),
+      axis.text.x  = ggplot2::element_text(size = ggplot2::rel(2)),
+      axis.text.y  = ggplot2::element_text(size = ggplot2::rel(2))
+    )
 
-    p <- p +
-        ggplot2::theme_classic() +
-        ggplot2::theme(
-            axis.title.x = ggplot2::element_text(size = ggplot2::rel(1.75)),
-            axis.text.x  = ggplot2::element_text(size = ggplot2::rel(2)),
-            axis.text.y  = ggplot2::element_text(size = ggplot2::rel(2))
-        )
-
-    for (i in seq_along(p$layers)) {
-        layer <- p$layers[[i]]
-        if (inherits(layer$geom, "GeomText")) {
-            if (!is.null(layer$aes_params$label) &&
-                grepl("adj R2", layer$aes_params$label)) {
-                p$layers[[i]]$aes_params$size <- 5
-            }
-        }
+  for (i in seq_along(p$layers)) {
+    layer <- p$layers[[i]]
+    if (inherits(layer$geom, "GeomText")) {
+      if (!is.null(layer$aes_params$label) &&
+        grepl("adj R2", layer$aes_params$label)) {
+        p$layers[[i]]$aes_params$size <- 5
+      }
     }
+  }
 
-    return(p)
+  return(p)
 }
-
 
 
 #' Manuscript figure: residual correlation heatmap + Jaccard overlap heatmap
@@ -587,137 +584,144 @@ add_style_age_feature_errors <- function(p) {
 #' @param metacell_dir See `get_age_prediction_results()`.
 #' @param data_name See `get_age_prediction_results()`.
 #' @param age_de_results_dir See `get_age_prediction_results()`.
+#' @param use_age_de_results Logical; if \code{TRUE}, resolve and use
+#'   \code{age_de_results_dir} when building the model. If \code{FALSE},
+#'   age differential expression results are not used.
 #' @param contig_yaml_file See `get_age_prediction_results()`.
 #' @param reduced_gtf_file See `get_age_prediction_results()`.
 #' @param n_cores See `get_age_prediction_results()`.
 #' @param data_cache_dir Cache root directory used by `get_age_prediction_results()`.
 #' @param outDir Output directory for the SVG.
+#' @param optimize_alpha Logical; if \code{TRUE}, the elastic net mixing
+#'   parameter alpha is optimized rather than fixed.
+#' @param alpha_fixed Numeric elastic net mixing parameter used when
+#'   \code{optimize_alpha} is \code{FALSE}.
 #'
 #' @return Invisibly returns a list with components `corr_out`, `jaccard_out`, and `out_svg`.
 #' @export
-age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(
-        region = "CaH",
-        cellTypeListFile = NULL,
-        metacell_dir = NULL,
-        data_name = "donor_rxn_DGEList",
-        age_de_results_dir = NULL,
-        use_age_de_results = TRUE,
-        contig_yaml_file = NULL,
-        reduced_gtf_file = NULL,
-        n_cores = 14,
-        data_cache_dir = NULL,
-        outDir = NULL,
-        optimize_alpha = FALSE,
-        alpha_fixed = 0) {
+age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(region = "CaH",
+                                                                     cellTypeListFile = NULL,
+                                                                     metacell_dir = NULL,
+                                                                     data_name = "donor_rxn_DGEList",
+                                                                     age_de_results_dir = NULL,
+                                                                     use_age_de_results = TRUE,
+                                                                     contig_yaml_file = NULL,
+                                                                     reduced_gtf_file = NULL,
+                                                                     n_cores = 14,
+                                                                     data_cache_dir = NULL,
+                                                                     outDir = NULL,
+                                                                     optimize_alpha = FALSE,
+                                                                     alpha_fixed = 0) {
+  paths <- .resolve_age_pred_paths(
+    cellTypeListFile = cellTypeListFile, metacell_dir = metacell_dir,
+    age_de_results_dir = age_de_results_dir,
+    contig_yaml_file = contig_yaml_file,
+    reduced_gtf_file = reduced_gtf_file,
+    data_cache_dir = data_cache_dir, outDir = outDir,
+    use_age_de_results = use_age_de_results,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
 
-    paths <- .resolve_age_pred_paths(
-        cellTypeListFile = cellTypeListFile, metacell_dir = metacell_dir,
-        age_de_results_dir = age_de_results_dir,
-        contig_yaml_file = contig_yaml_file,
-        reduced_gtf_file = reduced_gtf_file,
-        data_cache_dir = data_cache_dir, outDir = outDir,
-        use_age_de_results = use_age_de_results,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
+  cell_types <- utils::read.table(paths$cellTypeListFile, header = FALSE)$V1
+
+  results <- get_age_prediction_results(
+    metacell_dir = paths$metacell_dir, data_name = data_name,
+    age_de_results_dir = paths$age_de_results_dir,
+    contig_yaml_file = paths$contig_yaml_file,
+    reduced_gtf_file = paths$reduced_gtf_file,
+    n_cores = n_cores, data_cache_dir = paths$data_cache_dir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
+
+  model_predictions <- results$donor_predictions
+  all_models <- results$model_coefficients
+
+  model_predictions <- model_predictions[
+    model_predictions$region == region &
+      model_predictions$cell_type %in% cell_types,
+  ]
+
+  all_models <- all_models[
+    all_models$region == region &
+      all_models$cell_type %in% cell_types,
+  ]
+
+  # corr_title <- sprintf(
+  #     "Age Prediction residuals (predicted - actual)\nregion [%s]",
+  #     region
+  # )
+  #
+  # jac_title <- sprintf(
+  #     "Cell-type gene overlap in aging programs\nregion [%s]",
+  #     region
+  # )
+
+  # Drop titles for manuscript
+  corr_title <- ""
+  jac_title <- ""
+
+  row_fontsize <- 12
+  col_fontsize <- 12
+
+  correlation_legend_title <- "Residual age\ncorrelation"
+  jaccard_legend_title <- "Gene overlap\n(Jaccard index)"
+
+  # replace the "_" with space for cell type names
+  model_predictions$cell_type <- gsub("_", " ", model_predictions$cell_type)
+  all_models$cell_type <- gsub("_", " ", all_models$cell_type)
+
+  corr_out <- bican.mccarroll.differentialexpression::plot_residual_corr_heatmap(
+    model_predictions = model_predictions,
+    mode = "within_region", region = region,
+    value_var = "resid_mean_corrected",
+    title = corr_title, annotate_cells = TRUE,
+    row_fontsize = 12, col_fontsize = 12, cell_fontsize = 9,
+    legend_title = correlation_legend_title
+  )
+
+  jaccard_out <- bican.mccarroll.differentialexpression::plot_jaccard_overlap_heatmap(
+    all_models = all_models,
+    mode = "within_region", region = region,
+    title = jac_title, coef_thresh = 0,
+    annotate_cells = TRUE,
+    row_fontsize = 12, col_fontsize = 12, cell_fontsize = 9,
+    row_order_names = corr_out$row_order_names,
+    column_order_names = corr_out$column_order_names,
+    legend_title = jaccard_legend_title
+  )
+
+  g_corr <- grid::grid.grabExpr(
+    ComplexHeatmap::draw(
+      corr_out$heatmap,
+      newpage = FALSE,
+      heatmap_legend_side = "right"
     )
+  )
 
-    cell_types <- utils::read.table(paths$cellTypeListFile, header = FALSE)$V1
-
-    results <- get_age_prediction_results(
-        metacell_dir = paths$metacell_dir, data_name = data_name,
-        age_de_results_dir = paths$age_de_results_dir,
-        contig_yaml_file = paths$contig_yaml_file,
-        reduced_gtf_file = paths$reduced_gtf_file,
-        n_cores = n_cores, data_cache_dir = paths$data_cache_dir,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
+  g_jac <- grid::grid.grabExpr(
+    ComplexHeatmap::draw(
+      jaccard_out$heatmap,
+      newpage = FALSE,
+      heatmap_legend_side = "right"
     )
+  )
 
-    model_predictions <- results$donor_predictions
-    all_models <- results$model_coefficients
+  p_corr <- cowplot::ggdraw(g_corr)
+  p_jac <- cowplot::ggdraw(g_jac)
 
-    model_predictions <- model_predictions[
-        model_predictions$region == region &
-            model_predictions$cell_type %in% cell_types,
-    ]
+  final <- cowplot::plot_grid(p_corr, p_jac, nrow = 1, rel_widths = c(1, 1))
 
-    all_models <- all_models[
-        all_models$region == region &
-            all_models$cell_type %in% cell_types,
-    ]
+  save_plot_svg(
+    plot = final,
+    out_file = sprintf(
+      "age_prediction_residual_corr_and_jaccard_region_%s.svg", region
+    ),
+    out_dir = paths$outDir, width = 15, height = 6.2
+  )
 
-    # corr_title <- sprintf(
-    #     "Age Prediction residuals (predicted - actual)\nregion [%s]",
-    #     region
-    # )
-    #
-    # jac_title <- sprintf(
-    #     "Cell-type gene overlap in aging programs\nregion [%s]",
-    #     region
-    # )
-
-    #Drop titles for manuscript
-    corr_title <- ""
-    jac_title <- ""
-
-    row_fontsize=12
-    col_fontsize=12
-
-    correlation_legend_title<-"Residual age\ncorrelation"
-    jaccard_legend_title<-"Gene overlap\n(Jaccard index)"
-
-    #replace the "_" with space for cell type names
-    model_predictions$cell_type <- gsub("_", " ", model_predictions$cell_type)
-    all_models$cell_type <- gsub("_", " ", all_models$cell_type)
-
-    corr_out <- bican.mccarroll.differentialexpression::plot_residual_corr_heatmap(
-        model_predictions = model_predictions,
-        mode = "within_region", region = region,
-        value_var = "resid_mean_corrected",
-        title = corr_title, annotate_cells = TRUE,
-        row_fontsize = 12, col_fontsize = 12, cell_fontsize = 9,
-        legend_title=correlation_legend_title
-    )
-
-    jaccard_out <- bican.mccarroll.differentialexpression::plot_jaccard_overlap_heatmap(
-        all_models = all_models,
-        mode = "within_region", region = region,
-        title = jac_title, coef_thresh = 0,
-        annotate_cells = TRUE,
-        row_fontsize = 12, col_fontsize = 12, cell_fontsize = 9,
-        row_order_names = corr_out$row_order_names,
-        column_order_names = corr_out$column_order_names,
-        legend_title = jaccard_legend_title
-    )
-
-    g_corr <- grid::grid.grabExpr(
-        ComplexHeatmap::draw(
-            corr_out$heatmap, newpage = FALSE,
-            heatmap_legend_side = "right"
-        )
-    )
-
-    g_jac <- grid::grid.grabExpr(
-        ComplexHeatmap::draw(
-            jaccard_out$heatmap, newpage = FALSE,
-            heatmap_legend_side = "right"
-        )
-    )
-
-    p_corr <- cowplot::ggdraw(g_corr)
-    p_jac  <- cowplot::ggdraw(g_jac)
-
-    final <- cowplot::plot_grid(p_corr, p_jac, nrow = 1, rel_widths = c(1, 1))
-
-    save_plot_svg(
-        plot = final,
-        out_file = sprintf(
-            "age_prediction_residual_corr_and_jaccard_region_%s.svg", region
-        ),
-        out_dir = paths$outDir, width = 15, height = 6.2
-    )
-
-    invisible(final)
+  invisible(final)
 }
 
 
@@ -734,133 +738,139 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(
 #' @param metacell_dir See `get_age_prediction_results()`.
 #' @param data_name See `get_age_prediction_results()`.
 #' @param age_de_results_dir See `get_age_prediction_results()`.
+#' @param use_age_de_results Logical; if \code{TRUE}, resolve and use
+#'   \code{age_de_results_dir} when building the model. If \code{FALSE},
+#'   age differential expression results are not used.
 #' @param contig_yaml_file See `get_age_prediction_results()`.
 #' @param reduced_gtf_file See `get_age_prediction_results()`.
 #' @param n_cores See `get_age_prediction_results()`.
 #' @param data_cache_dir Cache root directory used by `get_age_prediction_results()`.
 #' @param outDir Output directory for the SVG.
+#' @param optimize_alpha Logical; if \code{TRUE}, the elastic net mixing
+#'   parameter alpha is optimized rather than fixed.
+#' @param alpha_fixed Numeric elastic net mixing parameter used when
+#'   \code{optimize_alpha} is \code{FALSE}.
 #'
 #' @return Invisibly returns a list with components `corr_out`, `jaccard_out`, and `out_svg`.
 #' @export
-age_prediction_residual_corr_and_jaccard_heatmaps_cell_type <- function(
-        cell_type = "microglia",
-        metacell_dir = NULL,
-        data_name = "donor_rxn_DGEList",
-        age_de_results_dir = NULL,
-        use_age_de_results = TRUE,
-        contig_yaml_file = NULL,
-        reduced_gtf_file = NULL,
-        n_cores = 14,
-        data_cache_dir = NULL,
-        outDir = NULL,
-        optimize_alpha = FALSE,
-        alpha_fixed = 0) {
+age_prediction_residual_corr_and_jaccard_heatmaps_cell_type <- function(cell_type = "microglia",
+                                                                        metacell_dir = NULL,
+                                                                        data_name = "donor_rxn_DGEList",
+                                                                        age_de_results_dir = NULL,
+                                                                        use_age_de_results = TRUE,
+                                                                        contig_yaml_file = NULL,
+                                                                        reduced_gtf_file = NULL,
+                                                                        n_cores = 14,
+                                                                        data_cache_dir = NULL,
+                                                                        outDir = NULL,
+                                                                        optimize_alpha = FALSE,
+                                                                        alpha_fixed = 0) {
+  paths <- .resolve_age_pred_paths(
+    metacell_dir = metacell_dir,
+    age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
+    reduced_gtf_file = reduced_gtf_file, data_cache_dir = data_cache_dir,
+    outDir = outDir,
+    use_age_de_results = use_age_de_results,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
 
-    paths <- .resolve_age_pred_paths(
-        metacell_dir = metacell_dir,
-        age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
-        reduced_gtf_file = reduced_gtf_file, data_cache_dir = data_cache_dir,
-        outDir = outDir,
-        use_age_de_results = use_age_de_results,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
+  results <- get_age_prediction_results(
+    metacell_dir = paths$metacell_dir, data_name = data_name,
+    age_de_results_dir = paths$age_de_results_dir,
+    contig_yaml_file = paths$contig_yaml_file,
+    reduced_gtf_file = paths$reduced_gtf_file,
+    n_cores = n_cores, data_cache_dir = paths$data_cache_dir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
+
+  model_predictions <- results$donor_predictions
+  all_models <- results$model_coefficients
+
+  model_predictions <- model_predictions[
+    model_predictions$cell_type %in% cell_type,
+  ]
+
+  all_models <- all_models[
+    all_models$cell_type %in% cell_type,
+  ]
+
+  # corr_title <- sprintf(
+  #     "Age residuals (predicted - actual)\n  [%s]",
+  #     cell_type
+  # )
+  #
+  # jac_title <- sprintf(
+  #     "Cell-type gene overlap in aging programs\n [%s]",
+  #     cell_type
+  # )
+
+  # drop title for manuscript
+  corr_title <- ""
+  jac_title <- ""
+  row_fontsize <- 14
+  col_fontsize <- 14
+  correlation_legend_title <- "Residual age\ncorrelation"
+  jaccard_legend_title <- "Gene overlap\n(Jaccard index)"
+
+  # replace the "_" with space for cell type names
+  model_predictions$cell_type <- gsub("_", " ", model_predictions$cell_type)
+  all_models$cell_type <- gsub("_", " ", all_models$cell_type)
+
+  corr_out <- bican.mccarroll.differentialexpression::plot_residual_corr_heatmap(
+    model_predictions = model_predictions,
+    mode = "within_cell_type", cell_type = cell_type,
+    value_var = "resid_mean_corrected",
+    title = corr_title, annotate_cells = TRUE,
+    row_fontsize = row_fontsize, col_fontsize = col_fontsize, cell_fontsize = 9,
+    legend_title = correlation_legend_title
+  )
+
+  jaccard_out <- bican.mccarroll.differentialexpression::plot_jaccard_overlap_heatmap(
+    all_models = all_models,
+    mode = "within_cell_type", cell_type = cell_type,
+    title = jac_title, coef_thresh = 0,
+    annotate_cells = TRUE,
+    row_fontsize = row_fontsize, col_fontsize = col_fontsize, cell_fontsize = 9,
+    row_order_names = corr_out$row_order_names,
+    column_order_names = corr_out$column_order_names,
+    legend_title = jaccard_legend_title
+  )
+
+  g_corr <- grid::grid.grabExpr(
+    ComplexHeatmap::draw(
+      corr_out$heatmap,
+      newpage = FALSE,
+      heatmap_legend_side = "right"
     )
+  )
 
-    results <- get_age_prediction_results(
-        metacell_dir = paths$metacell_dir, data_name = data_name,
-        age_de_results_dir = paths$age_de_results_dir,
-        contig_yaml_file = paths$contig_yaml_file,
-        reduced_gtf_file = paths$reduced_gtf_file,
-        n_cores = n_cores, data_cache_dir = paths$data_cache_dir,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
+  g_jac <- grid::grid.grabExpr(
+    ComplexHeatmap::draw(
+      jaccard_out$heatmap,
+      newpage = FALSE,
+      heatmap_legend_side = "right"
     )
+  )
 
-    model_predictions <- results$donor_predictions
-    all_models <- results$model_coefficients
+  p_corr <- cowplot::ggdraw(g_corr)
+  p_jac <- cowplot::ggdraw(g_jac)
 
-    model_predictions <- model_predictions[
-        model_predictions$cell_type %in% cell_type,
-    ]
+  # Steve wants me to switch the order.
+  # final <- cowplot::plot_grid(p_jac, p_corr, nrow = 1, rel_widths = c(1, 1))
+  final <- cowplot::plot_grid(p_corr, p_jac, nrow = 1, rel_widths = c(1, 1))
 
-    all_models <- all_models[
-        all_models$cell_type %in% cell_type,
-    ]
+  save_plot_svg(
+    plot = final,
+    out_file = sprintf(
+      "age_prediction_residual_corr_and_jaccard_cell_type_%s.svg", cell_type
+    ),
+    out_dir = paths$outDir, width = 15, height = 6.2
+  )
 
-    # corr_title <- sprintf(
-    #     "Age residuals (predicted - actual)\n  [%s]",
-    #     cell_type
-    # )
-    #
-    # jac_title <- sprintf(
-    #     "Cell-type gene overlap in aging programs\n [%s]",
-    #     cell_type
-    # )
-
-    #drop title for manuscript
-    corr_title <- ""
-    jac_title <- ""
-    row_fontsize=14
-    col_fontsize=14
-    correlation_legend_title<-"Residual age\ncorrelation"
-    jaccard_legend_title<-"Gene overlap\n(Jaccard index)"
-
-    #replace the "_" with space for cell type names
-    model_predictions$cell_type <- gsub("_", " ", model_predictions$cell_type)
-    all_models$cell_type <- gsub("_", " ", all_models$cell_type)
-
-    corr_out <- bican.mccarroll.differentialexpression::plot_residual_corr_heatmap(
-        model_predictions = model_predictions,
-        mode = "within_cell_type", cell_type = cell_type,
-        value_var = "resid_mean_corrected",
-        title = corr_title, annotate_cells = TRUE,
-        row_fontsize = row_fontsize, col_fontsize = col_fontsize, cell_fontsize = 9,
-        legend_title=correlation_legend_title
-    )
-
-    jaccard_out <- bican.mccarroll.differentialexpression::plot_jaccard_overlap_heatmap(
-        all_models = all_models,
-        mode = "within_cell_type", cell_type = cell_type,
-        title = jac_title, coef_thresh = 0,
-        annotate_cells = TRUE,
-        row_fontsize = row_fontsize, col_fontsize = col_fontsize, cell_fontsize = 9,
-        row_order_names = corr_out$row_order_names,
-        column_order_names = corr_out$column_order_names,
-        legend_title = jaccard_legend_title
-    )
-
-    g_corr <- grid::grid.grabExpr(
-        ComplexHeatmap::draw(
-            corr_out$heatmap, newpage = FALSE,
-            heatmap_legend_side = "right"
-        )
-    )
-
-    g_jac <- grid::grid.grabExpr(
-        ComplexHeatmap::draw(
-            jaccard_out$heatmap, newpage = FALSE,
-            heatmap_legend_side = "right"
-        )
-    )
-
-    p_corr <- cowplot::ggdraw(g_corr)
-    p_jac  <- cowplot::ggdraw(g_jac)
-
-    #Steve wants me to switch the order.
-    #final <- cowplot::plot_grid(p_jac, p_corr, nrow = 1, rel_widths = c(1, 1))
-    final <- cowplot::plot_grid(p_corr, p_jac, nrow = 1, rel_widths = c(1, 1))
-
-    save_plot_svg(
-        plot = final,
-        out_file = sprintf(
-            "age_prediction_residual_corr_and_jaccard_cell_type_%s.svg", cell_type
-        ),
-        out_dir = paths$outDir, width = 15, height = 6.2
-    )
-
-    invisible(final)
+  invisible(final)
 }
-
 
 
 #' Manuscript figure: pairwise corrected residual scatterplots within a region
@@ -874,138 +884,146 @@ age_prediction_residual_corr_and_jaccard_heatmaps_cell_type <- function(
 #' @param metacell_dir See `get_age_prediction_results()`.
 #' @param data_name See `get_age_prediction_results()`.
 #' @param age_de_results_dir See `get_age_prediction_results()`.
+#' @param use_age_de_results Logical; if \code{TRUE}, resolve and use
+#'   \code{age_de_results_dir} when building the model. If \code{FALSE},
+#'   age differential expression results are not used.
 #' @param contig_yaml_file See `get_age_prediction_results()`.
 #' @param reduced_gtf_file See `get_age_prediction_results()`.
 #' @param n_cores See `get_age_prediction_results()`.
 #' @param data_cache_dir Cache root directory used by `get_age_prediction_results()`.
 #' @param outDir Output directory for the SVG.
+#' @param optimize_alpha Logical; if \code{TRUE}, the elastic net mixing
+#'   parameter alpha is optimized rather than fixed.
+#' @param alpha_fixed Numeric elastic net mixing parameter used when
+#'   \code{optimize_alpha} is \code{FALSE}.
 #' @param ncol Number of columns in the panel grid.
 #'
 #' @return Invisibly returns the assembled ggplot object.
 #' @export
-age_prediction_corrected_residual_pairwise_scatter_region <- function(
-        cell_type_list = c("astrocyte", "OPC", "microglia", "SPN_D1"),
-        region = "CaH",
-        metacell_dir = NULL,
-        data_name = "donor_rxn_DGEList",
-        age_de_results_dir = NULL,
-        use_age_de_results = TRUE,
-        contig_yaml_file = NULL,
-        reduced_gtf_file = NULL,
-        n_cores = 14,
-        data_cache_dir = NULL,
-        outDir = NULL,
-        optimize_alpha = FALSE,
-        alpha_fixed = 0,
-        ncol = 3) {
+age_prediction_corrected_residual_pairwise_scatter_region <- function(cell_type_list = c("astrocyte", "OPC", "microglia", "SPN_D1"),
+                                                                      region = "CaH",
+                                                                      metacell_dir = NULL,
+                                                                      data_name = "donor_rxn_DGEList",
+                                                                      age_de_results_dir = NULL,
+                                                                      use_age_de_results = TRUE,
+                                                                      contig_yaml_file = NULL,
+                                                                      reduced_gtf_file = NULL,
+                                                                      n_cores = 14,
+                                                                      data_cache_dir = NULL,
+                                                                      outDir = NULL,
+                                                                      optimize_alpha = FALSE,
+                                                                      alpha_fixed = 0,
+                                                                      ncol = 3) {
+  paths <- .resolve_age_pred_paths(
+    metacell_dir = metacell_dir,
+    age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
+    reduced_gtf_file = reduced_gtf_file, data_cache_dir = data_cache_dir,
+    outDir = outDir,
+    use_age_de_results = use_age_de_results,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
 
-    paths <- .resolve_age_pred_paths(
-        metacell_dir = metacell_dir,
-        age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
-        reduced_gtf_file = reduced_gtf_file, data_cache_dir = data_cache_dir,
-        outDir = outDir,
-        use_age_de_results = use_age_de_results,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
+  results <- get_age_prediction_results(
+    metacell_dir = paths$metacell_dir, data_name = data_name,
+    age_de_results_dir = paths$age_de_results_dir,
+    contig_yaml_file = paths$contig_yaml_file,
+    reduced_gtf_file = paths$reduced_gtf_file,
+    n_cores = n_cores, data_cache_dir = paths$data_cache_dir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
+
+  donor_pred <- results$donor_predictions
+
+  donor_pred <- donor_pred[
+    donor_pred$region == region &
+      donor_pred$cell_type %in% cell_type_list,
+  ]
+
+  # To be consistent with other manuscript plots, format age in years instead of decades
+  # This only changes the legend values.
+  donor_pred$age <- donor_pred$age * 10
+
+  prs <- utils::combn(cell_type_list, 2, simplify = FALSE)
+
+  plots <- list()
+  legend_plot <- NULL
+
+  for (pair in prs) {
+    x_group <- pair[1]
+    y_group <- pair[2]
+
+    p <- bican.mccarroll.differentialexpression::plot_residual_pair_scatter_one(
+      model_predictions = donor_pred,
+      mode = "within_region", region = region,
+      x_group = x_group, y_group = y_group,
+      value_var = "resid_mean_corrected",
+      color_var = "age", color_title = "Donor age"
     )
 
-    results <- get_age_prediction_results(
-        metacell_dir = paths$metacell_dir, data_name = data_name,
-        age_de_results_dir = paths$age_de_results_dir,
-        contig_yaml_file = paths$contig_yaml_file,
-        reduced_gtf_file = paths$reduced_gtf_file,
-        n_cores = n_cores, data_cache_dir = paths$data_cache_dir,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
-    )
+    p <- p +
+      ggplot2::labs(title = paste0(x_group, " vs ", y_group), x = NULL, y = NULL) +
+      ggplot2::theme(
+        legend.position = "none",
+        plot.title = ggplot2::element_text(hjust = 0, size = 16),
+        axis.title.x = ggplot2::element_blank(),
+        axis.title.y = ggplot2::element_blank(),
+        axis.text.x = ggplot2::element_text(size = ggplot2::rel(1.5)),
+        axis.text.y = ggplot2::element_text(size = ggplot2::rel(1.5))
+      )
 
-    donor_pred <- results$donor_predictions
-
-    donor_pred <- donor_pred[
-        donor_pred$region == region &
-            donor_pred$cell_type %in% cell_type_list,
-    ]
-
-    #To be consistent with other manuscript plots, format age in years instead of decades
-    #This only changes the legend values.
-    donor_pred$age <- donor_pred$age * 10
-
-    prs <- utils::combn(cell_type_list, 2, simplify = FALSE)
-
-    plots <- list()
-    legend_plot <- NULL
-
-    for (pair in prs) {
-
-        x_group <- pair[1]
-        y_group <- pair[2]
-
-        p <- bican.mccarroll.differentialexpression::plot_residual_pair_scatter_one(
-            model_predictions = donor_pred,
-            mode = "within_region", region = region,
-            x_group = x_group, y_group = y_group,
-            value_var = "resid_mean_corrected",
-            color_var = "age", color_title = "Donor age"
-        )
-
-        p <- p +
-            ggplot2::labs(title = paste0(x_group, " vs ", y_group), x = NULL, y = NULL) +
-            ggplot2::theme(
-                legend.position = "none",
-                plot.title = ggplot2::element_text(hjust = 0, size = 16),
-                axis.title.x = ggplot2::element_blank(),
-                axis.title.y = ggplot2::element_blank(),
-                axis.text.x = ggplot2::element_text(size = ggplot2::rel(1.5)),
-                axis.text.y = ggplot2::element_text(size = ggplot2::rel(1.5))
-            )
-
-        if (is.null(legend_plot)) {
-            legend_plot <- cowplot::get_legend(
-                p + ggplot2::theme(legend.position = "right")
-            )
-        }
-
-        plots[[length(plots) + 1]] <- p
+    if (is.null(legend_plot)) {
+      legend_plot <- cowplot::get_legend(
+        p + ggplot2::theme(legend.position = "right")
+      )
     }
 
-    grid <- cowplot::plot_grid(plotlist = plots, ncol = ncol, align = "hv")
-    grid <- cowplot::plot_grid(grid, legend_plot, ncol = 2, rel_widths = c(1, 0.18))
+    plots[[length(plots) + 1]] <- p
+  }
 
-    core <- cowplot::plot_grid(
-        grid,
-        cowplot::ggdraw() +
-            cowplot::draw_label("Corrected residual (predicted - actual)", size = 16),
-        ncol = 1, rel_heights = c(1, 0.12)
+  grid <- cowplot::plot_grid(plotlist = plots, ncol = ncol, align = "hv")
+  grid <- cowplot::plot_grid(grid, legend_plot, ncol = 2, rel_widths = c(1, 0.18))
+
+  core <- cowplot::plot_grid(
+    grid,
+    cowplot::ggdraw() +
+      cowplot::draw_label("Corrected residual (predicted - actual)", size = 16),
+    ncol = 1, rel_heights = c(1, 0.12)
+  )
+
+  left_pad <- 0.03
+
+  final <- cowplot::ggdraw() +
+    cowplot::draw_plot(core,
+      x = left_pad, y = 0,
+      width = 1 - left_pad, height = 1
+    ) +
+    cowplot::draw_label(
+      "Corrected residual (predicted - actual)",
+      angle = 90, x = left_pad * 0.35, y = 0.5,
+      vjust = 0.5, size = 16
     )
 
-    left_pad <- 0.03
-
-    final <- cowplot::ggdraw() +
-        cowplot::draw_plot(core, x = left_pad, y = 0,
-                           width = 1 - left_pad, height = 1) +
-        cowplot::draw_label(
-            "Corrected residual (predicted - actual)",
-            angle = 90, x = left_pad * 0.35, y = 0.5,
-            vjust = 0.5, size = 16
-        )
-
-    final_padded <- cowplot::ggdraw() +
-        cowplot::draw_plot(final, x = left_pad, y = 0,
-                           width = 1 - left_pad, height = 1)
-
-    out_svg <- file.path(
-        paths$outDir,
-        sprintf(
-            "age_prediction_corrected_residual_pairwise_scatter_region_%s.svg", region
-        )
+  final_padded <- cowplot::ggdraw() +
+    cowplot::draw_plot(final,
+      x = left_pad, y = 0,
+      width = 1 - left_pad, height = 1
     )
 
-    ggplot2::ggsave(
-        filename = out_svg, plot = final_padded, device = "svg",
-        width = 14, height = 8
+  out_svg <- file.path(
+    paths$outDir,
+    sprintf(
+      "age_prediction_corrected_residual_pairwise_scatter_region_%s.svg", region
     )
+  )
 
-    invisible(final)
+  ggplot2::ggsave(
+    filename = out_svg, plot = final_padded, device = "svg",
+    width = 14, height = 8
+  )
+
+  invisible(final)
 }
 
 #' Manuscript figure: pairwise uncorrected residual scatterplots within a region
@@ -1019,140 +1037,144 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(
 #' @param metacell_dir See `get_age_prediction_results()`.
 #' @param data_name See `get_age_prediction_results()`.
 #' @param age_de_results_dir See `get_age_prediction_results()`.
+#' @param use_age_de_results Logical; if \code{TRUE}, resolve and use
+#'   \code{age_de_results_dir} when building the model. If \code{FALSE},
+#'   age differential expression results are not used.
 #' @param contig_yaml_file See `get_age_prediction_results()`.
 #' @param reduced_gtf_file See `get_age_prediction_results()`.
 #' @param n_cores See `get_age_prediction_results()`.
 #' @param data_cache_dir Cache root directory used by `get_age_prediction_results()`.
 #' @param outDir Output directory for the SVG.
+#' @param optimize_alpha Logical; if \code{TRUE}, the elastic net mixing
+#'   parameter alpha is optimized rather than fixed.
+#' @param alpha_fixed Numeric elastic net mixing parameter used when
+#'   \code{optimize_alpha} is \code{FALSE}.
 #' @param ncol Number of columns in the panel grid.
 #'
 #' @return Invisibly returns the assembled ggplot object.
 #' @export
-age_prediction_uncorrected_residual_pairwise_scatter_region <- function(
-        cell_type_list = c("astrocyte", "OPC", "microglia", "SPN_D1"),
-        region = "CaH",
-        metacell_dir = NULL,
-        data_name = "donor_rxn_DGEList",
-        age_de_results_dir = NULL,
-        use_age_de_results = TRUE,
-        contig_yaml_file = NULL,
-        reduced_gtf_file = NULL,
-        n_cores = 14,
-        data_cache_dir = NULL,
-        outDir = NULL,
-        optimize_alpha = FALSE,
-        alpha_fixed = 0,
-        ncol = 3) {
+age_prediction_uncorrected_residual_pairwise_scatter_region <- function(cell_type_list = c("astrocyte", "OPC", "microglia", "SPN_D1"),
+                                                                        region = "CaH",
+                                                                        metacell_dir = NULL,
+                                                                        data_name = "donor_rxn_DGEList",
+                                                                        age_de_results_dir = NULL,
+                                                                        use_age_de_results = TRUE,
+                                                                        contig_yaml_file = NULL,
+                                                                        reduced_gtf_file = NULL,
+                                                                        n_cores = 14,
+                                                                        data_cache_dir = NULL,
+                                                                        outDir = NULL,
+                                                                        optimize_alpha = FALSE,
+                                                                        alpha_fixed = 0,
+                                                                        ncol = 3) {
+  paths <- .resolve_age_pred_paths(
+    metacell_dir = metacell_dir,
+    age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
+    reduced_gtf_file = reduced_gtf_file, data_cache_dir = data_cache_dir,
+    outDir = outDir,
+    use_age_de_results = use_age_de_results,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
 
-    paths <- .resolve_age_pred_paths(
-        metacell_dir = metacell_dir,
-        age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
-        reduced_gtf_file = reduced_gtf_file, data_cache_dir = data_cache_dir,
-        outDir = outDir,
-        use_age_de_results = use_age_de_results,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
+  results <- get_age_prediction_results(
+    metacell_dir = paths$metacell_dir, data_name = data_name,
+    age_de_results_dir = paths$age_de_results_dir,
+    contig_yaml_file = paths$contig_yaml_file,
+    reduced_gtf_file = paths$reduced_gtf_file,
+    n_cores = n_cores, data_cache_dir = paths$data_cache_dir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
+
+  donor_pred <- results$donor_predictions
+
+  donor_pred <- donor_pred[
+    donor_pred$region == region &
+      donor_pred$cell_type %in% cell_type_list,
+  ]
+
+  # To be consistent with other manuscript plots, format age in years instead of decades
+  # This only changes the legend values.
+  donor_pred$age <- donor_pred$age * 10
+
+  prs <- utils::combn(cell_type_list, 2, simplify = FALSE)
+
+  plots <- list()
+  legend_plot <- NULL
+
+  for (pair in prs) {
+    x_group <- pair[1]
+    y_group <- pair[2]
+
+    p <- bican.mccarroll.differentialexpression::plot_residual_pair_scatter_one(
+      model_predictions = donor_pred,
+      mode = "within_region", region = region,
+      x_group = x_group, y_group = y_group,
+      value_var = "resid_mean",
+      color_var = "age", color_title = "Donor age"
     )
 
-    results <- get_age_prediction_results(
-        metacell_dir = paths$metacell_dir, data_name = data_name,
-        age_de_results_dir = paths$age_de_results_dir,
-        contig_yaml_file = paths$contig_yaml_file,
-        reduced_gtf_file = paths$reduced_gtf_file,
-        n_cores = n_cores, data_cache_dir = paths$data_cache_dir,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
-    )
+    p <- p +
+      ggplot2::labs(title = paste0(x_group, " vs ", y_group), x = NULL, y = NULL) +
+      ggplot2::theme(
+        legend.position = "none",
+        plot.title = ggplot2::element_text(hjust = 0, size = 16),
+        axis.title.x = ggplot2::element_blank(),
+        axis.title.y = ggplot2::element_blank(),
+        axis.text.x = ggplot2::element_text(size = ggplot2::rel(1.5)),
+        axis.text.y = ggplot2::element_text(size = ggplot2::rel(1.5))
+      )
 
-    donor_pred <- results$donor_predictions
-
-    donor_pred <- donor_pred[
-        donor_pred$region == region &
-            donor_pred$cell_type %in% cell_type_list,
-    ]
-
-    #To be consistent with other manuscript plots, format age in years instead of decades
-    #This only changes the legend values.
-    donor_pred$age <- donor_pred$age * 10
-
-    prs <- utils::combn(cell_type_list, 2, simplify = FALSE)
-
-    plots <- list()
-    legend_plot <- NULL
-
-    for (pair in prs) {
-
-        x_group <- pair[1]
-        y_group <- pair[2]
-
-        p <- bican.mccarroll.differentialexpression::plot_residual_pair_scatter_one(
-            model_predictions = donor_pred,
-            mode = "within_region", region = region,
-            x_group = x_group, y_group = y_group,
-            value_var = "resid_mean",
-            color_var = "age", color_title = "Donor age"
-        )
-
-        p <- p +
-            ggplot2::labs(title = paste0(x_group, " vs ", y_group), x = NULL, y = NULL) +
-            ggplot2::theme(
-                legend.position = "none",
-                plot.title = ggplot2::element_text(hjust = 0, size = 16),
-                axis.title.x = ggplot2::element_blank(),
-                axis.title.y = ggplot2::element_blank(),
-                axis.text.x = ggplot2::element_text(size = ggplot2::rel(1.5)),
-                axis.text.y = ggplot2::element_text(size = ggplot2::rel(1.5))
-            )
-
-        if (is.null(legend_plot)) {
-            legend_plot <- cowplot::get_legend(
-                p + ggplot2::theme(legend.position = "right")
-            )
-        }
-
-        plots[[length(plots) + 1]] <- p
+    if (is.null(legend_plot)) {
+      legend_plot <- cowplot::get_legend(
+        p + ggplot2::theme(legend.position = "right")
+      )
     }
 
-    grid <- cowplot::plot_grid(plotlist = plots, ncol = ncol, align = "hv")
-    grid <- cowplot::plot_grid(grid, legend_plot, ncol = 2, rel_widths = c(1, 0.18))
+    plots[[length(plots) + 1]] <- p
+  }
 
-    header_text <- sprintf(
-        "Uncorrected residual pairwise scatterplots | Region: %s",
-        region
+  grid <- cowplot::plot_grid(plotlist = plots, ncol = ncol, align = "hv")
+  grid <- cowplot::plot_grid(grid, legend_plot, ncol = 2, rel_widths = c(1, 0.18))
+
+  header_text <- sprintf(
+    "Uncorrected residual pairwise scatterplots | Region: %s",
+    region
+  )
+
+  core <- cowplot::plot_grid(
+    grid,
+    cowplot::ggdraw() +
+      cowplot::draw_label("Uncorrected residual (predicted - actual)", size = 16),
+    ncol = 1, rel_heights = c(1, 0.12)
+  )
+
+  left_pad <- 0.03
+
+  final <- cowplot::ggdraw() +
+    cowplot::draw_plot(core, x = left_pad, y = 0, width = 1 - left_pad, height = 1) +
+    cowplot::draw_label(
+      "Uncorrected residual (predicted - actual)",
+      angle = 90, x = left_pad * 0.35, y = 0.5, vjust = 0.5, size = 16
     )
 
-    core <- cowplot::plot_grid(
-        grid,
-        cowplot::ggdraw() +
-            cowplot::draw_label("Uncorrected residual (predicted - actual)", size = 16),
-        ncol = 1, rel_heights = c(1, 0.12)
+  final_padded <- cowplot::ggdraw() +
+    cowplot::draw_plot(final, x = left_pad, y = 0, width = 1 - left_pad, height = 1)
+
+  out_svg <- file.path(
+    paths$outDir,
+    sprintf(
+      "age_prediction_uncorrected_residual_pairwise_scatter_region_%s.svg", region
     )
+  )
 
-    left_pad <- 0.03
+  ggplot2::ggsave(
+    filename = out_svg, plot = final_padded, device = "svg",
+    width = 14, height = 8
+  )
 
-    final <- cowplot::ggdraw() +
-        cowplot::draw_plot(core, x = left_pad, y = 0, width = 1 - left_pad, height = 1) +
-        cowplot::draw_label(
-            "Uncorrected residual (predicted - actual)",
-            angle = 90, x = left_pad * 0.35, y = 0.5, vjust = 0.5, size = 16
-        )
-
-    final_padded <- cowplot::ggdraw() +
-        cowplot::draw_plot(final, x = left_pad, y = 0, width = 1 - left_pad, height = 1)
-
-    out_svg <- file.path(
-        paths$outDir,
-        sprintf(
-            "age_prediction_uncorrected_residual_pairwise_scatter_region_%s.svg", region
-        )
-    )
-
-    ggplot2::ggsave(
-        filename = out_svg, plot = final_padded, device = "svg",
-        width = 14, height = 8
-    )
-
-    invisible(final)
+  invisible(final)
 }
 
 #' Plot age prediction errors and predictor-specific error summaries
@@ -1167,343 +1189,335 @@ age_prediction_uncorrected_residual_pairwise_scatter_region <- function(
 #' @param metacell_dir Directory containing metacell objects.
 #' @param data_name Name of the DGEList object to load.
 #' @param age_de_results_dir Directory containing age differential expression results.
+#' @param use_age_de_results Logical; if \code{TRUE}, resolve and use
+#'   \code{age_de_results_dir} when building the model. If \code{FALSE},
+#'   age differential expression results are not used.
 #' @param contig_yaml_file Path to contig YAML file.
 #' @param reduced_gtf_file Path to reduced GTF file.
 #' @param n_cores Number of cores to use for parallel computation.
 #' @param data_cache_dir Directory for cached intermediate data.
 #' @param outDir Output directory for the generated SVG plots.
+#' @param optimize_alpha Logical; if \code{TRUE}, the elastic net mixing
+#'   parameter alpha is optimized rather than fixed.
+#' @param alpha_fixed Numeric elastic net mixing parameter used when
+#'   \code{optimize_alpha} is \code{FALSE}.
 #'
 #' @export
-age_prediction_examples <- function(
-        cell_type_list = c("astrocyte", "OPC", "microglia", "SPN_D1"),
-        region = "CaH",
-        metacell_dir = NULL,
-        data_name = "donor_rxn_DGEList",
-        age_de_results_dir = NULL,
-        use_age_de_results = TRUE,
-        contig_yaml_file = NULL,
-        reduced_gtf_file = NULL,
-        n_cores = 14,
-        data_cache_dir = NULL,
-        outDir = NULL,
-        optimize_alpha = FALSE,
-        alpha_fixed = 0) {
+age_prediction_examples <- function(cell_type_list = c("astrocyte", "OPC", "microglia", "SPN_D1"),
+                                    region = "CaH",
+                                    metacell_dir = NULL,
+                                    data_name = "donor_rxn_DGEList",
+                                    age_de_results_dir = NULL,
+                                    use_age_de_results = TRUE,
+                                    contig_yaml_file = NULL,
+                                    reduced_gtf_file = NULL,
+                                    n_cores = 14,
+                                    data_cache_dir = NULL,
+                                    outDir = NULL,
+                                    optimize_alpha = FALSE,
+                                    alpha_fixed = 0) {
+  paths <- .resolve_age_pred_paths(
+    metacell_dir = metacell_dir,
+    age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
+    reduced_gtf_file = reduced_gtf_file, data_cache_dir = data_cache_dir,
+    outDir = outDir,
+    use_age_de_results = use_age_de_results,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
 
-    paths <- .resolve_age_pred_paths(
-        metacell_dir = metacell_dir,
-        age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
-        reduced_gtf_file = reduced_gtf_file, data_cache_dir = data_cache_dir,
-        outDir = outDir,
-        use_age_de_results = use_age_de_results,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
+  results <- get_age_prediction_results(
+    metacell_dir = paths$metacell_dir, data_name = data_name,
+    age_de_results_dir = paths$age_de_results_dir,
+    contig_yaml_file = paths$contig_yaml_file,
+    reduced_gtf_file = paths$reduced_gtf_file,
+    n_cores = n_cores, data_cache_dir = paths$data_cache_dir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
+
+  donor_pred <- results$donor_predictions
+  gam_fit <- results$gam_fit
+
+  # for the paper, we're going to format age in years
+  donor_pred$age <- donor_pred$age * 10
+  donor_pred$pred_mean <- donor_pred$pred_mean * 10
+  donor_pred$resid_mean <- donor_pred$resid_mean * 10
+  donor_pred$resid_sd <- donor_pred$resid_sd * 10
+
+  gam_fit$age <- gam_fit$age * 10
+  gam_fit$gam_pred <- gam_fit$gam_pred * 10
+
+
+  make_one_plot <- function(cell_type) {
+    dp <- donor_pred[donor_pred$cell_type == cell_type & donor_pred$region == region, ]
+    gf <- gam_fit[gam_fit$cell_type == cell_type & gam_fit$region == region, ]
+
+    p <- bican.mccarroll.differentialexpression::plot_mc_donor_predictions(
+      donor_predictions = dp,
+      gam_fit_df = gf,
+      y_var = "pred_mean",
+      color_var = "resid_mean",
+      legend_title = "Residuals",
+      alpha_points = 0.8,
+      errorbar_width = 0.1
+    ) +
+      ggplot2::labs(title = cell_type, subtitle = NULL, x = NULL, y = NULL) +
+      ggplot2::theme(
+        plot.title = ggplot2::element_text(hjust = 0, size = 11),
+        axis.title.x = ggplot2::element_blank(),
+        axis.title.y = ggplot2::element_blank(),
+        axis.text.x = ggplot2::element_text(size = ggplot2::rel(2)),
+        axis.text.y = ggplot2::element_text(size = ggplot2::rel(2))
+      )
+
+
+    # change the point color to a single color
+    p <- p +
+      ggplot2::scale_color_gradient2(
+        low = "black",
+        mid = "black",
+        high = "black",
+        midpoint = 0,
+        guide = "none"
+      )
+    # drop the legend
+    p <- p + ggplot2::theme(legend.position = "none")
+  }
+
+  plot_list <- lapply(cell_type_list, make_one_plot)
+
+  grid <- cowplot::plot_grid(plotlist = plot_list, ncol = 4, align = "hv")
+
+  core <- cowplot::plot_grid(
+    grid,
+    cowplot::ggdraw() +
+      cowplot::draw_label("Chronological age", size = 16, y = 0.75, vjust = 1),
+    ncol = 1, rel_heights = c(1, 0.08)
+  )
+
+  left_pad <- 0.025
+
+  final <- cowplot::ggdraw() +
+    cowplot::draw_plot(core,
+      x = left_pad, y = 0,
+      width = 1 - left_pad, height = 1
+    ) +
+    cowplot::draw_label(
+      "Predicted age (MC mean)",
+      angle = 90, x = left_pad * 0.3, y = 0.5,
+      vjust = 0.5, size = 16
     )
 
-    results <- get_age_prediction_results(
-        metacell_dir = paths$metacell_dir, data_name = data_name,
-        age_de_results_dir = paths$age_de_results_dir,
-        contig_yaml_file = paths$contig_yaml_file,
-        reduced_gtf_file = paths$reduced_gtf_file,
-        n_cores = n_cores, data_cache_dir = paths$data_cache_dir,
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
-    )
+  output_svg <- file.path(paths$outDir, "age_prediction_cell_type_examples.svg")
+  ggplot2::ggsave(
+    filename = output_svg, plot = final, device = "svg",
+    width = 16, height = 4
+  )
 
-    donor_pred <- results$donor_predictions
-    gam_fit <- results$gam_fit
-
-    #for the paper, we're going to format age in years
-    donor_pred$age<-donor_pred$age*10
-    donor_pred$pred_mean<-donor_pred$pred_mean*10
-    donor_pred$resid_mean<-donor_pred$resid_mean*10
-    donor_pred$resid_sd<-donor_pred$resid_sd*10
-
-    gam_fit$age<-gam_fit$age*10
-    gam_fit$gam_pred<-gam_fit$gam_pred*10
-
-
-    make_one_plot <- function(cell_type) {
-
-        dp <- donor_pred[donor_pred$cell_type == cell_type & donor_pred$region == region, ]
-        gf <- gam_fit[gam_fit$cell_type == cell_type & gam_fit$region == region, ]
-
-        p<-bican.mccarroll.differentialexpression::plot_mc_donor_predictions(
-            donor_predictions = dp,
-            gam_fit_df = gf,
-            y_var = "pred_mean",
-            color_var = "resid_mean",
-            legend_title = "Residuals",
-            alpha_points = 0.8,
-            errorbar_width = 0.1
-        ) +
-            ggplot2::labs(title = cell_type, subtitle = NULL, x = NULL, y = NULL) +
-            ggplot2::theme(
-                plot.title = ggplot2::element_text(hjust = 0, size = 11),
-                axis.title.x = ggplot2::element_blank(),
-                axis.title.y = ggplot2::element_blank(),
-                axis.text.x = ggplot2::element_text(size = ggplot2::rel(2)),
-                axis.text.y = ggplot2::element_text(size = ggplot2::rel(2))
-            )
-
-
-        #change the point color to a single color
-        p <- p +
-            ggplot2::scale_color_gradient2(
-                low = "black",
-                mid = "black",
-                high = "black",
-                midpoint = 0,
-                guide = "none"
-            )
-        #drop the legend
-        p <- p + ggplot2::theme(legend.position = "none")
-
-    }
-
-    plot_list <- lapply(cell_type_list, make_one_plot)
-
-    grid <- cowplot::plot_grid(plotlist = plot_list, ncol = 4, align = "hv")
-
-    core <- cowplot::plot_grid(
-        grid,
-        cowplot::ggdraw() +
-            cowplot::draw_label("Chronological age", size = 16, y=0.75, vjust=1),
-        ncol = 1, rel_heights = c(1, 0.08)
-    )
-
-    left_pad <- 0.025
-
-    final <- cowplot::ggdraw() +
-        cowplot::draw_plot(core, x = left_pad, y = 0,
-                           width = 1 - left_pad, height = 1) +
-        cowplot::draw_label(
-            "Predicted age (MC mean)",
-            angle = 90, x = left_pad * 0.3, y = 0.5,
-            vjust = 0.5, size = 16
-        )
-
-    output_svg <- file.path(paths$outDir, "age_prediction_cell_type_examples.svg")
-    ggplot2::ggsave(filename = output_svg, plot = final, device = "svg",
-                    width = 16, height = 4)
-
-    invisible(final)
+  invisible(final)
 }
 
 
 # Generation of raw data for all plots for age prediction.
 # These results will be cached.
 # This returns a list of dataframes that can be used for plotting.
-get_age_prediction_results<-function (metacell_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metacells/LEVEL_6",
-                              data_name="donor_rxn_DGEList",
-                              age_de_results_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results/LEVEL_3/sex_age/cell_type_region_interaction_absolute_effects",
-                              contig_yaml_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metadata/GRCh38_ensembl_v43.contig_groups.yaml",
-                              reduced_gtf_file="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metadata/GRCh38_ensembl_v43.reduced.gtf.gz",
-                              n_cores=14,
-                              data_cache_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache",
-                               optimize_alpha = FALSE,
-                               alpha_fixed = 0
-                              ) {
-
-    cache_dir <- file.path(
-        data_cache_dir,
-        .age_prediction_cache_subdir(
-            optimize_alpha = optimize_alpha,
-            alpha_fixed = alpha_fixed
-        )
+get_age_prediction_results <- function(metacell_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metacells/LEVEL_6",
+                                       data_name = "donor_rxn_DGEList",
+                                       age_de_results_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/differential_expression/results/LEVEL_3/sex_age/cell_type_region_interaction_absolute_effects",
+                                       contig_yaml_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metadata/GRCh38_ensembl_v43.contig_groups.yaml",
+                                       reduced_gtf_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/metadata/GRCh38_ensembl_v43.reduced.gtf.gz",
+                                       n_cores = 14,
+                                       data_cache_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/figure_repository/data_cache",
+                                       optimize_alpha = FALSE,
+                                       alpha_fixed = 0) {
+  cache_dir <- file.path(
+    data_cache_dir,
+    .age_prediction_cache_subdir(
+      optimize_alpha = optimize_alpha,
+      alpha_fixed = alpha_fixed
     )
-    if (!dir.exists(cache_dir)) {
-        dir.create(cache_dir, recursive = TRUE)
-    }
+  )
+  if (!dir.exists(cache_dir)) {
+    dir.create(cache_dir, recursive = TRUE)
+  }
 
-    #get files.  If they are null, then regenerate them and save.
-    results <- read_age_prediction_results(cache_dir)
+  # get files.  If they are null, then regenerate them and save.
+  results <- read_age_prediction_results(cache_dir)
 
-    if (!is.null(results)) {
-        logger::log_info("Using cached data from {cache_dir}")
-        return (results)
-        #read in all the files and return
-    } else { # process the data as usual, write to the cache
-        #clustering_min_genes and num_clusters don't do anything when outDir is NULL
-        logger::log_info("No cached data from {cache_dir} regenerating data from sources.  This can take a while")
+  if (!is.null(results)) {
+    logger::log_info("Using cached data from {cache_dir}")
+    return(results)
+    # read in all the files and return
+  } else { # process the data as usual, write to the cache
+    # clustering_min_genes and num_clusters don't do anything when outDir is NULL
+    logger::log_info("No cached data from {cache_dir} regenerating data from sources.  This can take a while")
 
-        #this will write files to the cache dir.
-        bican.mccarroll.differentialexpression::predict_age_by_celltype_region(
-            data_dir = metacell_dir,
-            data_name = data_name,
-            age_de_results_dir = age_de_results_dir,
-            outPDFFile=NULL,
-            result_dir = cache_dir,
-            contig_yaml_file = contig_yaml_file,
-            reduced_gtf_file = reduced_gtf_file,
-            optimize_alpha = optimize_alpha,
-            alpha_fixed = alpha_fixed,
-            n_cores = n_cores)
+    # this will write files to the cache dir.
+    bican.mccarroll.differentialexpression::predict_age_by_celltype_region(
+      data_dir = metacell_dir,
+      data_name = data_name,
+      age_de_results_dir = age_de_results_dir,
+      outPDFFile = NULL,
+      result_dir = cache_dir,
+      contig_yaml_file = contig_yaml_file,
+      reduced_gtf_file = reduced_gtf_file,
+      optimize_alpha = optimize_alpha,
+      alpha_fixed = alpha_fixed,
+      n_cores = n_cores
+    )
 
-        #read in all the files and return
-        return (read_age_prediction_results(cache_dir))
-    }
-
-
-
-
+    # read in all the files and return
+    return(read_age_prediction_results(cache_dir))
+  }
 }
 
 
 read_age_prediction_results <- function(cache_dir) {
+  if (!dir.exists(cache_dir)) {
+    stop(sprintf(
+      "Cache directory does not exist: %s. Run run_age_prediction() to generate data.",
+      cache_dir
+    ), call. = FALSE)
+  }
 
-    if (!dir.exists(cache_dir)) {
-        stop(sprintf(
-            "Cache directory does not exist: %s. Run run_age_prediction() to generate data.",
-            cache_dir
-        ), call. = FALSE)
-    }
+  files <- list(
+    donor_predictions = "age_prediction_results_donor_predictions.txt",
+    gam_fit = "age_prediction_results_gam_fit.txt",
+    # model_metrics     = "age_prediction_results_model_metrics.txt",
+    model_coefficients = "age_prediction_results_model_coefficients.txt"
+  )
 
-    files <- list(
-        donor_predictions = "age_prediction_results_donor_predictions.txt",
-        gam_fit           = "age_prediction_results_gam_fit.txt",
-        #model_metrics     = "age_prediction_results_model_metrics.txt",
-        model_coefficients     = "age_prediction_results_model_coefficients.txt"
-    )
+  paths <- file.path(cache_dir, unlist(files))
 
-    paths <- file.path(cache_dir, unlist(files))
+  missing <- !file.exists(paths)
 
-    missing <- !file.exists(paths)
+  if (any(missing)) {
+    logger::log_warn(sprintf(
+      "Missing required files in %s:\n%s",
+      cache_dir,
+      paste(paths[missing], collapse = "\n")
+    ))
+    return(NULL)
+  }
 
-    if (any(missing)) {
-        logger::log_warn(sprintf(
-            "Missing required files in %s:\n%s",
-            cache_dir,
-            paste(paths[missing], collapse = "\n")
-        ))
-        return(NULL)
-    }
+  # If we reach here, all files exist.
+  # Any read error should propagate as a real error.
+  # we don't use the metrics for any of the analysis, we calculate from the other results.
+  result <- list(
+    donor_predictions = data.table::fread(paths[1], sep = "\t", header = TRUE, data.table = FALSE),
+    gam_fit = data.table::fread(paths[2], sep = "\t", header = TRUE, data.table = FALSE),
+    # model_metrics     = data.table::fread(paths[3], sep = "\t", header = TRUE, data.table = FALSE),
+    model_coefficients = data.table::fread(paths[3], sep = "\t", header = TRUE, data.table = FALSE)
+  )
 
-    # If we reach here, all files exist.
-    # Any read error should propagate as a real error.
-    # we don't use the metrics for any of the analysis, we calculate from the other results.
-    result <- list(
-        donor_predictions = data.table::fread(paths[1], sep = "\t", header = TRUE, data.table = FALSE),
-        gam_fit           = data.table::fread(paths[2], sep = "\t", header = TRUE, data.table = FALSE),
-        #model_metrics     = data.table::fread(paths[3], sep = "\t", header = TRUE, data.table = FALSE),
-        model_coefficients   = data.table::fread(paths[3], sep = "\t", header = TRUE, data.table = FALSE)
-    )
-
-    result
+  result
 }
 
 .age_prediction_output_subdir <- function(optimize_alpha = FALSE, alpha_fixed = 0) {
+  if (!isTRUE(optimize_alpha) && identical(as.numeric(alpha_fixed), 0)) {
+    return(NULL)
+  }
 
-    if (!isTRUE(optimize_alpha) && identical(as.numeric(alpha_fixed), 0)) {
-        return(NULL)
-    }
-
-    .age_prediction_analysis_label(
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
-    )
+  .age_prediction_analysis_label(
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
 }
 
 .age_prediction_cache_subdir <- function(optimize_alpha = FALSE, alpha_fixed = 0) {
+  label <- .age_prediction_analysis_label(
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
 
-    label <- .age_prediction_analysis_label(
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
-    )
+  if (!isTRUE(optimize_alpha) && identical(as.numeric(alpha_fixed), 0)) {
+    return("age_prediction")
+  }
 
-    if (!isTRUE(optimize_alpha) && identical(as.numeric(alpha_fixed), 0)) {
-        return("age_prediction")
-    }
-
-    paste0("age_prediction_", label)
+  paste0("age_prediction_", label)
 }
 
 .age_prediction_analysis_label <- function(optimize_alpha = FALSE, alpha_fixed = 0) {
+  alpha_label <- gsub("\\.", "_", as.character(alpha_fixed))
 
-    alpha_label <- gsub("\\.", "_", as.character(alpha_fixed))
+  if (isTRUE(optimize_alpha)) {
+    return(paste0("optimize_alpha_TRUE_alpha_fixed_", alpha_label))
+  }
 
-    if (isTRUE(optimize_alpha)) {
-        return(paste0("optimize_alpha_TRUE_alpha_fixed_", alpha_label))
-    }
-
-    paste0("optimize_alpha_FALSE_alpha_fixed_", alpha_label)
+  paste0("optimize_alpha_FALSE_alpha_fixed_", alpha_label)
 }
 
 save_plot_svg <- function(plot, out_file, out_dir = ".", width = 14, height = 7) {
-    out_svg <- file.path(out_dir, out_file)
+  out_svg <- file.path(out_dir, out_file)
 
-    svglite::svglite(file = out_svg, width = width, height = height)
-    on.exit(grDevices::dev.off(), add = TRUE)
+  svglite::svglite(file = out_svg, width = width, height = height)
+  on.exit(grDevices::dev.off(), add = TRUE)
 
-    print(plot)
+  print(plot)
 
-    invisible(out_svg)
+  invisible(out_svg)
 }
 
-.resolve_age_pred_paths <- function(
-        cellTypeListFile = NULL,
-        metacell_dir = NULL,
-        age_de_results_dir = NULL,
-        contig_yaml_file = NULL,
-        reduced_gtf_file = NULL,
-        outDir = NULL,
-        data_cache_dir = NULL,
-        use_age_de_results = TRUE,
-        optimize_alpha = FALSE,
-        alpha_fixed = 0
-) {
-    root <- .resolve_data_root_dir(NULL)
+.resolve_age_pred_paths <- function(cellTypeListFile = NULL,
+                                    metacell_dir = NULL,
+                                    age_de_results_dir = NULL,
+                                    contig_yaml_file = NULL,
+                                    reduced_gtf_file = NULL,
+                                    outDir = NULL,
+                                    data_cache_dir = NULL,
+                                    use_age_de_results = TRUE,
+                                    optimize_alpha = FALSE,
+                                    alpha_fixed = 0) {
+  root <- .resolve_data_root_dir(NULL)
 
-    rel <- list(
-        cellTypeListFile =
-            "differential_expression/metadata/cell_types_for_de_filtering_plot.txt",
+  rel <- list(
+    cellTypeListFile =
+      "differential_expression/metadata/cell_types_for_de_filtering_plot.txt",
+    metacell_dir =
+      "metacells/LEVEL_6",
+    age_de_results_dir =
+      "differential_expression/results/LEVEL_6/sex_age/cell_type_region_interaction_absolute_effects",
+    contig_yaml_file =
+      "metadata/GRCh38_ensembl_v43.contig_groups.yaml",
+    reduced_gtf_file =
+      "metadata/GRCh38_ensembl_v43.reduced.gtf.gz"
+  )
 
-        metacell_dir =
-            "metacells/LEVEL_6",
-
-        age_de_results_dir =
-            "differential_expression/results/LEVEL_6/sex_age/cell_type_region_interaction_absolute_effects",
-
-        contig_yaml_file =
-            "metadata/GRCh38_ensembl_v43.contig_groups.yaml",
-
-        reduced_gtf_file =
-            "metadata/GRCh38_ensembl_v43.reduced.gtf.gz"
-    )
-
-    pick_in <- function(x, key) {
-        if (is.null(x)) {
-            return(file.path(root, rel[[key]]))
-        }
-        .resolve_under_root(root, x)
+  pick_in <- function(x, key) {
+    if (is.null(x)) {
+      return(file.path(root, rel[[key]]))
     }
+    .resolve_under_root(root, x)
+  }
 
-    out <- .resolve_out_dir(outDir)
-    analysis_subdir <- .age_prediction_output_subdir(
-        optimize_alpha = optimize_alpha,
-        alpha_fixed = alpha_fixed
-    )
+  out <- .resolve_out_dir(outDir)
+  analysis_subdir <- .age_prediction_output_subdir(
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
 
-    if (!is.null(analysis_subdir)) {
-        out <- file.path(out, analysis_subdir)
-    }
+  if (!is.null(analysis_subdir)) {
+    out <- file.path(out, analysis_subdir)
+  }
 
-    cache <- .resolve_cache_dir(data_cache_dir)
+  cache <- .resolve_cache_dir(data_cache_dir)
 
-    .ensure_dir(out)
-    .ensure_dir(cache)
+  .ensure_dir(out)
+  .ensure_dir(cache)
 
-    list(
-        data_root_dir      = root,
-        cellTypeListFile   = pick_in(cellTypeListFile, "cellTypeListFile"),
-        metacell_dir       = pick_in(metacell_dir, "metacell_dir"),
-        age_de_results_dir = if (isTRUE(use_age_de_results)) {
-            pick_in(age_de_results_dir, "age_de_results_dir")
-        } else {
-            NULL
-        },
-        contig_yaml_file   = pick_in(contig_yaml_file, "contig_yaml_file"),
-        reduced_gtf_file   = pick_in(reduced_gtf_file, "reduced_gtf_file"),
-        outDir             = out,
-        data_cache_dir     = cache
-    )
+  list(
+    data_root_dir = root,
+    cellTypeListFile = pick_in(cellTypeListFile, "cellTypeListFile"),
+    metacell_dir = pick_in(metacell_dir, "metacell_dir"),
+    age_de_results_dir = if (isTRUE(use_age_de_results)) {
+      pick_in(age_de_results_dir, "age_de_results_dir")
+    } else {
+      NULL
+    },
+    contig_yaml_file = pick_in(contig_yaml_file, "contig_yaml_file"),
+    reduced_gtf_file = pick_in(reduced_gtf_file, "reduced_gtf_file"),
+    outDir = out,
+    data_cache_dir = cache
+  )
 }
