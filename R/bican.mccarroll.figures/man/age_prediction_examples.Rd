@@ -32,6 +32,10 @@ age_prediction_examples(
 
 \item{age_de_results_dir}{Directory containing age differential expression results.}
 
+\item{use_age_de_results}{Logical; if \code{TRUE}, resolve and use
+\code{age_de_results_dir} when building the model. If \code{FALSE},
+age differential expression results are not used.}
+
 \item{contig_yaml_file}{Path to contig YAML file.}
 
 \item{reduced_gtf_file}{Path to reduced GTF file.}
@@ -41,6 +45,12 @@ age_prediction_examples(
 \item{data_cache_dir}{Directory for cached intermediate data.}
 
 \item{outDir}{Output directory for the generated SVG plots.}
+
+\item{optimize_alpha}{Logical; if \code{TRUE}, the elastic net mixing
+parameter alpha is optimized rather than fixed.}
+
+\item{alpha_fixed}{Numeric elastic net mixing parameter used when
+\code{optimize_alpha} is \code{FALSE}.}
 }
 \description{
 Summarizes age prediction performance across cell types and generates SVG plots

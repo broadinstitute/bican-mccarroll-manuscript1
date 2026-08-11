@@ -27,232 +27,230 @@
 #'   files. If \code{NULL}, resolved via configured cache directory options.
 #'
 #' @export
-plot_de_volcano <- function(
-        de_dir = NULL,
-        gene_to_chr_file = NULL,
-        ct_file = NULL,
-        outDir = NULL,
-        data_cache_dir = NULL) {
+plot_de_volcano <- function(de_dir = NULL,
+                            gene_to_chr_file = NULL,
+                            ct_file = NULL,
+                            outDir = NULL,
+                            data_cache_dir = NULL) {
+  paths <- resolve_de_volcano_paths(
+    de_dir = de_dir,
+    gene_to_chr_file = gene_to_chr_file,
+    ct_file = ct_file,
+    outDir = outDir,
+    data_cache_dir = data_cache_dir
+  )
 
-    paths <- resolve_de_volcano_paths(
-        de_dir = de_dir,
-        gene_to_chr_file = gene_to_chr_file,
-        ct_file = ct_file,
-        outDir = outDir,
-        data_cache_dir = data_cache_dir)
+  region_use <- NA
+  ct <- "microglia"
+  rasterize_points <- TRUE
 
-    region_use <- NA
-    ct <- "microglia"
-    rasterize_points <- TRUE
+  fdr_cutoff <- 0.05
+  abs_log_fc_cutoff <- log2(1.05)
 
-    fdr_cutoff <- 0.05
-    abs_log_fc_cutoff <- log2(1.05)
+  chr_color_map <- c("X   " = "cornflowerblue", "Y   " = "tomato", "autosome   " = "black")
 
-    chr_color_map=c("X   "="cornflowerblue", "Y   "="tomato", "autosome   "="black")
+  ###############################################
+  # Gather the sex DE data averaged across regions
+  ###############################################
+  test <- "female_vs_male"
+  cache_file <- file.path(paths$data_cache_dir, paste0("volcano_", test, "_", ct, ".tsv"))
 
-    ###############################################
-    #Gather the sex DE data averaged across regions
-    ###############################################
-    test <- "female_vs_male"
-    cache_file <- file.path(paths$data_cache_dir, paste0("volcano_", test, "_", ct, ".tsv"))
+  sex_df <- get_or_build_de_volcano_cache(
+    test = test,
+    cache_file = cache_file,
+    de_dir = paths$de_dir,
+    ct_file = paths$ct_file,
+    gene_to_chr_file = paths$gene_to_chr_file
+  )
 
-    sex_df <- get_or_build_de_volcano_cache(
-        test = test,
-        cache_file = cache_file,
-        de_dir = paths$de_dir,
-        ct_file = paths$ct_file,
-        gene_to_chr_file = paths$gene_to_chr_file)
+  test <- "female_vs_male"
+  sex_df <- modify_chromosome_labels(sex_df)
+  sex_df$chr <- paste0(sex_df$chr, "   ")
 
-    test="female_vs_male"
-    sex_df <- modify_chromosome_labels(sex_df)
-    sex_df$chr<- paste0(sex_df$chr, "   ")
+  p1 <- bican.mccarroll.de.analysis::plot_de_volcano_gg(
+    sex_df,
+    cell_type_use = ct,
+    region_use = region_use,
+    fdr_cutoff = fdr_cutoff,
+    abs_log_fc_cutoff = abs_log_fc_cutoff,
+    show_title = FALSE,
+    chr_color_map = chr_color_map
+  )
 
-    p1<-bican.mccarroll.de.analysis::plot_de_volcano_gg(
-        sex_df,
-        cell_type_use = ct,
-        region_use = region_use,
-        fdr_cutoff = fdr_cutoff,
-        abs_log_fc_cutoff = abs_log_fc_cutoff,
-        show_title = FALSE,
-        chr_color_map=chr_color_map)
+  p1 <- add_style_volcano(p1, rasterize_points = rasterize_points)
+  p1 <- p1 + ggplot2::labs(x = "Sex DE log2 fold change")
 
-    p1<-add_style_volcano(p1, rasterize_points = rasterize_points)
-    p1 <- p1 + ggplot2::labs(x = "Sex DE log2 fold change")
+  fileStr <- paste("de_volcano_", test, "_", ct, ".svg", sep = "")
+  out_file <- file.path(paths$outDir, fileStr)
+  ggplot2::ggsave(
+    filename = out_file,
+    plot = p1,
+    width = 6,
+    height = 6,
+    units = "in"
+  )
 
-    fileStr <- paste("de_volcano_", test, "_", ct, ".svg", sep = "")
-    out_file <- file.path(paths$outDir, fileStr)
-    ggplot2::ggsave(
-        filename = out_file,
-        plot = p1,
-        width = 6,
-        height = 6,
-        units = "in"
-    )
+  # Gather the age DE data averaged across regions
+  test <- "age"
+  cache_file <- file.path(paths$data_cache_dir, paste0("volcano_", test, "_", ct, ".tsv"))
+  age_df <- get_or_build_de_volcano_cache(
+    test = test,
+    cache_file = cache_file,
+    de_dir = paths$de_dir,
+    ct_file = paths$ct_file,
+    gene_to_chr_file = paths$gene_to_chr_file
+  )
 
-    #Gather the age DE data averaged across regions
-    test <- "age"
-    cache_file <- file.path(paths$data_cache_dir, paste0("volcano_", test, "_", ct, ".tsv"))
-    age_df <- get_or_build_de_volcano_cache(
-        test = test,
-        cache_file = cache_file,
-        de_dir = paths$de_dir,
-        ct_file = paths$ct_file,
-        gene_to_chr_file = paths$gene_to_chr_file)
+  age_df <- modify_chromosome_labels(age_df)
 
-    age_df=modify_chromosome_labels(age_df)
+  age_df$chr <- paste0(age_df$chr, "   ")
 
-    age_df$chr<- paste0(age_df$chr, "   ")
+  p2 <- bican.mccarroll.de.analysis::plot_de_volcano_gg(
+    age_df,
+    cell_type_use = ct,
+    region_use = region_use,
+    fdr_cutoff = fdr_cutoff,
+    abs_log_fc_cutoff = abs_log_fc_cutoff,
+    show_title = FALSE,
+    chr_color_map = chr_color_map
+  )
 
-    p2<-bican.mccarroll.de.analysis::plot_de_volcano_gg(
-        age_df,
-        cell_type_use = ct,
-        region_use = region_use,
-        fdr_cutoff = fdr_cutoff,
-        abs_log_fc_cutoff = abs_log_fc_cutoff,
-        show_title = FALSE,
-        chr_color_map=chr_color_map)
+  p2 <- add_style_volcano(p2, rasterize_points = rasterize_points)
+  p2 <- p2 + ggplot2::labs(x = "Age DE log2 fold change")
+  fileStr <- paste("de_volcano_", test, "_", ct, ".svg", sep = "")
+  out_file <- file.path(paths$outDir, fileStr)
 
-    p2<-add_style_volcano(p2, rasterize_points = rasterize_points)
-    p2 <- p2 + ggplot2::labs(x = "Age DE log2 fold change")
-    fileStr <- paste("de_volcano_", test, "_", ct, ".svg", sep = "")
-    out_file <- file.path(paths$outDir, fileStr)
+  ggplot2::ggsave(
+    filename = out_file,
+    plot = p2,
+    width = 6,
+    height = 6,
+    units = "in"
+  )
 
-    ggplot2::ggsave(
-        filename = out_file,
-        plot = p2,
-        width = 6,
-        height = 6,
-        units = "in"
-    )
-
-    invisible(out_file)
+  invisible(out_file)
 }
 
 add_style_volcano <- function(p, rasterize_points = FALSE) {
-
-    if (rasterize_points) {
-        for (i in seq_along(p$layers)) {
-            layer <- p$layers[[i]]
-            if (inherits(layer$geom, "GeomPoint")) {
-                p$layers[[i]] <- ggrastr::rasterise(layer, dpi = 600)
-            }
-        }
+  if (rasterize_points) {
+    for (i in seq_along(p$layers)) {
+      layer <- p$layers[[i]]
+      if (inherits(layer$geom, "GeomPoint")) {
+        p$layers[[i]] <- ggrastr::rasterise(layer, dpi = 600)
+      }
     }
+  }
 
-    p <- p +
-        ggplot2::theme_classic() +
-        ggplot2::theme(
-            axis.title.x = ggplot2::element_text(size = ggplot2::rel(2)),
-            axis.title.y = ggplot2::element_text(size = ggplot2::rel(2)),
-            axis.text.x  = ggplot2::element_text(size = ggplot2::rel(2)),
-            axis.text.y  = ggplot2::element_text(size = ggplot2::rel(2)),
-            legend.text  = ggplot2::element_text(size = ggplot2::rel(1.5))
-        ) +
-        ggplot2::theme(
-            legend.position = "top",
-            legend.text = ggplot2::element_text(
-                margin = ggplot2::margin(r = 10)
-            )
-        ) +
-        ggplot2::guides(
-            color = ggplot2::guide_legend(
-                nrow = 1,
-                ncol = 3,
-                override.aes = list(size = 4)
-            )
-        )
+  p <- p +
+    ggplot2::theme_classic() +
+    ggplot2::theme(
+      axis.title.x = ggplot2::element_text(size = ggplot2::rel(2)),
+      axis.title.y = ggplot2::element_text(size = ggplot2::rel(2)),
+      axis.text.x  = ggplot2::element_text(size = ggplot2::rel(2)),
+      axis.text.y  = ggplot2::element_text(size = ggplot2::rel(2)),
+      legend.text  = ggplot2::element_text(size = ggplot2::rel(1.5))
+    ) +
+    ggplot2::theme(
+      legend.position = "top",
+      legend.text = ggplot2::element_text(
+        margin = ggplot2::margin(r = 10)
+      )
+    ) +
+    ggplot2::guides(
+      color = ggplot2::guide_legend(
+        nrow = 1,
+        ncol = 3,
+        override.aes = list(size = 4)
+      )
+    )
 
-    return(p)
+  return(p)
 }
 
-#Drop mitochondria, then map to "X", "Y", or "autosome"
+# Drop mitochondria, then map to "X", "Y", or "autosome"
 modify_chromosome_labels <- function(df) {
-    #explicitly remove mitochondria
-    df=df[df$chr!="M",]
-    #map remaining genes to "X", "Y", or "autosome"
-    df$chr <- ifelse(df$chr %in% c("X", "Y"), df$chr, "autosome")
-    return (df)
+  # explicitly remove mitochondria
+  df <- df[df$chr != "M", ]
+  # map remaining genes to "X", "Y", or "autosome"
+  df$chr <- ifelse(df$chr %in% c("X", "Y"), df$chr, "autosome")
+  return(df)
 }
 
-get_or_build_de_volcano_cache <- function(
-        test,
-        cache_file,
-        de_dir,
-        ct_file,
-        gene_to_chr_file) {
+get_or_build_de_volcano_cache <- function(test,
+                                          cache_file,
+                                          de_dir,
+                                          ct_file,
+                                          gene_to_chr_file) {
+  if (file.exists(cache_file)) {
+    logger::log_info("Using cached data from {cache_file}")
+    df <- data.table::fread(cache_file, header = TRUE, sep = "\t")
+    return(df)
+  }
 
-    if (file.exists(cache_file)) {
-        logger::log_info("Using cached data from {cache_file}")
-        df=data.table::fread(cache_file, header = TRUE, sep = "\t")
-        return (df)
-    }
+  logger::log_info(
+    "No cached data from {cache_file} regenerating data from sources.  This can take a few minutes"
+  )
+  gene_to_chr <- bican.mccarroll.de.analysis::read_gene_to_chr(gene_to_chr_file)
 
-    logger::log_info(
-        "No cached data from {cache_file} regenerating data from sources.  This can take a few minutes"
-    )
-    gene_to_chr <- bican.mccarroll.de.analysis::read_gene_to_chr(gene_to_chr_file)
+  de_dt <- bican.mccarroll.de.analysis::read_de_results(
+    de_dir,
+    test,
+    ct_file,
+    gene_to_chr
+  )
 
-    de_dt <- bican.mccarroll.de.analysis::read_de_results(
-        de_dir,
-        test,
-        ct_file,
-        gene_to_chr)
+  utils::write.table(
+    de_dt,
+    file = cache_file,
+    sep = "\t",
+    row.names = FALSE,
+    col.names = TRUE,
+    quote = FALSE
+  )
 
-    utils::write.table(
-        de_dt,
-        file = cache_file,
-        sep = "\t",
-        row.names = FALSE,
-        col.names = TRUE,
-        quote = FALSE)
-
-    de_dt
+  de_dt
 }
 
-resolve_de_volcano_paths <- function(
-        de_dir = NULL,
-        gene_to_chr_file = NULL,
-        ct_file = NULL,
-        outDir = NULL,
-        data_cache_dir = NULL) {
+resolve_de_volcano_paths <- function(de_dir = NULL,
+                                     gene_to_chr_file = NULL,
+                                     ct_file = NULL,
+                                     outDir = NULL,
+                                     data_cache_dir = NULL) {
+  root <- .resolve_data_root_dir(NULL)
 
-    root <- .resolve_data_root_dir(NULL)
+  rel <- list(
+    de_dir =
+      "differential_expression/results/LEVEL_6/sex_age/cell_type",
+    gene_to_chr_file =
+      "metadata/gene_to_chromosome.txt",
+    ct_file =
+      "differential_expression/metadata/cell_types_for_de_filtering_plot.txt"
+  )
 
-    rel <- list(
-        de_dir =
-            "differential_expression/results/LEVEL_6/sex_age/cell_type",
-
-        gene_to_chr_file =
-            "metadata/gene_to_chromosome.txt",
-
-        ct_file =
-            "differential_expression/metadata/cell_types_for_de_filtering_plot.txt"
-    )
-
-    pick_in <- function(x, key) {
-        if (is.null(x)) {
-            return(file.path(root, rel[[key]]))
-        }
-        .resolve_under_root(root, x)
+  pick_in <- function(x, key) {
+    if (is.null(x)) {
+      return(file.path(root, rel[[key]]))
     }
+    .resolve_under_root(root, x)
+  }
 
-    out <- .resolve_out_dir(outDir)
-    cache <- .resolve_cache_dir(data_cache_dir)
+  out <- .resolve_out_dir(outDir)
+  cache <- .resolve_cache_dir(data_cache_dir)
 
-    #if a cache wasn't set, then use the differential_expression subdirectiory.
-    if (is.null(data_cache_dir)) {
-        cache <- file.path(cache, "differential_expression")
-    }
+  # if a cache wasn't set, then use the differential_expression subdirectiory.
+  if (is.null(data_cache_dir)) {
+    cache <- file.path(cache, "differential_expression")
+  }
 
-    .ensure_dir(out)
-    .ensure_dir(cache)
+  .ensure_dir(out)
+  .ensure_dir(cache)
 
-    list(
-        data_root_dir    = root,
-        de_dir           = pick_in(de_dir, "de_dir"),
-        gene_to_chr_file = pick_in(gene_to_chr_file, "gene_to_chr_file"),
-        ct_file          = pick_in(ct_file, "ct_file"),
-        outDir           = out,
-        data_cache_dir   = cache
-    )
+  list(
+    data_root_dir    = root,
+    de_dir           = pick_in(de_dir, "de_dir"),
+    gene_to_chr_file = pick_in(gene_to_chr_file, "gene_to_chr_file"),
+    ct_file          = pick_in(ct_file, "ct_file"),
+    outDir           = out,
+    data_cache_dir   = cache
+  )
 }
