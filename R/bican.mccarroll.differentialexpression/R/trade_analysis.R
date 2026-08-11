@@ -255,6 +255,9 @@ read_gene_to_chr <- function(gene_to_chr_path) {
     gene_to_chr
 }
 
+# TODO remove more restrictive parsing.
+# The problem here being that we dont get z_std for all runs (possibly due to
+# not including random effects for some more simple data sets)
 format_de_results <- function(
         df,
         gene_to_chr,
@@ -286,6 +289,62 @@ format_de_results <- function(
     dt
 }
 
+format_de_results <- function(df, gene_to_chr) {
+    dt <- data.table::as.data.table(df)
+
+    # for some reason other functions want renamed columns...
+    column_map <- c(
+        interaction = "region",
+        contrast = "test",
+        logFC = "log_fc",
+        P.Value = "p_value"
+    )
+
+    cols_rename <- intersect(names(column_map), names(dt))
+
+    for (old in cols_rename) {
+        new <- column_map[[old]]
+
+        if (new %in% names(dt)) {
+            stop(
+                "Both '", old, "' and '", new,
+                "' are present in df.",
+                call. = FALSE
+            )
+        }
+
+        data.table::setnames(dt, old, new)
+    }
+
+    #used in other sections of the code.
+    required_cols <- c(
+        "gene",
+        "cell_type",
+        "region",
+        "test",
+        "log_fc",
+        "t",
+        "p_value"
+    )
+
+    missing_cols <- setdiff(required_cols, names(dt))
+
+    if (length(missing_cols) > 0L) {
+        stop(
+            "Missing required columns: ",
+            paste(missing_cols, collapse = ", "),
+            call. = FALSE
+        )
+    }
+
+    dt <- merge(gene_to_chr, dt, by = "gene", all.y = TRUE)
+
+    #Make R CMD CHECK Happy
+    log_fc <- log_fc_se <- t <- NULL
+    dt[, log_fc_se := log_fc / t]
+
+    dt
+}
 
 filter_de_by_region <- function(de_dt, regions_use = NULL) {
 
