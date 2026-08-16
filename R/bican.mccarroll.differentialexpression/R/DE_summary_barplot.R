@@ -25,7 +25,9 @@
 #         "GRCh38_ensembl_v43.reduced.gtf.gz"
 #     ),
 #     cellTypeListFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/metadata/cell_types_for_de_filtering_plot.txt",
-#     pdf_output_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/external_comparison_snap200/results/sex_effects_by_chromosome.pdf"
+#     pdf_output_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/external_comparison_snap200/results/sex_effects_by_chromosome.pdf",
+#     svg_barplot_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/external_comparison_snap200/results/sex_effects_by_chromosome_barplot.svg",
+#     svg_density_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/external_comparison_snap200/results/sex_effects_density"
 # )
 
 
@@ -42,6 +44,8 @@
 #'   include.
 #' @param pdf_output_file Optional path for writing the plot to a PDF file.
 #'   When `NULL`, no PDF is written.
+#' @param svg_output_file Optional path for writing the plot to an SVG file.
+#'   When `NULL`, no SVG is written.
 #'
 #' @return A `ggplot` object.
 #'
@@ -50,7 +54,11 @@ barplot_de_results <- function(
         in_dir,
         file_pattern,
         cellTypeListFile = NULL,
-        pdf_output_file = NULL) {
+        pdf_output_file = NULL,
+        svg_output_file = NULL) {
+
+    # Make R CMD CHECK happy
+    . <- adj.P.Val <- logFC <- cell_type <- n_up <- n_down <- direction <- n_genes <- NULL
 
     d <- parse_de_inputs(in_dir, file_pattern, cellTypeListFile)
 
@@ -103,47 +111,195 @@ barplot_de_results <- function(
         stop("Expected exactly one unique contrast value in d.")
     }
 
-    p <- ggplot(
-        de_counts_long,
-        aes(
-            x = cell_type_label,
+    y_max <- max(de_counts_long$n_genes, na.rm = TRUE)
+
+    if (!is.finite(y_max) || y_max <= 0) {
+        y_max <- 1
+    }
+
+    outlier_region <- find_cell_type_outlier(de_counts_long)
+
+    other_data <- de_counts_long[
+        de_counts_long$interaction != outlier_region,
+        ,
+        drop = FALSE
+    ]
+
+    outlier_data <- de_counts_long[
+        de_counts_long$interaction == outlier_region,
+        ,
+        drop = FALSE
+    ]
+
+    p_other <- ggplot2::ggplot(
+        other_data,
+        ggplot2::aes(
+            x = cell_type,
             y = n_genes,
             fill = direction
         )
     ) +
-        geom_col(
-            position = position_dodge(width = 0.8),
+        ggplot2::geom_col(
+            position = ggplot2::position_dodge(width = 0.8),
             width = 0.7
         ) +
-        facet_wrap(
+        ggplot2::facet_wrap(
             ~ interaction,
             ncol = 2
         ) +
-        labs(
+        ggplot2::scale_x_discrete(
+            labels = function(x) gsub("_", " ", x, fixed = TRUE)
+        ) +
+        ggplot2::scale_y_continuous(
+            limits = c(0, y_max)
+        ) +
+        ggplot2::labs(
             title = contrast_title,
             x = NULL,
-            y = "Number of genes with adjusted P-value < 0.05",
+            y = NULL,
             fill = "Direction"
         ) +
-        theme_bw() +
-        theme(
-            plot.title = element_text(hjust = 0.5),
-            axis.text.x = element_text(
+        ggplot2::theme_bw() +
+        ggplot2::theme(
+            plot.title = ggplot2::element_text(hjust = 0.5),
+            axis.text.x = ggplot2::element_text(
                 angle = 45,
                 hjust = 1
             ),
             legend.position = "top"
         )
 
-    if (!is.null(pdf_output_file)) {
-        ggplot2::ggsave(
-            filename = pdf_output_file,
-            plot = p
+    p_outlier <- ggplot2::ggplot(
+        outlier_data,
+        ggplot2::aes(
+            x = cell_type,
+            y = n_genes,
+            fill = direction
         )
+    ) +
+        ggplot2::geom_col(
+            position = ggplot2::position_dodge(width = 0.8),
+            width = 0.7
+        ) +
+        ggplot2::facet_wrap(
+            ~ interaction
+        ) +
+        ggplot2::scale_x_discrete(
+            labels = function(x) gsub("_", " ", x, fixed = TRUE)
+        ) +
+        ggplot2::scale_y_continuous(
+            limits = c(0, y_max)
+        ) +
+        ggplot2::labs(
+            x = NULL,
+            y = NULL
+        ) +
+        ggplot2::theme_bw() +
+        ggplot2::theme(
+            axis.text.x = ggplot2::element_text(
+                angle = 45,
+                hjust = 1
+            ),
+            legend.position = "none"
+        )
+
+    p_panels <- cowplot::plot_grid(
+        p_other,
+        p_outlier,
+        ncol = 1,
+        rel_heights = c(2, 1),
+        align = "v",
+        axis = "lr"
+    )
+
+    .save_de_plot(
+        p_panels,
+        pdf_output_file = pdf_output_file,
+        svg_output_file = svg_output_file
+    )
+
+    p_panels
+}
+
+#' Write a plot to PDF and/or SVG
+#'
+#' Shared output helper used across this file's plotting functions. Either
+#' path may be \code{NULL}, in which case that format is skipped, so callers
+#' can support PDF, SVG, or both from the same pair of parameters.
+#'
+#' @param plot A `ggplot` object.
+#' @param pdf_output_file Optional path for writing the plot to a PDF file.
+#' @param svg_output_file Optional path for writing the plot to an SVG file.
+#' @param width Optional plot width passed to `ggplot2::ggsave()`.
+#' @param height Optional plot height passed to `ggplot2::ggsave()`.
+#'
+#' @return Invisibly returns `NULL`.
+.save_de_plot <- function(
+        plot,
+        pdf_output_file = NULL,
+        svg_output_file = NULL,
+        width = NULL,
+        height = NULL) {
+
+    save_one <- function(path) {
+        output_dir <- dirname(path)
+        if (!dir.exists(output_dir)) {
+            dir.create(output_dir, recursive = TRUE)
+        }
+
+        args <- list(filename = path, plot = plot)
+        if (!is.null(width)) args$width <- width
+        if (!is.null(height)) args$height <- height
+
+        do.call(ggplot2::ggsave, args)
     }
 
-    p
+    if (!is.null(pdf_output_file)) save_one(pdf_output_file)
+    if (!is.null(svg_output_file)) save_one(svg_output_file)
+
+    invisible(NULL)
 }
+
+
+.sanitize_filename <- function(x) {
+    gsub("[^A-Za-z0-9_.-]+", "_", x)
+}
+
+
+#find the region that is the outlier in cell type usage.  Usually DFC.
+find_cell_type_outlier <- function(data) {
+    cell_types <- split(
+        as.character(data$cell_type),
+        as.character(data$interaction)
+    )
+    cell_types <- lapply(cell_types, unique)
+
+    regions <- names(cell_types)
+    distances <- matrix(
+        0,
+        nrow = length(regions),
+        ncol = length(regions),
+        dimnames = list(regions, regions)
+    )
+
+    for (i in seq_along(regions)) {
+        for (j in seq_along(regions)) {
+            shared <- length(intersect(
+                cell_types[[i]],
+                cell_types[[j]]
+            ))
+            total <- length(union(
+                cell_types[[i]],
+                cell_types[[j]]
+            ))
+
+            distances[i, j] <- 1 - shared / total
+        }
+    }
+
+    regions[which.max(rowMeans(distances))]
+}
+
 
 #######################################################
 # PLOTS FOR SEX EFFECTS PARTITIONED BY X/Y vs Autosome
@@ -162,7 +318,8 @@ annotate_de_chromosome_group <- function(
         contig_yaml_file,
         reduced_gtf_file) {
 
-    gene <- chr <- annotationType <- gene_name <- chromosome_group <- NULL
+    # Make R CMD CHECK happy
+    . <- gene <- chr <- annotationType <- gene_name <- chromosome_group <- i.chromosome_group <- NULL
 
     data.table::setDT(d)
 
@@ -221,7 +378,8 @@ annotate_de_chromosome_group <- function(
 #'   chromosome group.
 make_sex_de_chromosome_counts <- function(d) {
 
-    cell_type <- interaction <- chromosome_group <- n_genes <- NULL
+    # Make R CMD CHECK happy
+    . <- cell_type <- interaction <- chromosome_group <- n_genes <- NULL
 
     observed_counts <- d[
         ,
@@ -290,6 +448,9 @@ plot_sex_de_chromosome_counts <- function(
         title,
         alpha = 0.05) {
 
+    # Make R CMD CHECK happy
+    cell_type_label <- cell_type <- n_genes <- chromosome_group <- NULL
+
     #to make the cell type labels look nicer.
     counts[, cell_type_label := gsub("_", " ", cell_type)]
 
@@ -347,7 +508,8 @@ plot_sex_de_chromosome_density <- function(
         title,
         alpha = 0.05) {
 
-    interaction <- cell_type <- chromosome_group <- logFC <- NULL
+    # Make R CMD CHECK happy
+    interaction <- cell_type <- chromosome_group <- logFC <- cell_type_label <- NULL
 
     plot_data <- d[
         interaction == interaction_name
@@ -404,15 +566,30 @@ plot_sex_de_chromosome_density <- function(
 #' Plot significant sex effects by chromosome group
 #'
 #' Parses differential-expression results, annotates genes as autosomal or
-#' X/Y, and writes count and signed-effect density plots to a PDF.
+#' X/Y, and writes count and signed-effect density plots. Three independent
+#' output paths are supported, each defaulting to \code{NULL} (skipped):
+#' a multi-page \code{pdf_output_file} (the summary count plot followed by
+#' one density plot per region, as before), a single \code{svg_barplot_file}
+#' holding just the summary count plot, and \code{svg_density_dir}, a
+#' directory that receives one signed-effect density SVG per region (all
+#' cell types faceted within a single plot, as in the PDF pages), named
+#' \code{<svg_density_prefix><region>.svg}.
 #'
 #' @param in_dir Directory containing differential-expression result files.
 #' @param file_pattern Pattern used by \code{parse_de_inputs()}.
 #' @param contig_yaml_file Path to the contig classification YAML file.
 #' @param reduced_gtf_file Path to the reduced GTF-like annotation file.
-#' @param pdf_output_file Path for the output PDF.
 #' @param cellTypeListFile Optional file containing cell types to include.
 #' @param alpha Adjusted P-value threshold.
+#' @param pdf_output_file Optional path for the output multi-page PDF. When
+#'   \code{NULL}, no PDF is written.
+#' @param svg_barplot_file Optional path for writing the summary count plot
+#'   to an SVG file. When \code{NULL}, no barplot SVG is written.
+#' @param svg_density_dir Optional directory for writing one signed-effect
+#'   density SVG per region. When \code{NULL}, no density SVGs are
+#'   written.
+#' @param svg_density_prefix Filename prefix used for each density SVG
+#'   written to \code{svg_density_dir}.
 #'
 #' @return Invisibly returns the significant results, count data, and plots.
 #' @export
@@ -421,9 +598,12 @@ plot_sex_de_by_chromosome <- function(
         file_pattern,
         contig_yaml_file,
         reduced_gtf_file,
-        pdf_output_file,
         cellTypeListFile = NULL,
-        alpha = 0.05) {
+        alpha = 0.05,
+        pdf_output_file = NULL,
+        svg_barplot_file = NULL,
+        svg_density_dir = NULL,
+        svg_density_prefix = "") {
 
     adj.P.Val <- logFC <- chromosome_group <- contrast <- interaction <- NULL
 
@@ -483,31 +663,69 @@ plot_sex_de_by_chromosome <- function(
 
     names(density_plots) <- interaction_names
 
-    output_dir <- dirname(pdf_output_file)
+    if (!is.null(pdf_output_file)) {
+        output_dir <- dirname(pdf_output_file)
 
-    if (!dir.exists(output_dir)) {
-        dir.create(
-            output_dir,
-            recursive = TRUE
+        if (!dir.exists(output_dir)) {
+            dir.create(
+                output_dir,
+                recursive = TRUE
+            )
+        }
+
+        grDevices::pdf(
+            pdf_output_file,
+            width = 11,
+            height = 8.5,
+            onefile = TRUE
+        )
+
+        on.exit(
+            grDevices::dev.off(),
+            add = TRUE
+        )
+
+        print(count_plot)
+
+        for (p in density_plots) {
+            print(p)
+        }
+    }
+
+    if (!is.null(svg_barplot_file)) {
+        .save_de_plot(
+            count_plot,
+            svg_output_file = svg_barplot_file,
+            width = 11,
+            height = 8.5
         )
     }
 
-    grDevices::pdf(
-        pdf_output_file,
-        width = 11,
-        height = 8.5,
-        onefile = TRUE
-    )
+    if (!is.null(svg_density_dir)) {
+        if (!dir.exists(svg_density_dir)) {
+            dir.create(
+                svg_density_dir,
+                recursive = TRUE
+            )
+        }
 
-    on.exit(
-        grDevices::dev.off(),
-        add = TRUE
-    )
+        for (interaction_name in interaction_names) {
+            out_file <- file.path(
+                svg_density_dir,
+                paste0(
+                    svg_density_prefix,
+                    .sanitize_filename(interaction_name),
+                    ".svg"
+                )
+            )
 
-    print(count_plot)
-
-    for (p in density_plots) {
-        print(p)
+            ggplot2::ggsave(
+                filename = out_file,
+                plot = density_plots[[interaction_name]],
+                width = 11,
+                height = 8.5
+            )
+        }
     }
 
     invisible(

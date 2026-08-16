@@ -1,4 +1,4 @@
-# Example call ----
+# Example call (explicit paths) ----
 # estimate_donor_superpopulation(
 #     kgp_donors_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/ancestry_pca/inputs/1kg_donors.txt",
 #     kgp_ancestry_file = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/ancestry_pca/inputs/kgp_ancestry.txt",
@@ -11,6 +11,18 @@
 #     n_pcs = 5,
 #     k_neighbors = 15
 # )
+
+# Example call (configured paths) ----
+# source("R/paths.R")
+# options(
+#     bican.mccarroll.figures.data_root_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis",
+#     bican.mccarroll.figures.out_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository",
+#     bican.mccarroll.figures.cache_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository/data_cache"
+# )
+# plot_ancestry_pca()
 
 #' Estimate donor superpopulation labels from PCA coordinates
 #'
@@ -55,51 +67,18 @@ estimate_donor_superpopulation <- function(
   n_pcs = 5,
   k_neighbors = 15
 ) {
-  # Make R CMD CHECK Happy
-  project <- donor_external_id <- predicted_superpop <- NULL
-  superpop_score <- superpop_margin <- NULL
-  AFR_score <- AMR_score <- EAS_score <- EUR_score <- SAS_score <- NULL
-
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
-  pca_df <- .gather_ancestry_data(
+  pca_df <- .build_superpopulation_pca_df(
     kgp_donors_file,
     kgp_ancestry_file,
-    pca_files
-  )
-
-  if (!is.null(bican_donors_file)) {
-    bican_donors <- utils::read.table(bican_donors_file)$V1
-
-    pca_df <- pca_df |>
-      dplyr::filter(
-        project == "1000 Genomes" |
-          donor_external_id %in% bican_donors
-      )
-  }
-
-  pca_df <- .classify_superpopulations(
-    pca_df,
+    pca_files,
+    bican_donors_file,
     n_pcs,
     k_neighbors
   )
 
-  pc_cols <- paste0("PC", seq_len(n_pcs))
-
-  bican_predictions <- pca_df |>
-    dplyr::filter(project == "BICAN") |>
-    dplyr::select(
-      donor_external_id,
-      dplyr::all_of(pc_cols),
-      predicted_superpop,
-      superpop_score,
-      superpop_margin,
-      AFR_score,
-      AMR_score,
-      EAS_score,
-      EUR_score,
-      SAS_score
-    )
+  bican_predictions <- .bican_superpopulation_predictions(pca_df, n_pcs)
 
   utils::write.table(
     bican_predictions,
@@ -125,6 +104,272 @@ estimate_donor_superpopulation <- function(
   print(table(bican_predictions$predicted_superpop))
 
   invisible(bican_predictions)
+}
+
+
+#' Generate the ancestry PCA superpopulation figure using configured paths
+#'
+#' Options-driven wrapper around \code{estimate_donor_superpopulation()}. All
+#' path arguments default to \code{NULL}, in which case they are resolved
+#' using \code{resolve_ancestry_pca_paths()} relative to the configured data
+#' root, output, and cache directory options (see \code{\link{get_data_root_dir}},
+#' \code{\link{get_out_dir}}, \code{\link{get_cache_dir}}).
+#'
+#' The classified PCA table (1000 Genomes reference samples plus BICAN
+#' donors) is cached as a TSV file under the resolved cache directory so
+#' that repeated calls skip the k-nearest-neighbor classification. Changing
+#' \code{n_pcs} or \code{k_neighbors} does not invalidate this cache; delete
+#' \code{ancestry_pca_classified.tsv} from the cache directory to force
+#' recomputation.
+#'
+#' @param kgp_donors_file Path to a file containing the 1000 Genomes donor
+#'   IDs. If \code{NULL}, resolved under the data root.
+#' @param kgp_ancestry_file Path to a file containing 1000 Genomes donor IDs
+#'   and their superpopulation labels. If \code{NULL}, resolved under the
+#'   data root.
+#' @param pca_files Character vector of paths to SmartPCA \code{.evec} files.
+#'   If \code{NULL}, resolved under the data root.
+#' @param bican_donors_file Optional path to a file containing BICAN donor IDs
+#'   to retain. If \code{NULL}, resolved under the data root.
+#' @param outDir Output directory for the generated SVG. If \code{NULL},
+#'   resolved via configured output directory options.
+#' @param data_cache_dir Directory used to cache the classified PCA table and
+#'   BICAN predictions table. If \code{NULL}, resolved via configured cache
+#'   directory options.
+#' @param n_pcs Number of principal components to use when calculating nearest
+#'   neighbors.
+#' @param k_neighbors Number of nearest 1000 Genomes reference samples used
+#'   for classification.
+#'
+#' @return Invisibly returns a data frame containing the BICAN donor
+#'   predictions and population scores.
+#'
+#' @export
+plot_ancestry_pca <- function(
+  kgp_donors_file = NULL,
+  kgp_ancestry_file = NULL,
+  pca_files = NULL,
+  bican_donors_file = NULL,
+  outDir = NULL,
+  data_cache_dir = NULL,
+  n_pcs = 5,
+  k_neighbors = 15
+) {
+  paths <- resolve_ancestry_pca_paths(
+    kgp_donors_file = kgp_donors_file,
+    kgp_ancestry_file = kgp_ancestry_file,
+    pca_files = pca_files,
+    bican_donors_file = bican_donors_file,
+    outDir = outDir,
+    data_cache_dir = data_cache_dir
+  )
+
+  pca_df <- get_or_build_ancestry_pca_cache(paths, n_pcs, k_neighbors)
+
+  bican_predictions <- .bican_superpopulation_predictions(pca_df, n_pcs)
+
+  utils::write.table(
+    bican_predictions,
+    file.path(paths$data_cache_dir, "bican_superpopulation_predictions.txt"),
+    quote = FALSE,
+    row.names = FALSE,
+    sep = "\t"
+  )
+
+  plot <- .plot_superpopulations(
+    pca_df,
+    n_pcs,
+    k_neighbors
+  )
+
+  ggplot2::ggsave(
+    file.path(paths$outDir, "ancestry_pca.svg"),
+    plot = plot,
+    width = 8,
+    height = 6
+  )
+
+  print(table(bican_predictions$predicted_superpop))
+
+  invisible(bican_predictions)
+}
+
+
+.build_superpopulation_pca_df <- function(
+  kgp_donors_file,
+  kgp_ancestry_file,
+  pca_files,
+  bican_donors_file,
+  n_pcs,
+  k_neighbors
+) {
+  # Make R CMD CHECK Happy
+  project <- donor_external_id <- NULL
+
+  pca_df <- .gather_ancestry_data(
+    kgp_donors_file,
+    kgp_ancestry_file,
+    pca_files
+  )
+
+  if (!is.null(bican_donors_file)) {
+    bican_donors <- utils::read.table(bican_donors_file)$V1
+
+    pca_df <- pca_df |>
+      dplyr::filter(
+        project == "1000 Genomes" |
+          donor_external_id %in% bican_donors
+      )
+  }
+
+  .classify_superpopulations(
+    pca_df,
+    n_pcs,
+    k_neighbors
+  )
+}
+
+
+.bican_superpopulation_predictions <- function(pca_df, n_pcs) {
+  # Make R CMD CHECK Happy
+  project <- donor_external_id <- predicted_superpop <- NULL
+  superpop_score <- superpop_margin <- NULL
+  AFR_score <- AMR_score <- EAS_score <- EUR_score <- SAS_score <- NULL
+
+  pc_cols <- paste0("PC", seq_len(n_pcs))
+
+  pca_df |>
+    dplyr::filter(project == "BICAN") |>
+    dplyr::select(
+      donor_external_id,
+      dplyr::all_of(pc_cols),
+      predicted_superpop,
+      superpop_score,
+      superpop_margin,
+      AFR_score,
+      AMR_score,
+      EAS_score,
+      EUR_score,
+      SAS_score
+    )
+}
+
+
+resolve_ancestry_pca_paths <- function(
+  kgp_donors_file = NULL,
+  kgp_ancestry_file = NULL,
+  pca_files = NULL,
+  bican_donors_file = NULL,
+  outDir = NULL,
+  data_cache_dir = NULL
+) {
+  root <- .resolve_data_root_dir(NULL)
+
+  rel <- list(
+    kgp_donors_file =
+      "ancestry_pca/inputs/1kg_donors.txt",
+    kgp_ancestry_file =
+      "ancestry_pca/inputs/kgp_ancestry.txt",
+    pca_files = c(
+      "ancestry_pca/inputs/smartpca_2025-01-06.evec",
+      "ancestry_pca/inputs/smartpca_2025-03-31.evec"
+    ),
+    bican_donors_file =
+      "metadata/donor_list_178.txt"
+  )
+
+  pick_in <- function(x, key) {
+    if (is.null(x)) {
+      return(file.path(root, rel[[key]]))
+    }
+    .resolve_under_root(root, x)
+  }
+
+  if (is.null(pca_files)) {
+    pca_files <- file.path(root, rel[["pca_files"]])
+  } else {
+    pca_files <- vapply(
+      pca_files,
+      function(p) .resolve_under_root(root, p),
+      character(1),
+      USE.NAMES = FALSE
+    )
+  }
+
+  out <- .resolve_out_dir(outDir)
+  cache <- .resolve_cache_dir(data_cache_dir)
+
+  # if a cache wasn't set, then use the ancestry_pca subdirectory.
+  if (is.null(data_cache_dir)) {
+    cache <- file.path(cache, "ancestry_pca")
+  }
+
+  .ensure_dir(out)
+  .ensure_dir(cache)
+
+  list(
+    data_root_dir      = root,
+    kgp_donors_file    = pick_in(kgp_donors_file, "kgp_donors_file"),
+    kgp_ancestry_file  = pick_in(kgp_ancestry_file, "kgp_ancestry_file"),
+    pca_files          = pca_files,
+    bican_donors_file  = pick_in(bican_donors_file, "bican_donors_file"),
+    outDir             = out,
+    data_cache_dir     = cache
+  )
+}
+
+
+get_or_build_ancestry_pca_cache <- function(paths, n_pcs, k_neighbors) {
+  # Make R CMD CHECK Happy
+  predicted_superpop <- NULL
+
+  superpop_levels <- c("AFR", "AMR", "EAS", "EUR", "SAS")
+  cache_file <- file.path(
+    paths$data_cache_dir,
+    "ancestry_pca_classified.tsv"
+  )
+
+  if (file.exists(cache_file)) {
+    logger::log_info("Using cached data from {cache_file}")
+    pca_df <- as.data.frame(
+      data.table::fread(
+        cache_file,
+        header = TRUE,
+        sep = "\t",
+        na.strings = "NA"
+      )
+    )
+    pca_df$predicted_superpop <- factor(
+      pca_df$predicted_superpop,
+      levels = superpop_levels
+    )
+    return(pca_df)
+  }
+
+  logger::log_info(
+    "No cached data from {cache_file} regenerating data from sources.  This can take a few minutes"
+  )
+
+  pca_df <- .build_superpopulation_pca_df(
+    paths$kgp_donors_file,
+    paths$kgp_ancestry_file,
+    paths$pca_files,
+    paths$bican_donors_file,
+    n_pcs,
+    k_neighbors
+  )
+
+  utils::write.table(
+    pca_df,
+    file = cache_file,
+    sep = "\t",
+    row.names = FALSE,
+    col.names = TRUE,
+    quote = FALSE,
+    na = "NA"
+  )
+
+  pca_df
 }
 
 

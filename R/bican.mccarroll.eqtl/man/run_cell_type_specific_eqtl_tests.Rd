@@ -13,7 +13,9 @@ run_cell_type_specific_eqtl_tests(
   results_outfile,
   summary_outfile = NULL,
   comparators_outfile = NULL,
-  outPDF
+  outPDF,
+  svg_dir = NULL,
+  svg_prefix = NULL
 )
 }
 \arguments{
@@ -44,6 +46,15 @@ and the number of genes that are testable pass/fail the FDR threshold of 0.05.}
 or TSV.GZ file. Existing files are overwritten.}
 
 \item{outPDF}{File path for an output PDF}
+
+\item{svg_dir}{Optional directory in which to also save the first two
+summary pages of the PDF report (fraction of significant genes by
+out-group cell-type count, and in-group versus pooled out-group slopes)
+as individual SVG files. If \code{NULL} (the default), only the combined
+PDF is written.}
+
+\item{svg_prefix}{Filename prefix used for the SVG files when
+\code{svg_dir} is supplied.}
 }
 \value{
 Invisibly returns a list with `results` and `comparators` data.frames.

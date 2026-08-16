@@ -10,7 +10,7 @@ run_trade(de_dt)
 \item{de_dt}{A \code{data.table} of formatted DE results.}
 }
 \value{
-A \code{data.table} with one row per test × cell type × region,
+A \code{data.table} with one row per test x cell type x region,
   containing TRADE summary statistics.
 }
 \description{
