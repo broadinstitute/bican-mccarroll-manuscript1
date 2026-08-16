@@ -536,6 +536,9 @@ write_sex_chromosome_leakage <- function(df, file) {
 ###################################################################
 
 plot_leakage_numerator_denominator <- function(leakage_df) {
+    # Make R CMD CHECK happy
+    role <- value <- marker <- leakage_ratio <- contrast <- NULL
+
     stopifnot(is.data.frame(leakage_df))
 
     required_cols <- c(

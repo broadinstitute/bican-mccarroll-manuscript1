@@ -1,0 +1,4 @@
+These scripts cover some more ad-hoc R code that was written to transform data from other papers into standard formats that we use.  For example, there are scripts to convert a few external labs differential expression results from excel spreadsheets to standard limma/voom style otputs that contain one contrast / cell type / region.
+
+Gabitto 2024 is a bit more complex because the data is stored in > 500 sheets inside a 3.4g excel table which mnay machines can't seem to access, so we used a more careful specification and agentic engineering to write that code.
+

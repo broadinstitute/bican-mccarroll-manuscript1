@@ -8,7 +8,8 @@ barplot_de_results(
   in_dir,
   file_pattern,
   cellTypeListFile = NULL,
-  pdf_output_file = NULL
+  pdf_output_file = NULL,
+  svg_output_file = NULL
 )
 }
 \arguments{
@@ -22,6 +23,9 @@ include.}
 
 \item{pdf_output_file}{Optional path for writing the plot to a PDF file.
 When `NULL`, no PDF is written.}
+
+\item{svg_output_file}{Optional path for writing the plot to an SVG file.
+When `NULL`, no SVG is written.}
 }
 \value{
 A `ggplot` object.

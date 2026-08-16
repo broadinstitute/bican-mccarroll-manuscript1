@@ -9,7 +9,11 @@ trade_heatmap(
   cell_types_use = NULL,
   region_order = NULL,
   value_var = "trade_twi",
-  na_region_label = "all"
+  na_region_label = "all",
+  display_numbers = FALSE,
+  lower_percentile = 0,
+  upper_percentile = 100,
+  n_digits = 2
 )
 }
 \arguments{
@@ -22,11 +26,26 @@ trade_heatmap(
 \item{value_var}{Character scalar naming the TRADE statistic to plot.}
 
 \item{na_region_label}{Label for region == NA.}
+
+\item{display_numbers}{Logical scalar. If TRUE, display scaled numeric values
+in the heatmap cells.}
+
+\item{lower_percentile}{Numeric scalar specifying the lower percentile used
+as the zero point for displayed values.}
+
+\item{upper_percentile}{Numeric scalar specifying the upper percentile used
+as the one point for displayed values.}
+
+\item{n_digits}{Non-negative integer specifying the number of decimal places
+shown for displayed values.}
 }
 \value{
 A ggplot object.
 }
 \description{
 Row ordering matches the legacy pheatmap implementation: the first row
-of the wide table appears at the top of the heatmap.
+of the wide table appears at the top of the heatmap. Numeric labels can
+optionally show TRADE values rescaled to a 0-1 range using percentile-based
+lower and upper bounds. Heatmap colors continue to represent the unscaled
+TRADE values.
 }

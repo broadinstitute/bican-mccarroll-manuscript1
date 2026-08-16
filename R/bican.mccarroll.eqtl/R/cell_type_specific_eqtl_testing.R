@@ -27,6 +27,13 @@ library (data.table)
 #'   or TSV.GZ file. Existing files are overwritten.
 #'
 #' @param outPDF File path for an output PDF
+#' @param svg_dir Optional directory in which to also save the first two
+#'   summary pages of the PDF report (fraction of significant genes by
+#'   out-group cell-type count, and in-group versus pooled out-group slopes)
+#'   as individual SVG files. If \code{NULL} (the default), only the combined
+#'   PDF is written.
+#' @param svg_prefix Filename prefix used for the SVG files when
+#'   \code{svg_dir} is supplied.
 #'
 #' @return Invisibly returns a list with `results` and `comparators` data.frames.
 #' @export
@@ -39,7 +46,9 @@ run_cell_type_specific_eqtl_tests <- function(
     results_outfile,
     summary_outfile=NULL,
     comparators_outfile=NULL,
-    outPDF) {
+    outPDF,
+    svg_dir=NULL,
+    svg_prefix=NULL) {
 
     # Make R CMD CHECK happy
     . <- gene <- variant_id <- cluster <- FDR <- p_value <- NULL
@@ -147,7 +156,10 @@ run_cell_type_specific_eqtl_tests <- function(
     #plot results
     if (!is.null(outPDF)) {
         logger::log_info("Writing PDF Report")
-        write_eqtl_summary_pdf(results, eqtl_data, outfile=outPDF, show_interaction=T)
+        write_eqtl_summary_pdf(
+            results, eqtl_data, outfile=outPDF, show_interaction=T,
+            svg_dir=svg_dir, svg_prefix=svg_prefix
+        )
     }
 
     logger::log_info("Finished Analysis")
@@ -1799,6 +1811,21 @@ plot_gene_tpm_by_group <- function(
         )
 }
 
+#' Fraction of significant eGenes by out-group cell-type count
+#'
+#' Summarizes, for each gene-variant pair, whether the interaction test
+#' reached significance, stratified by how many out-group cell types were
+#' available for that pair. Genes with no out-group cell types (expression
+#' private to the in-group) are shown separately as not testable.
+#'
+#' @param results Results data.frame or data.table produced by
+#'   \code{\link{run_cell_type_specific_eqtl_tests}}, containing at least
+#'   \code{gene}, \code{n_comparator_cell_types}, and \code{FDR}.
+#' @param fdr_cutoff Adjusted P-value threshold used to call an interaction
+#'   test significant.
+#'
+#' @return A ggplot object, or \code{NULL} if there is no plottable data.
+#' @export
 plot_fdr_fraction_by_outgroup_count <- function(
         results,
         fdr_cutoff = 0.05
@@ -2181,6 +2208,24 @@ plot_fdr_fraction_by_outgroup_count <- function(
         )
 }
 
+#' In-group versus pooled out-group genotype effects
+#'
+#' Scatter plot comparing, for each gene-variant pair with at least one
+#' out-group cell type, the in-group genotype slope against the pooled
+#' out-group genotype slope, colored by interaction-test significance.
+#'
+#' @param results Results data.frame or data.table produced by
+#'   \code{\link{run_cell_type_specific_eqtl_tests}}, containing at least
+#'   \code{gene}, \code{pooled_out_group_slope}, \code{in_group_slope},
+#'   \code{FDR}, and \code{n_comparator_cell_types}.
+#' @param fdr_cutoff Adjusted P-value threshold used to call an interaction
+#'   test significant.
+#' @param show_title If \code{TRUE}, add a descriptive plot title.
+#' @param label_significant If \code{TRUE}, label significant points with
+#'   the gene (and variant, if present) using \code{ggrepel}.
+#'
+#' @return A ggplot object, or \code{NULL} if there is no plottable data.
+#' @export
 plot_in_vs_out_group_slopes <- function(
         results,
         fdr_cutoff = 0.05,
@@ -2432,7 +2477,9 @@ write_eqtl_summary_pdf <- function(
         show_interaction=FALSE,
         outfile,
         width = 11,
-        height = 8.5
+        height = 8.5,
+        svg_dir = NULL,
+        svg_prefix = NULL
 ) {
     if (!requireNamespace("cowplot", quietly = TRUE)) {
         stop("Package 'cowplot' is required.", call. = FALSE)
@@ -2444,6 +2491,16 @@ write_eqtl_summary_pdf <- function(
             dirname(outfile),
             call. = FALSE
         )
+    }
+
+    if (!is.null(svg_dir)) {
+        if (!requireNamespace("svglite", quietly = TRUE)) {
+            stop("Package 'svglite' is required.", call. = FALSE)
+        }
+        if (is.null(svg_prefix) || !nzchar(svg_prefix)) {
+            stop("svg_prefix must be supplied when svg_dir is not NULL.", call. = FALSE)
+        }
+        dir.create(svg_dir, recursive = TRUE, showWarnings = FALSE)
     }
 
     results <- data.table::as.data.table(results)
@@ -2467,6 +2524,13 @@ write_eqtl_summary_pdf <- function(
 
     if (!is.null(p_fdr)) {
         print(p_fdr)
+
+        if (!is.null(svg_dir)) {
+            ggplot2::ggsave(
+                file.path(svg_dir, paste0(svg_prefix, ".fdr_fraction_by_outgroup.svg")),
+                plot = p_fdr, device = svglite::svglite, width = 10, height = 6
+            )
+        }
     }
 
     # Summary page 2: in-group versus pooled out-group slopes.
@@ -2476,6 +2540,13 @@ write_eqtl_summary_pdf <- function(
 
     if (!is.null(p_slopes)) {
         print(p_slopes)
+
+        if (!is.null(svg_dir)) {
+            ggplot2::ggsave(
+                file.path(svg_dir, paste0(svg_prefix, ".in_vs_out_group_slopes.svg")),
+                plot = p_slopes, device = svglite::svglite, width = 7, height = 7
+            )
+        }
     }
 
     # One page per successfully analyzed gene-variant pair.

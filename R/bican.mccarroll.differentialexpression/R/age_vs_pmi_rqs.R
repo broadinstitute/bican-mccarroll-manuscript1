@@ -51,7 +51,7 @@ plot_nested_models<-function (tested_trait="RQS", in_dir_full_model, in_dir_part
 
 plot_age_vs_pmi_rqs<-function (in_dir, cellTypeListFile, out_file) {
 
-    age=parse_de_inputs(in_dir_age, file_pattern="age_DE", cellTypeListFile)
+    age=parse_de_inputs(in_dir, file_pattern="age_DE", cellTypeListFile)
     pmi=parse_de_inputs(in_dir, file_pattern="pmi_hr_DE", cellTypeListFile)
     rqs=parse_de_inputs(in_dir, file_pattern="RQS_DE", cellTypeListFile)
 
@@ -150,6 +150,9 @@ plot_effect_comparison <- function(
         y_label,
         cell_type_value,
         region_value) {
+
+    # Make R CMD CHECK happy
+    cell_type <- gene <- logFC <- x_effect <- y_effect <- NULL
 
     x <- data.table::as.data.table(x)
     y <- data.table::as.data.table(y)
@@ -281,6 +284,9 @@ write_effect_comparison_pdf <- function(
         rqs,
         output_file = "age_pmi_rqs_effect_comparisons.pdf") {
 
+    # Make R CMD CHECK happy
+    . <- cell_type <- NULL
+
     age <- as.data.table(age)
     pmi <- as.data.table(pmi)
     rqs <- as.data.table(rqs)
@@ -390,6 +396,9 @@ plot_age_model_comparison_page <- function(
         cell_type_value,
         tested_trait="RQS") {
 
+    # Make R CMD CHECK happy
+    cell_type <- NULL
+
     full_model_de <- data.table::as.data.table(full_model_de)
     partial_model_de <- data.table::as.data.table(partial_model_de)
 
@@ -474,6 +483,9 @@ write_age_model_comparison_pdf <- function(
         partial_model_de,
         output_file = "age_effects_with_without_rqs.pdf") {
 
+    # Make R CMD CHECK happy
+    cell_type <- NULL
+
     full_model_de <- data.table::as.data.table(full_model_de)
     partial_model_de <- data.table::as.data.table(partial_model_de)
 
@@ -537,6 +549,9 @@ write_age_model_comparison_pdf <- function(
 }
 
 plot_summarized_model_dif<-function (model_summary) {
+    # Make R CMD CHECK happy
+    comparison <- cell_type <- pearson_r <- median_abs_difference <- NULL
+
     model_summary[
         ,
         comparison := paste(cell_type, interaction, sep = " - ")
@@ -592,6 +607,10 @@ plot_summarized_model_dif<-function (model_summary) {
 summarize_model_differences <- function(
         full_model_de,
         partial_model_de) {
+
+    # Make R CMD CHECK happy
+    gene <- cell_type <- interaction <- logFC <- adj.P.Val <-
+        full_logFC <- partial_logFC <- full_adj_p <- partial_adj_p <- NULL
 
     full_model_de <- data.table::as.data.table(full_model_de)
     partial_model_de <- data.table::as.data.table(partial_model_de)
@@ -663,6 +682,9 @@ summarize_model_differences <- function(
 # are PMI and RQS donor level traits?
 # Yes, there's one unique set of values per donor.
 tiny_adhoc<-function () {
+    # Make R CMD CHECK happy
+    pmi_hr <- RQS <- NULL
+
     a=read.table("/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/metacells/LEVEL_6/donor_rxn_DGEList_samples.tsv.gz", sep="\t", header=T)
 
     cols=c("pmi_hr", "RQS", "donor")
