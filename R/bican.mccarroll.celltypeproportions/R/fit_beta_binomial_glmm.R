@@ -56,21 +56,21 @@ utils::globalVariables(c("term", "estimate", "p.value", "conf.low", "conf.high",
 #'
 #' @return Dataframe with combined cell type proportions and metadata for the specified cell types,
 #' including a column for n_other to be used as the denominator in the GLMM.
-prepare_data_for_glmm <- function(sample_ctp, sample_metadata, cell_type_col, cell_types, min_nuclei=0, denominator_types=NULL) {
-
+prepare_data_for_glmm <- function(sample_ctp, sample_metadata, cell_type_col, cell_types, min_nuclei = 0, denominator_types = NULL) {
   glmm_df <- sample_ctp |>
     dplyr::filter(.data[[cell_type_col]] %in% cell_types) |>
     dplyr::left_join(sample_metadata)
 
   if (min_nuclei != 0) {
-
     low_nuclei_samples <- glmm_df |>
       dplyr::filter(n_nuclei < min_nuclei) |>
       dplyr::select(sample_id) |>
       dplyr::distinct() |>
       dplyr::pull(sample_id)
 
-    n_samples <- glmm_df$sample_id |> unique() |> length()
+    n_samples <- glmm_df$sample_id |>
+      unique() |>
+      length()
     n_low_nuclei_samples <- length(low_nuclei_samples)
 
     logger::log_info("Filtering out {n_low_nuclei_samples} samples with fewer than {min_nuclei} nuclei for any of the specified cell types (out of {n_samples} total samples)")
@@ -80,7 +80,6 @@ prepare_data_for_glmm <- function(sample_ctp, sample_metadata, cell_type_col, ce
   }
 
   if (!is.null(denominator_types)) {
-
     logger::log_info("Calculating n_other for denominator types: {paste(denominator_types, collapse=', ')}")
 
     denominator_counts <- sample_ctp |>
@@ -89,10 +88,8 @@ prepare_data_for_glmm <- function(sample_ctp, sample_metadata, cell_type_col, ce
       dplyr::summarise(n_other = sum(n_nuclei))
 
     glmm_df <- glmm_df |>
-      dplyr::left_join(denominator_counts, by="sample_id")
-
+      dplyr::left_join(denominator_counts, by = "sample_id")
   } else {
-
     logger::log_info("Calculating n_other as total_nuclei - n_nuclei for each sample")
 
     glmm_df <- glmm_df |>
@@ -113,15 +110,16 @@ prepare_data_for_glmm <- function(sample_ctp, sample_metadata, cell_type_col, ce
 #'
 #' @return Fitted beta-binomial GLMM object for the specified cell type.
 fit_beta_binomial_glmm <- function(sample_df, cell_type, cell_type_col, fixed_effects, random_effects) {
-
   cell_type_df <- sample_df |>
     dplyr::filter(.data[[cell_type_col]] == cell_type)
 
   formula <- stats::as.formula(
-    paste0("cbind(n_nuclei, n_other) ~ ",
-           paste(fixed_effects, collapse = " + "), " + (1 | ",
-           paste(random_effects, collapse = ") + (1 | "), ")")
+    paste0(
+      "cbind(n_nuclei, n_other) ~ ",
+      paste(fixed_effects, collapse = " + "), " + (1 | ",
+      paste(random_effects, collapse = ") + (1 | "), ")"
     )
+  )
 
   # first fit a binomial
   cell_type_binomial_glmm <- glmmTMB::glmmTMB(formula, data = cell_type_df, family = stats::binomial(link = "logit"))
@@ -142,7 +140,6 @@ fit_beta_binomial_glmm <- function(sample_df, cell_type, cell_type_col, fixed_ef
   }
 
   return(cell_type_glmm)
-
 }
 
 
@@ -156,7 +153,6 @@ fit_beta_binomial_glmm <- function(sample_df, cell_type, cell_type_col, fixed_ef
 #'
 #' @return Named list of fitted beta-binomial GLMM objects for each specified cell type.
 fit_many_beta_binomial_glmms <- function(sample_df, cell_types, cell_type_col, fixed_effects, random_effects) {
-
   glmm_list <- list()
 
   for (cell_type in cell_types) {
@@ -164,7 +160,6 @@ fit_many_beta_binomial_glmms <- function(sample_df, cell_types, cell_type_col, f
   }
 
   return(glmm_list)
-
 }
 
 
@@ -176,18 +171,16 @@ fit_many_beta_binomial_glmms <- function(sample_df, cell_types, cell_type_col, f
 #'
 #' @returns Dataframe containing the fixed effects estimates, confidence intervals, and cell type information for the specified model.
 extract_beta_binomial_fixed_effects <- function(glmm, cell_type, cell_type_col) {
-
   fixed_effects_df <- broom.mixed::tidy(
-      glmm,
-      effects = "fixed",
-      conf.int = TRUE
-    ) |>
-      as.data.frame()
+    glmm,
+    effects = "fixed",
+    conf.int = TRUE
+  ) |>
+    as.data.frame()
 
   fixed_effects_df[[cell_type_col]] <- cell_type
 
   return(fixed_effects_df)
-
 }
 
 #' Extract fixed effects from fitted beta-binomial GLMMs for multiple cell types and combine into a single dataframe.
@@ -197,8 +190,7 @@ extract_beta_binomial_fixed_effects <- function(glmm, cell_type, cell_type_col) 
 #' @param out_file Optional file path to save the combined fixed effects dataframe as a tab-delimited text file. If NULL, the dataframe will not be saved to a file.
 #'
 #' @return Dataframe containing the fixed effects estimates, confidence intervals, and cell type information for all specified models, combined into a single dataframe.
-extract_many_beta_binomial_fixed_effects <- function(glmm_list, cell_type_col, out_file=NULL) {
-
+extract_many_beta_binomial_fixed_effects <- function(glmm_list, cell_type_col, out_file = NULL) {
   fixed_effects_dfs <- list()
 
   for (cell_type in names(glmm_list)) {
@@ -207,9 +199,10 @@ extract_many_beta_binomial_fixed_effects <- function(glmm_list, cell_type_col, o
 
   combined_fixed_effects_df <- dplyr::bind_rows(fixed_effects_dfs)
 
-  if(!is.null(out_file)) {
+  if (!is.null(out_file)) {
     utils::write.table(combined_fixed_effects_df, out_file,
-                sep="\t", row.names=FALSE, quote=FALSE)
+      sep = "\t", row.names = FALSE, quote = FALSE
+    )
   }
 
   return(combined_fixed_effects_df)
@@ -234,14 +227,12 @@ extract_many_beta_binomial_fixed_effects <- function(glmm_list, cell_type_col, o
 #' @return List containing the named list of fitted beta-binomial GLMM objects for each cell type and the combined fixed effects dataframe for all models.
 fit_glmm_and_extract_fixed_effects <- function(sample_ctp, sample_metadata, cell_types, cell_type_col,
                                                fixed_effects, random_effects,
-                                               min_nuclei=0, denominator_types=NULL, out_file=NULL) {
-
+                                               min_nuclei = 0, denominator_types = NULL, out_file = NULL) {
   sample_df <- prepare_data_for_glmm(sample_ctp, sample_metadata, cell_type_col, cell_types, min_nuclei, denominator_types)
   glmm_list <- fit_many_beta_binomial_glmms(sample_df, cell_types, cell_type_col, fixed_effects, random_effects)
   fixed_effects_df <- extract_many_beta_binomial_fixed_effects(glmm_list, cell_type_col, out_file)
 
-  return(list(glmm_list=glmm_list, fixed_effects_df=fixed_effects_df))
-
+  return(list(glmm_list = glmm_list, fixed_effects_df = fixed_effects_df))
 }
 
 #' Extract fitted values and residuals from a fitted beta-binomial GLMM.
@@ -251,7 +242,6 @@ fit_glmm_and_extract_fixed_effects <- function(sample_ctp, sample_metadata, cell
 #' @return Dataframe containing the observed fractions, fitted fractions, and
 #' residuals for each sample in the model fit, along with the original model data.
 extract_beta_binomial_fitted_values <- function(glmm_model) {
-
   # get proportions from model fit
   model_data <- stats::model.frame(glmm_model)
   response_matrix <- model_data[["cbind(n_nuclei, n_other)"]]
@@ -264,7 +254,6 @@ extract_beta_binomial_fitted_values <- function(glmm_model) {
   model_data$residual <- model_data$observed_fraction - model_data$fitted_fraction
 
   return(model_data)
-
 }
 
 
@@ -278,18 +267,18 @@ extract_beta_binomial_fitted_values <- function(glmm_model) {
 #' showing effect size (log-odds) on the x-axis and -log10(p-value) on the y-axis,
 #' with points colored by cell type and error bars representing confidence intervals.
 fixed_effect_volcano_plot <- function(fixed_effects_df, fixed_effect, cell_type_col) {
-
   plot_df <- fixed_effects_df |>
     dplyr::filter(term == fixed_effect)
 
-  ggplot2::ggplot(plot_df,
-         ggplot2::aes(x=estimate, y=-log10(p.value))) +
-    ggplot2::geom_vline(xintercept=0, lty="dashed", col="black") +
+  ggplot2::ggplot(
+    plot_df,
+    ggplot2::aes(x = estimate, y = -log10(p.value))
+  ) +
+    ggplot2::geom_vline(xintercept = 0, lty = "dashed", col = "black") +
     ggplot2::geom_point() +
-    ggrepel::geom_text_repel(ggplot2::aes(label=!!dplyr::sym(cell_type_col)), size=3) +
-    ggplot2::geom_errorbar(ggplot2::aes(xmin=conf.low, xmax=conf.high)) +
-    ggplot2::labs(title=paste("Volcano plot for", fixed_effect), x="Effect size (log-odds)", y="-log10(p-value)")
-
+    ggrepel::geom_text_repel(ggplot2::aes(label = !!dplyr::sym(cell_type_col)), size = 3) +
+    ggplot2::geom_errorbar(ggplot2::aes(xmin = conf.low, xmax = conf.high)) +
+    ggplot2::labs(title = paste("Volcano plot for", fixed_effect), x = "Effect size (log-odds)", y = "-log10(p-value)")
 }
 
 #' Generate a bar plot of -log10(p-values) for specified fixed effects across cell types.
@@ -301,17 +290,17 @@ fixed_effect_volcano_plot <- function(fixed_effects_df, fixed_effect, cell_type_
 #' @return ggplot object representing the bar plot of -log10(p-values) for the
 #' specified fixed effects across cell types, with bars colored by fixed effect and grouped by cell type.
 fixed_effect_pvalue_barplot <- function(fixed_effects_df, fixed_effects, cell_type_col) {
-
   plot_df <- fixed_effects_df |>
     dplyr::filter(term %in% fixed_effects)
 
-  ggplot2::ggplot(plot_df,
-         ggplot2::aes(x=!!rlang::sym(cell_type_col), y=-log10(p.value), fill=term)) +
-    ggplot2::geom_bar(stat="identity", position=ggplot2::position_dodge()) +
+  ggplot2::ggplot(
+    plot_df,
+    ggplot2::aes(x = !!rlang::sym(cell_type_col), y = -log10(p.value), fill = term)
+  ) +
+    ggplot2::geom_bar(stat = "identity", position = ggplot2::position_dodge()) +
     ggplot2::labs(
-      title=paste("raw p-values for fixed effects:", paste(fixed_effects, collapse=", "))
+      title = paste("raw p-values for fixed effects:", paste(fixed_effects, collapse = ", "))
     )
-
 }
 
 
@@ -326,10 +315,9 @@ fixed_effect_pvalue_barplot <- function(fixed_effects_df, fixed_effects, cell_ty
 #' @return Dataframe containing donor-level residuals for each brain region in wide format,
 #' with one row per donor and columns for each brain region's residuals.
 extract_donor_residuals <- function(model,
-                                    brain_region_col="brain_region_abbreviation_simple",
-                                    donor_col="donor_external_id",
-                                    donor_covariates=c("age_decades")) {
-
+                                    brain_region_col = "brain_region_abbreviation_simple",
+                                    donor_col = "donor_external_id",
+                                    donor_covariates = c("age_decades")) {
   model_fitted_values <- extract_beta_binomial_fitted_values(model)
 
   donor_residuals <- model_fitted_values |>
@@ -337,7 +325,6 @@ extract_donor_residuals <- function(model,
     tidyr::pivot_wider(names_from = !!rlang::sym(brain_region_col), values_from = residual)
 
   return(donor_residuals)
-
 }
 
 
@@ -356,17 +343,18 @@ extract_donor_residuals <- function(model,
 #' between the two specified brain regions for the given cell type,
 #' with points colored by age, a linear regression line added, and identity line.
 plot_donor_residual_correlation_scatter <- function(model, region1, region2, cell_type,
-                                                   brain_region_col="brain_region_abbreviation_simple",
-                                                   donor_col="donor_external_id",
-                                                   age_col="age_decades") {
-
+                                                    brain_region_col = "brain_region_abbreviation_simple",
+                                                    donor_col = "donor_external_id",
+                                                    age_col = "age_decades") {
   donor_residuals <- extract_donor_residuals(model, brain_region_col, donor_col)
 
   plot_df <- donor_residuals |>
     dplyr::select(!!rlang::sym(donor_col), !!rlang::sym(age_col), !!rlang::sym(region1), !!rlang::sym(region2)) |>
     stats::na.omit()
 
-  n_donors <- plot_df[[donor_col]] |> unique() |> length()
+  n_donors <- plot_df[[donor_col]] |>
+    unique() |>
+    length()
   min_residual <- min(plot_df |> dplyr::select(-!!rlang::sym(donor_col), -!!rlang::sym(age_col)), na.rm = TRUE)
   max_residual <- max(plot_df |> dplyr::select(-!!rlang::sym(donor_col), -!!rlang::sym(age_col)), na.rm = TRUE)
 
@@ -375,19 +363,18 @@ plot_donor_residual_correlation_scatter <- function(model, region1, region2, cel
     ggplot2::aes(x = !!rlang::sym(region1), y = !!rlang::sym(region2))
   ) +
     ggplot2::theme_bw() +
-    ggplot2::geom_abline(slope=1, intercept=0, lty="dashed", col="gray") +
-    ggplot2::geom_point(ggplot2::aes(col=!!rlang::sym(age_col))) +
-    ggplot2::geom_smooth(method="lm", col="red", se=FALSE) +
-    ggpubr::stat_cor(method="spearman", cor.coef.name="rho") +
+    ggplot2::geom_abline(slope = 1, intercept = 0, lty = "dashed", col = "gray") +
+    ggplot2::geom_point(ggplot2::aes(col = !!rlang::sym(age_col))) +
+    ggplot2::geom_smooth(method = "lm", col = "red", se = FALSE) +
+    ggpubr::stat_cor(method = "spearman", cor.coef.name = "rho") +
     ggplot2::labs(
-      title=sprintf("%s abundance residuals", cell_type),
-      #subtitle=sprintf("N=%s donors", n_donors),
-      col="age"
+      title = sprintf("%s abundance residuals", cell_type),
+      # subtitle=sprintf("N=%s donors", n_donors),
+      col = "age"
     ) +
     ggplot2::xlim(min_residual, max_residual) +
     ggplot2::ylim(min_residual, max_residual) +
     ggplot2::scale_color_viridis_c()
-
 }
 
 
@@ -403,41 +390,39 @@ plot_donor_residual_correlation_scatter <- function(model, region1, region2, cel
 #' @return ggplot object representing the heatmap of Spearman correlations between
 #' donor-level residuals
 plot_donor_residual_correlation_heatmap <- function(model, regions, cell_type,
-                                                    brain_region_col="brain_region_abbreviation_simple",
-                                                    donor_col="donor_external_id") {
-
-  donor_residuals <- extract_donor_residuals(model, brain_region_col, donor_col, donor_covariates=NULL)
+                                                    brain_region_col = "brain_region_abbreviation_simple",
+                                                    donor_col = "donor_external_id") {
+  donor_residuals <- extract_donor_residuals(model, brain_region_col, donor_col, donor_covariates = NULL)
 
   cor_df <- donor_residuals |>
     dplyr::select(-!!rlang::sym(donor_col)) |>
     as.matrix() |>
-    stats::cor(method="spearman", use="pairwise.complete.obs") |>
+    stats::cor(method = "spearman", use = "pairwise.complete.obs") |>
     as.data.frame() |>
     tibble::rownames_to_column("region1") |>
-    tidyr::pivot_longer(-region1, names_to="region2", values_to="spearman_rho")
+    tidyr::pivot_longer(-region1, names_to = "region2", values_to = "spearman_rho")
 
-  cor_df$region1 <- factor(cor_df$region1, levels=regions)
-  cor_df$region2 <- factor(cor_df$region2, levels=regions)
+  cor_df$region1 <- factor(cor_df$region1, levels = regions)
+  cor_df$region2 <- factor(cor_df$region2, levels = regions)
 
   ggplot2::ggplot(
     cor_df,
-    ggplot2::aes(x=region1, y=forcats::fct_rev(region2), fill=spearman_rho)
+    ggplot2::aes(x = region1, y = forcats::fct_rev(region2), fill = spearman_rho)
   ) +
     ggplot2::geom_tile() +
-    ggplot2::geom_text(ggplot2::aes(label=round(spearman_rho, 2))) +
-    ggplot2::scale_fill_gradient2(low="#3b4cc0", mid="white", high="#b40426", midpoint=0, limits=c(-1, 1)) +
+    ggplot2::geom_text(ggplot2::aes(label = round(spearman_rho, 2))) +
+    ggplot2::scale_fill_gradient2(low = "#3b4cc0", mid = "white", high = "#b40426", midpoint = 0, limits = c(-1, 1)) +
     ggplot2::labs(
-      x=NULL,
-      y=NULL,
-      title=sprintf("Correlation of donor residuals for %s abundance", cell_type),
-      fill="Spearman\ncorrelation"
+      x = NULL,
+      y = NULL,
+      title = sprintf("Correlation of donor residuals for %s abundance", cell_type),
+      fill = "Spearman\ncorrelation"
     ) +
     ggplot2::theme(
-      axis.ticks.x=ggplot2::element_blank(),
-      axis.ticks.y=ggplot2::element_blank(),
+      axis.ticks.x = ggplot2::element_blank(),
+      axis.ticks.y = ggplot2::element_blank(),
       panel.background = ggplot2::element_blank(),
       plot.background = ggplot2::element_blank(),
       panel.grid = ggplot2::element_blank()
     )
-
 }

@@ -11,7 +11,7 @@
 #' @return A character vector of cell type names.
 #' @export
 read_cell_types <- function(ct_file) {
-    scan(ct_file, what = character(), quiet = TRUE)
+  scan(ct_file, what = character(), quiet = TRUE)
 }
 
 #' Read gene-to-chromosome mapping
@@ -29,7 +29,7 @@ read_gene_to_chr <- function(gene_to_chr_file) {
   dt <- data.table::fread(gene_to_chr_file)
 
   keep <- c(as.character(1:22), "X", "Y", "M")
-  dt <- dt[dt[["chr"]] %in% keep,]
+  dt <- dt[dt[["chr"]] %in% keep, ]
 
   dt[]
 }
@@ -47,8 +47,8 @@ read_gene_to_chr <- function(gene_to_chr_file) {
 #' @return A data.table with standardized DE results.
 #' @export
 read_de_results <- function(de_dir, test, ct_file, gene_to_chr) {
-    df <- bican.mccarroll.differentialexpression::parse_de_inputs(de_dir, test, ct_file)
-    prep_de(df, gene_to_chr)
+  df <- bican.mccarroll.differentialexpression::parse_de_inputs(de_dir, test, ct_file)
+  prep_de(df, gene_to_chr)
 }
 
 #' Prepare DE results for plotting and downstream analysis
@@ -58,20 +58,22 @@ read_de_results <- function(de_dir, test, ct_file, gene_to_chr) {
 #' @return A data.table with standardized columns and annotations.
 #' @export
 prep_de <- function(df, gene_to_chr) {
-    gene <- chr <- log_fc <- t <- log_fc_se<- NULL
+  gene <- chr <- log_fc <- t <- log_fc_se <- NULL
 
-    dt <- data.table::as.data.table(df)
+  dt <- data.table::as.data.table(df)
 
-    data.table::setnames(
-        dt,
-        c("gene", "cell_type", "region", "test", "log_fc", "ave_expr",
-          "t", "p_value", "adj_p_val", "b", "z_std")
+  data.table::setnames(
+    dt,
+    c(
+      "gene", "cell_type", "region", "test", "log_fc", "ave_expr",
+      "t", "p_value", "adj_p_val", "b", "z_std"
     )
+  )
 
-    dt <- merge(gene_to_chr, dt, by = "gene", all.y = TRUE)
-    dt[, log_fc_se := log_fc / t]
+  dt <- merge(gene_to_chr, dt, by = "gene", all.y = TRUE)
+  dt[, log_fc_se := log_fc / t]
 
-    return (dt)
+  return(dt)
 }
 
 #' Volcano plot for DE results
@@ -107,7 +109,6 @@ plot_de_volcano <- function(de_dt,
                             show_title = TRUE,
                             significant_color = "cornflowerblue",
                             chr_color_map = NULL) {
-
   cell_type <- region <- log_fc <- adj_p_val <- chr <- NULL
 
   if (is.na(region_use)) {
@@ -146,18 +147,14 @@ plot_de_volcano <- function(de_dt,
   )
 
   if (nrow(sig_dt) > 0) {
-
     if (is.null(chr_color_map)) {
-
       graphics::points(
         sig_dt$log_fc,
         -log10(pmax(sig_dt$adj_p_val, adj_p_floor)),
         pch = 20,
         col = significant_color
       )
-
     } else {
-
       if (is.list(chr_color_map)) {
         chr_color_map <- unlist(chr_color_map, use.names = TRUE)
       }
@@ -177,7 +174,6 @@ plot_de_volcano <- function(de_dt,
       sig_y <- -log10(pmax(sig_dt$adj_p_val, adj_p_floor))
 
       for (chr_name in plot_order) {
-
         if (chr_name == "default") {
           idx <- !(sig_dt$chr %in% non_default_names)
         } else {
@@ -196,8 +192,9 @@ plot_de_volcano <- function(de_dt,
     }
   }
 
-  if (show_title)
+  if (show_title) {
     graphics::title(main = cell_type_use, adj = 0)
+  }
 
   graphics::abline(h = -log10(fdr_cutoff), lty = 2)
   graphics::abline(v = c(-abs_log_fc_cutoff, abs_log_fc_cutoff), lty = 2)
@@ -260,7 +257,6 @@ plot_de_volcano_gg <- function(de_dt,
                                abs_log_fc_cutoff = log2(1.05),
                                show_title = TRUE,
                                chr_color_map = NULL) {
-
   cell_type <- region <- log_fc <- adj_p_val <- chr <- NULL
   y <- is_sig <- col_group <- chr_draw <- draw_order <- NULL
 
@@ -283,7 +279,6 @@ plot_de_volcano_gg <- function(de_dt,
   dt_plot[, is_sig := adj_p_val < fdr_cutoff]
 
   if (!is.null(chr_color_map)) {
-
     if (is.list(chr_color_map)) {
       chr_color_map <- unlist(chr_color_map, use.names = TRUE)
     }
@@ -308,9 +303,7 @@ plot_de_volcano_gg <- function(de_dt,
     dt_plot[, draw_order := (is_sig * 1000L) + chr_draw]
 
     color_values <- chr_color_map
-
   } else {
-
     dt_plot[, col_group := "all"]
     dt_plot[, draw_order := ifelse(is_sig, 2L, 1L)]
 
@@ -370,7 +363,6 @@ plot_de_scatter_gg <- function(de_dt,
                                region_b = NA,
                                fdr_cutoff = 0.05,
                                xlab_prefix = NULL) {
-
   cell_type <- region <- NULL
   adj_p_val.x <- adj_p_val.y <- log_fc.x <- log_fc.y <- NULL
 
@@ -386,10 +378,14 @@ plot_de_scatter_gg <- function(de_dt,
     y <- de_dt[cell_type == cell_type_b & region == region_b, ]
   }
 
-  name_a <- paste0(toupper(substr(cell_type_a, 1, 1)),
-                   substr(cell_type_a, 2, nchar(cell_type_a)))
-  name_b <- paste0(toupper(substr(cell_type_b, 1, 1)),
-                   substr(cell_type_b, 2, nchar(cell_type_b)))
+  name_a <- paste0(
+    toupper(substr(cell_type_a, 1, 1)),
+    substr(cell_type_a, 2, nchar(cell_type_a))
+  )
+  name_b <- paste0(
+    toupper(substr(cell_type_b, 1, 1)),
+    substr(cell_type_b, 2, nchar(cell_type_b))
+  )
 
   m <- merge(x, y, by = c("chr", "gene"))
 
@@ -403,20 +399,24 @@ plot_de_scatter_gg <- function(de_dt,
   rng <- c(-rng, rng)
 
   xlab_string <- paste("Effect size, log2",
-                       paste(name_a, region_a, sep = ", "),
-                       sep = "\n")
+    paste(name_a, region_a, sep = ", "),
+    sep = "\n"
+  )
   if (!is.null(xlab_prefix)) {
     xlab_string <- paste0(xlab_prefix, xlab_string)
   }
 
   ylab_string <- paste(paste(name_b, region_b, sep = ", "),
-                       "Effect size, log2",
-                       sep = "\n")
+    "Effect size, log2",
+    sep = "\n"
+  )
 
   m_plot <- data.table::as.data.table(m)
 
-  ct <- m_plot[sig_idx,
-               stats::cor.test(log_fc.x, log_fc.y, method = "spearman")]
+  ct <- m_plot[
+    sig_idx,
+    stats::cor.test(log_fc.x, log_fc.y, method = "spearman")
+  ]
 
   rho_sqrd <- round(as.numeric(ct$estimate)^2, 2)
   rho_label <- paste0("rho^2 == ", rho_sqrd)
@@ -470,55 +470,57 @@ compute_de_cor_mat <- function(de_dt,
                                regions_use,
                                non_neuron_types,
                                fdr_cutoff = 0.05) {
+  cell_type <- region <- cr <- gene <- adj_p_val <- log_fc <- NULL
 
-    cell_type <- region <- cr <- gene <- adj_p_val <- log_fc <- NULL
+  dt <- data.table::copy(de_dt)
 
-    dt <- data.table::copy(de_dt)
+  dt <- dt[cell_type %in% cell_types_use]
+  dt <- dt[region %in% regions_use]
 
-    dt <- dt[cell_type %in% cell_types_use]
-    dt <- dt[region %in% regions_use]
+  # Exclude ic for neurons (preserved from original)
+  dt <- dt[region != "ic" | cell_type %in% non_neuron_types]
 
-    # Exclude ic for neurons (preserved from original)
-    dt <- dt[region != "ic" | cell_type %in% non_neuron_types]
+  dt[, cell_type := factor(cell_type, levels = cell_types_use)]
+  dt[, region := factor(region, levels = regions_use)]
+  dt[, cr := paste(cell_type, region, sep = "__")]
 
-    dt[, cell_type := factor(cell_type, levels = cell_types_use)]
-    dt[, region := factor(region, levels = regions_use)]
-    dt[, cr := paste(cell_type, region, sep = "__")]
+  data.table::setorderv(dt, c("cell_type", "region"))
 
-    data.table::setorderv(dt, c("cell_type", "region"))
+  keys <- unique(dt$cr)
+  n <- length(keys)
 
-    keys <- unique(dt$cr)
-    n <- length(keys)
+  out_mat <- matrix(NA_real_,
+    nrow = n,
+    ncol = n,
+    dimnames = list(keys, keys)
+  )
 
-    out_mat <- matrix(NA_real_,
-                            nrow = n,
-                            ncol = n,
-                            dimnames = list(keys, keys))
+  for (i in keys) {
+    message(i)
+    for (j in keys) {
+      if (identical(i, j)) {
+        out_mat[i, j] <- 1
+        next
+      }
 
-    for (i in keys) {
-        message(i)
-        for (j in keys) {
-            if (identical(i, j)) {
-                out_mat[i, j] <- 1
-                next
-            }
+      a <- dt[cr == i]
+      b <- dt[cr == j]
+      m <- merge(a, b, by = "gene")
 
-            a <- dt[cr == i]
-            b <- dt[cr == j]
-            m <- merge(a, b, by = "gene")
+      # Make R CMD CHECK Happy
+      adj_p_val.x <- adj_p_val.y <- log_fc.x <- log_fc.y <- NULL
 
-            # Make R CMD CHECK Happy
-            adj_p_val.x <- adj_p_val.y <- log_fc.x <- log_fc.y <- NULL
+      ctest <- m[
+        adj_p_val.x < fdr_cutoff | adj_p_val.y < fdr_cutoff,
+        stats::cor.test(log_fc.x, log_fc.y, method = "spearman")
+      ]
 
-            ctest <- m[adj_p_val.x < fdr_cutoff | adj_p_val.y < fdr_cutoff,
-                       stats::cor.test(log_fc.x, log_fc.y, method = "spearman")]
-
-            r <- sign(ctest$estimate) * ctest$estimate^2
-            out_mat[i, j] <- r
-        }
+      r <- sign(ctest$estimate) * ctest$estimate^2
+      out_mat[i, j] <- r
     }
+  }
 
-    out_mat
+  out_mat
 }
 
 #' Plot a correlation heatmap with pheatmap
@@ -535,7 +537,6 @@ plot_de_cor_heatmap <- function(cor_mat,
                                 breaks = seq(-1, 1, length.out = 101),
                                 palette_colors = c("steelblue", "white", "darkorange"),
                                 show_dendrograms = TRUE) {
-
   pal_fun <- grDevices::colorRampPalette(palette_colors)
 
   treeheight_row <- if (show_dendrograms) 50 else 0
@@ -567,7 +568,6 @@ plot_de_cor_heatmap_complex <- function(cor_mat,
                                         palette_colors = c("steelblue", "white", "darkorange"),
                                         legend_title = "Correlation",
                                         show_dendrograms = TRUE) {
-
   col_fun <- circlize::colorRamp2(
     breaks = seq(min(breaks), max(breaks), length.out = length(palette_colors)),
     palette_colors
@@ -579,25 +579,19 @@ plot_de_cor_heatmap_complex <- function(cor_mat,
     cor_mat,
     name = "cor_metric",
     col = col_fun,
-
     clustering_method_rows = clustering_method,
     clustering_method_columns = clustering_method,
     clustering_distance_rows = "euclidean",
     clustering_distance_columns = "euclidean",
-
     row_dend_reorder = FALSE,
     column_dend_reorder = FALSE,
     show_row_dend = show_dendrograms,
     show_column_dend = show_dendrograms,
-
     column_names_rot = 90,
     column_names_gp = grid::gpar(fontsize = 10),
     row_names_gp = grid::gpar(fontsize = 10),
-
     rect_gp = grid::gpar(col = "grey85", lwd = 1),
-
     show_heatmap_legend = show_legend,
-
     heatmap_legend_param = list(
       title = legend_title
     )
@@ -646,7 +640,6 @@ extract_donor_ages <- function(cell_metadata) {
 read_metacells <- function(path,
                            cell_types_use,
                            regions_use = c("CaH", "Pu", "NAC", "ic", "DFC")) {
-
   gene <- donor <- village <- cell_type <- region <- single_cell_assay <- group <- NULL
 
   dt <- data.table::fread(path)
@@ -713,7 +706,6 @@ read_metacells <- function(path,
 #'
 #' @keywords internal
 row_stats_block_fast <- function(mat) {
-
   med <- matrixStats::rowMedians(mat, na.rm = TRUE)
 
   mad <- matrixStats::rowMads(
@@ -752,7 +744,6 @@ row_stats_block_fast <- function(mat) {
 summarize_metacells <- function(metacells,
                                 col_metadata,
                                 donor_ages) {
-
   donor <- age <- age_bin <- cell_type <- region <- cr <- genes <- NULL
 
   col_metadata <- data.table::copy(col_metadata)
@@ -779,7 +770,6 @@ summarize_metacells <- function(metacells,
   i <- 0L
 
   for (gn in names(groups)) {
-
     message(gn)
 
     i <- i + 1L
@@ -810,7 +800,6 @@ summarize_metacells <- function(metacells,
     bins_for_cols <- col_metadata$age_bin[cols]
 
     for (b in age_bins) {
-
       idx <- which(bins_for_cols == b)
       colname <- paste0("median_", b)
 
@@ -828,7 +817,7 @@ summarize_metacells <- function(metacells,
     res_list[[i]] <- dt_out
   }
 
-  #Make R CMD CHECK Happy
+  # Make R CMD CHECK Happy
   gene <- cell_type <- region <- NULL
 
   out <- data.table::rbindlist(res_list, use.names = TRUE, fill = TRUE)
@@ -847,9 +836,8 @@ summarize_metacells <- function(metacells,
 split_metacells_by_cell_type_region <- function(metacells,
                                                 col_metadata,
                                                 donor_ages) {
-
   # Make R CMD CHECK Happy
-  donor <- cell_type <- region <- cr <- age<- NULL
+  donor <- cell_type <- region <- cr <- age <- NULL
 
   col_metadata <- data.table::copy(col_metadata)
 
@@ -864,7 +852,6 @@ split_metacells_by_cell_type_region <- function(metacells,
   i <- 0L
 
   for (gn in names(groups)) {
-
     i <- i + 1L
     cols <- groups[[gn]]
 
@@ -905,7 +892,6 @@ prep_de_matrices <- function(de_dt,
                              abs_lfc_cutoff = log2(1.05),
                              min_tpm = 10,
                              regions_use = c("CaH", "DFC")) {
-
   gene <- cell_type <- region <- median <- log_fc <- adj_p_val <- NULL
 
   dt <- data.table::copy(de_dt)
@@ -970,7 +956,6 @@ prep_region_lfc_matrix <- function(de_dt,
                                    genes_use,
                                    cell_types_use,
                                    regions_use) {
-
   gene <- cell_type <- region <- log_fc <- NULL
 
   dt <- data.table::copy(de_dt)
@@ -1042,11 +1027,9 @@ prep_region_lfc_matrix <- function(de_dt,
 #'
 #' @export
 plot_kmeans_silhouette <- function(mat, ks = 10:30) {
-
   d <- stats::dist(mat)
 
   avg_sil <- sapply(ks, function(k) {
-
     set.seed(42)
     km <- stats::kmeans(mat, centers = k, nstart = 200, iter.max = 20)
 
@@ -1117,7 +1100,6 @@ plot_kmeans_heatmap <- function(k_means_mat,
                                 k = 19,
                                 cluster_level_order = c(2, 10, 6, 3, 5, 14, 9, 13, 4, 1, 15, 19, 18, 7, 17, 8, 11, 12),
                                 allow_drop_clusters = TRUE) {
-
   ## -----------------------
   ## Assertions / validation
   ## -----------------------
@@ -1148,7 +1130,6 @@ plot_kmeans_heatmap <- function(k_means_mat,
   k <- as.integer(k)
 
   if (!is.null(cluster_level_order)) {
-
     if (!is.numeric(cluster_level_order) || length(cluster_level_order) < 1L) {
       stop("cluster_level_order must be NULL or a non-empty numeric/integer vector.")
     }
@@ -1188,13 +1169,10 @@ plot_kmeans_heatmap <- function(k_means_mat,
   ## -----------------------
 
   if (is.null(cluster_level_order)) {
-
     ## No releveling; keep k-means labels as-is
     k_use <- as.integer(km$cluster)
     names(k_use) <- gn
-
   } else {
-
     dropped_clusters <- setdiff(present_clusters, cluster_level_order)
 
     if (length(dropped_clusters) > 0L && !isTRUE(allow_drop_clusters)) {
@@ -1293,244 +1271,242 @@ plot_kmeans_heatmap <- function(k_means_mat,
 #'
 #' @export
 plot_kmeans_heatmap_with_cluster_labels <- function(k_means_mat,
-                                lfc_mat,
-                                scaling_factor,
-                                k = 19,
-                                cluster_level_order = c(2, 10, 6, 3, 5, 14, 9, 13, 4, 1, 15, 19, 18, 7, 17, 8, 11, 12),
-                                allow_drop_clusters = TRUE,
-                                fontsize_col=10,
-                                fontsize_row=10) {
+                                                    lfc_mat,
+                                                    scaling_factor,
+                                                    k = 19,
+                                                    cluster_level_order = c(2, 10, 6, 3, 5, 14, 9, 13, 4, 1, 15, 19, 18, 7, 17, 8, 11, 12),
+                                                    allow_drop_clusters = TRUE,
+                                                    fontsize_col = 10,
+                                                    fontsize_row = 10) {
+  ## -----------------------
+  ## Assertions / validation
+  ## -----------------------
 
-    ## -----------------------
-    ## Assertions / validation
-    ## -----------------------
+  if (!is.matrix(k_means_mat) || !is.numeric(k_means_mat)) {
+    stop("k_means_mat must be a numeric matrix.")
+  }
 
-    if (!is.matrix(k_means_mat) || !is.numeric(k_means_mat)) {
-      stop("k_means_mat must be a numeric matrix.")
+  if (is.null(rownames(k_means_mat))) {
+    stop("k_means_mat must have non-NULL rownames (gene identifiers).")
+  }
+
+  if (!is.matrix(lfc_mat) || !is.numeric(lfc_mat)) {
+    stop("lfc_mat must be a numeric matrix.")
+  }
+
+  if (is.null(rownames(lfc_mat))) {
+    stop("lfc_mat must have non-NULL rownames (gene identifiers).")
+  }
+
+  if (!is.numeric(scaling_factor) || length(scaling_factor) != 1L || is.na(scaling_factor)) {
+    stop("scaling_factor must be a single non-NA numeric value.")
+  }
+
+  if (!is.numeric(k) || length(k) != 1L || is.na(k) || k < 2) {
+    stop("k must be >= 2.")
+  }
+  k <- as.integer(k)
+
+  if (!is.null(cluster_level_order)) {
+    if (!is.numeric(cluster_level_order) || length(cluster_level_order) < 1L) {
+      stop("cluster_level_order must be NULL or numeric.")
     }
 
-    if (is.null(rownames(k_means_mat))) {
-      stop("k_means_mat must have non-NULL rownames (gene identifiers).")
+    if (anyDuplicated(cluster_level_order)) {
+      stop("cluster_level_order must not contain duplicates.")
+    }
+  }
+
+  ## -----------------------
+  ## K-means
+  ## -----------------------
+  num_genes <- dim(lfc_mat)[1]
+
+  set.seed(42)
+  km <- stats::kmeans(
+    k_means_mat,
+    centers = k,
+    nstart = 200,
+    iter.max = 20
+  )
+
+  gn <- rownames(k_means_mat)
+
+  missing_in_lfc <- setdiff(gn, rownames(lfc_mat))
+  if (length(missing_in_lfc) > 0L) {
+    stop("lfc_mat missing genes. Example: ", missing_in_lfc[[1]])
+  }
+
+  present_clusters <- sort(unique(km$cluster))
+
+  ## -----------------------
+  ## Cluster labeling / ordering
+  ## -----------------------
+
+  if (is.null(cluster_level_order)) {
+    k_use <- as.integer(km$cluster)
+    names(k_use) <- gn
+  } else {
+    dropped_clusters <- setdiff(present_clusters, cluster_level_order)
+
+    if (length(dropped_clusters) > 0L && !isTRUE(allow_drop_clusters)) {
+      stop(
+        "cluster_level_order would drop clusters: ",
+        paste(dropped_clusters, collapse = ", ")
+      )
     }
 
-    if (!is.matrix(lfc_mat) || !is.numeric(lfc_mat)) {
-      stop("lfc_mat must be a numeric matrix.")
+    k_use <- factor(km$cluster, levels = cluster_level_order)
+    k_use <- as.numeric(k_use)
+    names(k_use) <- gn
+
+    keep <- !is.na(k_use)
+    k_use <- k_use[keep]
+
+    if (length(k_use) == 0L) {
+      stop("All clusters dropped.")
     }
+  }
 
-    if (is.null(rownames(lfc_mat))) {
-      stop("lfc_mat must have non-NULL rownames (gene identifiers).")
+  gene_order <- names(k_use)[order(k_use)]
+  boundaries <- cumsum(table(k_use))
+
+  ## -----------------------
+  ## Plot with thick separators
+  ## -----------------------
+
+  mat_plot <- t(lfc_mat[gene_order, , drop = FALSE] * scaling_factor)
+
+  ## Replace pre-existing NA values (from lfc_mat) so na_col can be reserved
+  ## exclusively for separator columns.
+  na_before <- sum(is.na(mat_plot))
+  if (na_before > 0L) {
+    message("plot_kmeans_heatmap: replacing ", na_before, " NA values in mat_plot with 0 for visualization.")
+    mat_plot[is.na(mat_plot)] <- 0
+  }
+
+  n_cols <- ncol(mat_plot)
+
+  gap_after <- boundaries
+  if (length(gap_after) >= 1L) {
+    gap_after <- gap_after[-length(gap_after)]
+  }
+  gap_after <- as.integer(gap_after)
+
+  sep_width <- 6L
+
+  message(
+    "plot_kmeans_heatmap: n_cols = ", n_cols,
+    ", n_clusters = ", length(boundaries),
+    ", n_separators = ", length(gap_after),
+    ", sep_width = ", sep_width
+  )
+
+  n_sep_total <- length(gap_after) * sep_width
+  n_cols_exp <- n_cols + n_sep_total
+
+  mat_exp <- matrix(NA_real_, nrow = nrow(mat_plot), ncol = n_cols_exp)
+  rownames(mat_exp) <- rownames(mat_plot)
+
+  orig_to_exp <- integer(n_cols)
+
+  exp_col <- 1L
+  sep_set <- rep(FALSE, n_cols)
+  if (length(gap_after) > 0L) {
+    sep_set[gap_after] <- TRUE
+  }
+
+  for (j in seq_len(n_cols)) {
+    mat_exp[, exp_col] <- mat_plot[, j]
+    orig_to_exp[j] <- exp_col
+    exp_col <- exp_col + 1L
+
+    if (sep_set[j]) {
+      exp_col <- exp_col + sep_width
     }
+  }
 
-    if (!is.numeric(scaling_factor) || length(scaling_factor) != 1L || is.na(scaling_factor)) {
-      stop("scaling_factor must be a single non-NA numeric value.")
-    }
+  ## Compute expanded cluster midpoints
+  starts <- c(1L, boundaries[-length(boundaries)] + 1L)
+  ends <- boundaries
 
-    if (!is.numeric(k) || length(k) != 1L || is.na(k) || k < 2) {
-      stop("k must be >= 2.")
-    }
-    k <- as.integer(k)
+  start_exp <- orig_to_exp[starts]
+  end_exp <- orig_to_exp[ends]
+  mid_exp <- as.integer(round((start_exp + end_exp) / 2))
 
-    if (!is.null(cluster_level_order)) {
+  labels_col <- rep("", n_cols_exp)
+  labels_col[mid_exp] <- as.character(seq_along(boundaries))
 
-      if (!is.numeric(cluster_level_order) || length(cluster_level_order) < 1L) {
-        stop("cluster_level_order must be NULL or numeric.")
-      }
+  # replace the fixed breaks definition with one that scales
+  # with the scaling value passed in.
+  # this will preserve the same results as scaling_factor=5 and breaks = seq(-1, 1, length.out = 101)
+  # for the original unscaled lfc_mat.
 
-      if (anyDuplicated(cluster_level_order)) {
-        stop("cluster_level_order must not contain duplicates.")
-      }
-    }
+  lfc_limit <- 0.2
 
-    ## -----------------------
-    ## K-means
-    ## -----------------------
-    num_genes=dim (lfc_mat)[1]
+  breaks_vec <- seq(
+    -lfc_limit * scaling_factor,
+    lfc_limit * scaling_factor,
+    length.out = 101
+  )
 
-    set.seed(42)
-    km <- stats::kmeans(
-      k_means_mat,
-      centers = k,
-      nstart = 200,
-      iter.max = 20
-    )
+  # add some extra margin for text.
+  ph <- pheatmap::pheatmap(
+    mat_exp,
+    cluster_cols = FALSE,
+    cluster_rows = FALSE,
+    breaks = breaks_vec,
+    color = grDevices::colorRampPalette(c("steelblue", "white", "darkorange"))(100),
+    border_color = NA,
+    na_col = "black",
+    show_colnames = TRUE,
+    labels_col = labels_col,
+    angle_col = 0,
+    silent = TRUE,
+    fontsize_col = fontsize_col,
+    fontsize_row = fontsize_row
+  )
 
-    gn <- rownames(k_means_mat)
+  gt <- ph$gtable
 
-    missing_in_lfc <- setdiff(gn, rownames(lfc_mat))
-    if (length(missing_in_lfc) > 0L) {
-      stop("lfc_mat missing genes. Example: ", missing_in_lfc[[1]])
-    }
+  ## Add top margin
+  gt <- gtable::gtable_add_rows(
+    gt,
+    heights = grid::unit(6, "mm"),
+    pos = 0
+  )
 
-    present_clusters <- sort(unique(km$cluster))
+  ## Add bottom margin (this is where the label will go)
+  gt <- gtable::gtable_add_rows(
+    gt,
+    heights = grid::unit(8, "mm"),
+    pos = nrow(gt)
+  )
 
-    ## -----------------------
-    ## Cluster labeling / ordering
-    ## -----------------------
+  ## Shrink the original pheatmap content so margins fit on the device
+  shrink_factor <- 0.95 # try 0.85–0.95 as needed
+  if (nrow(gt) > 2L) {
+    gt$heights[2:(nrow(gt) - 1L)] <- gt$heights[2:(nrow(gt) - 1L)] * shrink_factor
+  }
 
-    if (is.null(cluster_level_order)) {
+  labelStr <- paste0("Genes (n=", dim(lfc_mat)[1], ")")
 
-      k_use <- as.integer(km$cluster)
-      names(k_use) <- gn
+  gt <- gtable::gtable_add_grob(
+    gt,
+    grobs = grid::textGrob(
+      labelStr,
+      y = grid::unit(0.7, "npc"),
+      gp = grid::gpar(fontsize = 16)
+    ),
+    t = nrow(gt),
+    l = 1,
+    r = ncol(gt)
+  )
 
-    } else {
+  grid::grid.newpage()
+  grid::grid.draw(gt)
 
-      dropped_clusters <- setdiff(present_clusters, cluster_level_order)
-
-      if (length(dropped_clusters) > 0L && !isTRUE(allow_drop_clusters)) {
-        stop("cluster_level_order would drop clusters: ",
-             paste(dropped_clusters, collapse = ", "))
-      }
-
-      k_use <- factor(km$cluster, levels = cluster_level_order)
-      k_use <- as.numeric(k_use)
-      names(k_use) <- gn
-
-      keep <- !is.na(k_use)
-      k_use <- k_use[keep]
-
-      if (length(k_use) == 0L) {
-        stop("All clusters dropped.")
-      }
-    }
-
-    gene_order <- names(k_use)[order(k_use)]
-    boundaries <- cumsum(table(k_use))
-
-    ## -----------------------
-    ## Plot with thick separators
-    ## -----------------------
-
-    mat_plot <- t(lfc_mat[gene_order, , drop = FALSE] * scaling_factor)
-
-    ## Replace pre-existing NA values (from lfc_mat) so na_col can be reserved
-    ## exclusively for separator columns.
-    na_before <- sum(is.na(mat_plot))
-    if (na_before > 0L) {
-      message("plot_kmeans_heatmap: replacing ", na_before, " NA values in mat_plot with 0 for visualization.")
-      mat_plot[is.na(mat_plot)] <- 0
-    }
-
-    n_cols <- ncol(mat_plot)
-
-    gap_after <- boundaries
-    if (length(gap_after) >= 1L) {
-      gap_after <- gap_after[-length(gap_after)]
-    }
-    gap_after <- as.integer(gap_after)
-
-    sep_width <- 6L
-
-    message("plot_kmeans_heatmap: n_cols = ", n_cols,
-            ", n_clusters = ", length(boundaries),
-            ", n_separators = ", length(gap_after),
-            ", sep_width = ", sep_width)
-
-    n_sep_total <- length(gap_after) * sep_width
-    n_cols_exp <- n_cols + n_sep_total
-
-    mat_exp <- matrix(NA_real_, nrow = nrow(mat_plot), ncol = n_cols_exp)
-    rownames(mat_exp) <- rownames(mat_plot)
-
-    orig_to_exp <- integer(n_cols)
-
-    exp_col <- 1L
-    sep_set <- rep(FALSE, n_cols)
-    if (length(gap_after) > 0L) {
-      sep_set[gap_after] <- TRUE
-    }
-
-    for (j in seq_len(n_cols)) {
-
-      mat_exp[, exp_col] <- mat_plot[, j]
-      orig_to_exp[j] <- exp_col
-      exp_col <- exp_col + 1L
-
-      if (sep_set[j]) {
-        exp_col <- exp_col + sep_width
-      }
-    }
-
-    ## Compute expanded cluster midpoints
-    starts <- c(1L, boundaries[-length(boundaries)] + 1L)
-    ends <- boundaries
-
-    start_exp <- orig_to_exp[starts]
-    end_exp <- orig_to_exp[ends]
-    mid_exp <- as.integer(round((start_exp + end_exp) / 2))
-
-    labels_col <- rep("", n_cols_exp)
-    labels_col[mid_exp] <- as.character(seq_along(boundaries))
-
-    #replace the fixed breaks definition with one that scales
-    #with the scaling value passed in.
-    #this will preserve the same results as scaling_factor=5 and breaks = seq(-1, 1, length.out = 101)
-    #for the original unscaled lfc_mat.
-
-    lfc_limit <- 0.2
-
-    breaks_vec <- seq(
-      -lfc_limit * scaling_factor,
-      lfc_limit * scaling_factor,
-      length.out = 101
-    )
-
-    #add some extra margin for text.
-    ph <- pheatmap::pheatmap(
-      mat_exp,
-      cluster_cols = FALSE,
-      cluster_rows = FALSE,
-      breaks = breaks_vec,
-      color = grDevices::colorRampPalette(c("steelblue", "white", "darkorange"))(100),
-      border_color = NA,
-      na_col = "black",
-      show_colnames = TRUE,
-      labels_col = labels_col,
-      angle_col = 0,
-      silent = TRUE,
-      fontsize_col = fontsize_col,
-      fontsize_row = fontsize_row
-    )
-
-    gt <- ph$gtable
-
-    ## Add top margin
-    gt <- gtable::gtable_add_rows(
-      gt,
-      heights = grid::unit(6, "mm"),
-      pos = 0
-    )
-
-    ## Add bottom margin (this is where the label will go)
-    gt <- gtable::gtable_add_rows(
-      gt,
-      heights = grid::unit(8, "mm"),
-      pos = nrow(gt)
-    )
-
-    ## Shrink the original pheatmap content so margins fit on the device
-    shrink_factor <- 0.95  # try 0.85–0.95 as needed
-    if (nrow(gt) > 2L) {
-      gt$heights[2:(nrow(gt) - 1L)] <- gt$heights[2:(nrow(gt) - 1L)] * shrink_factor
-    }
-
-    labelStr <- paste0("Genes (n=", dim(lfc_mat)[1], ")")
-
-    gt <- gtable::gtable_add_grob(
-      gt,
-      grobs = grid::textGrob(
-        labelStr,
-        y = grid::unit(0.7, "npc"),
-        gp = grid::gpar(fontsize = 16)
-      ),
-      t = nrow(gt),
-      l = 1,
-      r = ncol(gt)
-    )
-
-    grid::grid.newpage()
-    grid::grid.draw(gt)
-
-    invisible(k_use)
+  invisible(k_use)
 }
 
 #' Write lightweight DE outputs (summary + top up/down gene tables)
@@ -1567,7 +1543,6 @@ write_de_lite <- function(de_dt,
                           out_dir,
                           n_top = 200,
                           fdr_thresh = 0.05) {
-
   gene <- cell_type <- region <- adj_p_val <- log_fc <- log_fc_se <- t <- median <- n_donors <- NULL
   median_30 <- median_40 <- median_50 <- median_60 <- median_70 <- median_80 <- median_90 <- NULL
 
@@ -1731,7 +1706,6 @@ write_de_lite <- function(de_dt,
 #' @return Character scalar like "30s N = 12, 40s N = 20, ..."
 #' @keywords internal
 convert_ages_to_decade_string <- function(donor_ages) {
-
   donor_ages_chr <- as.character(donor_ages)
   dd <- substr(donor_ages_chr, 1, 1)
 
@@ -1755,13 +1729,12 @@ convert_ages_to_decade_string <- function(donor_ages) {
 #' @param seed Random seed for reproducibility.
 #' @return data.table of fgsea results with added columns cell_type, gmt, and id.
 #' @export
-run_gsea <- function(de_dt, fgsea_cell_types, gmt_files, seed=42) {
+run_gsea <- function(de_dt, fgsea_cell_types, gmt_files, seed = 42) {
   set.seed(seed)
   gene <- cell_type <- t <- NULL
 
   gsea_results <- list()
   for (i in fgsea_cell_types) {
-
     message(i)
 
     ranks <- de_dt[cell_type == i, t] # using t-statistic to rank genes
@@ -1769,15 +1742,16 @@ run_gsea <- function(de_dt, fgsea_cell_types, gmt_files, seed=42) {
     ranks <- sort(ranks)
 
     for (j in gmt_files) {
-
       message(j)
 
       pathways <- fgsea::gmtPathways(j) # EDIT: would be faster to load all of these once; but fgsea is rate limiting
 
-      new_results <- fgsea::fgsea(pathways = pathways,
-                           stats = ranks,
-                           minSize = 15,
-                           maxSize = 500)
+      new_results <- fgsea::fgsea(
+        pathways = pathways,
+        stats = ranks,
+        minSize = 15,
+        maxSize = 500
+      )
 
       # colnames(new_results) = tolower(colnames(new_results)) # leaving these alone for now; would be nice if they were snake_case like everything else
 
@@ -1787,9 +1761,7 @@ run_gsea <- function(de_dt, fgsea_cell_types, gmt_files, seed=42) {
       data.table::setorderv(new_results, "pval")
 
       gsea_results[[length(gsea_results) + 1]] <- new_results
-
     }
-
   }
 
   gsea_results <- data.table::rbindlist(gsea_results)
@@ -1817,7 +1789,6 @@ write_gsea_lite <- function(gsea_results,
                             out_dir,
                             padj_thresh = 0.05,
                             gmt_pattern = "c5.go") {
-
   cell_type <- gmt <- NES <- padj <- pathway <- size <- NULL
 
   if (!requireNamespace("data.table", quietly = TRUE)) {
@@ -1843,7 +1814,6 @@ write_gsea_lite <- function(gsea_results,
   }
 
   for (ct in sort(unique(gsea_results$cell_type))) {
-
     message(ct)
 
     pos <- gsea_results[
@@ -1912,7 +1882,6 @@ plot_donor_gex_age_heatmap <- function(metacells,
                                        gs_gaps = NULL,
                                        cluster_gs = FALSE,
                                        transpose = FALSE) {
-
   if (!requireNamespace("pheatmap", quietly = TRUE)) {
     stop("Package 'pheatmap' is required but not installed.")
   }
@@ -2023,7 +1992,6 @@ plot_donor_gex_age_scatterplot <- function(exp_vector,
                                            size = 6,
                                            rho_threshold = 0.2,
                                            y_axis_floor = 10) {
-
   age <- expression <- NULL
 
   if (is.null(names(exp_vector))) {
@@ -2051,11 +2019,9 @@ plot_donor_gex_age_scatterplot <- function(exp_vector,
   subtitle_txt <- NULL
 
   if (isTRUE(show_spearman)) {
-
     ok <- stats::complete.cases(df$age, df$expression)
 
     if (sum(ok) >= 3L) {
-
       ct <- stats::cor.test(
         df$age[ok],
         df$expression[ok],
@@ -2069,7 +2035,6 @@ plot_donor_gex_age_scatterplot <- function(exp_vector,
       if (is.finite(rho) && abs(rho) < rho_threshold) {
         point_color <- "lightgrey"
       }
-
     } else {
       warning("Not enough non-missing points to compute Spearman correlation.", call. = FALSE)
     }

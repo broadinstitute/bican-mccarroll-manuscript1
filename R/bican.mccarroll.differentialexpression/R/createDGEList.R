@@ -48,65 +48,64 @@ library(mltools)
 #'
 #' @export
 #' @import data.table edgeR
-build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, metadata_columns, convert_na_columns_to_false=NULL,
-                             split_id=TRUE, single_cell_assay=NULL, outDir=NULL, outName=NULL, validate_round_trip=F) {
-    # Read cell metadata
-    cell_metadata <- data.table::fread(cell_metadata_file, data.table=F)
+build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, metadata_columns, convert_na_columns_to_false = NULL,
+                             split_id = TRUE, single_cell_assay = NULL, outDir = NULL, outName = NULL, validate_round_trip = F) {
+  # Read cell metadata
+  cell_metadata <- data.table::fread(cell_metadata_file, data.table = F)
 
-    #Filter to assay if required
-    if (!is.null(single_cell_assay)) {
-        rows_original=nrow(cell_metadata)
-        cell_metadata <- cell_metadata[cell_metadata$single_cell_assay == single_cell_assay, , drop = FALSE]
-        logger::log_info(paste("Filtered cell metadata to assay", single_cell_assay, ":", nrow(cell_metadata), "of", rows_original, "rows retained."))
+  # Filter to assay if required
+  if (!is.null(single_cell_assay)) {
+    rows_original <- nrow(cell_metadata)
+    cell_metadata <- cell_metadata[cell_metadata$single_cell_assay == single_cell_assay, , drop = FALSE]
+    logger::log_info(paste("Filtered cell metadata to assay", single_cell_assay, ":", nrow(cell_metadata), "of", rows_original, "rows retained."))
+  }
+
+  # handle mixed assay types
+  # cell_metadata<- addMixedAssayType(cell_metadata)
+
+  # Add cell type proportions PCA scores to the cell metadata
+  # if (!is.null(cellTypeProportionsPCAFile)) {
+  #     cell_metadata <- addCellTypeProportionsPCA(cellTypeProportionsPCAFile, cell_metadata, numPCs=4, scalePCs=TRUE)
+  # }
+
+  # To enable the python->R filtering, we need to replace NA values in character/factor columns with "NA"
+  cell_metadata <- replace_na_strings(cell_metadata)
+
+  manifest <- data.table::fread(manifest_file)
+
+  dge_list <- vector("list", length = nrow(manifest))
+  for (i in seq_len(nrow(manifest))) {
+    logger::log_info(paste("Processing metacell file ", i, "of", nrow(manifest), ":", manifest[i, ]$output_name))
+    dge_list[[i]] <- process_metacell_file(manifest[i], metacell_dir, cell_metadata, metadata_columns, split_id = split_id)
+  }
+
+  dge_list <- Filter(Negate(is.null), dge_list)
+  if (length(dge_list) == 0) stop("No valid DGELists generated.")
+
+  # Get union of all gene names
+  gene_union <- Reduce(union, lapply(dge_list, function(x) rownames(x$counts)))
+
+  # Pad all DGELists to the union
+  dge_list <- lapply(dge_list, pad_dge_to_union, all_genes = gene_union)
+
+  # Combine using edgeR::cbind
+  dge_merged <- do.call(cbind, dge_list)
+
+  # convert NA to FALSE for specified columns
+  if (!is.null(convert_na_columns_to_false)) {
+    dge_merged$samples <- convert_na_to_false(dge_merged$samples, convert_na_columns_to_false)
+  }
+
+  # write to disk if the outDir and outName are provided
+  if (!is.null(outDir) && !is.null(outName)) {
+    saveDGEList(dge_merged, dir = outDir, prefix = outName)
+    if (validate_round_trip) {
+      r <- loadDGEList(dir = outDir, prefix = outName)
+      compareDGEList(dge_merged, r)
     }
+  }
 
-    # handle mixed assay types
-    # cell_metadata<- addMixedAssayType(cell_metadata)
-
-    # Add cell type proportions PCA scores to the cell metadata
-    # if (!is.null(cellTypeProportionsPCAFile)) {
-    #     cell_metadata <- addCellTypeProportionsPCA(cellTypeProportionsPCAFile, cell_metadata, numPCs=4, scalePCs=TRUE)
-    # }
-
-    # To enable the python->R filtering, we need to replace NA values in character/factor columns with "NA"
-    cell_metadata <- replace_na_strings(cell_metadata)
-
-    manifest <- data.table::fread(manifest_file)
-
-    dge_list <- vector("list", length = nrow(manifest))
-    for (i in seq_len(nrow(manifest))) {
-        logger::log_info(paste("Processing metacell file ", i, "of", nrow(manifest), ":", manifest[i,]$output_name))
-        dge_list[[i]] <- process_metacell_file(manifest[i], metacell_dir, cell_metadata, metadata_columns, split_id=split_id)
-    }
-
-    dge_list <- Filter(Negate(is.null), dge_list)
-    if (length(dge_list) == 0) stop("No valid DGELists generated.")
-
-    # Get union of all gene names
-    gene_union <- Reduce(union, lapply(dge_list, function(x) rownames(x$counts)))
-
-    # Pad all DGELists to the union
-    dge_list <- lapply(dge_list, pad_dge_to_union, all_genes = gene_union)
-
-    # Combine using edgeR::cbind
-    dge_merged <- do.call(cbind, dge_list)
-
-    #convert NA to FALSE for specified columns
-    if (!is.null(convert_na_columns_to_false)) {
-        dge_merged$samples<- convert_na_to_false(dge_merged$samples, convert_na_columns_to_false)
-    }
-
-    # write to disk if the outDir and outName are provided
-    if (!is.null(outDir) && !is.null(outName)) {
-        saveDGEList(dge_merged, dir = outDir, prefix = outName)
-        if (validate_round_trip) {
-            r=loadDGEList(dir = outDir, prefix = outName)
-            compareDGEList(dge_merged, r)
-        }
-
-    }
-
-    return(dge_merged)
+  return(dge_merged)
 }
 
 #' Build eQTL covariates for tensorQTL
@@ -126,109 +125,109 @@ build_merged_dge <- function(manifest_file, metacell_dir, cell_metadata_file, me
 #' @param add_counts Logical; if \code{TRUE}, adds a column \code{num_nuclei} with the number of nuclei per donor.
 #' @param outDir Directory to save the covariates files.  Each file will have the matching prefix of the metacell file.
 #' @export
-build_eQTL_covariates<-function (manifest_file, metacell_dir, cell_metadata_file, metadata_columns, force_category_columns=c(), add_counts=T, outDir) {
-    # Read cell metadata
-    cell_metadata <- data.table::fread(cell_metadata_file, data.table=F)
-    cell_metadata <- replace_na_strings(cell_metadata)
+build_eQTL_covariates <- function(manifest_file, metacell_dir, cell_metadata_file, metadata_columns, force_category_columns = c(), add_counts = T, outDir) {
+  # Read cell metadata
+  cell_metadata <- data.table::fread(cell_metadata_file, data.table = F)
+  cell_metadata <- replace_na_strings(cell_metadata)
 
-    #scale age to decades for numeric stability.
-    if ("age" %in% colnames(cell_metadata)) {
-        logger::log_info("Scaling age to decades for numeric stability")
-        cell_metadata$age <- cell_metadata$age / 10
+  # scale age to decades for numeric stability.
+  if ("age" %in% colnames(cell_metadata)) {
+    logger::log_info("Scaling age to decades for numeric stability")
+    cell_metadata$age <- cell_metadata$age / 10
+  }
+
+  manifest <- data.table::fread(manifest_file)
+
+  metadata_list <- vector("list", length = nrow(manifest))
+
+  for (i in seq_len(nrow(manifest))) {
+    logger::log_info(paste("Processing metacell file ", i, "of", nrow(manifest), ":", manifest[i, ]$output_name))
+
+    manifest_row <- manifest[i, ]
+    # create donor level metadata
+    # first subset the cell metadata to the filtered cell type information based on the manifest
+    # This is to handle complex cell type filters like "MSN_D1 matrix" which rely on multiple columns.
+    cell_metadata_this <- filter_df_auto_df_name(cell_metadata, manifest_row$cell_type_filter_str)
+    # Filter by region list
+    cell_metadata_this <- filter_by_region_list(df = cell_metadata_this, region_str = manifest_row$region_list)
+    # add the mixed assay type
+    cell_metadata_this <- addMixedAssayType(cell_metadata_this, has_village = FALSE)
+
+    # aggregate donor-level metadata
+    donor_metadata <- getAnnotations(cell_metadata_this, aggregationFeatures = "donor_external_id", additionalColumns = metadata_columns, addCounts = add_counts)
+
+    # if add_counts is true, add that to the metadata_columns
+    if (add_counts && !("num_nuclei" %in% metadata_columns)) {
+      metadata_columns_this <- c(metadata_columns, "num_nuclei")
+    } else {
+      metadata_columns_this <- metadata_columns
     }
 
-    manifest <- data.table::fread(manifest_file)
-
-    metadata_list <- vector("list", length = nrow(manifest))
-
-    for (i in seq_len(nrow(manifest))) {
-        logger::log_info(paste("Processing metacell file ", i, "of", nrow(manifest), ":", manifest[i,]$output_name))
-
-        manifest_row=manifest[i,]
-        # create donor level metadata
-        # first subset the cell metadata to the filtered cell type information based on the manifest
-        # This is to handle complex cell type filters like "MSN_D1 matrix" which rely on multiple columns.
-        cell_metadata_this <- filter_df_auto_df_name(cell_metadata, manifest_row$cell_type_filter_str)
-        # Filter by region list
-        cell_metadata_this<- filter_by_region_list(df=cell_metadata_this, region_str=manifest_row$region_list)
-        # add the mixed assay type
-        cell_metadata_this<- addMixedAssayType(cell_metadata_this,has_village=FALSE)
-
-        #aggregate donor-level metadata
-        donor_metadata <- getAnnotations(cell_metadata_this, aggregationFeatures = "donor_external_id",  additionalColumns=metadata_columns, addCounts = add_counts)
-
-        #if add_counts is true, add that to the metadata_columns
-        if (add_counts && !("num_nuclei" %in% metadata_columns)) {
-            metadata_columns_this <- c(metadata_columns, "num_nuclei")
-        } else {
-            metadata_columns_this <- metadata_columns
-        }
-
-        if ("num_nuclei" %in% colnames(donor_metadata)) {
-            donor_metadata$z_log10_nuclei <- as.numeric (scale(log10(donor_metadata$num_nuclei)))
-            donor_metadata$num_nuclei <- NULL
-            metadata_columns_this <- c(metadata_columns_this, "z_log10_nuclei")
-            metadata_columns_this<-setdiff(metadata_columns_this, "num_nuclei")
-        }
-
-
-        #align with the donors in the metacell file
-        file_path <- file.path(metacell_dir, paste0(manifest_row$output_name, ".metacells.txt.gz"))
-
-        if (!file.exists(file_path)) {
-            warning("Missing file: ", file_path)
-            return(NULL)
-        }
-
-
-        # Read counts matrix (genes x donors) for the donor IDs.
-        mat <- read.table(file_path, nrows=1, header=TRUE, sep="\t", stringsAsFactors = FALSE)
-        donor_list=colnames(mat)[-1]  #exclude the gene column
-        idx=match(donor_list, donor_metadata$donor_external_id)
-        donor_metadata<-donor_metadata[idx, metadata_columns_this, drop = FALSE]
-
-        #add a check that there are no NA values!  eQTL hates those.
-        check_no_na(donor_metadata)
-
-        #one hot encode the categorical variables - force categorical values first.
-        donor_metadata<-encode_as_factor(donor_metadata, force_category_columns)
-        X <- mltools::one_hot(as.data.table(donor_metadata))
-
-        #just in case, rename '.' to '_'
-        names(X) <- gsub("\\.", "_", names(X), fixed = FALSE)
-        #Need to transpose.  Features are in rows.
-        Xt=t(X)
-
-        #add the donor ID last, you don't want to hot-1 encode it!
-        donor_metadata_final<-data.frame("id"=rownames(Xt), Xt, row.names = NULL)
-        colnames(donor_metadata_final)<- c("id", rownames (donor_metadata))
-        metadata_list[[i]] <- donor_metadata_final
+    if ("num_nuclei" %in% colnames(donor_metadata)) {
+      donor_metadata$z_log10_nuclei <- as.numeric(scale(log10(donor_metadata$num_nuclei)))
+      donor_metadata$num_nuclei <- NULL
+      metadata_columns_this <- c(metadata_columns_this, "z_log10_nuclei")
+      metadata_columns_this <- setdiff(metadata_columns_this, "num_nuclei")
     }
 
-    # write to disk
-    for (i in seq_len(nrow(manifest))) {
-        out_file <- file.path(outDir, paste0(manifest[i,]$output_name, ".covariates.txt"))
-        logger::log_info(paste("Writing eQTL covariates to:", out_file))
-        write.table(metadata_list[[i]], file = out_file, sep = "\t", na = "NA", quote = FALSE, row.names = FALSE)
+
+    # align with the donors in the metacell file
+    file_path <- file.path(metacell_dir, paste0(manifest_row$output_name, ".metacells.txt.gz"))
+
+    if (!file.exists(file_path)) {
+      warning("Missing file: ", file_path)
+      return(NULL)
     }
 
-    logger::log_info(paste("Finished Writing eQTL covariates to:", outDir))
+
+    # Read counts matrix (genes x donors) for the donor IDs.
+    mat <- read.table(file_path, nrows = 1, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+    donor_list <- colnames(mat)[-1] # exclude the gene column
+    idx <- match(donor_list, donor_metadata$donor_external_id)
+    donor_metadata <- donor_metadata[idx, metadata_columns_this, drop = FALSE]
+
+    # add a check that there are no NA values!  eQTL hates those.
+    check_no_na(donor_metadata)
+
+    # one hot encode the categorical variables - force categorical values first.
+    donor_metadata <- encode_as_factor(donor_metadata, force_category_columns)
+    X <- mltools::one_hot(as.data.table(donor_metadata))
+
+    # just in case, rename '.' to '_'
+    names(X) <- gsub("\\.", "_", names(X), fixed = FALSE)
+    # Need to transpose.  Features are in rows.
+    Xt <- t(X)
+
+    # add the donor ID last, you don't want to hot-1 encode it!
+    donor_metadata_final <- data.frame("id" = rownames(Xt), Xt, row.names = NULL)
+    colnames(donor_metadata_final) <- c("id", rownames(donor_metadata))
+    metadata_list[[i]] <- donor_metadata_final
+  }
+
+  # write to disk
+  for (i in seq_len(nrow(manifest))) {
+    out_file <- file.path(outDir, paste0(manifest[i, ]$output_name, ".covariates.txt"))
+    logger::log_info(paste("Writing eQTL covariates to:", out_file))
+    write.table(metadata_list[[i]], file = out_file, sep = "\t", na = "NA", quote = FALSE, row.names = FALSE)
+  }
+
+  logger::log_info(paste("Finished Writing eQTL covariates to:", outDir))
 }
 
 check_no_na <- function(df) {
-    na_counts <- colSums(is.na(df))
+  na_counts <- colSums(is.na(df))
 
-    bad_cols <- names(na_counts)[na_counts > 0]
+  bad_cols <- names(na_counts)[na_counts > 0]
 
-    if (length(bad_cols) > 0) {
-        msg <- paste0(
-            "NA values found in column(s):\n",
-            paste0("  ", bad_cols, " (", na_counts[bad_cols], " NA)", collapse = "\n")
-        )
-        stop(msg, call. = FALSE)
-    }
+  if (length(bad_cols) > 0) {
+    msg <- paste0(
+      "NA values found in column(s):\n",
+      paste0("  ", bad_cols, " (", na_counts[bad_cols], " NA)", collapse = "\n")
+    )
+    stop(msg, call. = FALSE)
+  }
 
-    invisible(TRUE)
+  invisible(TRUE)
 }
 
 ########################################################################
@@ -249,67 +248,63 @@ check_no_na <- function(df) {
 #' @param outName Prefix for the output files.
 #' @param validate_round_trip Logical; if TRUE, validates the saved DGEList by loading it back and comparing to the original.
 #' @export
-createMetadataForAggregationWorkflow<-function (metacell_file_list, outDir, outName="donor_rxn_DGEList", validate_round_trip=T ) {
+createMetadataForAggregationWorkflow <- function(metacell_file_list, outDir, outName = "donor_rxn_DGEList", validate_round_trip = T) {
+  n_rows <- length(metacell_file_list)
+  dge_list <- vector("list", length = n_rows)
 
-    n_rows=length(metacell_file_list)
-    dge_list <- vector("list", length = n_rows)
+  for (i in seq_len(n_rows)) {
+    metacell_file <- metacell_file_list[[i]]
+    logger::log_info(paste("Processing metacell file", i, "of", n_rows, ":", metacell_file))
+    dge_list[[i]] <- getSimpleDGEList(metacell_file)
+  }
 
-    for (i in seq_len(n_rows)) {
-        metacell_file=metacell_file_list[[i]]
-        logger::log_info(paste("Processing metacell file", i, "of", n_rows, ":", metacell_file))
-        dge_list[[i]] <- getSimpleDGEList(metacell_file)
+  dge_list <- Filter(Negate(is.null), dge_list)
+  if (length(dge_list) == 0) stop("No valid DGELists generated.")
+
+  # Get union of all gene names
+  gene_union <- Reduce(union, lapply(dge_list, function(x) rownames(x$counts)))
+
+  # Pad all DGELists to the union
+  dge_list <- lapply(dge_list, pad_dge_to_union, all_genes = gene_union)
+
+  # Combine using edgeR::cbind
+  dge_merged <- do.call(cbind, dge_list)
+
+  # write to disk if the outDir and outName are provided
+  if (!is.null(outDir) && !is.null(outName)) {
+    saveDGEList(dge_merged, dir = outDir, prefix = outName)
+    if (validate_round_trip) {
+      r <- loadDGEList(dir = outDir, prefix = outName)
+      compareDGEList(dge_merged, r)
     }
-
-    dge_list <- Filter(Negate(is.null), dge_list)
-    if (length(dge_list) == 0) stop("No valid DGELists generated.")
-
-    # Get union of all gene names
-    gene_union <- Reduce(union, lapply(dge_list, function(x) rownames(x$counts)))
-
-    # Pad all DGELists to the union
-    dge_list <- lapply(dge_list, pad_dge_to_union, all_genes = gene_union)
-
-    # Combine using edgeR::cbind
-    dge_merged <- do.call(cbind, dge_list)
-
-    # write to disk if the outDir and outName are provided
-    if (!is.null(outDir) && !is.null(outName)) {
-        saveDGEList(dge_merged, dir = outDir, prefix = outName)
-        if (validate_round_trip) {
-            r=loadDGEList(dir = outDir, prefix = outName)
-            compareDGEList(dge_merged, r)
-        }
-    }
-
-
+  }
 }
 
 
 # I'm not sure I like ":" as a separator, so I'll replace with _
-getSimpleDGEList<-function (metacell_file) {
-    mat <- data.table::fread(metacell_file)
-    if (dim (mat)[2]<2) {
-        warning("file didn't have any donors: ", metacell_file)
-        return (NULL)
-    }
-    gene_names <- mat[[1]]
-    mat <- as.matrix(mat[, -1, with = FALSE])
-    rownames(mat) <- gene_names
+getSimpleDGEList <- function(metacell_file) {
+  mat <- data.table::fread(metacell_file)
+  if (dim(mat)[2] < 2) {
+    warning("file didn't have any donors: ", metacell_file)
+    return(NULL)
+  }
+  gene_names <- mat[[1]]
+  mat <- as.matrix(mat[, -1, with = FALSE])
+  rownames(mat) <- gene_names
 
-    donors <- colnames(mat)
-    z=strsplit(donors, ":", fixed = TRUE)
-    donors=sapply(z, function(x) x[1])  # Take the first part as donor
-    cell_types=sapply(z, function(x) x[2])  # Take the second part as cell
+  donors <- colnames(mat)
+  z <- strsplit(donors, ":", fixed = TRUE)
+  donors <- sapply(z, function(x) x[1]) # Take the first part as donor
+  cell_types <- sapply(z, function(x) x[2]) # Take the second part as cell
 
-    mat_colnames_new <- paste0(donors, "_", cell_types)
-    colnames(mat) <- mat_colnames_new
+  mat_colnames_new <- paste0(donors, "_", cell_types)
+  colnames(mat) <- mat_colnames_new
 
-    # Create DGEList
-    dge <- edgeR::DGEList(counts = mat)
-    dge$samples$donor <- donors
-    dge$samples$cell_type <- cell_types
-    return (dge)
-
+  # Create DGEList
+  dge <- edgeR::DGEList(counts = mat)
+  dge$samples$donor <- donors
+  dge$samples$cell_type <- cell_types
+  return(dge)
 }
 
 
@@ -330,99 +325,99 @@ getSimpleDGEList<-function (metacell_file) {
 #' @import data.table edgeR
 #' @keywords internal
 
-#manifest_row=manifest[7];
-process_metacell_file <- function(manifest_row, metacell_dir, cell_metadata, metadata_columns, split_id=TRUE) {
-    file_path <- file.path(metacell_dir, paste0(manifest_row$output_name, ".metacells.txt.gz"))
+# manifest_row=manifest[7];
+process_metacell_file <- function(manifest_row, metacell_dir, cell_metadata, metadata_columns, split_id = TRUE) {
+  file_path <- file.path(metacell_dir, paste0(manifest_row$output_name, ".metacells.txt.gz"))
 
-    if (!file.exists(file_path)) {
-        warning("Missing file: ", file_path)
-        return(NULL)
-    }
+  if (!file.exists(file_path)) {
+    warning("Missing file: ", file_path)
+    return(NULL)
+  }
 
-    # Read counts matrix (genes x donors)
-    mat <- data.table::fread(file_path)
-    if (dim (mat)[2]<2) {
-        warning("file didn't have any donors: ", file_path)
-        return (NULL)
-    }
-    gene_names <- mat[[1]]
-    mat <- as.matrix(mat[, -1, with = FALSE])
-    rownames(mat) <- gene_names
+  # Read counts matrix (genes x donors)
+  mat <- data.table::fread(file_path)
+  if (dim(mat)[2] < 2) {
+    warning("file didn't have any donors: ", file_path)
+    return(NULL)
+  }
+  gene_names <- mat[[1]]
+  mat <- as.matrix(mat[, -1, with = FALSE])
+  rownames(mat) <- gene_names
 
-    # Rename columns: donor__celltype__region
-    donors <- colnames(mat)
+  # Rename columns: donor__celltype__region
+  donors <- colnames(mat)
 
-    # Create DGEList
-    dge <- edgeR::DGEList(counts = mat)
+  # Create DGEList
+  dge <- edgeR::DGEList(counts = mat)
 
-    if (split_id) {
-        # Split donor names into donor and village
-        donor_parts <- strsplit(donors, "_", fixed = TRUE)
-        donors <- sapply(donor_parts, function(x) x[1])  # Take the first part as donor
-        villages <- sapply(donor_parts, function(x) paste(x[2], collapse = "_"))  # Join the rest as village
-        chemistry<- sapply(donor_parts, function(x) paste(x[c(-1,-2)], collapse = "_"))  # Join the rest as village
-        new_names <- paste0(donors, "__", villages, "__", manifest_row$cell_type_name, "__", manifest_row$region_name, "__", chemistry)
-        colnames(mat) <- new_names
+  if (split_id) {
+    # Split donor names into donor and village
+    donor_parts <- strsplit(donors, "_", fixed = TRUE)
+    donors <- sapply(donor_parts, function(x) x[1]) # Take the first part as donor
+    villages <- sapply(donor_parts, function(x) paste(x[2], collapse = "_")) # Join the rest as village
+    chemistry <- sapply(donor_parts, function(x) paste(x[c(-1, -2)], collapse = "_")) # Join the rest as village
+    new_names <- paste0(donors, "__", villages, "__", manifest_row$cell_type_name, "__", manifest_row$region_name, "__", chemistry)
+    colnames(mat) <- new_names
 
-        # Add sample metadata
-        dge$samples$sample_name <- new_names
-        dge$samples$donor <- donors
-        dge$samples$village <- villages
-        dge$samples$single_cell_assay <- chemistry
-    } else {
-        new_names <- paste0(donors, "__", manifest_row$cell_type_name, "__", manifest_row$region_name)
-        colnames(mat) <- new_names
+    # Add sample metadata
+    dge$samples$sample_name <- new_names
+    dge$samples$donor <- donors
+    dge$samples$village <- villages
+    dge$samples$single_cell_assay <- chemistry
+  } else {
+    new_names <- paste0(donors, "__", manifest_row$cell_type_name, "__", manifest_row$region_name)
+    colnames(mat) <- new_names
 
-        # Add sample metadata
-        dge$samples$sample_name <- new_names
-        dge$samples$donor <- donors
-    }
+    # Add sample metadata
+    dge$samples$sample_name <- new_names
+    dge$samples$donor <- donors
+  }
 
-    #chemistry is now being directly handled by file name.
-    metadata_columns_final=setdiff(metadata_columns, "single_cell_assay")
-    dge$samples$cell_type <- manifest_row$cell_type_name
-    dge$samples$region <- manifest_row$region_name
+  # chemistry is now being directly handled by file name.
+  metadata_columns_final <- setdiff(metadata_columns, "single_cell_assay")
+  dge$samples$cell_type <- manifest_row$cell_type_name
+  dge$samples$region <- manifest_row$region_name
 
-    #the counts column names must match the sample_name column in the samples data frame
-    #the rownames of the samples data frame must also match the sample_name
-    colnames(dge$counts) <- dge$samples$sample_name
-    rownames(dge$samples) <- dge$samples$sample_name
+  # the counts column names must match the sample_name column in the samples data frame
+  # the rownames of the samples data frame must also match the sample_name
+  colnames(dge$counts) <- dge$samples$sample_name
+  rownames(dge$samples) <- dge$samples$sample_name
 
-    #add donor level metadata
-    # first subset the cell metadata to the filtered cell type information based on the manifest
-    # This is to handle complex cell type filters like "MSN_D1 matrix" which rely on multiple columns.
-    cell_metadata_this <- filter_df_auto_df_name(cell_metadata, manifest_row$cell_type_filter_str)
-    # Filter by region list
-    cell_metadata_this<- filter_by_region_list(df=cell_metadata_this, region_str=manifest_row$region_list)
+  # add donor level metadata
+  # first subset the cell metadata to the filtered cell type information based on the manifest
+  # This is to handle complex cell type filters like "MSN_D1 matrix" which rely on multiple columns.
+  cell_metadata_this <- filter_df_auto_df_name(cell_metadata, manifest_row$cell_type_filter_str)
+  # Filter by region list
+  cell_metadata_this <- filter_by_region_list(df = cell_metadata_this, region_str = manifest_row$region_list)
 
-    #unique (cell_metadata_this$brain_region_abbreviation)
-    # d=cell_metadata_this[cell_metadata_this$donor_external_id=="MD6434",]
-    # table (d[,c("brain_region_abbreviation", "village")])
+  # unique (cell_metadata_this$brain_region_abbreviation)
+  # d=cell_metadata_this[cell_metadata_this$donor_external_id=="MD6434",]
+  # table (d[,c("brain_region_abbreviation", "village")])
 
-    if (nrow(cell_metadata_this) == 0) {
-        warning("No matching cell metadata for filter: ", manifest_row$cell_type_filter_str)
-        return(dge)
-    }
-    # Add donor annotations
-    if (split_id) {
-        aggregationFeatures = c("donor_external_id", "village", "single_cell_assay")
-    } else {
-        aggregationFeatures = c("donor_external_id")
-    }
-
-    dge <- add_donor_annotations(dge, cell_metadata_this, metadata_columns_final, aggregationFeatures=aggregationFeatures, add_counts=TRUE)
-
-    #add the "use" columns.
-    useCols=c("MDS", "differential_expression", "eQTL_Analysis")
-    for (col in useCols) {
-        if (col %in% colnames(manifest_row)) {
-            dge$samples[[col]] <- manifest_row[[col]]
-        } else {
-            dge$samples[[col]] <- NA
-        }
-    }
-
+  if (nrow(cell_metadata_this) == 0) {
+    warning("No matching cell metadata for filter: ", manifest_row$cell_type_filter_str)
     return(dge)
+  }
+  # Add donor annotations
+  if (split_id) {
+    aggregationFeatures <- c("donor_external_id", "village", "single_cell_assay")
+  } else {
+    aggregationFeatures <- c("donor_external_id")
+  }
+
+  dge <- add_donor_annotations(dge, cell_metadata_this, metadata_columns_final, aggregationFeatures = aggregationFeatures, add_counts = TRUE)
+
+  # add the "use" columns.
+  useCols <- c("MDS", "differential_expression", "eQTL_Analysis")
+  for (col in useCols) {
+    if (col %in% colnames(manifest_row)) {
+      dge$samples[[col]] <- manifest_row[[col]]
+    } else {
+      dge$samples[[col]] <- NA
+    }
+  }
+
+  return(dge)
 }
 
 #' Add Donor-Level Annotations to a DGEList
@@ -440,45 +435,45 @@ process_metacell_file <- function(manifest_row, metacell_dir, cell_metadata, met
 #' @return A \code{DGEList} object with additional donor-level columns in \code{dge$samples}.
 #'
 #' @keywords internal
-add_donor_annotations<-function (dge_merged, cell_metadata, metadata_columns, add_counts=TRUE, aggregationFeatures = "donor_external_id") {
-    #aggregate donor-level metadata
+add_donor_annotations <- function(dge_merged, cell_metadata, metadata_columns, add_counts = TRUE, aggregationFeatures = "donor_external_id") {
+  # aggregate donor-level metadata
 
-    donor_metadata <- getAnnotations(cell_metadata, aggregationFeatures=aggregationFeatures,  additionalColumns=metadata_columns, addCounts = add_counts)
+  donor_metadata <- getAnnotations(cell_metadata, aggregationFeatures = aggregationFeatures, additionalColumns = metadata_columns, addCounts = add_counts)
 
-    #if add_counts is true, add that to the metadata_columns
-    if (add_counts && !("num_nuclei" %in% metadata_columns)) {
-        metadata_columns <- c(metadata_columns, "num_nuclei")
-    }
+  # if add_counts is true, add that to the metadata_columns
+  if (add_counts && !("num_nuclei" %in% metadata_columns)) {
+    metadata_columns <- c(metadata_columns, "num_nuclei")
+  }
 
-    # Merge with cell metadata
-    #idx=match(dge_merged$samples$donor, donor_metadata$donor_external_id)
-    #dge_merged$samples <- cbind(dge_merged$samples, donor_metadata[idx, metadata_columns, drop = FALSE])
+  # Merge with cell metadata
+  # idx=match(dge_merged$samples$donor, donor_metadata$donor_external_id)
+  # dge_merged$samples <- cbind(dge_merged$samples, donor_metadata[idx, metadata_columns, drop = FALSE])
 
-    ## build a composite key from the aggregation columns (must exist in both tables)
-    ## map key columns in dge_merged$samples -> donor_metadata
-    key_cols_samples <- aggregationFeatures
-    key_cols_samples[key_cols_samples == "donor_external_id"] <- "donor"
+  ## build a composite key from the aggregation columns (must exist in both tables)
+  ## map key columns in dge_merged$samples -> donor_metadata
+  key_cols_samples <- aggregationFeatures
+  key_cols_samples[key_cols_samples == "donor_external_id"] <- "donor"
 
-    key_cols_meta <- aggregationFeatures
+  key_cols_meta <- aggregationFeatures
 
-    key_merged <- do.call(
-        paste,
-        c(dge_merged$samples[, key_cols_samples, drop = FALSE], sep = "\r")
-    )
-    key_meta <- do.call(
-        paste,
-        c(donor_metadata[, key_cols_meta, drop = FALSE], sep = "\r")
-    )
+  key_merged <- do.call(
+    paste,
+    c(dge_merged$samples[, key_cols_samples, drop = FALSE], sep = "\r")
+  )
+  key_meta <- do.call(
+    paste,
+    c(donor_metadata[, key_cols_meta, drop = FALSE], sep = "\r")
+  )
 
-    if (any(duplicated(key_meta))) stop("donor_metadata has duplicated aggregation keys.")
+  if (any(duplicated(key_meta))) stop("donor_metadata has duplicated aggregation keys.")
 
-    idx <- match(key_merged, key_meta)
+  idx <- match(key_merged, key_meta)
 
-    dge_merged$samples <- cbind(
-        dge_merged$samples,
-        donor_metadata[idx, metadata_columns, drop = FALSE]
-    )
-    return(dge_merged)
+  dge_merged$samples <- cbind(
+    dge_merged$samples,
+    donor_metadata[idx, metadata_columns, drop = FALSE]
+  )
+  return(dge_merged)
 }
 
 
@@ -495,21 +490,21 @@ add_donor_annotations<-function (dge_merged, cell_metadata, metadata_columns, ad
 #'
 #' @keywords internal
 pad_dge_to_union <- function(dge, all_genes) {
-    cur_genes <- rownames(dge$counts)
-    missing_genes <- setdiff(all_genes, cur_genes)
+  cur_genes <- rownames(dge$counts)
+  missing_genes <- setdiff(all_genes, cur_genes)
 
-    if (length(missing_genes) > 0) {
-        zero_mat <- matrix(0, nrow = length(missing_genes), ncol = ncol(dge$counts))
-        rownames(zero_mat) <- missing_genes
-        colnames(zero_mat) <- colnames(dge$counts)
-        new_counts <- rbind(dge$counts, zero_mat)
-        new_counts <- new_counts[all_genes, , drop = FALSE]
-        dge$counts <- new_counts
-    } else {
-        dge$counts <- dge$counts[all_genes, , drop = FALSE]
-    }
+  if (length(missing_genes) > 0) {
+    zero_mat <- matrix(0, nrow = length(missing_genes), ncol = ncol(dge$counts))
+    rownames(zero_mat) <- missing_genes
+    colnames(zero_mat) <- colnames(dge$counts)
+    new_counts <- rbind(dge$counts, zero_mat)
+    new_counts <- new_counts[all_genes, , drop = FALSE]
+    dge$counts <- new_counts
+  } else {
+    dge$counts <- dge$counts[all_genes, , drop = FALSE]
+  }
 
-    return(dge)
+  return(dge)
 }
 
 #' Aggregate Cell-Level Metadata to Donor-Level Summaries
@@ -527,74 +522,73 @@ pad_dge_to_union <- function(dge, all_genes) {
 #' @keywords internal
 #' @importFrom stats na.omit
 getAnnotations <- function(metricsDF,
-                                 aggregationFeatures = c("donor_external_id"),
-                                 additionalColumns = c("age", "imputed_sex"),
-                                 addCounts = FALSE) {
+                           aggregationFeatures = c("donor_external_id"),
+                           additionalColumns = c("age", "imputed_sex"),
+                           addCounts = FALSE) {
+  missing_grouping <- setdiff(aggregationFeatures, colnames(metricsDF))
+  missing_additional <- setdiff(additionalColumns, colnames(metricsDF))
+  if (length(missing_grouping) > 0) {
+    stop("Missing aggregationFeatures in metricsDF: ", paste(missing_grouping, collapse = ", "))
+  }
+  if (length(missing_additional) > 0) {
+    stop("Missing additionalColumns in metricsDF: ", paste(missing_additional, collapse = ", "))
+  }
 
-    missing_grouping <- setdiff(aggregationFeatures, colnames(metricsDF))
-    missing_additional <- setdiff(additionalColumns, colnames(metricsDF))
-    if (length(missing_grouping) > 0) {
-        stop("Missing aggregationFeatures in metricsDF: ", paste(missing_grouping, collapse = ", "))
-    }
-    if (length(missing_additional) > 0) {
-        stop("Missing additionalColumns in metricsDF: ", paste(missing_additional, collapse = ", "))
-    }
+  allColumns <- unique(c(aggregationFeatures, additionalColumns))
 
-    allColumns=unique(c(aggregationFeatures, additionalColumns))
+  # Subset relevant columns
+  subsetDF <- metricsDF[, allColumns, drop = FALSE]
 
-    # Subset relevant columns
-    subsetDF <- metricsDF[, allColumns, drop = FALSE]
+  # Split by group key
+  split_groups <- split(subsetDF, f = subsetDF[, aggregationFeatures], drop = TRUE)
 
-    # Split by group key
-    split_groups <- split(subsetDF, f = subsetDF[, aggregationFeatures], drop = TRUE)
+  # Compute per-group summaries
+  summarize_group <- function(df,
+                              aggregationFeatures,
+                              additionalColumns,
+                              addCounts) {
+    row <- df[1, aggregationFeatures, drop = FALSE]
 
-    # Compute per-group summaries
-    summarize_group <- function(df,
-                                aggregationFeatures,
-                                additionalColumns,
-                                addCounts) {
+    for (col in additionalColumns) {
+      x <- df[[col]]
+      if (is.numeric(x)) {
+        row[[col]] <- mean(x, na.rm = TRUE)
+      } else {
+        # Treat literal "NA" as missing
+        x[x == "NA"] <- NA
 
-        row <- df[1, aggregationFeatures, drop = FALSE]
-
-        for (col in additionalColumns) {
-            x <- df[[col]]
-            if (is.numeric(x)) {
-                row[[col]] <- mean(x, na.rm = TRUE)
-            } else {
-                # Treat literal "NA" as missing
-                x[x == "NA"] <- NA
-
-                unique_vals <- unique(stats::na.omit(x))
-                if (length(unique_vals) == 0) {
-                    row[[col]] <- NA
-                } else if (length(unique_vals) == 1) {
-                    row[[col]] <- unique_vals
-                } else {
-                    stop(sprintf(
-                        "Non-unique categorical values in column '%s' for group: %s",
-                        col,
-                        paste(row[1, aggregationFeatures], collapse = ", ")
-                    ))
-                }
-            }
+        unique_vals <- unique(stats::na.omit(x))
+        if (length(unique_vals) == 0) {
+          row[[col]] <- NA
+        } else if (length(unique_vals) == 1) {
+          row[[col]] <- unique_vals
+        } else {
+          stop(sprintf(
+            "Non-unique categorical values in column '%s' for group: %s",
+            col,
+            paste(row[1, aggregationFeatures], collapse = ", ")
+          ))
         }
-
-        if (addCounts) {
-            row[["num_nuclei"]] <- nrow(df)
-        }
-
-        row
+      }
     }
 
-    result_list <- lapply(split_groups, summarize_group, aggregationFeatures = aggregationFeatures,
-                          additionalColumns = additionalColumns, addCounts = addCounts
-    )
+    if (addCounts) {
+      row[["num_nuclei"]] <- nrow(df)
+    }
+
+    row
+  }
+
+  result_list <- lapply(split_groups, summarize_group,
+    aggregationFeatures = aggregationFeatures,
+    additionalColumns = additionalColumns, addCounts = addCounts
+  )
 
 
-    # Combine summaries
-    annotationDF <- do.call(rbind, result_list)
+  # Combine summaries
+  annotationDF <- do.call(rbind, result_list)
 
-    return(annotationDF)
+  return(annotationDF)
 }
 
 
@@ -619,43 +613,43 @@ getAnnotations <- function(metricsDF,
 #' @export
 # df_expr= cell_metadata; python_filter_string=manifest[26]$cell_type_filter_str
 filter_df_auto_df_name <- function(df_expr, python_filter_string) {
-    df_name <- as.character(substitute(df_expr))
-    df <- eval(substitute(df_expr), envir = parent.frame())
+  df_name <- as.character(substitute(df_expr))
+  df <- eval(substitute(df_expr), envir = parent.frame())
 
-    expr <- python_filter_string
+  expr <- python_filter_string
 
-    # .isin(['A','B']) -> %in% c('A','B')
-    expr <- gsub(
-        "\\.isin\\s*\\(\\s*\\[([^\\]]*)\\]\\s*\\)",
-        " %in% c(\\1)",
-        expr,
-        perl = TRUE
-    )
+  # .isin(['A','B']) -> %in% c('A','B')
+  expr <- gsub(
+    "\\.isin\\s*\\(\\s*\\[([^\\]]*)\\]\\s*\\)",
+    " %in% c(\\1)",
+    expr,
+    perl = TRUE
+  )
 
-    # .isin(('A','B')) -> %in% c('A','B')
-    expr <- gsub(
-        "\\.isin\\s*\\(\\s*\\(([^()]*)\\)\\s*\\)",
-        " %in% c(\\1)",
-        expr,
-        perl = TRUE
-    )
+  # .isin(('A','B')) -> %in% c('A','B')
+  expr <- gsub(
+    "\\.isin\\s*\\(\\s*\\(([^()]*)\\)\\s*\\)",
+    " %in% c(\\1)",
+    expr,
+    perl = TRUE
+  )
 
-    # Normalize Python literals
-    expr <- gsub("\\bNone\\b", "NA", expr, perl = TRUE)
-    expr <- gsub("\\bTrue\\b", "TRUE", expr, perl = TRUE)
-    expr <- gsub("\\bFalse\\b", "FALSE", expr, perl = TRUE)
+  # Normalize Python literals
+  expr <- gsub("\\bNone\\b", "NA", expr, perl = TRUE)
+  expr <- gsub("\\bTrue\\b", "TRUE", expr, perl = TRUE)
+  expr <- gsub("\\bFalse\\b", "FALSE", expr, perl = TRUE)
 
-    # adata.obs["col"] or adata.obs['col'] -> df_name$col
-    expr <- gsub(
-        'adata\\.obs\\[\\s*["\']([^"\']+)["\']\\s*\\]',
-        paste0(df_name, "$\\1"),
-        expr,
-        perl = TRUE
-    )
+  # adata.obs["col"] or adata.obs['col'] -> df_name$col
+  expr <- gsub(
+    'adata\\.obs\\[\\s*["\']([^"\']+)["\']\\s*\\]',
+    paste0(df_name, "$\\1"),
+    expr,
+    perl = TRUE
+  )
 
-    idx <- eval(parse(text = expr), envir = parent.frame())
+  idx <- eval(parse(text = expr), envir = parent.frame())
 
-    df[which(idx), , drop = FALSE]
+  df[which(idx), , drop = FALSE]
 }
 
 #' Filter Cell Metadata by Brain Region Abbreviation
@@ -671,10 +665,10 @@ filter_df_auto_df_name <- function(df_expr, python_filter_string) {
 #'
 #' @keywords internal
 filter_by_region_list <- function(df, region_str) {
-    regions <- strsplit(region_str, ",")[[1]]
-    regions <- trimws(regions)
-    result=df[df$brain_region_abbreviation %in% regions, , drop = FALSE]
-    return (result)
+  regions <- strsplit(region_str, ",")[[1]]
+  regions <- trimws(regions)
+  result <- df[df$brain_region_abbreviation %in% regions, , drop = FALSE]
+  return(result)
 }
 
 
@@ -690,12 +684,12 @@ filter_by_region_list <- function(df, region_str) {
 #'
 #' @keywords internal
 replace_na_strings <- function(df) {
-    for (col in names(df)) {
-        if (is.character(df[[col]]) || is.factor(df[[col]])) {
-            df[[col]][is.na(df[[col]])] <- "NA"
-        }
+  for (col in names(df)) {
+    if (is.character(df[[col]]) || is.factor(df[[col]])) {
+      df[[col]][is.na(df[[col]])] <- "NA"
     }
-    return(df)
+  }
+  return(df)
 }
 
 #' Flag donors with multiple assay types in the same region
@@ -713,37 +707,37 @@ replace_na_strings <- function(df) {
 #'   with more than one distinct `single_cell_assay` in a region, the `single_cell_assay`
 #'   value is set to `"mixed"` in all rows for that donor-region combination.
 addMixedAssayType <- function(metricsDF, has_village = TRUE) {
+  if (!"single_cell_assay" %in% colnames(metricsDF)) {
+    return(metricsDF)
+  }
 
-    if (!"single_cell_assay" %in% colnames(metricsDF))
-        return (metricsDF)
+  # Columns that define a distinct donor-region-(village) combination
+  base_cols <- c("donor_external_id", "brain_region_abbreviation_simple")
+  label_cols <- if (has_village && ("village" %in% colnames(metricsDF))) {
+    c(base_cols, "village")
+  } else {
+    base_cols
+  }
 
-    # Columns that define a distinct donor-region-(village) combination
-    base_cols <- c("donor_external_id", "brain_region_abbreviation_simple")
-    label_cols <- if (has_village && ("village" %in% colnames(metricsDF))) {
-        c(base_cols, "village")
-    } else {
-        base_cols
-    }
+  # Unique rows over assay + label-defining columns
+  columns <- c("single_cell_assay", label_cols)
+  distinct_rows <- unique(metricsDF[, columns, drop = FALSE])
 
-    # Unique rows over assay + label-defining columns
-    columns <- c("single_cell_assay", label_cols)
-    distinct_rows <- unique(metricsDF[, columns, drop = FALSE])
+  # Composite key for grouping
+  distinct_rows$key <- do.call(paste, c(distinct_rows[, label_cols, drop = FALSE], sep = "_"))
 
-    # Composite key for grouping
-    distinct_rows$key <- do.call(paste, c(distinct_rows[, label_cols, drop = FALSE], sep = "_"))
+  # Identify keys with >1 assay
+  key_counts <- table(distinct_rows$key)
+  mixed_keys <- names(key_counts[key_counts > 1])
 
-    # Identify keys with >1 assay
-    key_counts <- table(distinct_rows$key)
-    mixed_keys <- names(key_counts[key_counts > 1])
+  # Tag original rows matching mixed keys
+  all_keys <- do.call(paste, c(metricsDF[, label_cols, drop = FALSE], sep = "_"))
+  idx_mixed <- which(all_keys %in% mixed_keys)
+  if (length(idx_mixed) > 0) {
+    metricsDF$single_cell_assay[idx_mixed] <- "NextGEM:GEMX"
+  }
 
-    # Tag original rows matching mixed keys
-    all_keys <- do.call(paste, c(metricsDF[, label_cols, drop = FALSE], sep = "_"))
-    idx_mixed <- which(all_keys %in% mixed_keys)
-    if (length(idx_mixed) > 0) {
-        metricsDF$single_cell_assay[idx_mixed] <- "NextGEM:GEMX"
-    }
-
-    metricsDF
+  metricsDF
 }
 
 #' Parse the cell type proportions PCA file and add to the metrics DF.
@@ -758,38 +752,38 @@ addMixedAssayType <- function(metricsDF, has_village = TRUE) {
 #' @return A data frame identical to \code{metricsDF} but with additional columns for the PCA scores of cell type proportions.
 #' @import logger
 #' @export
-addCellTypeProportionsPCA<-function (cellTypeProportionsPCAFile, metricsDF, numPCs=4, scalePCs=FALSE) {
-    logger::log_info("Adding cell type proportions PCA scores to cell level metadata")
-    a=utils::read.table(cellTypeProportionsPCAFile, header=T, sep="\t")
-    #TODO REMOVE THIS HACK
-    #a=a[,c(1,2,4)]
+addCellTypeProportionsPCA <- function(cellTypeProportionsPCAFile, metricsDF, numPCs = 4, scalePCs = FALSE) {
+  logger::log_info("Adding cell type proportions PCA scores to cell level metadata")
+  a <- utils::read.table(cellTypeProportionsPCAFile, header = T, sep = "\t")
+  # TODO REMOVE THIS HACK
+  # a=a[,c(1,2,4)]
 
-    idxPC=grep("PC", colnames(a))
-    idxNotPCs=setdiff(1:ncol(a), idxPC)
-    colnames(a)[idxPC]=paste("cell_proportion", colnames(a)[idxPC], sep="_")
+  idxPC <- grep("PC", colnames(a))
+  idxNotPCs <- setdiff(1:ncol(a), idxPC)
+  colnames(a)[idxPC] <- paste("cell_proportion", colnames(a)[idxPC], sep = "_")
 
-    if (scalePCs) {
-        a[,idxPC] <- scale(a[,idxPC], center = TRUE, scale = TRUE)
-    }
+  if (scalePCs) {
+    a[, idxPC] <- scale(a[, idxPC], center = TRUE, scale = TRUE)
+  }
 
-    #select the first X PCs.
-    if (numPCs > length(idxPC)) {
-        stop(paste("Requested", numPCs, "PCs but only found", length(idxPC), "in the file."))
-    }
+  # select the first X PCs.
+  if (numPCs > length(idxPC)) {
+    stop(paste("Requested", numPCs, "PCs but only found", length(idxPC), "in the file."))
+  }
 
-    idxPC=idxPC[1:numPCs]
-    a=a[,c(idxNotPCs,idxPC), drop=FALSE]
+  idxPC <- idxPC[1:numPCs]
+  a <- a[, c(idxNotPCs, idxPC), drop = FALSE]
 
-    #a compound key to match the rownames in a.
-    metricsDF$key=paste(metricsDF$donor_external_id, metricsDF$brain_region_abbreviation, sep="_")
+  # a compound key to match the rownames in a.
+  metricsDF$key <- paste(metricsDF$donor_external_id, metricsDF$brain_region_abbreviation, sep = "_")
 
-    idx=match(metricsDF$key, rownames(a))
-    if (any (is.na(idx))) {
-        logger::log_warn(paste("Missing cell type proportions PCA for donors [", paste(metricsDF$donor_external_id[is.na(idx)], collapse=","), "]"))
-    }
-    #add the PCA scores to the metricsDF
-    metricsDF=cbind(metricsDF, a[idx, idxPC, drop=FALSE])
-    return (metricsDF)
+  idx <- match(metricsDF$key, rownames(a))
+  if (any(is.na(idx))) {
+    logger::log_warn(paste("Missing cell type proportions PCA for donors [", paste(metricsDF$donor_external_id[is.na(idx)], collapse = ","), "]"))
+  }
+  # add the PCA scores to the metricsDF
+  metricsDF <- cbind(metricsDF, a[idx, idxPC, drop = FALSE])
+  return(metricsDF)
 }
 
 # Functions to serialize and deserialize edgeR::DGEList objects
@@ -806,38 +800,40 @@ addCellTypeProportionsPCA<-function (cellTypeProportionsPCAFile, metricsDF, numP
 #' @export
 #' @importFrom utils write.table
 saveDGEList <- function(dge, dir, prefix = "dge") {
-    if (!dir.exists(dir)) dir.create(dir, recursive = TRUE)
+  if (!dir.exists(dir)) dir.create(dir, recursive = TRUE)
 
-    # Prepare counts with optional gene annotation
-    counts_df <- as.data.frame(dge$counts, check.names = FALSE)
-    if (!is.null(dge$genes)) {
-        genes_df <- as.data.frame(dge$genes, stringsAsFactors = FALSE)
-        counts_df <- cbind(genes_df[rownames(counts_df), , drop = FALSE], counts_df)
-    }
-    # Add explicit GeneID column
-    counts_df <- cbind(GeneID = rownames(counts_df), counts_df)
+  # Prepare counts with optional gene annotation
+  counts_df <- as.data.frame(dge$counts, check.names = FALSE)
+  if (!is.null(dge$genes)) {
+    genes_df <- as.data.frame(dge$genes, stringsAsFactors = FALSE)
+    counts_df <- cbind(genes_df[rownames(counts_df), , drop = FALSE], counts_df)
+  }
+  # Add explicit GeneID column
+  counts_df <- cbind(GeneID = rownames(counts_df), counts_df)
 
-    # Write gzipped counts TSV
-    counts_file <- file.path(dir, paste0(prefix, "_counts.tsv.gz"))
-    gz_counts_con <- gzfile(counts_file, "w")
-    utils::write.table(counts_df,
-                file = gz_counts_con,
-                sep = "\t", quote = FALSE, row.names = FALSE)
-    close(gz_counts_con)
+  # Write gzipped counts TSV
+  counts_file <- file.path(dir, paste0(prefix, "_counts.tsv.gz"))
+  gz_counts_con <- gzfile(counts_file, "w")
+  utils::write.table(counts_df,
+    file = gz_counts_con,
+    sep = "\t", quote = FALSE, row.names = FALSE
+  )
+  close(gz_counts_con)
 
-    # Prepare sample metadata
-    samples_df <- as.data.frame(dge$samples, stringsAsFactors = FALSE, check.names = FALSE)
-    # Drop lib.size and norm.factors to avoid persisting old values
-    samples_df <- samples_df[, setdiff(colnames(samples_df), c("lib.size", "norm.factors")), drop = FALSE]
-    samples_df <- cbind(SampleID = rownames(dge$samples), samples_df)
+  # Prepare sample metadata
+  samples_df <- as.data.frame(dge$samples, stringsAsFactors = FALSE, check.names = FALSE)
+  # Drop lib.size and norm.factors to avoid persisting old values
+  samples_df <- samples_df[, setdiff(colnames(samples_df), c("lib.size", "norm.factors")), drop = FALSE]
+  samples_df <- cbind(SampleID = rownames(dge$samples), samples_df)
 
-    # Write gzipped samples TSV
-    samples_file <- file.path(dir, paste0(prefix, "_samples.tsv.gz"))
-    gz_samples_con <- gzfile(samples_file, "w")
-    utils::write.table(samples_df,
-                file = gz_samples_con,
-                sep = "\t", quote = FALSE, row.names = FALSE)
-    close(gz_samples_con)
+  # Write gzipped samples TSV
+  samples_file <- file.path(dir, paste0(prefix, "_samples.tsv.gz"))
+  gz_samples_con <- gzfile(samples_file, "w")
+  utils::write.table(samples_df,
+    file = gz_samples_con,
+    sep = "\t", quote = FALSE, row.names = FALSE
+  )
+  close(gz_samples_con)
 }
 
 #' Load a DGEList from disk saved by saveDGEList with a filename prefix
@@ -847,47 +843,47 @@ saveDGEList <- function(dge, dir, prefix = "dge") {
 #' @return A DGEList object
 #' @export
 loadDGEList <- function(dir, prefix = "dge") {
-    # Construct filenames for gzipped TSVs
-    counts_file  <- file.path(dir, paste0(prefix, "_counts.tsv.gz"))
-    samples_file <- file.path(dir, paste0(prefix, "_samples.tsv.gz"))
+  # Construct filenames for gzipped TSVs
+  counts_file <- file.path(dir, paste0(prefix, "_counts.tsv.gz"))
+  samples_file <- file.path(dir, paste0(prefix, "_samples.tsv.gz"))
 
-    # Read in the tables via gzfile connections
-    gz_counts_con  <- gzfile(counts_file, "r")
-    counts_df      <- utils::read.delim(gz_counts_con, stringsAsFactors = FALSE, check.names = FALSE)
-    close(gz_counts_con)
+  # Read in the tables via gzfile connections
+  gz_counts_con <- gzfile(counts_file, "r")
+  counts_df <- utils::read.delim(gz_counts_con, stringsAsFactors = FALSE, check.names = FALSE)
+  close(gz_counts_con)
 
-    gz_samples_con <- gzfile(samples_file, "r")
-    samples_df     <- utils::read.delim(gz_samples_con, stringsAsFactors = FALSE, check.names = FALSE)
-    close(gz_samples_con)
+  gz_samples_con <- gzfile(samples_file, "r")
+  samples_df <- utils::read.delim(gz_samples_con, stringsAsFactors = FALSE, check.names = FALSE)
+  close(gz_samples_con)
 
-    # Extract sample IDs
-    sample_ids <- samples_df$SampleID
+  # Extract sample IDs
+  sample_ids <- samples_df$SampleID
 
-    # Identify count columns by matching sample IDs
-    count_cols <- intersect(names(counts_df), sample_ids)
-    counts_mat <- as.matrix(counts_df[, count_cols, drop = FALSE])
-    rownames(counts_mat) <- counts_df$GeneID
+  # Identify count columns by matching sample IDs
+  count_cols <- intersect(names(counts_df), sample_ids)
+  counts_mat <- as.matrix(counts_df[, count_cols, drop = FALSE])
+  rownames(counts_mat) <- counts_df$GeneID
 
-    # Extract gene annotation columns if present
-    # Explicitly handle empty column names (defend against python written dataframes)
-    colnames(counts_df)[colnames(counts_df) == ""] <- "empty_col"
+  # Extract gene annotation columns if present
+  # Explicitly handle empty column names (defend against python written dataframes)
+  colnames(counts_df)[colnames(counts_df) == ""] <- "empty_col"
 
-    gene_cols <- setdiff(names(counts_df), c("GeneID", count_cols))
-    genes_df <- if (length(gene_cols) > 0) counts_df[, gene_cols, drop = FALSE] else NULL
-    if (!is.null(genes_df)) rownames(genes_df) <- counts_df$GeneID
+  gene_cols <- setdiff(names(counts_df), c("GeneID", count_cols))
+  genes_df <- if (length(gene_cols) > 0) counts_df[, gene_cols, drop = FALSE] else NULL
+  if (!is.null(genes_df)) rownames(genes_df) <- counts_df$GeneID
 
-    # Prepare samples data.frame: drop lib.size/norm.factors if present, then set rownames
-    # Explicitly handle empty column names (defend against python written dataframes)
-    colnames(samples_df)[colnames(samples_df) == ""] <- "empty_col"
-    samples_df <- samples_df[, setdiff(colnames(samples_df), c("lib.size", "norm.factors", "SampleID")), drop = FALSE]
-    rownames(samples_df) <- sample_ids
+  # Prepare samples data.frame: drop lib.size/norm.factors if present, then set rownames
+  # Explicitly handle empty column names (defend against python written dataframes)
+  colnames(samples_df)[colnames(samples_df) == ""] <- "empty_col"
+  samples_df <- samples_df[, setdiff(colnames(samples_df), c("lib.size", "norm.factors", "SampleID")), drop = FALSE]
+  rownames(samples_df) <- sample_ids
 
-    # Construct and return DGEList; lib.size and norm.factors will be recomputed
-    edgeR::DGEList(
-        counts  = counts_mat,
-        genes   = genes_df,
-        samples = samples_df
-    )
+  # Construct and return DGEList; lib.size and norm.factors will be recomputed
+  edgeR::DGEList(
+    counts  = counts_mat,
+    genes   = genes_df,
+    samples = samples_df
+  )
 }
 
 #' Compare two DGEList objects for near equality
@@ -898,55 +894,55 @@ loadDGEList <- function(dir, prefix = "dge") {
 #' @return TRUE if equal within tolerance, otherwise throws an error describing the mismatch
 #' @export
 compareDGEList <- function(dge1, dge2, tol = 1e-8) {
-    # Counts: dimensions and names
-    if (!all(dim(dge1$counts) == dim(dge2$counts))) stop("Counts dimensions differ")
-    if (!all(rownames(dge1$counts) == rownames(dge2$counts))) stop("Counts rownames differ")
-    if (!all(colnames(dge1$counts) == colnames(dge2$counts))) stop("Counts colnames differ")
-    # Numeric compare with tolerance, treat NA==NA as equal
-    diff_counts <- abs(dge1$counts - dge2$counts)
-    na_both <- is.na(dge1$counts) & is.na(dge2$counts)
-    mismatch <- (diff_counts > tol) & !na_both
-    if (any(mismatch, na.rm = TRUE)) stop("Counts differ beyond tolerance")
+  # Counts: dimensions and names
+  if (!all(dim(dge1$counts) == dim(dge2$counts))) stop("Counts dimensions differ")
+  if (!all(rownames(dge1$counts) == rownames(dge2$counts))) stop("Counts rownames differ")
+  if (!all(colnames(dge1$counts) == colnames(dge2$counts))) stop("Counts colnames differ")
+  # Numeric compare with tolerance, treat NA==NA as equal
+  diff_counts <- abs(dge1$counts - dge2$counts)
+  na_both <- is.na(dge1$counts) & is.na(dge2$counts)
+  mismatch <- (diff_counts > tol) & !na_both
+  if (any(mismatch, na.rm = TRUE)) stop("Counts differ beyond tolerance")
 
-    # Genes slot
-    if (!is.null(dge1$genes) || !is.null(dge2$genes)) {
-        if (is.null(dge1$genes) || is.null(dge2$genes)) stop("One genes slot is NULL and the other is not")
-        if (!all(dim(dge1$genes) == dim(dge2$genes))) stop("Genes dimensions differ")
-        if (!all(rownames(dge1$genes) == rownames(dge2$genes))) stop("Genes rownames differ")
-        if (!all(colnames(dge1$genes) == colnames(dge2$genes))) stop("Genes colnames differ")
-        for (col in colnames(dge1$genes)) {
-            v1 <- dge1$genes[[col]]
-            v2 <- dge2$genes[[col]]
-            if (is.numeric(v1) && is.numeric(v2)) {
-                diff <- abs(v1 - v2)
-                na_both_g <- is.na(v1) & is.na(v2)
-                if (any((diff > tol) & !na_both_g, na.rm = TRUE)) stop(paste("Gene annotation", col, "differs"))
-            } else {
-                neq <- !(v1 == v2) & !(is.na(v1) & is.na(v2))
-                if (any(neq, na.rm = TRUE)) stop(paste("Gene annotation", col, "differs"))
-            }
-        }
+  # Genes slot
+  if (!is.null(dge1$genes) || !is.null(dge2$genes)) {
+    if (is.null(dge1$genes) || is.null(dge2$genes)) stop("One genes slot is NULL and the other is not")
+    if (!all(dim(dge1$genes) == dim(dge2$genes))) stop("Genes dimensions differ")
+    if (!all(rownames(dge1$genes) == rownames(dge2$genes))) stop("Genes rownames differ")
+    if (!all(colnames(dge1$genes) == colnames(dge2$genes))) stop("Genes colnames differ")
+    for (col in colnames(dge1$genes)) {
+      v1 <- dge1$genes[[col]]
+      v2 <- dge2$genes[[col]]
+      if (is.numeric(v1) && is.numeric(v2)) {
+        diff <- abs(v1 - v2)
+        na_both_g <- is.na(v1) & is.na(v2)
+        if (any((diff > tol) & !na_both_g, na.rm = TRUE)) stop(paste("Gene annotation", col, "differs"))
+      } else {
+        neq <- !(v1 == v2) & !(is.na(v1) & is.na(v2))
+        if (any(neq, na.rm = TRUE)) stop(paste("Gene annotation", col, "differs"))
+      }
     }
+  }
 
-    # Samples slot
-    if (!all(dim(dge1$samples) == dim(dge2$samples))) stop("Samples dimensions differ")
-    if (!all(rownames(dge1$samples) == rownames(dge2$samples))) stop("Samples rownames differ")
-    if (!all(colnames(dge1$samples) == colnames(dge2$samples))) stop("Samples colnames differ")
-    for (col in colnames(dge1$samples)) {
-        v1 <- dge1$samples[[col]]
-        v2 <- dge2$samples[[col]]
-        if (is.numeric(v1) && is.numeric(v2)) {
-            diff <- abs(v1 - v2)
-            na_both_s <- is.na(v1) & is.na(v2)
-            if (any((diff > tol) & !na_both_s, na.rm = TRUE)) stop(paste("Sample column", col, "differs"))
-        } else {
-            neq <- !(v1 == v2) & !(is.na(v1) & is.na(v2))
-            if (any(neq, na.rm = TRUE)) stop(paste("Sample column", col, "differs"))
-        }
+  # Samples slot
+  if (!all(dim(dge1$samples) == dim(dge2$samples))) stop("Samples dimensions differ")
+  if (!all(rownames(dge1$samples) == rownames(dge2$samples))) stop("Samples rownames differ")
+  if (!all(colnames(dge1$samples) == colnames(dge2$samples))) stop("Samples colnames differ")
+  for (col in colnames(dge1$samples)) {
+    v1 <- dge1$samples[[col]]
+    v2 <- dge2$samples[[col]]
+    if (is.numeric(v1) && is.numeric(v2)) {
+      diff <- abs(v1 - v2)
+      na_both_s <- is.na(v1) & is.na(v2)
+      if (any((diff > tol) & !na_both_s, na.rm = TRUE)) stop(paste("Sample column", col, "differs"))
+    } else {
+      neq <- !(v1 == v2) & !(is.na(v1) & is.na(v2))
+      if (any(neq, na.rm = TRUE)) stop(paste("Sample column", col, "differs"))
     }
-    # If we reach here, everything matches
-    logger::log_info("DGELists are equal within tolerance of ", tol)
-    return(TRUE)
+  }
+  # If we reach here, everything matches
+  logger::log_info("DGELists are equal within tolerance of ", tol)
+  return(TRUE)
 }
 
 #' Convert NA and "NA" Values to "FALSE" in Selected Columns
@@ -966,39 +962,38 @@ compareDGEList <- function(dge1, dge2, tol = 1e-8) {
 #'
 #' @examples
 #' df <- data.frame(
-#'     ctp_donor_outlier = c(NA, "NA", "3+ CTP outlier samples"),
-#'     other_col = 1:3,
-#'     stringsAsFactors = FALSE
+#'   ctp_donor_outlier = c(NA, "NA", "3+ CTP outlier samples"),
+#'   other_col = 1:3,
+#'   stringsAsFactors = FALSE
 #' )
 #'
 #' convert_na_to_false(df, "ctp_donor_outlier")
 #'
 #' @export
 convert_na_to_false <- function(df, cols) {
-    for (col in cols) {
-        x <- df[[col]]
+  for (col in cols) {
+    x <- df[[col]]
 
-        # Convert real NA to "FALSE"
-        x[is.na(x)] <- "FALSE"
+    # Convert real NA to "FALSE"
+    x[is.na(x)] <- "FALSE"
 
-        # Convert literal "NA" to "FALSE"
-        x[x == "NA"] <- "FALSE"
+    # Convert literal "NA" to "FALSE"
+    x[x == "NA"] <- "FALSE"
 
-        # Ensure everything is stored as character
-        df[[col]] <- as.character(x)
-    }
-    df
+    # Ensure everything is stored as character
+    df[[col]] <- as.character(x)
+  }
+  df
 }
 
 encode_as_factor <- function(df, cols) {
-    for (col in cols) {
-        if (!col %in% names(df)) {
-            stop(sprintf("Column '%s' not found in data frame.", col))
-        }
-        if (!is.factor(df[[col]])) {
-            df[[col]] <- factor(df[[col]])
-        }
+  for (col in cols) {
+    if (!col %in% names(df)) {
+      stop(sprintf("Column '%s' not found in data frame.", col))
     }
-    df
+    if (!is.factor(df[[col]])) {
+      df[[col]] <- factor(df[[col]])
+    }
+  }
+  df
 }
-

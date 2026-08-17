@@ -17,7 +17,7 @@
 #' Hello, world!
 #' @param mom If TRUE, say hello to mom instead of world.
 #' @export
-hello <- function(mom=FALSE) {
+hello <- function(mom = FALSE) {
   if (!is.logical(mom)) {
     stop("Argument 'mom' must be TRUE or FALSE.")
   } else if (mom) {

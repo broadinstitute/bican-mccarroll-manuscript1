@@ -51,52 +51,51 @@ plot_effect_sizes <- function(data_dir,
                               fdr_threshold = 0.05,
                               nrow = 2,
                               ncol = 2) {
+  cell_types <- read_cell_types_file(cell_types_file)
+  if (length(cell_types) < 2) {
+    stop("Need at least two cell types.")
+  }
 
-    cell_types <- read_cell_types_file(cell_types_file)
-    if (length(cell_types) < 2) {
-        stop("Need at least two cell types.")
-    }
+  paths <- build_paths_map(data_dir = data_dir, region = region, cell_types = cell_types)
+  validate_eqtl_paths(paths)
 
-    paths <- build_paths_map(data_dir = data_dir, region = region, cell_types = cell_types)
-    validate_eqtl_paths(paths)
+  grDevices::pdf(outPDF, width = 11, height = 11)
+  on.exit(grDevices::dev.off(), add = TRUE)
 
-    grDevices::pdf(outPDF, width = 11, height = 11)
-    on.exit(grDevices::dev.off(), add = TRUE)
+  plots_per_page <- nrow * ncol
+  plot_buf <- list()
 
-    plots_per_page <- nrow * ncol
-    plot_buf <- list()
+  for (pair in cell_type_pairs(cell_types)) {
+    ctA <- pair[[1]]
+    ctB <- pair[[2]]
 
-    for (pair in cell_type_pairs(cell_types)) {
-        ctA <- pair[[1]]
-        ctB <- pair[[2]]
-
-        plt <- plot_one_pair(
-            paths = paths,
-            cell_type_A = ctA,
-            cell_type_B = ctB,
-            region = region,
-            fdr_threshold = fdr_threshold
-        )
-
-        plot_buf <- append(plot_buf, list(plt))
-        plot_buf <- plot_page(
-            plots = plot_buf,
-            nrow = nrow,
-            ncol = ncol,
-            flush_when_full = TRUE,
-            plots_per_page = plots_per_page
-        )
-    }
-
-    plot_page(
-        plots = plot_buf,
-        nrow = nrow,
-        ncol = ncol,
-        flush_when_full = FALSE,
-        plots_per_page = plots_per_page
+    plt <- plot_one_pair(
+      paths = paths,
+      cell_type_A = ctA,
+      cell_type_B = ctB,
+      region = region,
+      fdr_threshold = fdr_threshold
     )
 
-    invisible(TRUE)
+    plot_buf <- append(plot_buf, list(plt))
+    plot_buf <- plot_page(
+      plots = plot_buf,
+      nrow = nrow,
+      ncol = ncol,
+      flush_when_full = TRUE,
+      plots_per_page = plots_per_page
+    )
+  }
+
+  plot_page(
+    plots = plot_buf,
+    nrow = nrow,
+    ncol = ncol,
+    flush_when_full = FALSE,
+    plots_per_page = plots_per_page
+  )
+
+  invisible(TRUE)
 }
 
 # -----------------------------
@@ -107,33 +106,32 @@ plot_one_pair <- function(paths,
                           cell_type_B,
                           region,
                           fdr_threshold) {
+  pA <- paths[[cell_type_A]]
+  pB <- paths[[cell_type_B]]
 
-    pA <- paths[[cell_type_A]]
-    pB <- paths[[cell_type_B]]
+  idx_A <- read_index_file(pA$index_file, colsToKeep = c("gene_name", "variant_id", "slope", "qval"))
+  idx_B <- read_index_file(pB$index_file, colsToKeep = c("gene_name", "variant_id", "slope", "qval"))
+  ap_A <- read_all_pairs_file(pA$all_pairs_file, colsToKeep = c("phenotype_id", "variant_id", "slope"))
+  ap_B <- read_all_pairs_file(pB$all_pairs_file, colsToKeep = c("phenotype_id", "variant_id", "slope"))
 
-    idx_A <- read_index_file(pA$index_file, colsToKeep = c("gene_name", "variant_id", "slope", "qval"))
-    idx_B <- read_index_file(pB$index_file, colsToKeep = c("gene_name", "variant_id", "slope", "qval"))
-    ap_A <- read_all_pairs_file(pA$all_pairs_file, colsToKeep = c("phenotype_id", "variant_id", "slope"))
-    ap_B <- read_all_pairs_file(pB$all_pairs_file, colsToKeep = c("phenotype_id", "variant_id", "slope"))
+  sig_A <- filter_significant_index(idx_A, fdr_threshold = fdr_threshold)
+  sig_B <- filter_significant_index(idx_B, fdr_threshold = fdr_threshold)
 
-    sig_A <- filter_significant_index(idx_A, fdr_threshold = fdr_threshold)
-    sig_B <- filter_significant_index(idx_B, fdr_threshold = fdr_threshold)
+  ref <- select_reference_pairs(sig_A = sig_A, sig_B = sig_B)
 
-    ref <- select_reference_pairs(sig_A = sig_A, sig_B = sig_B)
+  eff <- build_pair_effect_table(
+    ref_dt = ref,
+    all_pairs_A = ap_A,
+    all_pairs_B = ap_B,
+    value_col = "slope"
+  )
 
-    eff <- build_pair_effect_table(
-        ref_dt = ref,
-        all_pairs_A = ap_A,
-        all_pairs_B = ap_B,
-        value_col = "slope"
-    )
-
-    plot_pair_effects(
-        effect_dt = eff,
-        cell_type_A = cell_type_A,
-        cell_type_B = cell_type_B,
-        region = region
-    )
+  plot_pair_effects(
+    effect_dt = eff,
+    cell_type_A = cell_type_A,
+    cell_type_B = cell_type_B,
+    region = region
+  )
 }
 
 # -----------------------------
@@ -144,77 +142,76 @@ plot_page <- function(plots,
                       ncol,
                       flush_when_full,
                       plots_per_page) {
+  if (length(plots) == 0) {
+    return(plots)
+  }
 
-    if (length(plots) == 0) {
-        return(plots)
-    }
+  if (flush_when_full && length(plots) < plots_per_page) {
+    return(plots)
+  }
 
-    if (flush_when_full && length(plots) < plots_per_page) {
-        return(plots)
-    }
+  to_print <- if (length(plots) >= plots_per_page) {
+    plots[seq_len(plots_per_page)]
+  } else {
+    plots
+  }
 
-    to_print <- if (length(plots) >= plots_per_page) {
-        plots[seq_len(plots_per_page)]
-    } else {
-        plots
-    }
+  .print_plot_grid(to_print, nrow = nrow, ncol = ncol)
 
-    .print_plot_grid(to_print, nrow = nrow, ncol = ncol)
+  if (length(plots) >= plots_per_page) {
+    return(plots[-seq_len(plots_per_page)])
+  }
 
-    if (length(plots) >= plots_per_page) {
-        return(plots[-seq_len(plots_per_page)])
-    }
-
-    list()
+  list()
 }
 
 # -----------------------------
 # Helpers: filesystem / inputs
 # -----------------------------
 read_cell_types_file <- function(cell_types_file) {
-    x <- readLines(cell_types_file, warn = FALSE)
-    x <- trimws(x)
-    x <- x[nzchar(x)]
-    x
+  x <- readLines(cell_types_file, warn = FALSE)
+  x <- trimws(x)
+  x <- x[nzchar(x)]
+  x
 }
 
 build_paths_map <- function(data_dir, region, cell_types) {
-    paths <- lapply(cell_types, function(ct) build_eqtl_paths(data_dir = data_dir, cell_type_prefix = ct, region = region))
-    names(paths) <- cell_types
-    paths
+  paths <- lapply(cell_types, function(ct) build_eqtl_paths(data_dir = data_dir, cell_type_prefix = ct, region = region))
+  names(paths) <- cell_types
+  paths
 }
 
 build_eqtl_paths <- function(data_dir, cell_type_prefix, region) {
-    file_separator <- "__"
-    dir_name <- paste0(cell_type_prefix, file_separator, region)
-    base <- paste0(data_dir, "/", dir_name, "/", dir_name)
+  file_separator <- "__"
+  dir_name <- paste0(cell_type_prefix, file_separator, region)
+  base <- paste0(data_dir, "/", dir_name, "/", dir_name)
 
-    list(
-        cell_type_prefix = cell_type_prefix,
-        region = region,
-        dir_name = dir_name,
-        index_file = paste0(base, ".cis_qtl_ann.txt.gz"),
-        all_pairs_file = paste0(base, ".cis_qtl_pairs.txt.gz")
-    )
+  list(
+    cell_type_prefix = cell_type_prefix,
+    region = region,
+    dir_name = dir_name,
+    index_file = paste0(base, ".cis_qtl_ann.txt.gz"),
+    all_pairs_file = paste0(base, ".cis_qtl_pairs.txt.gz")
+  )
 }
 
 cell_type_pairs <- function(cell_types) {
-    pairs <- list()
-    k <- 0L
-    n <- length(cell_types)
+  pairs <- list()
+  k <- 0L
+  n <- length(cell_types)
 
-    if (n < 2) {
-        return(pairs)
+  if (n < 2) {
+    return(pairs)
+  }
+
+  for (i in seq_len(n - 1)) {
+    for (j in (i + 1):n) {
+      k <- k + 1L
+      pairs[[k]] <- list(cell_types[[i]], cell_types[[j]])
     }
+  }
 
-    for (i in seq_len(n - 1)) {
-        for (j in (i + 1):n) {
-            k <- k + 1L
-            pairs[[k]] <- list(cell_types[[i]], cell_types[[j]])
-        }
-    }
-
-    pairs
+  pairs
 }
 
 # -----------------------------
@@ -232,18 +229,18 @@ cell_type_pairs <- function(cell_types) {
 #'
 #' @export
 filter_significant_index <- function(index_dt, fdr_threshold) {
-    # MAKE R CMD CHECK happy (data.table NSE)
-    qval <- NULL
+  # MAKE R CMD CHECK happy (data.table NSE)
+  qval <- NULL
 
-    dt <- data.table::as.data.table(index_dt)
+  dt <- data.table::as.data.table(index_dt)
 
-    required <- c("gene_name", "variant_id", "slope", "qval")
-    missing_cols <- setdiff(required, names(dt))
-    if (length(missing_cols) > 0) {
-        stop(paste0("Index table missing required column(s): ", paste(missing_cols, collapse = ", ")))
-    }
+  required <- c("gene_name", "variant_id", "slope", "qval")
+  missing_cols <- setdiff(required, names(dt))
+  if (length(missing_cols) > 0) {
+    stop(paste0("Index table missing required column(s): ", paste(missing_cols, collapse = ", ")))
+  }
 
-    dt[qval < fdr_threshold]
+  dt[qval < fdr_threshold]
 }
 
 #' Select reference variant per gene from two significant sets
@@ -258,30 +255,29 @@ filter_significant_index <- function(index_dt, fdr_threshold) {
 #'
 #' @export
 select_reference_pairs <- function(sig_A, sig_B) {
+  # MAKE R CMD CHECK happy (data.table NSE)
+  gene_name <- variant_id <- qval <- slope <- abs_slope <- source_cell <- .SD <- NULL
 
-    # MAKE R CMD CHECK happy (data.table NSE)
-    gene_name <- variant_id <- qval <- slope <- abs_slope <- source_cell <- .SD <- NULL
+  sig_A_dt <- data.table::as.data.table(sig_A)
+  sig_B_dt <- data.table::as.data.table(sig_B)
 
-    sig_A_dt <- data.table::as.data.table(sig_A)
-    sig_B_dt <- data.table::as.data.table(sig_B)
+  keep_cols <- c("gene_name", "variant_id", "qval", "slope")
+  sig_A_dt <- sig_A_dt[, intersect(keep_cols, names(sig_A_dt)), with = FALSE]
+  sig_B_dt <- sig_B_dt[, intersect(keep_cols, names(sig_B_dt)), with = FALSE]
 
-    keep_cols <- c("gene_name", "variant_id", "qval", "slope")
-    sig_A_dt <- sig_A_dt[, intersect(keep_cols, names(sig_A_dt)), with = FALSE]
-    sig_B_dt <- sig_B_dt[, intersect(keep_cols, names(sig_B_dt)), with = FALSE]
+  sig_A_dt[, source_cell := "A"]
+  sig_B_dt[, source_cell := "B"]
 
-    sig_A_dt[, source_cell := "A"]
-    sig_B_dt[, source_cell := "B"]
+  both <- data.table::rbindlist(list(sig_A_dt, sig_B_dt), use.names = TRUE, fill = TRUE)
+  if (nrow(both) == 0) {
+    return(data.table::data.table(gene_name = character(0), variant_id = character(0)))
+  }
 
-    both <- data.table::rbindlist(list(sig_A_dt, sig_B_dt), use.names = TRUE, fill = TRUE)
-    if (nrow(both) == 0) {
-        return(data.table::data.table(gene_name = character(0), variant_id = character(0)))
-    }
+  both[, abs_slope := abs(slope)]
+  ref <- both[order(qval, -abs_slope), .SD[1], by = gene_name]
+  ref[, abs_slope := NULL]
 
-    both[, abs_slope := abs(slope)]
-    ref <- both[order(qval, -abs_slope), .SD[1], by = gene_name]
-    ref[, abs_slope := NULL]
-
-    ref[, c("gene_name", "variant_id", "source_cell", "qval", "slope"), with = FALSE]
+  ref[, c("gene_name", "variant_id", "source_cell", "qval", "slope"), with = FALSE]
 }
 
 #' Build a paired effect table for reference variants
@@ -302,101 +298,104 @@ build_pair_effect_table <- function(ref_dt,
                                     all_pairs_A,
                                     all_pairs_B,
                                     value_col = "slope") {
-    stopifnot(is.character(value_col), length(value_col) == 1L, nzchar(value_col))
+  stopifnot(is.character(value_col), length(value_col) == 1L, nzchar(value_col))
 
-    ref <- data.table::as.data.table(ref_dt)[, c("gene_name", "variant_id"), with = FALSE]
-    if (nrow(ref) == 0) {
-        out <- data.table::data.table(
-            gene_name = character(0),
-            variant_id = character(0)
-        )
-        out[[paste0(value_col, "_A")]] <- numeric(0)
-        out[[paste0(value_col, "_B")]] <- numeric(0)
-        return(out)
-    }
+  ref <- data.table::as.data.table(ref_dt)[, c("gene_name", "variant_id"), with = FALSE]
+  if (nrow(ref) == 0) {
+    out <- data.table::data.table(
+      gene_name = character(0),
+      variant_id = character(0)
+    )
+    out[[paste0(value_col, "_A")]] <- numeric(0)
+    out[[paste0(value_col, "_B")]] <- numeric(0)
+    return(out)
+  }
 
-    apA <- data.table::as.data.table(all_pairs_A)
-    apB <- data.table::as.data.table(all_pairs_B)
+  apA <- data.table::as.data.table(all_pairs_A)
+  apB <- data.table::as.data.table(all_pairs_B)
 
-    need_ap <- c("phenotype_id", "variant_id", value_col)
-    haveA <- intersect(need_ap, names(apA))
-    haveB <- intersect(need_ap, names(apB))
+  need_ap <- c("phenotype_id", "variant_id", value_col)
+  haveA <- intersect(need_ap, names(apA))
+  haveB <- intersect(need_ap, names(apB))
 
-    if (!("variant_id" %in% haveA) || !(value_col %in% haveA)) {
-        stop("all_pairs_A must contain columns: variant_id and ", value_col,
-             " (and optionally phenotype_id)")
-    }
-    if (!("variant_id" %in% haveB) || !(value_col %in% haveB)) {
-        stop("all_pairs_B must contain columns: variant_id and ", value_col,
-             " (and optionally phenotype_id)")
-    }
+  if (!("variant_id" %in% haveA) || !(value_col %in% haveA)) {
+    stop(
+      "all_pairs_A must contain columns: variant_id and ", value_col,
+      " (and optionally phenotype_id)"
+    )
+  }
+  if (!("variant_id" %in% haveB) || !(value_col %in% haveB)) {
+    stop(
+      "all_pairs_B must contain columns: variant_id and ", value_col,
+      " (and optionally phenotype_id)"
+    )
+  }
 
-    apA <- apA[, haveA, with = FALSE]
-    apB <- apB[, haveB, with = FALSE]
+  apA <- apA[, haveA, with = FALSE]
+  apB <- apB[, haveB, with = FALSE]
 
-    if ("phenotype_id" %in% names(apA)) {
-        data.table::setnames(apA, "phenotype_id", "gene_name")
-    }
-    if ("phenotype_id" %in% names(apB)) {
-        data.table::setnames(apB, "phenotype_id", "gene_name")
-    }
+  if ("phenotype_id" %in% names(apA)) {
+    data.table::setnames(apA, "phenotype_id", "gene_name")
+  }
+  if ("phenotype_id" %in% names(apB)) {
+    data.table::setnames(apB, "phenotype_id", "gene_name")
+  }
 
-    # Rename the value column to value_A / value_B
-    data.table::setnames(apA, value_col, paste0(value_col, "_A"))
-    data.table::setnames(apB, value_col, paste0(value_col, "_B"))
+  # Rename the value column to value_A / value_B
+  data.table::setnames(apA, value_col, paste0(value_col, "_A"))
+  data.table::setnames(apB, value_col, paste0(value_col, "_B"))
 
-    # Left joins: preserve row count of ref, fill missing values as NA
-    m1 <- merge(ref, apA, by = c("gene_name", "variant_id"), all.x = TRUE, sort = FALSE)
-    m2 <- merge(m1, apB, by = c("gene_name", "variant_id"), all.x = TRUE, sort = FALSE)
+  # Left joins: preserve row count of ref, fill missing values as NA
+  m1 <- merge(ref, apA, by = c("gene_name", "variant_id"), all.x = TRUE, sort = FALSE)
+  m2 <- merge(m1, apB, by = c("gene_name", "variant_id"), all.x = TRUE, sort = FALSE)
 
-    m2
+  m2
 }
 
 
 compute_pair_metrics <- function(effect_dt) {
+  if (nrow(effect_dt) == 0) {
+    return(list(
+      n_total = 0L,
+      n_complete = 0L,
+      pearson_r = NA_real_,
+      n_tested_sign = 0L,
+      n_agree_sign = 0L,
+      frac_agree_sign = NA_real_,
+      sign_pct_txt = "NA"
+    ))
+  }
 
-    if (nrow(effect_dt) == 0) {
-        return(list(
-            n_total = 0L,
-            n_complete = 0L,
-            pearson_r = NA_real_,
-            n_tested_sign = 0L,
-            n_agree_sign = 0L,
-            frac_agree_sign = NA_real_,
-            sign_pct_txt = "NA"
-        ))
-    }
+  n_total <- nrow(effect_dt)
 
-    n_total <- nrow(effect_dt)
+  ok <- stats::complete.cases(effect_dt[, c("slope_A", "slope_B"), with = FALSE])
+  n_complete <- sum(ok)
 
-    ok <- stats::complete.cases(effect_dt[, c("slope_A", "slope_B"), with = FALSE])
-    n_complete <- sum(ok)
+  pearson_r <- if (n_complete > 0) {
+    suppressWarnings(stats::cor(effect_dt$slope_A[ok], effect_dt$slope_B[ok], method = "pearson"))
+  } else {
+    NA_real_
+  }
 
-    pearson_r <- if (n_complete > 0) {
-        suppressWarnings(stats::cor(effect_dt$slope_A[ok], effect_dt$slope_B[ok], method = "pearson"))
-    } else {
-        NA_real_
-    }
+  s1 <- sign(effect_dt$slope_A[ok])
+  s2 <- sign(effect_dt$slope_B[ok])
+  ok_sign <- (s1 != 0) & (s2 != 0)
 
-    s1 <- sign(effect_dt$slope_A[ok])
-    s2 <- sign(effect_dt$slope_B[ok])
-    ok_sign <- (s1 != 0) & (s2 != 0)
+  n_tested <- sum(ok_sign)
+  n_agree <- if (n_tested > 0) sum(s1[ok_sign] == s2[ok_sign]) else 0L
+  frac_agree <- if (n_tested > 0) n_agree / n_tested else NA_real_
 
-    n_tested <- sum(ok_sign)
-    n_agree <- if (n_tested > 0) sum(s1[ok_sign] == s2[ok_sign]) else 0L
-    frac_agree <- if (n_tested > 0) n_agree / n_tested else NA_real_
+  sign_pct_txt <- if (!is.na(frac_agree)) sprintf("%.1f%%", 100 * frac_agree) else "NA"
 
-    sign_pct_txt <- if (!is.na(frac_agree)) sprintf("%.1f%%", 100 * frac_agree) else "NA"
-
-    list(
-        n_total = as.integer(n_total),
-        n_complete = as.integer(n_complete),
-        pearson_r = pearson_r,
-        n_tested_sign = as.integer(n_tested),
-        n_agree_sign = as.integer(n_agree),
-        frac_agree_sign = frac_agree,
-        sign_pct_txt = sign_pct_txt
-    )
+  list(
+    n_total = as.integer(n_total),
+    n_complete = as.integer(n_complete),
+    pearson_r = pearson_r,
+    n_tested_sign = as.integer(n_tested),
+    n_agree_sign = as.integer(n_agree),
+    frac_agree_sign = frac_agree,
+    sign_pct_txt = sign_pct_txt
+  )
 }
 
 
@@ -419,72 +418,71 @@ compute_pair_metrics <- function(effect_dt) {
 #'
 #' @export
 plot_pair_effects <- function(effect_dt, cell_type_A, cell_type_B, region, annot_size = 3.5) {
+  slope_A <- slope_B <- NULL
 
-    slope_A <- slope_B <- NULL
+  base_empty_plot <- function(subtitle) {
+    ggplot2::ggplot() +
+      ggplot2::theme_bw() +
+      ggplot2::labs(
+        title = paste0(cell_type_A, " vs ", cell_type_B, " (", region, ")"),
+        subtitle = subtitle,
+        x = paste0(cell_type_A, " slope"),
+        y = paste0(cell_type_B, " slope")
+      )
+  }
 
-    base_empty_plot <- function(subtitle) {
-        ggplot2::ggplot() +
-            ggplot2::theme_bw() +
-            ggplot2::labs(
-                title = paste0(cell_type_A, " vs ", cell_type_B, " (", region, ")"),
-                subtitle = subtitle,
-                x = paste0(cell_type_A, " slope"),
-                y = paste0(cell_type_B, " slope")
-            )
-    }
+  effect_dt <- data.table::as.data.table(effect_dt)
 
-    effect_dt <- data.table::as.data.table(effect_dt)
+  if (nrow(effect_dt) == 0) {
+    return(base_empty_plot("No genes after filtering/joining"))
+  }
 
-    if (nrow(effect_dt) == 0) {
-        return(base_empty_plot("No genes after filtering/joining"))
-    }
+  metrics <- compute_pair_metrics(effect_dt)
 
-    metrics <- compute_pair_metrics(effect_dt)
+  plot_dt <- effect_dt[
+    stats::complete.cases(effect_dt[, c("slope_A", "slope_B"), with = FALSE])
+  ]
 
-    plot_dt <- effect_dt[
-        stats::complete.cases(effect_dt[, c("slope_A", "slope_B"), with = FALSE])
-    ]
+  if (nrow(plot_dt) == 0) {
+    return(base_empty_plot("No complete cases (all slopes missing on at least one axis)"))
+  }
 
-    if (nrow(plot_dt) == 0) {
-        return(base_empty_plot("No complete cases (all slopes missing on at least one axis)"))
-    }
+  r_lab <- if (is.finite(metrics$pearson_r)) sprintf("r = %.3f", metrics$pearson_r) else "r = NA"
+  sign_lab <- paste0(
+    "Sign agree = ", metrics$sign_pct_txt,
+    " (", metrics$n_agree_sign, "/", metrics$n_tested_sign, ")"
+  )
 
-    r_lab <- if (is.finite(metrics$pearson_r)) sprintf("r = %.3f", metrics$pearson_r) else "r = NA"
-    sign_lab <- paste0(
-        "Sign agree = ", metrics$sign_pct_txt,
-        " (", metrics$n_agree_sign, "/", metrics$n_tested_sign, ")"
+  annot_lab <- paste(
+    r_lab,
+    sign_lab,
+    paste0("Total genes = ", metrics$n_total),
+    paste0("Complete cases = ", metrics$n_complete),
+    sep = "\n"
+  )
+
+  xr <- range(plot_dt$slope_A, plot_dt$slope_B, finite = TRUE)
+  x_min <- xr[1]
+  x_max <- xr[2]
+
+  ggplot2::ggplot(plot_dt, ggplot2::aes(x = slope_A, y = slope_B)) +
+    ggplot2::geom_point(size = 0.8, alpha = 0.7) +
+    ggplot2::geom_abline(intercept = 0, slope = 1, linewidth = 0.6) +
+    ggplot2::annotate(
+      geom = "text",
+      x = x_min,
+      y = x_max,
+      hjust = 0,
+      vjust = 1,
+      label = annot_lab,
+      size = annot_size
+    ) +
+    ggplot2::theme_bw() +
+    ggplot2::labs(
+      title = paste0(cell_type_A, " vs ", cell_type_B, " (", region, ")"),
+      x = paste0(cell_type_A, " slope"),
+      y = paste0(cell_type_B, " slope")
     )
-
-    annot_lab <- paste(
-        r_lab,
-        sign_lab,
-        paste0("Total genes = ", metrics$n_total),
-        paste0("Complete cases = ", metrics$n_complete),
-        sep = "\n"
-    )
-
-    xr <- range(plot_dt$slope_A, plot_dt$slope_B, finite = TRUE)
-    x_min <- xr[1]
-    x_max <- xr[2]
-
-    ggplot2::ggplot(plot_dt, ggplot2::aes(x = slope_A, y = slope_B)) +
-        ggplot2::geom_point(size = 0.8, alpha = 0.7) +
-        ggplot2::geom_abline(intercept = 0, slope = 1, linewidth = 0.6) +
-        ggplot2::annotate(
-            geom = "text",
-            x = x_min,
-            y = x_max,
-            hjust = 0,
-            vjust = 1,
-            label = annot_lab,
-            size = annot_size
-        ) +
-        ggplot2::theme_bw() +
-        ggplot2::labs(
-            title = paste0(cell_type_A, " vs ", cell_type_B, " (", region, ")"),
-            x = paste0(cell_type_A, " slope"),
-            y = paste0(cell_type_B, " slope")
-        )
 }
 
 #' Plot paired -log10(p) values for two cell types
@@ -502,79 +500,78 @@ plot_pair_effects <- function(effect_dt, cell_type_A, cell_type_B, region, annot
 #'
 #' @export
 plot_pair_pvals <- function(effect_dt, cell_type_A, cell_type_B, region, annot_size = 3.5) {
+  pval_nominal_A <- pval_nominal_B <- xA <- xB <- NULL
 
-    pval_nominal_A <- pval_nominal_B <- xA <- xB <- NULL
+  base_empty_plot <- function(subtitle) {
+    ggplot2::ggplot() +
+      ggplot2::theme_bw() +
+      ggplot2::labs(
+        title = paste0(cell_type_A, " vs ", cell_type_B, " (", region, ")"),
+        subtitle = subtitle,
+        x = paste0(cell_type_A, " -log10(p)"),
+        y = paste0(cell_type_B, " -log10(p)")
+      )
+  }
 
-    base_empty_plot <- function(subtitle) {
-        ggplot2::ggplot() +
-            ggplot2::theme_bw() +
-            ggplot2::labs(
-                title = paste0(cell_type_A, " vs ", cell_type_B, " (", region, ")"),
-                subtitle = subtitle,
-                x = paste0(cell_type_A, " -log10(p)"),
-                y = paste0(cell_type_B, " -log10(p)")
-            )
-    }
+  effect_dt <- data.table::as.data.table(effect_dt)
 
-    effect_dt <- data.table::as.data.table(effect_dt)
+  if (nrow(effect_dt) == 0) {
+    return(base_empty_plot("No genes after filtering/joining"))
+  }
 
-    if (nrow(effect_dt) == 0) {
-        return(base_empty_plot("No genes after filtering/joining"))
-    }
+  plot_dt <- data.table::copy(effect_dt)
 
-    plot_dt <- data.table::copy(effect_dt)
+  # -log10(p); keep non-finite as NA and drop later
+  plot_dt[, xA := -log10(pval_nominal_A)]
+  plot_dt[, xB := -log10(pval_nominal_B)]
 
-    # -log10(p); keep non-finite as NA and drop later
-    plot_dt[, xA := -log10(pval_nominal_A)]
-    plot_dt[, xB := -log10(pval_nominal_B)]
+  plot_dt <- plot_dt[
+    stats::complete.cases(plot_dt[, c("xA", "xB"), with = FALSE]) &
+      is.finite(xA) & is.finite(xB)
+  ]
 
-    plot_dt <- plot_dt[
-        stats::complete.cases(plot_dt[, c("xA", "xB"), with = FALSE]) &
-            is.finite(xA) & is.finite(xB)
-    ]
+  if (nrow(plot_dt) == 0) {
+    return(base_empty_plot("No complete cases (all p-values missing/invalid on at least one axis)"))
+  }
 
-    if (nrow(plot_dt) == 0) {
-        return(base_empty_plot("No complete cases (all p-values missing/invalid on at least one axis)"))
-    }
+  r_val <- NA_real_
+  if (nrow(plot_dt) > 1) {
+    r_val <- stats::cor(plot_dt$xA, plot_dt$xB, use = "complete.obs", method = "pearson")
+  }
+  r_lab <- if (is.finite(r_val)) sprintf("r = %.3f", r_val) else "r = NA"
 
-    r_val <- NA_real_
-    if (nrow(plot_dt) > 1) {
-        r_val <- stats::cor(plot_dt$xA, plot_dt$xB, use = "complete.obs", method = "pearson")
-    }
-    r_lab <- if (is.finite(r_val)) sprintf("r = %.3f", r_val) else "r = NA"
+  xr <- range(plot_dt$xA, plot_dt$xB, finite = TRUE)
+  x_min <- xr[1]
+  x_max <- xr[2]
 
-    xr <- range(plot_dt$xA, plot_dt$xB, finite = TRUE)
-    x_min <- xr[1]
-    x_max <- xr[2]
-
-    ggplot2::ggplot(plot_dt, ggplot2::aes(x = xA, y = xB)) +
-        ggplot2::geom_point(size = 0.8, alpha = 0.7) +
-        ggplot2::geom_abline(intercept = 0, slope = 1, linewidth = 0.6) +
-        ggplot2::annotate(
-            geom = "text",
-            x = x_min,
-            y = x_max,
-            hjust = 0,
-            vjust = 1,
-            label = r_lab,
-            size = annot_size
-        ) +
-        ggplot2::theme_bw() +
-        ggplot2::labs(
-            title = paste0(cell_type_A, " vs ", cell_type_B, " (", region, ")"),
-            x = paste0(cell_type_A, " -log10(p)"),
-            y = paste0(cell_type_B, " -log10(p)")
-        )
+  ggplot2::ggplot(plot_dt, ggplot2::aes(x = xA, y = xB)) +
+    ggplot2::geom_point(size = 0.8, alpha = 0.7) +
+    ggplot2::geom_abline(intercept = 0, slope = 1, linewidth = 0.6) +
+    ggplot2::annotate(
+      geom = "text",
+      x = x_min,
+      y = x_max,
+      hjust = 0,
+      vjust = 1,
+      label = r_lab,
+      size = annot_size
+    ) +
+    ggplot2::theme_bw() +
+    ggplot2::labs(
+      title = paste0(cell_type_A, " vs ", cell_type_B, " (", region, ")"),
+      x = paste0(cell_type_A, " -log10(p)"),
+      y = paste0(cell_type_B, " -log10(p)")
+    )
 }
 
 
 .print_plot_grid <- function(plotlist, nrow, ncol) {
-    if (length(plotlist) == 0) {
-        return(invisible(TRUE))
-    }
+  if (length(plotlist) == 0) {
+    return(invisible(TRUE))
+  }
 
-    print(cowplot::plot_grid(plotlist = plotlist, nrow = nrow, ncol = ncol))
-    invisible(TRUE)
+  print(cowplot::plot_grid(plotlist = plotlist, nrow = nrow, ncol = ncol))
+  invisible(TRUE)
 }
 
 
@@ -582,46 +579,44 @@ plot_pair_pvals <- function(effect_dt, cell_type_A, cell_type_B, region, annot_s
 # Validate expected filesystem paths
 # -----------------------------
 validate_eqtl_paths <- function(paths) {
+  # paths: named list as returned by build_paths_map()
 
-    # paths: named list as returned by build_paths_map()
+  missing <- list()
 
-    missing <- list()
+  for (ct in names(paths)) {
+    p <- paths[[ct]]
 
-    for (ct in names(paths)) {
-        p <- paths[[ct]]
-
-        if (!dir.exists(paste0(dirname(p$index_file)))) {
-            missing[[ct]] <- c(missing[[ct]], "directory")
-        }
-
-        if (!file.exists(p$index_file)) {
-            missing[[ct]] <- c(missing[[ct]], "index_file")
-        }
-
-        if (!file.exists(p$all_pairs_file)) {
-            missing[[ct]] <- c(missing[[ct]], "all_pairs_file")
-        }
+    if (!dir.exists(paste0(dirname(p$index_file)))) {
+      missing[[ct]] <- c(missing[[ct]], "directory")
     }
 
-    if (length(missing) > 0) {
-        msg <- c(
-            "One or more required paths are missing:",
-            unlist(
-                lapply(
-                    names(missing),
-                    function(ct) {
-                        paste0(
-                            "  ", ct, ": ",
-                            paste(missing[[ct]], collapse = ", ")
-                        )
-                    }
-                ),
-                use.names = FALSE
+    if (!file.exists(p$index_file)) {
+      missing[[ct]] <- c(missing[[ct]], "index_file")
+    }
+
+    if (!file.exists(p$all_pairs_file)) {
+      missing[[ct]] <- c(missing[[ct]], "all_pairs_file")
+    }
+  }
+
+  if (length(missing) > 0) {
+    msg <- c(
+      "One or more required paths are missing:",
+      unlist(
+        lapply(
+          names(missing),
+          function(ct) {
+            paste0(
+              "  ", ct, ": ",
+              paste(missing[[ct]], collapse = ", ")
             )
-        )
-        stop(paste(msg, collapse = "\n"))
-    }
+          }
+        ),
+        use.names = FALSE
+      )
+    )
+    stop(paste(msg, collapse = "\n"))
+  }
 
-    invisible(TRUE)
+  invisible(TRUE)
 }
-

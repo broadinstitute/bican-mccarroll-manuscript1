@@ -1,4 +1,4 @@
-#BiocManager::install("Glimma")
+# BiocManager::install("Glimma")
 
 # https://github.com/mritchielab/GlimmaV2
 
@@ -14,7 +14,6 @@
 # library (corrplot)
 # library (logger)
 # library(ggplot2)
-
 
 
 # data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_2_analysis/differential_expression/metacells"
@@ -72,95 +71,94 @@
 #' @importFrom corrplot corrplot
 #' @importFrom edgeR DGEList
 #' @export
-runMDSPlots<-function (data_dir, data_name, additionalDonorMetadata=NULL, randVars, fixedVars, max_num_samples=2500, filter_by_libsize_zscore=1.96, cellTypeGroupFile=NULL, outMDSPlotRoot, outPDF, outMDSCoordinatesDir=NULL) {
+runMDSPlots <- function(data_dir, data_name, additionalDonorMetadata = NULL, randVars, fixedVars, max_num_samples = 2500, filter_by_libsize_zscore = 1.96, cellTypeGroupFile = NULL, outMDSPlotRoot, outPDF, outMDSCoordinatesDir = NULL) {
+  # prepare data for plotting.
+  prep <- prepareMDSPlotData(
+    data_dir = data_dir,
+    data_name = data_name,
+    additionalDonorMetadata = additionalDonorMetadata,
+    randVars = randVars,
+    fixedVars = fixedVars
+  )
+  dge <- prep$dge
+  required_vars <- prep$required_vars
 
-    #prepare data for plotting.
-    prep <- prepareMDSPlotData(
-        data_dir = data_dir,
-        data_name = data_name,
-        additionalDonorMetadata = additionalDonorMetadata,
-        randVars = randVars,
-        fixedVars = fixedVars
-    )
-    dge <- prep$dge
-    required_vars <- prep$required_vars
+  # make the output directory if needed
+  if (!is.null(outMDSPlotRoot) && !dir.exists(outMDSPlotRoot)) {
+    dir.create(outMDSPlotRoot, recursive = TRUE)
+  }
 
-    #make the output directory if needed
-    if (!is.null(outMDSPlotRoot) && !dir.exists(outMDSPlotRoot)) {
-        dir.create(outMDSPlotRoot, recursive = TRUE)
+  # MDS plots by cell type
+  cell_type_list <- unique(dge$samples$cell_type)
+  plotList <- list()
+  if (length(cell_type_list) > 0) {
+    for (cellType in cell_type_list) {
+      logger::log_info(paste("Creating MDS plot for cell type:", cellType))
+      dge_cell <- dge[, dge$samples$cell_type == cellType, keep.lib.sizes = TRUE]
+      r <- filter_by_libsize(dge_cell, threshold_sd = filter_by_libsize_zscore, bins = 50, strTitlePrefix = cellType)
+      dge_cell <- r$dge
+      plotList[[cellType]] <- r$plot
+      mdsPlot(dge_cell, required_vars, num_samples = max_num_samples, outMDSPlotRoot = outMDSPlotRoot, data_name = cellType, outMDSCoordinatesDir)
     }
+  } else {
+    logger::log_info("No cell types found in the DGEList samples.")
+  }
 
-    # MDS plots by cell type
-    cell_type_list=unique(dge$samples$cell_type)
-    plotList=list()
-    if (length(cell_type_list) > 0) {
-        for (cellType in cell_type_list) {
-            logger::log_info(paste("Creating MDS plot for cell type:", cellType))
-            dge_cell <- dge[, dge$samples$cell_type == cellType, keep.lib.sizes = TRUE]
-            r<- filter_by_libsize(dge_cell, threshold_sd = filter_by_libsize_zscore, bins = 50, strTitlePrefix = cellType)
-            dge_cell<- r$dge
-            plotList[[cellType]]=r$plot
-            mdsPlot(dge_cell, required_vars, num_samples = max_num_samples, outMDSPlotRoot=outMDSPlotRoot, data_name= cellType, outMDSCoordinatesDir)
-        }
-    } else {
-        logger::log_info("No cell types found in the DGEList samples.")
+  # MDS Plots by cell type groups
+  if (!is.null(cellTypeGroupFile)) {
+    logger::log_info(paste("Loading cell type groups from:", cellTypeGroupFile))
+    cellTypeGroups <- utils::read.table(cellTypeGroupFile, header = TRUE, stringsAsFactors = FALSE)
+
+    # loop over each group
+    for (cellTypeGroup in unique(cellTypeGroups$group_label)) {
+      logger::log_info(paste("Creating MDS plot for cell type group:", cellTypeGroup))
+      cell_type_list <- cellTypeGroups$cell_type[cellTypeGroups$group_label == cellTypeGroup]
+      idx <- which(dge$samples$cell_type %in% cell_type_list)
+      dge_cell_group <- dge[, idx, keep.lib.sizes = TRUE]
+      r <- filter_by_libsize(dge_cell_group, threshold_sd = filter_by_libsize_zscore, bins = 50, strTitlePrefix = cellTypeGroup)
+      dge_cell_group <- r$dge
+      plotList[[cellTypeGroup]] <- r$plot
+      mdsPlot(dge_cell_group, required_vars, num_samples = max_num_samples, outMDSPlotRoot = outMDSPlotRoot, data_name = cellTypeGroup, outMDSCoordinatesDir = outMDSCoordinatesDir)
     }
+  }
 
-    #MDS Plots by cell type groups
-    if (!is.null(cellTypeGroupFile)) {
-        logger::log_info(paste("Loading cell type groups from:", cellTypeGroupFile))
-        cellTypeGroups <- utils::read.table(cellTypeGroupFile, header = TRUE, stringsAsFactors = FALSE)
+  # MDS plot for all nuclei
+  data_name <- paste("All Nuclei", max_num_samples, "samples")
+  logger::log_info(paste("Creating MDS plot for:", data_name))
+  r <- filter_by_libsize(dge, threshold_sd = filter_by_libsize_zscore, bins = 50, strTitlePrefix = "All Nuclei")
+  dge_cell <- r$dge
+  plotList[[data_name]] <- r$plot
+  mdsPlot(dge, required_vars, num_samples = max_num_samples, outMDSPlotRoot = outMDSPlotRoot, data_name = data_name, outMDSCoordinatesDir = outMDSCoordinatesDir)
 
-        # loop over each group
-        for (cellTypeGroup in unique(cellTypeGroups$group_label)) {
-            logger::log_info(paste("Creating MDS plot for cell type group:", cellTypeGroup))
-            cell_type_list= cellTypeGroups$cell_type[cellTypeGroups$group_label == cellTypeGroup]
-            idx=which(dge$samples$cell_type %in% cell_type_list)
-            dge_cell_group <- dge[, idx, keep.lib.sizes = TRUE]
-            r<- filter_by_libsize(dge_cell_group, threshold_sd = filter_by_libsize_zscore, bins = 50, strTitlePrefix = cellTypeGroup)
-            dge_cell_group<- r$dge
-            plotList[[cellTypeGroup]]=r$plot
-            mdsPlot(dge_cell_group, required_vars, num_samples = max_num_samples, outMDSPlotRoot=outMDSPlotRoot, data_name= cellTypeGroup, outMDSCoordinatesDir=outMDSCoordinatesDir)
-        }
+  # QC report plot
+  if (is.null(outPDF)) {
+    logger::log_info("No output PDF specified, skipping QC report generation.")
+    return(invisible(NULL))
+  }
+
+  grDevices::pdf(outPDF)
+
+  # correlation plot
+  # exclude donor!
+  correlation_vars <- setdiff(required_vars, "donor")
+  corr_matrix <- getVariableCorrelation(dge$samples, cols_to_test = correlation_vars)
+  print(plotVariableCorrelation(corr_matrix))
+
+  # loop over individual cell type library size filtering plots.
+  if (length(plotList) > 0) {
+    for (cellType in names(plotList)) {
+      p <- plotList[[cellType]]
+      if (!is.null(p)) {
+        print(p)
+      } else {
+        logger::log_info(paste("No plot available for cell type:", cellType))
+      }
     }
+  } else {
+    log_info("No plots were generated for any cell types.")
+  }
 
-    # MDS plot for all nuclei
-    data_name=paste("All Nuclei", max_num_samples, "samples")
-    logger::log_info(paste("Creating MDS plot for:", data_name))
-    r<- filter_by_libsize(dge, threshold_sd = filter_by_libsize_zscore, bins = 50, strTitlePrefix="All Nuclei")
-    dge_cell<- r$dge
-    plotList[[data_name]]=r$plot
-    mdsPlot(dge, required_vars, num_samples = max_num_samples, outMDSPlotRoot=outMDSPlotRoot, data_name = data_name, outMDSCoordinatesDir=outMDSCoordinatesDir)
-
-    #QC report plot
-    if (is.null(outPDF)) {
-        logger::log_info("No output PDF specified, skipping QC report generation.")
-        return(invisible(NULL))
-    }
-
-    grDevices::pdf(outPDF)
-
-    #correlation plot
-    # exclude donor!
-    correlation_vars <- setdiff(required_vars, "donor")
-    corr_matrix <- getVariableCorrelation(dge$samples, cols_to_test = correlation_vars)
-    print (plotVariableCorrelation(corr_matrix))
-
-    #loop over individual cell type library size filtering plots.
-    if (length(plotList) > 0) {
-        for (cellType in names(plotList)) {
-            p <- plotList[[cellType]]
-            if (!is.null(p)) {
-                print(p)
-            } else {
-                logger::log_info(paste("No plot available for cell type:", cellType))
-            }
-        }
-    } else {
-        log_info("No plots were generated for any cell types.")
-    }
-
-    grDevices::dev.off()
+  grDevices::dev.off()
 }
 
 #' Prepare DGEList and metadata for MDS/QC plotting
@@ -191,43 +189,41 @@ runMDSPlots<-function (data_dir, data_name, additionalDonorMetadata=NULL, randVa
 #' @importFrom utils read.table
 #' @importFrom edgeR DGEList
 #' @export
-prepareMDSPlotData <- function(
-        data_dir,
-        data_name,
-        additionalDonorMetadata = NULL,
-        randVars,
-        fixedVars
-) {
-    logger::log_info(paste("Loading DGEList from:", data_dir, "with prefix:", data_name))
-    dge <- bican.mccarroll.differentialexpression::loadDGEList(data_dir, prefix = data_name)
+prepareMDSPlotData <- function(data_dir,
+                               data_name,
+                               additionalDonorMetadata = NULL,
+                               randVars,
+                               fixedVars) {
+  logger::log_info(paste("Loading DGEList from:", data_dir, "with prefix:", data_name))
+  dge <- bican.mccarroll.differentialexpression::loadDGEList(data_dir, prefix = data_name)
 
-    # merge in additional donor metadata
-    if (!is.null(additionalDonorMetadata)) {
-        logger::log_info(sprintf("Merging additional donor metadata from: %s", additionalDonorMetadata))
-        donor_metadata <- utils::read.table(additionalDonorMetadata, header = TRUE, sep = "\t")
+  # merge in additional donor metadata
+  if (!is.null(additionalDonorMetadata)) {
+    logger::log_info(sprintf("Merging additional donor metadata from: %s", additionalDonorMetadata))
+    donor_metadata <- utils::read.table(additionalDonorMetadata, header = TRUE, sep = "\t")
 
-        if ("donor" %in% colnames(donor_metadata)) {
-            m <- match(dge$samples$donor, donor_metadata$donor)
-            for (cn in setdiff(names(donor_metadata), "donor")) {
-                dge$samples[[cn]] <- donor_metadata[[cn]][m]
-            }
-        } else {
-            logger::log_warn("No 'donor' column found in additional metadata; skipping merge.")
-        }
+    if ("donor" %in% colnames(donor_metadata)) {
+      m <- match(dge$samples$donor, donor_metadata$donor)
+      for (cn in setdiff(names(donor_metadata), "donor")) {
+        dge$samples[[cn]] <- donor_metadata[[cn]][m]
+      }
+    } else {
+      logger::log_warn("No 'donor' column found in additional metadata; skipping merge.")
     }
+  }
 
-    # validate required vars are present
-    required_vars <- c(randVars, fixedVars)
-    validateSampleVars(dge, required_vars)
+  # validate required vars are present
+  required_vars <- c(randVars, fixedVars)
+  validateSampleVars(dge, required_vars)
 
-    # scale genetic PCs to unit variance
-    dge$samples <- bican.mccarroll.differentialexpression::scale_PC_cols(dge$samples)
+  # scale genetic PCs to unit variance
+  dge$samples <- bican.mccarroll.differentialexpression::scale_PC_cols(dge$samples)
 
-    # drop repeated/redundant features (keep norm.factors)
-    dropFeatures <- c("sample_name")
-    dge$samples <- dge$samples[, !colnames(dge$samples) %in% dropFeatures, drop = FALSE]
+  # drop repeated/redundant features (keep norm.factors)
+  dropFeatures <- c("sample_name")
+  dge$samples <- dge$samples[, !colnames(dge$samples) %in% dropFeatures, drop = FALSE]
 
-    list(dge = dge, required_vars = required_vars)
+  list(dge = dge, required_vars = required_vars)
 }
 
 #' @title Generate and Save Glimma MDS Plots
@@ -248,53 +244,52 @@ prepareMDSPlotData <- function(
 #' - Saves two HTML Glimma MDS plots (`<data_name>_continuous.html` and `<data_name>_discrete.html`) in `outMDSPlotRoot`.
 #'
 #' @import htmlwidgets Glimma logger
-mdsPlot<-function (dge, required_vars, num_samples=NULL, outMDSPlotRoot, data_name="All nuclei", outMDSCoordinatesDir=NULL) {
-    #why bother if you're not emitting results?
-    if (is.null(outMDSPlotRoot) && is.null(outMDSCoordinatesDir)) {
-        logger::log_info("No output directories specified, skipping MDS plot generation.")
-        return(invisible(NULL))
-    }
+mdsPlot <- function(dge, required_vars, num_samples = NULL, outMDSPlotRoot, data_name = "All nuclei", outMDSCoordinatesDir = NULL) {
+  # why bother if you're not emitting results?
+  if (is.null(outMDSPlotRoot) && is.null(outMDSCoordinatesDir)) {
+    logger::log_info("No output directories specified, skipping MDS plot generation.")
+    return(invisible(NULL))
+  }
 
-    #optionally limit the number of samples used in analysis - mostly to reduce compute costs for high N.
-    dgeThis=restrictDGEListToSamples(dge, num_samples)
+  # optionally limit the number of samples used in analysis - mostly to reduce compute costs for high N.
+  dgeThis <- restrictDGEListToSamples(dge, num_samples)
 
-    # format the sample metadata for glimma - this data is only for display purposes.
-    dgeThis$samples=round_df_sig(dgeThis$samples, digits = 3L)
-    num_samples_retained=dim(dgeThis$samples )[1]
-    # Version 2 of the framework.
-    logger::log_info(paste("Creating glimma MDS plot - continuous colour with num samples [", num_samples_retained, "]"))
-    r=Glimma::glimmaMDS(dgeThis, continuous.colour=TRUE, launch=F, main="TEST V2", width=1600, height=900, var.explained=TRUE, title="All Nuclei")
+  # format the sample metadata for glimma - this data is only for display purposes.
+  dgeThis$samples <- round_df_sig(dgeThis$samples, digits = 3L)
+  num_samples_retained <- dim(dgeThis$samples)[1]
+  # Version 2 of the framework.
+  logger::log_info(paste("Creating glimma MDS plot - continuous colour with num samples [", num_samples_retained, "]"))
+  r <- Glimma::glimmaMDS(dgeThis, continuous.colour = TRUE, launch = F, main = "TEST V2", width = 1600, height = 900, var.explained = TRUE, title = "All Nuclei")
 
-    #the second plot is only created if the outMDSPlotRoot is specified.
-    r2=NULL
-    if (!is.null(outMDSPlotRoot)) {
-        logger::log_info(paste("Creating glimma MDS plot - discrete colour with num samples [", num_samples_retained, "]"))
-        r2=Glimma::glimmaMDS(dgeThis, continuous.colour=FALSE, launch=F, main="TEST V2", width=1600, height=900, var.explained=TRUE, title="All Nuclei")
+  # the second plot is only created if the outMDSPlotRoot is specified.
+  r2 <- NULL
+  if (!is.null(outMDSPlotRoot)) {
+    logger::log_info(paste("Creating glimma MDS plot - discrete colour with num samples [", num_samples_retained, "]"))
+    r2 <- Glimma::glimmaMDS(dgeThis, continuous.colour = FALSE, launch = F, main = "TEST V2", width = 1600, height = 900, var.explained = TRUE, title = "All Nuclei")
+  }
+  logger::log_info(paste("Finished creating glimma MDS plots"))
 
-    }
-    logger::log_info(paste("Finished creating glimma MDS plots"))
+  # https://stackoverflow.com/questions/74379298/argument-selfcontained-deprecated-in-htmlwidgetssavewidget
+  # work around for selfcontained not working?
+  if (!is.null(outMDSPlotRoot)) {
+    myoriginalwd <- getwd()
+    setwd(outMDSPlotRoot)
+    outFileC <- paste0(data_name, "_continuous.html")
+    htmlwidgets::saveWidget(r, file = outFileC, selfcontained = TRUE, title = paste(data_name, "continuous"))
+    outFileD <- paste0(data_name, "_discrete.html")
+    htmlwidgets::saveWidget(r2, outFileD, selfcontained = TRUE, title = paste(data_name, "discrete"))
+    setwd(myoriginalwd)
+  }
 
-    # https://stackoverflow.com/questions/74379298/argument-selfcontained-deprecated-in-htmlwidgetssavewidget
-    # work around for selfcontained not working?
-    if (!is.null(outMDSPlotRoot)) {
-        myoriginalwd=getwd()
-        setwd(outMDSPlotRoot)
-        outFileC= paste0(data_name, "_continuous.html")
-        htmlwidgets::saveWidget(r, file=outFileC, selfcontained = TRUE, title=paste(data_name, "continuous"))
-        outFileD= paste0(data_name, "_discrete.html")
-        htmlwidgets::saveWidget(r2,outFileD, selfcontained = TRUE, title=paste(data_name, "discrete"))
-        setwd(myoriginalwd)
-    }
-
-    if (!is.null(outMDSCoordinatesDir)) {
-        # save the MDS coordinates to a file
-        z=r$x$data$mdsData
-        idx=c(which(colnames(z)=="labels"), grep("dim", colnames(z)))
-        mds_coords=z[,idx]
-        outFileCoords <- file.path(outMDSCoordinatesDir, paste0(data_name, "_mds_coordinates.tsv"))
-        write.table(mds_coords, file=outFileCoords, sep="\t", row.names=FALSE, quote=FALSE)
-        logger::log_info(paste("Saved MDS coordinates to:", outFileCoords))
-    }
+  if (!is.null(outMDSCoordinatesDir)) {
+    # save the MDS coordinates to a file
+    z <- r$x$data$mdsData
+    idx <- c(which(colnames(z) == "labels"), grep("dim", colnames(z)))
+    mds_coords <- z[, idx]
+    outFileCoords <- file.path(outMDSCoordinatesDir, paste0(data_name, "_mds_coordinates.tsv"))
+    write.table(mds_coords, file = outFileCoords, sep = "\t", row.names = FALSE, quote = FALSE)
+    logger::log_info(paste("Saved MDS coordinates to:", outFileCoords))
+  }
 }
 
 #' Restrict a DGEList to a random subset of samples
@@ -303,14 +298,14 @@ mdsPlot<-function (dge, required_vars, num_samples=NULL, outMDSPlotRoot, data_na
 #' @return A DGEList object containing only the selected samples, with library sizes retained.
 #' @export
 restrictDGEListToSamples <- function(dge, num_samples) {
-    if (!is.null(num_samples)) {
-        s=min(num_samples, dim(dge)[2])
-        idx=sample(1:dim(dge)[2], size=s)
-        dgeThis=dge[,idx,keep.lib.sizes=TRUE]
-    } else {
-        dgeThis=dge
-    }
-    return (dgeThis)
+  if (!is.null(num_samples)) {
+    s <- min(num_samples, dim(dge)[2])
+    idx <- sample(1:dim(dge)[2], size = s)
+    dgeThis <- dge[, idx, keep.lib.sizes = TRUE]
+  } else {
+    dgeThis <- dge
+  }
+  return(dgeThis)
 }
 
 
@@ -321,22 +316,19 @@ restrictDGEListToSamples <- function(dge, num_samples) {
 #' @return The original data.frame with numeric columns rounded to the specified significant digits
 #' @export
 round_df_sig <- function(df, digits = 3L) {
-    # sanity check
-    if (!is.data.frame(df)) {
-        stop("Input must be a data.frame", call. = FALSE)
-    }
-    # find numeric columns
-    num_cols <- vapply(df, is.numeric, logical(1))
-    # round each numeric column to 'digits' significant digits
-    df[num_cols] <- lapply(
-        df[num_cols],
-        function(x) signif(x, digits = digits)
-    )
-    df
+  # sanity check
+  if (!is.data.frame(df)) {
+    stop("Input must be a data.frame", call. = FALSE)
+  }
+  # find numeric columns
+  num_cols <- vapply(df, is.numeric, logical(1))
+  # round each numeric column to 'digits' significant digits
+  df[num_cols] <- lapply(
+    df[num_cols],
+    function(x) signif(x, digits = digits)
+  )
+  df
 }
-
-
-
 
 
 #' Compute Pairwise Variable Associations
@@ -361,48 +353,48 @@ round_df_sig <- function(df, digits = 3L) {
 #' @importFrom vcd assocstats
 #' @import corrplot
 #' @export
-getVariableCorrelation <- function(df, cols_to_test=c()) {
-    # Combine base and candidate predictors
-    all_predictors <- cols_to_test
-    df_subset <- df[, all_predictors, drop = FALSE]
-    df_complete <- df_subset[stats::complete.cases(df_subset), ]
+getVariableCorrelation <- function(df, cols_to_test = c()) {
+  # Combine base and candidate predictors
+  all_predictors <- cols_to_test
+  df_subset <- df[, all_predictors, drop = FALSE]
+  df_complete <- df_subset[stats::complete.cases(df_subset), ]
 
-    # Coerce character columns to factors
-    df_complete[] <- lapply(df_complete, function(x) if (is.character(x)) as.factor(x) else x)
+  # Coerce character columns to factors
+  df_complete[] <- lapply(df_complete, function(x) if (is.character(x)) as.factor(x) else x)
 
-    # Prepare result matrix
-    n <- length(all_predictors)
-    corr_matrix <- matrix(NA, nrow = n, ncol = n, dimnames = list(all_predictors, all_predictors))
+  # Prepare result matrix
+  n <- length(all_predictors)
+  corr_matrix <- matrix(NA, nrow = n, ncol = n, dimnames = list(all_predictors, all_predictors))
 
-    # Compute pairwise correlations
-    for (i in seq_along(all_predictors)) {
-        for (j in seq_along(all_predictors)) {
-            var1 <- df_complete[[all_predictors[i]]]
-            var2 <- df_complete[[all_predictors[j]]]
+  # Compute pairwise correlations
+  for (i in seq_along(all_predictors)) {
+    for (j in seq_along(all_predictors)) {
+      var1 <- df_complete[[all_predictors[i]]]
+      var2 <- df_complete[[all_predictors[j]]]
 
-            if (is.numeric(var1) && is.numeric(var2)) {
-                corr_matrix[i, j] <- stats::cor(var1, var2, use = "pairwise.complete.obs")
-            } else if (is.factor(var1) && is.factor(var2)) {
-                tbl <- table(var1, var2)
-                suppressWarnings({
-                    stat <- vcd::assocstats(tbl)$cramer
-                })
-                corr_matrix[i, j] <- stat
-            } else if (is.factor(var1) && is.numeric(var2)) {
-                corr_matrix[i, j] <- sqrt(summary(stats::aov(var2 ~ var1))[[1]]$`Sum Sq`[1] /
-                                              sum(summary(stats::aov(var2 ~ var1))[[1]]$`Sum Sq`))
-            } else if (is.numeric(var1) && is.factor(var2)) {
-                corr_matrix[i, j] <- sqrt(summary(stats::aov(var1 ~ var2))[[1]]$`Sum Sq`[1] /
-                                              sum(summary(stats::aov(var1 ~ var2))[[1]]$`Sum Sq`))
-            }
-        }
+      if (is.numeric(var1) && is.numeric(var2)) {
+        corr_matrix[i, j] <- stats::cor(var1, var2, use = "pairwise.complete.obs")
+      } else if (is.factor(var1) && is.factor(var2)) {
+        tbl <- table(var1, var2)
+        suppressWarnings({
+          stat <- vcd::assocstats(tbl)$cramer
+        })
+        corr_matrix[i, j] <- stat
+      } else if (is.factor(var1) && is.numeric(var2)) {
+        corr_matrix[i, j] <- sqrt(summary(stats::aov(var2 ~ var1))[[1]]$`Sum Sq`[1] /
+          sum(summary(stats::aov(var2 ~ var1))[[1]]$`Sum Sq`))
+      } else if (is.numeric(var1) && is.factor(var2)) {
+        corr_matrix[i, j] <- sqrt(summary(stats::aov(var1 ~ var2))[[1]]$`Sum Sq`[1] /
+          sum(summary(stats::aov(var1 ~ var2))[[1]]$`Sum Sq`))
+      }
     }
+  }
 
-    return(corr_matrix)
+  return(corr_matrix)
 }
 
-plotVariableCorrelation<-function (corr_matrix) {
-    corrplot::corrplot(corr_matrix, method = "circle", type = "upper", tl.col = "black", tl.srt = 45, na.label = "NA")
+plotVariableCorrelation <- function(corr_matrix) {
+  corrplot::corrplot(corr_matrix, method = "circle", type = "upper", tl.col = "black", tl.srt = 45, na.label = "NA")
 }
 
 
@@ -413,17 +405,17 @@ plotVariableCorrelation<-function (corr_matrix) {
 #' @return TRUE if all are present, otherwise throws an error listing missing variables
 #' @export
 validateSampleVars <- function(dge, required_vars) {
-    if (is.null(dge$samples) || nrow(dge$samples) == 0) {
-        stop("DGEList contains no samples metadata to validate against.")
-    }
-    missing <- setdiff(required_vars, colnames(dge$samples))
-    if (length(missing) > 0) {
-        stop(sprintf(
-            "Missing sample variables in DGEList: %s",
-            paste(missing, collapse = ", ")
-        ))
-    }
-    return(TRUE)
+  if (is.null(dge$samples) || nrow(dge$samples) == 0) {
+    stop("DGEList contains no samples metadata to validate against.")
+  }
+  missing <- setdiff(required_vars, colnames(dge$samples))
+  if (length(missing) > 0) {
+    stop(sprintf(
+      "Missing sample variables in DGEList: %s",
+      paste(missing, collapse = ", ")
+    ))
+  }
+  return(TRUE)
 }
 
 #' Scale all PC columns in a data.frame to unit variance
@@ -432,15 +424,15 @@ validateSampleVars <- function(dge, required_vars) {
 #' @return The original data.frame with PC columns scaled to unit variance
 #' @export
 scale_PC_cols <- function(df) {
-    # find columns starting with "PC"
-    pc.cols <- grep("^PC", names(df))
+  # find columns starting with "PC"
+  pc.cols <- grep("^PC", names(df))
 
-    # loop over those columns and replace with scaled values
-    for (j in pc.cols) {
-        # scale() returns a 1-column matrix, so pull out the vector
-        df[[j]] <- as.numeric(scale(df[[j]], center = TRUE, scale = TRUE))
-    }
-    return (df)
+  # loop over those columns and replace with scaled values
+  for (j in pc.cols) {
+    # scale() returns a 1-column matrix, so pull out the vector
+    df[[j]] <- as.numeric(scale(df[[j]], center = TRUE, scale = TRUE))
+  }
+  return(df)
 }
 
 
@@ -456,56 +448,56 @@ scale_PC_cols <- function(df) {
 #' @export
 #' @import ggplot2
 #' @import logger
-filter_by_libsize <- function(dge, threshold_sd = 1.96, bins = 50, strTitlePrefix=NULL) {
-    if (!inherits(dge, "DGEList")) {
-        stop("`dge` must be a DGEList object", call. = FALSE)
-    }
+filter_by_libsize <- function(dge, threshold_sd = 1.96, bins = 50, strTitlePrefix = NULL) {
+  if (!inherits(dge, "DGEList")) {
+    stop("`dge` must be a DGEList object", call. = FALSE)
+  }
 
-    if (is.null(threshold_sd)) {
-        logger::log_info("Skipping library size filtering as threshold_sd is NULL")
-        return(list(plot = NULL, dge = dge))
-    }
+  if (is.null(threshold_sd)) {
+    logger::log_info("Skipping library size filtering as threshold_sd is NULL")
+    return(list(plot = NULL, dge = dge))
+  }
 
-    # compute log10 library sizes
-    lib_log <- log10(dge$samples$lib.size)
-    n_total <- length(lib_log)
-    m       <- mean(lib_log)
-    s       <- stats::sd(lib_log)
-    threshold <- m - threshold_sd * s
+  # compute log10 library sizes
+  lib_log <- log10(dge$samples$lib.size)
+  n_total <- length(lib_log)
+  m <- mean(lib_log)
+  s <- stats::sd(lib_log)
+  threshold <- m - threshold_sd * s
 
-    # determine which samples to keep
-    keep <- lib_log > threshold
-    n_retained <- base::sum(keep)
+  # determine which samples to keep
+  keep <- lib_log > threshold
+  n_retained <- base::sum(keep)
 
-    # build plot title
-    title <- base::sprintf(
-        "%d samples, retained %d with lib.size > %.2f",
-        n_total, n_retained, threshold
-    )
-    if (!is.null(strTitlePrefix)) {
-        title <- paste(strTitlePrefix, title)
-    }
+  # build plot title
+  title <- base::sprintf(
+    "%d samples, retained %d with lib.size > %.2f",
+    n_total, n_retained, threshold
+  )
+  if (!is.null(strTitlePrefix)) {
+    title <- paste(strTitlePrefix, title)
+  }
 
-    # make the ggplot
-    df <- base::data.frame(lib_log = lib_log)
-    p <- ggplot2::ggplot(df, ggplot2::aes(x = lib_log)) +
-        ggplot2::geom_histogram(bins = bins, fill = "lightblue") +
-        ggplot2::geom_vline(xintercept = threshold, colour = "red", linetype = "dashed", linewidth = 1.2) +
-        ggplot2::labs(
-            x     = "library size [log10]",
-            title = title
-        ) +
-        ggplot2::theme_minimal()
+  # make the ggplot
+  df <- base::data.frame(lib_log = lib_log)
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = lib_log)) +
+    ggplot2::geom_histogram(bins = bins, fill = "lightblue") +
+    ggplot2::geom_vline(xintercept = threshold, colour = "red", linetype = "dashed", linewidth = 1.2) +
+    ggplot2::labs(
+      x     = "library size [log10]",
+      title = title
+    ) +
+    ggplot2::theme_minimal()
 
-    # filter the DGEList
-    dge_filt <- dge[, keep, keep.lib.sizes = TRUE]
+  # filter the DGEList
+  dge_filt <- dge[, keep, keep.lib.sizes = TRUE]
 
-    # log the filtering summary
-    logger::log_info(
-        "Filtered DGEList to retain {n_retained} of {n_total} samples with library size > {round(threshold, 3)} [log10 UMIs]"
-    )
+  # log the filtering summary
+  logger::log_info(
+    "Filtered DGEList to retain {n_retained} of {n_total} samples with library size > {round(threshold, 3)} [log10 UMIs]"
+  )
 
-    list(plot = p, dge = dge_filt)
+  list(plot = p, dge = dge_filt)
 }
 
 # filter_by_libsize <- function(dge, threshold_sd = 1.96, bins = 50) {
@@ -548,4 +540,3 @@ filter_by_libsize <- function(dge, threshold_sd = 1.96, bins = 50, strTitlePrefi
 #     # 6. return both
 #     list(plot = p, dge = dge_filt)
 # }
-

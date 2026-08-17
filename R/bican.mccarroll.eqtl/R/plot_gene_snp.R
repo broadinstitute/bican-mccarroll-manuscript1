@@ -50,229 +50,233 @@ plot_gene_snp <- function(gene,
                           output_path = NULL,
                           width = 20,
                           height = 5) {
+  celltype_order <- c(
+    "SPN_D1_matrix__CaH",
+    "SPN_D2_matrix__CaH",
+    "GABA_MGE_DFC__DFC",
+    "GABA_CGE_DFC__DFC",
+    "GABA_MGE_STR__CaH",
+    "glut_L23_IT__DFC",
+    "astrocyte__CaH",
+    "oligodendrocyte__CaH",
+    "OPC__CaH",
+    "microglia__CaH",
+    "microglia__DFC"
+  )
 
-    celltype_order <- c(
-        "SPN_D1_matrix__CaH",
-        "SPN_D2_matrix__CaH",
-        "GABA_MGE_DFC__DFC",
-        "GABA_CGE_DFC__DFC",
-        "GABA_MGE_STR__CaH",
-        "glut_L23_IT__DFC",
-        "astrocyte__CaH",
-        "oligodendrocyte__CaH",
-        "OPC__CaH",
-        "microglia__CaH",
-        "microglia__DFC"
+  # if (gene == "NPAS3") {
+  #     celltype_order <- c(celltype_order, "microglia__DFC")
+  # }
+
+  celltype_label_map <- c(
+    "SPN_D1_matrix__CaH" = "SPN D1 matrix (CaH)",
+    "SPN_D2_matrix__CaH" = "SPN D2 matrix (CaH)",
+    "GABA_MGE_DFC__DFC" = "MGE-derived GABAergic (DFC)",
+    "GABA_CGE_DFC__DFC" = "CGE-derived GABAergic (DFC)",
+    "GABA_MGE_STR__CaH" = "MGE-derived GABAergic (CaH)",
+    "glut_L23_IT__DFC" = "Glutamatergic L2/3 IT (DFC)",
+    "astrocyte__CaH" = "Astrocyte (CaH)",
+    "oligodendrocyte__CaH" = "Oligodendrocyte (CaH)",
+    "OPC__CaH" = "OPC (CaH)",
+    "microglia__CaH" = "Microglia (CaH)",
+    "microglia__DFC" = "Microglia (DFC)"
+  )
+
+  # --- Read VCF at position ---
+  gr <- GenomicRanges::GRanges(chr, IRanges::IRanges(pos, pos))
+  vcf_snp <- VariantAnnotation::readVcf(vcf_path, "hg38", param = gr)
+
+  if (length(vcf_snp) > 1L) {
+    warning("More than one variant found at ", chr, ":", pos)
+  }
+
+  genotype_matrix <- VariantAnnotation::geno(vcf_snp)$GT
+  genotype_matrix <- gsub("\\|", "/", genotype_matrix)
+  genotype_matrix <- gsub("^1/0$", "0/1", genotype_matrix)
+
+  # Extract ref / alt alleles from variant ID (e.g. "chr17:66192315_A/G")
+  variant_id <- rownames(genotype_matrix)[1]
+  allele_str <- strsplit(variant_id, "_")[[1]][2]
+  allele_parts <- strsplit(allele_str, "/")[[1]]
+  ref_allele <- allele_parts[1]
+  alt_allele <- allele_parts[2]
+
+  genotype_v <- genotype_matrix[1, ]
+  names(genotype_v) <- colnames(genotype_matrix)
+
+  # --- Read expression & reshape to long format ---
+  # Make R CMD CHECK Happy
+  pid <- NULL
+
+  logger::log_info("Reading expression from: {expression_path}")
+  expr_dt <- data.table::fread(expression_path)
+  gene_dt <- expr_dt[expr_dt$pid == gene]
+  gene_dt[, pid := NULL]
+
+  long_dt <- data.table::melt(
+    gene_dt,
+    measure.vars = names(gene_dt),
+    variable.name = "donor_cell_type", value.name = "expression"
+  )
+
+  # Split "donorID_celltype__region" — donor is before first "_",
+  # cell_type is everything after
+  # Make R CMD CHECK Happy
+  donor <- donor_cell_type <- cell_type <- genotype <- NULL
+
+  long_dt[, donor := sub("_.*", "", donor_cell_type)]
+  long_dt[, cell_type := sub("^[^_]+_", "", donor_cell_type)]
+  long_dt[, donor_cell_type := NULL]
+
+  # --- Join genotypes ---
+  long_dt[, genotype := genotype_v[donor]]
+
+  # Remove unascertained genotypes, compute log expression and dosage
+  # Make R CMD CHECK Happy
+  log_expression <- expression <- dosage <- .N <- NULL
+
+  long_dt <- long_dt[genotype != "./."]
+  long_dt[, log_expression := log2(expression + 1)]
+  long_dt[, dosage := data.table::fifelse(
+    genotype == "0/0", 0,
+    data.table::fifelse(
+      genotype %in% c("0/1", "1/0"), 1,
+      data.table::fifelse(genotype == "1/1", 2, NA_real_)
     )
+  )]
 
-    # if (gene == "NPAS3") {
-    #     celltype_order <- c(celltype_order, "microglia__DFC")
-    # }
+  # --- Compute per-cell-type p-values (linear model) ---
+  pval_dt <- long_dt[
+    !is.na(log_expression) & !is.na(dosage),
+    {
+      n_unique <- length(unique(dosage))
+      if (n_unique < 2L || .N < 3L || sd(dosage) == 0) {
+        list(pval = NA_real_, beta = NA_real_)
+      } else {
+        model <- lm(log_expression ~ dosage)
+        coefs <- summary(model)$coefficients
+        if (nrow(coefs) >= 2L) {
+          list(pval = coefs[2, 4], beta = coefs[2, 1])
+        } else {
+          list(pval = NA_real_, beta = NA_real_)
+        }
+      }
+    },
+    by = cell_type
+  ]
 
-    celltype_label_map <- c(
-        "SPN_D1_matrix__CaH"        = "SPN D1 matrix (CaH)",
-        "SPN_D2_matrix__CaH"        = "SPN D2 matrix (CaH)",
-        "GABA_MGE_DFC__DFC"          = "MGE-derived GABAergic (DFC)",
-        "GABA_CGE_DFC__DFC"          = "CGE-derived GABAergic (DFC)",
-        "GABA_MGE_STR__CaH"          = "MGE-derived GABAergic (CaH)",
-        "glut_L23_IT__DFC"   = "Glutamatergic L2/3 IT (DFC)",
-        "astrocyte__CaH"             = "Astrocyte (CaH)",
-        "oligodendrocyte__CaH"       = "Oligodendrocyte (CaH)",
-        "OPC__CaH"                   = "OPC (CaH)",
-        "microglia__CaH"             = "Microglia (CaH)",
-        "microglia__DFC"             = "Microglia (DFC)"
+  # Make R CMD CHECK Happy
+  pval <- pval_adj <- p_label <- cell_type_label <- allele_genotype <- NULL
+
+  pval_dt[, pval_adj := stats::p.adjust(pval, method = "BH")]
+  pval_dt[, p_label := paste0("p = ", signif(pval_adj, digits = 3))]
+
+  # --- Merge p-values back and prepare plot data ---
+  plot_dt <- data.table::merge.data.table(
+    long_dt, pval_dt[, list(cell_type, pval_adj, p_label)],
+    by = "cell_type",
+    all.x = TRUE
+  )
+
+  # Map cell type labels
+  plot_dt[, cell_type_label := celltype_label_map[cell_type]]
+
+  # Filter to desired cell types, non-zero expression
+  plot_dt <- plot_dt[cell_type %in% celltype_order & log_expression != 0]
+  plot_dt[, cell_type := factor(cell_type, levels = celltype_order)]
+  plot_dt[, cell_type_label := factor(
+    cell_type_label,
+    levels = celltype_label_map[celltype_order]
+  )]
+
+  # Allele-based genotype labels
+  plot_dt[, allele_genotype := data.table::fifelse(
+    genotype == "0/0", paste0(ref_allele, "/", ref_allele),
+    data.table::fifelse(
+      genotype == "0/1", paste0(ref_allele, "/", alt_allele),
+      paste0(alt_allele, "/", alt_allele)
     )
+  )]
 
-    # --- Read VCF at position ---
-    gr <- GenomicRanges::GRanges(chr, IRanges::IRanges(pos, pos))
-    vcf_snp <- VariantAnnotation::readVcf(vcf_path, "hg38", param = gr)
+  # --- P-value label positions ---
+  # Make R CMD CHECK Happy
+  allele_genotype <- log_expression <- p_label <- y_pos <- cell_type_label <- y_pos <- NULL
 
-    if (length(vcf_snp) > 1L) {
-        warning("More than one variant found at ", chr, ":", pos)
-    }
+  global_y_pos <- max(plot_dt$log_expression, na.rm = TRUE) + 0.3
 
-    genotype_matrix <- VariantAnnotation::geno(vcf_snp)$GT
-    genotype_matrix <- gsub("\\|", "/", genotype_matrix)
-    genotype_matrix <- gsub("^1/0$", "0/1", genotype_matrix)
+  label_dt <- plot_dt[, list(pval_adj = pval_adj[1], p_label = p_label[1]),
+    by = cell_type_label
+  ]
+  label_dt[, y_pos := global_y_pos]
+  label_dt <- label_dt[!is.na(pval_adj) & pval_adj < 0.05]
 
-    # Extract ref / alt alleles from variant ID (e.g. "chr17:66192315_A/G")
-    variant_id <- rownames(genotype_matrix)[1]
-    allele_str <- strsplit(variant_id, "_")[[1]][2]
-    allele_parts <- strsplit(allele_str, "/")[[1]]
-    ref_allele <- allele_parts[1]
-    alt_allele <- allele_parts[2]
+  # --- Build plot ---
+  n_panels <- length(celltype_order)
 
-    genotype_v <- genotype_matrix[1, ]
-    names(genotype_v) <- colnames(genotype_matrix)
-
-    # --- Read expression & reshape to long format ---
-    #Make R CMD CHECK Happy
-    pid <- NULL
-
-    logger::log_info("Reading expression from: {expression_path}")
-    expr_dt <- data.table::fread(expression_path)
-    gene_dt <- expr_dt[expr_dt$pid == gene]
-    gene_dt[, pid := NULL]
-
-    long_dt <- data.table::melt(
-        gene_dt, measure.vars = names(gene_dt),
-        variable.name = "donor_cell_type", value.name = "expression"
+  p <- ggplot2::ggplot(
+    plot_dt,
+    ggplot2::aes(
+      x = allele_genotype,
+      y = log_expression
     )
-
-    # Split "donorID_celltype__region" — donor is before first "_",
-    # cell_type is everything after
-    #Make R CMD CHECK Happy
-    donor <- donor_cell_type <- cell_type <- genotype <- NULL
-
-    long_dt[, donor := sub("_.*", "", donor_cell_type)]
-    long_dt[, cell_type := sub("^[^_]+_", "", donor_cell_type)]
-    long_dt[, donor_cell_type := NULL]
-
-    # --- Join genotypes ---
-    long_dt[, genotype := genotype_v[donor]]
-
-    # Remove unascertained genotypes, compute log expression and dosage
-    #Make R CMD CHECK Happy
-    log_expression <- expression <- dosage <- .N <- NULL
-
-    long_dt <- long_dt[genotype != "./."]
-    long_dt[, log_expression := log2(expression + 1)]
-    long_dt[, dosage := data.table::fifelse(
-        genotype == "0/0", 0,
-        data.table::fifelse(genotype %in% c("0/1", "1/0"), 1,
-                            data.table::fifelse(genotype == "1/1", 2, NA_real_)
-        )
-    )]
-
-    # --- Compute per-cell-type p-values (linear model) ---
-    pval_dt <- long_dt[
-        !is.na(log_expression) & !is.na(dosage),
-        {
-            n_unique <- length(unique(dosage))
-            if (n_unique < 2L || .N < 3L || sd(dosage) == 0) {
-                list(pval = NA_real_, beta = NA_real_)
-            } else {
-                model <- lm(log_expression ~ dosage)
-                coefs <- summary(model)$coefficients
-                if (nrow(coefs) >= 2L) {
-                    list(pval = coefs[2, 4], beta = coefs[2, 1])
-                } else {
-                    list(pval = NA_real_, beta = NA_real_)
-                }
-            }
-        },
-        by = cell_type
-    ]
-
-    #Make R CMD CHECK Happy
-    pval <- pval_adj <- p_label <- cell_type_label<- allele_genotype<- NULL
-
-    pval_dt[, pval_adj := stats::p.adjust(pval, method = "BH")]
-    pval_dt[, p_label := paste0("p = ", signif(pval_adj, digits = 3))]
-
-    # --- Merge p-values back and prepare plot data ---
-    plot_dt <- data.table::merge.data.table(
-        long_dt, pval_dt[, list(cell_type, pval_adj, p_label)],
-        by = "cell_type",
-        all.x = TRUE
-    )
-
-    # Map cell type labels
-    plot_dt[, cell_type_label := celltype_label_map[cell_type]]
-
-    # Filter to desired cell types, non-zero expression
-    plot_dt <- plot_dt[cell_type %in% celltype_order & log_expression != 0]
-    plot_dt[, cell_type := factor(cell_type, levels = celltype_order)]
-    plot_dt[, cell_type_label := factor(
-        cell_type_label, levels = celltype_label_map[celltype_order]
-    )]
-
-    # Allele-based genotype labels
-    plot_dt[, allele_genotype := data.table::fifelse(
-        genotype == "0/0", paste0(ref_allele, "/", ref_allele),
-        data.table::fifelse(genotype == "0/1", paste0(ref_allele, "/", alt_allele),
-                            paste0(alt_allele, "/", alt_allele)
-        )
-    )]
-
-    # --- P-value label positions ---
-    #Make R CMD CHECK Happy
-    allele_genotype <- log_expression <- p_label <- y_pos <- cell_type_label <- y_pos <- NULL
-
-    global_y_pos <- max(plot_dt$log_expression, na.rm = TRUE) + 0.3
-
-    label_dt <- plot_dt[, list(pval_adj = pval_adj[1], p_label = p_label[1]),
-                        by = cell_type_label]
-    label_dt[, y_pos := global_y_pos]
-    label_dt <- label_dt[!is.na(pval_adj) & pval_adj < 0.05]
-
-    # --- Build plot ---
-    n_panels <- length(celltype_order)
-
-    p <- ggplot2::ggplot(
-        plot_dt,
-        ggplot2::aes(
-            x = allele_genotype,
-            y = log_expression
-        )
+  ) +
+    ggbeeswarm::geom_beeswarm(size = 0.3, alpha = 0.8) +
+    ggplot2::geom_violin(
+      trim = FALSE,
+      scale = "width",
+      fill = "#9bd3dd",
+      color = NA,
+      alpha = 0.6
     ) +
-        ggbeeswarm::geom_beeswarm(size = 0.3, alpha = 0.8) +
-        ggplot2::geom_violin(
-            trim = FALSE,
-            scale = "width",
-            fill = "#9bd3dd",
-            color = NA,
-            alpha = 0.6
-        ) +
-        ggplot2::facet_wrap(
-            ~ cell_type_label,
-            ncol = n_panels,
-            drop = FALSE,
-            labeller = ggplot2::label_wrap_gen(width = 18)
-        ) +
-        ggplot2::geom_text(
-            data = label_dt,
-            ggplot2::aes(y = y_pos, label = p_label),
-            color = "#d62728",
-            x = Inf,
-            hjust = 1,
-            vjust = 1,
-            nudge_x = -0.15,
-            nudge_y = -0.05,
-            size = 6,
-            fontface = "bold",
-            inherit.aes = FALSE
-        ) +
-        ggplot2::labs(
-            title = paste0(gene, "  ", chr, ":", pos),
-            x = "Genotype",
-            y = "Expression, TPM (log2)"
-        ) +
-        ggplot2::theme_bw() +
-        ggplot2::theme(
-            plot.title = ggplot2::element_text(
-                hjust = 0,
-                size = 18,
-                face = "bold"
-            ),
-            plot.title.position = "plot",
-            strip.text = ggplot2::element_text(size = 14, face = "bold"),
-            axis.title.x = ggplot2::element_text(size = 20),
-            axis.title.y = ggplot2::element_text(size = 20),
-            axis.text.x = ggplot2::element_text(size = 16),
-            axis.text.y = ggplot2::element_text(size = 16),
-            panel.spacing.x = ggplot2::unit(0.18, "lines"),
-            panel.spacing.y = ggplot2::unit(0.25, "lines"),
-            strip.background = ggplot2::element_blank(),
-            legend.position = "none"
-        )
+    ggplot2::facet_wrap(
+      ~cell_type_label,
+      ncol = n_panels,
+      drop = FALSE,
+      labeller = ggplot2::label_wrap_gen(width = 18)
+    ) +
+    ggplot2::geom_text(
+      data = label_dt,
+      ggplot2::aes(y = y_pos, label = p_label),
+      color = "#d62728",
+      x = Inf,
+      hjust = 1,
+      vjust = 1,
+      nudge_x = -0.15,
+      nudge_y = -0.05,
+      size = 6,
+      fontface = "bold",
+      inherit.aes = FALSE
+    ) +
+    ggplot2::labs(
+      title = paste0(gene, "  ", chr, ":", pos),
+      x = "Genotype",
+      y = "Expression, TPM (log2)"
+    ) +
+    ggplot2::theme_bw() +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(
+        hjust = 0,
+        size = 18,
+        face = "bold"
+      ),
+      plot.title.position = "plot",
+      strip.text = ggplot2::element_text(size = 14, face = "bold"),
+      axis.title.x = ggplot2::element_text(size = 20),
+      axis.title.y = ggplot2::element_text(size = 20),
+      axis.text.x = ggplot2::element_text(size = 16),
+      axis.text.y = ggplot2::element_text(size = 16),
+      panel.spacing.x = ggplot2::unit(0.18, "lines"),
+      panel.spacing.y = ggplot2::unit(0.25, "lines"),
+      strip.background = ggplot2::element_blank(),
+      legend.position = "none"
+    )
 
-    if (!is.null(output_path)) {
-        grDevices::svg(output_path, width = width, height = height)
-        print(p)
-        grDevices::dev.off()
-        logger::log_info("Saved to: {output_path}")
-    }
+  if (!is.null(output_path)) {
+    grDevices::svg(output_path, width = width, height = height)
+    print(p)
+    grDevices::dev.off()
+    logger::log_info("Saved to: {output_path}")
+  }
 
-    invisible(p)
+  invisible(p)
 }

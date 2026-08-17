@@ -1,4 +1,3 @@
-
 # root_dir = "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis"
 # figures_out_dir = "/broad/mccarroll/yooolivi/projects/bican/manuscript_1_figures/figures"
 # figures_cache_dir = "/broad/mccarroll/yooolivi/projects/bican/manuscript_1_figures/data_cache"
@@ -65,9 +64,11 @@
 # )
 
 
-utils::globalVariables(c("var1", "var2", "outlier", "celltype_region",
-                         "cell_type1", "region1", "cell_type2", "region2",
-                         "rho", "var", "cell_type", "pos", "max_pos", "x", "y"))
+utils::globalVariables(c(
+  "var1", "var2", "outlier", "celltype_region",
+  "cell_type1", "region1", "cell_type2", "region2",
+  "rho", "var", "cell_type", "pos", "max_pos", "x", "y"
+))
 
 #' Make a wide-format dataframe of donor cell type proportions, with columns
 #' for each cell type or brain region.
@@ -90,17 +91,16 @@ utils::globalVariables(c("var1", "var2", "outlier", "celltype_region",
 #' @return A wide-format dataframe with rows for each donor and columns for each
 #' cell type or brain region (depending on the pivot_cols), containing the specified CTP metric.
 make_donor_ctp_wide <- function(
-    ctp_df,
-    filter_value=NULL,
-    filter_col=NULL,
-    pivot_cols=NULL,
-    cell_type_col="annotation",
-    region_col="brain_region_abbreviation_simple",
-    donor_col="donor_external_id",
-    metric_col="fraction_nuclei",
-    drop_outliers=TRUE
+  ctp_df,
+  filter_value = NULL,
+  filter_col = NULL,
+  pivot_cols = NULL,
+  cell_type_col = "annotation",
+  region_col = "brain_region_abbreviation_simple",
+  donor_col = "donor_external_id",
+  metric_col = "fraction_nuclei",
+  drop_outliers = TRUE
 ) {
-
   if (!is.null(filter_value) & !is.null(filter_col)) {
     ctp_df <- ctp_df |>
       dplyr::filter(.data[[filter_col]] == filter_value)
@@ -124,7 +124,6 @@ make_donor_ctp_wide <- function(
   }
 
   return(wide_df)
-
 }
 
 #
@@ -165,15 +164,14 @@ make_donor_ctp_wide <- function(
 #' @return A ggplot object of the scatterplot comparing the CTP metric between
 #' the two variables, with optional correlation annotation.
 plot_metric_correlation <- function(
-    ctp_df_wide,
-    var1,
-    var2,
-    metric_name,
-    compute_correlation = TRUE,
-    correlation_rho = NULL,
-    correlation_pvalue = NULL
+  ctp_df_wide,
+  var1,
+  var2,
+  metric_name,
+  compute_correlation = TRUE,
+  correlation_rho = NULL,
+  correlation_pvalue = NULL
 ) {
-
   plot_df <- ctp_df_wide |>
     dplyr::select(dplyr::all_of(c(var1, var2))) |>
     tidyr::drop_na()
@@ -188,48 +186,55 @@ plot_metric_correlation <- function(
     plot_df,
     ggplot2::aes(x = !!ggplot2::sym(var1), y = !!ggplot2::sym(var2))
   ) +
-    ggplot2::geom_abline(slope=1, intercept=0, lty="dashed", col="gray") +
+    ggplot2::geom_abline(slope = 1, intercept = 0, lty = "dashed", col = "gray") +
     ggplot2::geom_point() +
     ggplot2::xlim(min_value, max_value) +
     ggplot2::ylim(min_value, max_value) +
     ggplot2::theme_bw() +
     ggplot2::labs(
-      x=sprintf("%s\n(%s)", metric_name, var1),
-      y=sprintf("%s\n(%s)", metric_name, var2)
+      x = sprintf("%s\n(%s)", metric_name, var1),
+      y = sprintf("%s\n(%s)", metric_name, var2)
     )
 
   if (!is.null(correlation_rho) & !is.null(correlation_pvalue)) {
-
     p_label <- ifelse(
       correlation_pvalue < 1e-16,
       "p < 1e-16",
       ifelse(
         correlation_pvalue < 1e-4,
-        paste0("p = ",
-               format(correlation_pvalue,
-                      scientific = TRUE,
-                      digits = 2)),
-        paste0("p = ",
-               format(correlation_pvalue,
-                      scientific = FALSE,
-                      digits = 3))
+        paste0(
+          "p = ",
+          format(correlation_pvalue,
+            scientific = TRUE,
+            digits = 2
+          )
+        ),
+        paste0(
+          "p = ",
+          format(correlation_pvalue,
+            scientific = FALSE,
+            digits = 3
+          )
+        )
       )
     )
 
     logger::log_info("Annotating scatterplot with provided correlation results: rho = {round(correlation_rho, 3)}, {p_label}")
 
-    rho_label <- paste0("\u03C1 = ", format(correlation_rho, digits=3))
+    rho_label <- paste0("\u03C1 = ", format(correlation_rho, digits = 3))
 
     ctp_scatterplot +
       ggplot2::annotate(
-        "text", x=-Inf, y=Inf,
+        "text",
+        x = -Inf, y = Inf,
         hjust = -0.2, vjust = 3.5,
         label = paste0(rho_label, ", ", p_label)
       )
 
     ctp_scatterplot <- ctp_scatterplot +
       ggplot2::annotate(
-        "text", x=-Inf, y=Inf,
+        "text",
+        x = -Inf, y = Inf,
         hjust = -0.2, vjust = 3.5,
         label = paste0(rho_label, ", ", p_label)
       )
@@ -237,13 +242,12 @@ plot_metric_correlation <- function(
     logger::log_info("Computing Spearman correlation for scatterplot annotation.")
 
     ctp_scatterplot <- ctp_scatterplot +
-      ggpubr::stat_cor(method="spearman", cor.coef.name="rho")
+      ggpubr::stat_cor(method = "spearman", cor.coef.name = "rho")
   } else if (is.null(correlation_rho) | is.null(correlation_pvalue)) {
     logger::log_info("Correlation results not provided. Scatterplot will not be annotated with correlation statistics.")
   }
 
   return(ctp_scatterplot)
-
 }
 
 
@@ -267,44 +271,42 @@ plot_metric_correlation <- function(
 #' @return A ggplot object of the scatterplot comparing CTP between the two cell
 #'  types within the specified brain region, with optional correlation annotation.
 plot_ctp_correlation <- function(
-    ctp_df,
-    region,
-    cell_type_col,
-    cell_type1,
-    cell_type2,
-    region_col="brain_region_abbreviation_simple",
-    donor_col="donor_external_id",
-    metric_col="fraction_nuclei",
-    drop_outliers=TRUE,
-    compute_correlation=TRUE,
-    correlation_rho=NULL,
-    correlation_pvalue=NULL
+  ctp_df,
+  region,
+  cell_type_col,
+  cell_type1,
+  cell_type2,
+  region_col = "brain_region_abbreviation_simple",
+  donor_col = "donor_external_id",
+  metric_col = "fraction_nuclei",
+  drop_outliers = TRUE,
+  compute_correlation = TRUE,
+  correlation_rho = NULL,
+  correlation_pvalue = NULL
 ) {
-
   logger::log_info("Plotting correlation of CTP between cell types {cell_type1} and {cell_type2} in region {region}.")
 
   ctp_df_wide <- make_donor_ctp_wide(
-    ctp_df=ctp_df,
-    filter_value=region,
-    filter_col=region_col,
-    pivot_cols=cell_type_col,
-    cell_type_col=cell_type_col,
-    region_col=region_col,
-    donor_col=donor_col,
-    metric_col=metric_col,
-    drop_outliers=drop_outliers
+    ctp_df = ctp_df,
+    filter_value = region,
+    filter_col = region_col,
+    pivot_cols = cell_type_col,
+    cell_type_col = cell_type_col,
+    region_col = region_col,
+    donor_col = donor_col,
+    metric_col = metric_col,
+    drop_outliers = drop_outliers
   )
 
   plot_metric_correlation(
-    ctp_df_wide=ctp_df_wide,
-    var1=cell_type1,
-    var2=cell_type2,
-    metric_name=region,
-    compute_correlation=compute_correlation,
-    correlation_rho=correlation_rho,
-    correlation_pvalue=correlation_pvalue
+    ctp_df_wide = ctp_df_wide,
+    var1 = cell_type1,
+    var2 = cell_type2,
+    metric_name = region,
+    compute_correlation = compute_correlation,
+    correlation_rho = correlation_rho,
+    correlation_pvalue = correlation_pvalue
   )
-
 }
 
 
@@ -328,46 +330,43 @@ plot_ctp_correlation <- function(
 #' @return A ggplot object of the scatterplot comparing CTP for the specified cell type
 #' between the two brain regions, with optional correlation annotation.
 plot_ctp_region_correlation <- function(
-    ctp_df,
-    cell_type,
-    cell_type_col,
-    region1,
-    region2,
-    region_col="brain_region_abbreviation_simple",
-    donor_col="donor_external_id",
-    metric_col="fraction_nuclei",
-    drop_outliers=TRUE,
-    compute_correlation=TRUE,
-    correlation_rho=NULL,
-    correlation_pvalue=NULL
+  ctp_df,
+  cell_type,
+  cell_type_col,
+  region1,
+  region2,
+  region_col = "brain_region_abbreviation_simple",
+  donor_col = "donor_external_id",
+  metric_col = "fraction_nuclei",
+  drop_outliers = TRUE,
+  compute_correlation = TRUE,
+  correlation_rho = NULL,
+  correlation_pvalue = NULL
 ) {
-
   logger::log_info("Plotting correlation of CTP for cell type {cell_type} between regions {region1} and {region2}.")
 
   ctp_df_wide <- make_donor_ctp_wide(
-    ctp_df=ctp_df,
-    filter_value=cell_type,
-    filter_col=cell_type_col,
-    pivot_cols=region_col,
-    cell_type_col=cell_type_col,
-    region_col=region_col,
-    donor_col=donor_col,
-    metric_col=metric_col,
-    drop_outliers=drop_outliers
+    ctp_df = ctp_df,
+    filter_value = cell_type,
+    filter_col = cell_type_col,
+    pivot_cols = region_col,
+    cell_type_col = cell_type_col,
+    region_col = region_col,
+    donor_col = donor_col,
+    metric_col = metric_col,
+    drop_outliers = drop_outliers
   )
 
   plot_metric_correlation(
-    ctp_df_wide=ctp_df_wide,
-    var1=region1,
-    var2=region2,
-    metric_name=cell_type,
-    compute_correlation=compute_correlation,
-    correlation_rho=correlation_rho,
-    correlation_pvalue=correlation_pvalue
+    ctp_df_wide = ctp_df_wide,
+    var1 = region1,
+    var2 = region2,
+    metric_name = cell_type,
+    compute_correlation = compute_correlation,
+    correlation_rho = correlation_rho,
+    correlation_pvalue = correlation_pvalue
   )
-
 }
-
 
 
 # plot_ratio_region_correlation <- function(
@@ -421,16 +420,15 @@ plot_ctp_region_correlation <- function(
 #' @return A long-format dataframe containing pairwise Spearman correlation
 #'  results between combinations of cell types and brain regions.
 compute_ctp_correlations <- function(
-    ctp_df,
-    cell_types,
-    regions,
-    cell_type_col="annotation",
-    region_col="brain_region_abbreviation_simple",
-    donor_col="donor_external_id",
-    metric_col="fraction_nuclei",
-    drop_outliers=TRUE
+  ctp_df,
+  cell_types,
+  regions,
+  cell_type_col = "annotation",
+  region_col = "brain_region_abbreviation_simple",
+  donor_col = "donor_external_id",
+  metric_col = "fraction_nuclei",
+  drop_outliers = TRUE
 ) {
-
   # drop outliers if present
   if (drop_outliers & "outlier" %in% colnames(ctp_df)) {
     ctp_df <- ctp_df |>
@@ -440,36 +438,36 @@ compute_ctp_correlations <- function(
   wide_ctp_df <- ctp_df |>
     dplyr::filter(.data[[cell_type_col]] %in% cell_types) |>
     dplyr::filter(.data[[region_col]] %in% regions) |>
-    dplyr::mutate(celltype_region = paste(.data[[cell_type_col]], .data[[region_col]], sep="__")) |>
+    dplyr::mutate(celltype_region = paste(.data[[cell_type_col]], .data[[region_col]], sep = "__")) |>
     dplyr::select(dplyr::all_of(c(donor_col, metric_col)), celltype_region) |>
     tidyr::pivot_wider(names_from = celltype_region, values_from = dplyr::all_of(metric_col))
 
   # compute correlations
   cor_res <- Hmisc::rcorr(
     as.matrix(wide_ctp_df |> dplyr::select(-dplyr::all_of(donor_col))),
-    type="spearman")
+    type = "spearman"
+  )
 
   # pull correlation coefficients and p-values into long format dataframes
   cor_mat_long <- cor_res$r |>
     as.data.frame() |>
-    tibble::rownames_to_column(var="var1") |>
-    tidyr::pivot_longer(cols=-var1, names_to="var2", values_to="rho")
+    tibble::rownames_to_column(var = "var1") |>
+    tidyr::pivot_longer(cols = -var1, names_to = "var2", values_to = "rho")
 
   p_mat_long <- cor_res$P |>
     as.data.frame() |>
-    tibble::rownames_to_column(var="var1") |>
-    tidyr::pivot_longer(cols=-var1, names_to="var2", values_to="p_value")
+    tibble::rownames_to_column(var = "var1") |>
+    tidyr::pivot_longer(cols = -var1, names_to = "var2", values_to = "p_value")
 
   # combine
   res_mat_long <- cor_mat_long |>
-    dplyr::left_join(p_mat_long, by=c("var1", "var2")) |>
+    dplyr::left_join(p_mat_long, by = c("var1", "var2")) |>
     dplyr::filter(as.character(var1) < as.character(var2)) |>
-    tidyr::separate(var1, into=c("cell_type1", "region1"), sep="__") |>
-    tidyr::separate(var2, into=c("cell_type2", "region2"), sep="__")
+    tidyr::separate(var1, into = c("cell_type1", "region1"), sep = "__") |>
+    tidyr::separate(var2, into = c("cell_type2", "region2"), sep = "__")
 
 
   return(res_mat_long)
-
 }
 
 
@@ -489,34 +487,32 @@ compute_ctp_correlations <- function(
 #'
 #' @return A long-format dataframe containing pairwise Spearman correlations.
 compute_ctp_correlations_within_type <- function(
-    ctp_df,
-    cell_types,
-    regions,
-    cell_type_col="annotation",
-    region_col="brain_region_abbreviation_simple",
-    donor_col="donor_external_id",
-    metric_col="fraction_nuclei",
-    drop_outliers=TRUE
+  ctp_df,
+  cell_types,
+  regions,
+  cell_type_col = "annotation",
+  region_col = "brain_region_abbreviation_simple",
+  donor_col = "donor_external_id",
+  metric_col = "fraction_nuclei",
+  drop_outliers = TRUE
 ) {
-
   cell_type_correlations <- lapply(cell_types, function(cell_type) {
     logger::log_info("Computing correlations for cell type {cell_type} across regions.")
     res_mat_long <- compute_ctp_correlations(
-      ctp_df=ctp_df,
-      cell_types=cell_type,
-      regions=regions,
-      cell_type_col=cell_type_col,
-      region_col=region_col,
-      donor_col=donor_col,
-      metric_col=metric_col,
-      drop_outliers=drop_outliers
+      ctp_df = ctp_df,
+      cell_types = cell_type,
+      regions = regions,
+      cell_type_col = cell_type_col,
+      region_col = region_col,
+      donor_col = donor_col,
+      metric_col = metric_col,
+      drop_outliers = drop_outliers
     )
     return(res_mat_long)
   }) |>
     dplyr::bind_rows()
 
   return(cell_type_correlations)
-
 }
 
 
@@ -536,34 +532,32 @@ compute_ctp_correlations_within_type <- function(
 #'
 #' @return A long-format dataframe containing pairwise Spearman correlations.
 compute_ctp_correlations_within_region <- function(
-    ctp_df,
-    regions,
-    cell_types,
-    cell_type_col="annotation",
-    region_col="brain_region_abbreviation_simple",
-    donor_col="donor_external_id",
-    metric_col="fraction_nuclei",
-    drop_outliers=TRUE
+  ctp_df,
+  regions,
+  cell_types,
+  cell_type_col = "annotation",
+  region_col = "brain_region_abbreviation_simple",
+  donor_col = "donor_external_id",
+  metric_col = "fraction_nuclei",
+  drop_outliers = TRUE
 ) {
-
   region_correlations <- lapply(regions, function(region) {
     logger::log_info("Computing correlations for region {region} across cell types.")
     res_mat_long <- compute_ctp_correlations(
-      ctp_df=ctp_df,
-      cell_types=cell_types,
-      regions=region,
-      cell_type_col=cell_type_col,
-      region_col=region_col,
-      donor_col=donor_col,
-      metric_col=metric_col,
-      drop_outliers=drop_outliers
+      ctp_df = ctp_df,
+      cell_types = cell_types,
+      regions = region,
+      cell_type_col = cell_type_col,
+      region_col = region_col,
+      donor_col = donor_col,
+      metric_col = metric_col,
+      drop_outliers = drop_outliers
     )
     return(res_mat_long)
   }) |>
     dplyr::bind_rows()
 
   return(region_correlations)
-
 }
 
 
@@ -581,52 +575,48 @@ compute_ctp_correlations_within_region <- function(
 #'
 #' @return A ggplot object of the correlation heatmap.
 plot_correlation_heatmap <- function(
-    ctp_df,
-    cell_types,
-    regions,
-    cell_type_col="annotation",
-    region_col="brain_region_abbreviation_simple",
-    donor_col="donor_external_id",
-    metric_col="fraction_nuclei",
-    drop_outliers=TRUE
+  ctp_df,
+  cell_types,
+  regions,
+  cell_type_col = "annotation",
+  region_col = "brain_region_abbreviation_simple",
+  donor_col = "donor_external_id",
+  metric_col = "fraction_nuclei",
+  drop_outliers = TRUE
 ) {
-
   # setup for plots
   axis_order <- paste(
-    rep(cell_types, each=length(regions)),
-    rep(regions, times=length(cell_types)),
-    sep="__"
+    rep(cell_types, each = length(regions)),
+    rep(regions, times = length(cell_types)),
+    sep = "__"
   )
 
   # compute correlations
   cor_mat_long <- compute_ctp_correlations(
-    ctp_df=ctp_df,
-    cell_types=cell_types,
-    regions=regions,
-    cell_type_col=cell_type_col,
-    region_col=region_col,
-    donor_col=donor_col,
-    metric_col=metric_col,
-    drop_outliers=drop_outliers
+    ctp_df = ctp_df,
+    cell_types = cell_types,
+    regions = regions,
+    cell_type_col = cell_type_col,
+    region_col = region_col,
+    donor_col = donor_col,
+    metric_col = metric_col,
+    drop_outliers = drop_outliers
   ) |>
     dplyr::mutate(
-      var1 = paste(cell_type1, region1, sep="__"),
-      var2 = paste(cell_type2, region2, sep="__")
+      var1 = paste(cell_type1, region1, sep = "__"),
+      var2 = paste(cell_type2, region2, sep = "__")
     ) |>
     dplyr::select(var1, var2, rho)
 
   cor_mat_long_complete <- cor_mat_long |>
-    dplyr::select(var1, var2, rho)  |>
-
+    dplyr::select(var1, var2, rho) |>
     # add reversed correlations
     dplyr::bind_rows(
       cor_mat_long |>
         dplyr::rename(var1 = var2, var2 = var1)
     ) |>
-
     # add diagonals
     tidyr::complete(var1 = axis_order, var2 = axis_order) |>
-
     # fill diagonal
     dplyr::mutate(
       rho = dplyr::case_when(
@@ -634,11 +624,10 @@ plot_correlation_heatmap <- function(
         TRUE ~ rho
       )
     ) |>
-
     # order factors
     dplyr::mutate(
-      var1 = factor(var1, levels=axis_order),
-      var2 = factor(var2, levels=axis_order)
+      var1 = factor(var1, levels = axis_order),
+      var2 = factor(var2, levels = axis_order)
     )
 
   # setup for adding horizontal lines to plot
@@ -661,10 +650,10 @@ plot_correlation_heatmap <- function(
   # heatmap
   ctp_cor_heatmap <- ggplot2::ggplot(
     cor_mat_long_complete,
-    ggplot2::aes(x=var1, y=forcats::fct_rev(var2))
+    ggplot2::aes(x = var1, y = forcats::fct_rev(var2))
   ) +
-    ggplot2::geom_tile(ggplot2::aes(fill=rho)) +
-    ggplot2::scale_fill_gradient2(low="#3b4cc0", mid="white", high="#b40426", midpoint=0, limits=c(-1, 1)) +
+    ggplot2::geom_tile(ggplot2::aes(fill = rho)) +
+    ggplot2::scale_fill_gradient2(low = "#3b4cc0", mid = "white", high = "#b40426", midpoint = 0, limits = c(-1, 1)) +
     # vertical separator lines
     ggplot2::geom_segment(
       data = data.frame(x = boundary_positions + 0.5),
@@ -679,9 +668,9 @@ plot_correlation_heatmap <- function(
       color = "black"
     ) +
     ggplot2::labs(
-      x=NULL,
-      y=NULL,
-      fill="Spearman rho"
+      x = NULL,
+      y = NULL,
+      fill = "Spearman rho"
     ) +
     ggplot2::scale_x_discrete(
       labels = \(x) sub("__", " (", x) |> paste0(")")
@@ -690,9 +679,9 @@ plot_correlation_heatmap <- function(
       labels = \(x) sub("__", " (", x) |> paste0(")")
     ) +
     ggplot2::theme(
-      axis.text.x = ggplot2::element_text(angle=90, vjust=0.5, hjust=1),
-      axis.ticks.x=ggplot2::element_blank(),
-      axis.ticks.y=ggplot2::element_blank(),
+      axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust = 1),
+      axis.ticks.x = ggplot2::element_blank(),
+      axis.ticks.y = ggplot2::element_blank(),
       panel.background = ggplot2::element_blank(),
       plot.background = ggplot2::element_blank(),
       panel.grid = ggplot2::element_blank(),
@@ -700,5 +689,4 @@ plot_correlation_heatmap <- function(
     )
 
   return(ctp_cor_heatmap)
-
 }

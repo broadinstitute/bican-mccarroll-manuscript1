@@ -30,46 +30,52 @@
 #' @importFrom data.table fread fwrite rbindlist
 #' @importFrom logger log_info
 get_index_snp_start_distance <- function(eqtl_dir,
-                                          region_cell_type_path,
-                                          index_snp_matrix_path,
-                                          output_path = NULL) {
+                                         region_cell_type_path,
+                                         index_snp_matrix_path,
+                                         output_path = NULL) {
+  index_dt <- data.table::fread(index_snp_matrix_path,
+    select = c("phenotype_id", "variant_id")
+  )
+  logger::log_info("Index SNPs: {nrow(index_dt)} gene-variant pairs")
 
-    index_dt <- data.table::fread(index_snp_matrix_path,
-                                  select = c("phenotype_id", "variant_id"))
-    logger::log_info("Index SNPs: {nrow(index_dt)} gene-variant pairs")
+  region_cell_type_dt <- data.table::fread(region_cell_type_path)
 
-    region_cell_type_dt <- data.table::fread(region_cell_type_path)
+  dist_list <- vector("list", nrow(region_cell_type_dt))
+  for (i in seq_len(nrow(region_cell_type_dt))) {
+    ct <- region_cell_type_dt$cell_type[i]
+    reg <- region_cell_type_dt$region[i]
+    subdir <- paste0(ct, "__", reg)
+    eqtl_file <- file.path(
+      eqtl_dir, subdir,
+      paste0(subdir, ".cis_qtl.txt.gz")
+    )
 
-    dist_list <- vector("list", nrow(region_cell_type_dt))
-    for (i in seq_len(nrow(region_cell_type_dt))) {
-        ct  <- region_cell_type_dt$cell_type[i]
-        reg <- region_cell_type_dt$region[i]
-        subdir <- paste0(ct, "__", reg)
-        eqtl_file <- file.path(eqtl_dir, subdir,
-                               paste0(subdir, ".cis_qtl.txt.gz"))
+    logger::log_info("Reading: {subdir}")
+    dt <- data.table::fread(eqtl_file,
+      select = c(
+        "phenotype_id", "variant_id",
+        "start_distance"
+      )
+    )
+    dist_list[[i]] <- dt
+  }
 
-        logger::log_info("Reading: {subdir}")
-        dt <- data.table::fread(eqtl_file,
-                                select = c("phenotype_id", "variant_id",
-                                           "start_distance"))
-        dist_list[[i]] <- dt
-    }
+  all_dist <- data.table::rbindlist(dist_list)
+  all_dist <- unique(all_dist, by = c("phenotype_id", "variant_id"))
+  logger::log_info("Unique gene-variant pairs with start_distance: {nrow(all_dist)}")
 
-    all_dist <- data.table::rbindlist(dist_list)
-    all_dist <- unique(all_dist, by = c("phenotype_id", "variant_id"))
-    logger::log_info("Unique gene-variant pairs with start_distance: {nrow(all_dist)}")
+  result <- merge(index_dt, all_dist,
+    by = c("phenotype_id", "variant_id"), all.x = TRUE
+  )
 
-    result <- merge(index_dt, all_dist,
-                    by = c("phenotype_id", "variant_id"), all.x = TRUE)
+  n_matched <- sum(!is.na(result$start_distance))
+  n_missing <- sum(is.na(result$start_distance))
+  logger::log_info("Matched: {n_matched} / {nrow(result)} (missing: {n_missing})")
 
-    n_matched <- sum(!is.na(result$start_distance))
-    n_missing <- sum(is.na(result$start_distance))
-    logger::log_info("Matched: {n_matched} / {nrow(result)} (missing: {n_missing})")
+  if (!is.null(output_path)) {
+    data.table::fwrite(result, output_path, sep = "\t")
+    logger::log_info("Written to: {output_path}")
+  }
 
-    if (!is.null(output_path)) {
-        data.table::fwrite(result, output_path, sep = "\t")
-        logger::log_info("Written to: {output_path}")
-    }
-
-    invisible(result)
+  invisible(result)
 }

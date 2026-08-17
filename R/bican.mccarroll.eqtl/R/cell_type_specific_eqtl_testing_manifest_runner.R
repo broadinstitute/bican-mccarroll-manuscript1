@@ -52,199 +52,191 @@
 #' @examples
 #' \dontrun{
 #' run_cell_type_specific_eqtl_tests_from_manifest(
-#'     manifest_file = "private_eqtl_manifest.tsv",
-#'     output_dir = "private_eqtl_analysis",
-#'     cell_type_file = "region_cell_type.tsv",
-#'     cluster_assignment_file = "cluster_assignments.tsv",
-#'     covariates = c(
-#'         "biobank",
-#'         "age",
-#'         "imputed_sex",
-#'         paste0("PC", 1:5),
-#'         "pmi_hr",
-#'         paste0("InferredCov", 1:10)
-#'     ),
-#'     eqtl_root = "results/LEVEL_6",
-#'     force_factor_covariates = c(
-#'         "biobank",
-#'         "imputed_sex"
-#'     )
+#'   manifest_file = "private_eqtl_manifest.tsv",
+#'   output_dir = "private_eqtl_analysis",
+#'   cell_type_file = "region_cell_type.tsv",
+#'   cluster_assignment_file = "cluster_assignments.tsv",
+#'   covariates = c(
+#'     "biobank",
+#'     "age",
+#'     "imputed_sex",
+#'     paste0("PC", 1:5),
+#'     "pmi_hr",
+#'     paste0("InferredCov", 1:10)
+#'   ),
+#'   eqtl_root = "results/LEVEL_6",
+#'   force_factor_covariates = c(
+#'     "biobank",
+#'     "imputed_sex"
+#'   )
 #' )
 #' }
 #'
 #' @importFrom data.table fread
 #' @export
-run_cell_type_specific_eqtl_tests_from_manifest <- function(
-        manifest_file,
-        output_dir,
-        cell_type_file,
-        cluster_assignment_file,
-        covariates,
-        eqtl_root,
-        force_factor_covariates
-) {
-    manifest <- data.table::fread(manifest_file)
+run_cell_type_specific_eqtl_tests_from_manifest <- function(manifest_file,
+                                                            output_dir,
+                                                            cell_type_file,
+                                                            cluster_assignment_file,
+                                                            covariates,
+                                                            eqtl_root,
+                                                            force_factor_covariates) {
+  manifest <- data.table::fread(manifest_file)
 
-    dir.create(
-        output_dir,
-        recursive = TRUE,
-        showWarnings = FALSE
+  dir.create(
+    output_dir,
+    recursive = TRUE,
+    showWarnings = FALSE
+  )
+
+  output_paths <- vector(
+    "list",
+    nrow(manifest)
+  )
+
+  for (i in seq_len(nrow(manifest))) {
+    in_cell_types <- .parse_manifest_vector(
+      manifest$in_cell_types[[i]]
     )
 
-    output_paths <- vector(
-        "list",
-        nrow(manifest)
+    regions <- .parse_manifest_vector(
+      manifest$regions[[i]]
     )
 
-    for (i in seq_len(nrow(manifest))) {
-        in_cell_types <- .parse_manifest_vector(
-            manifest$in_cell_types[[i]]
-        )
+    output_paths[[i]] <- .run_private_eqtl_analysis(
+      cluster = manifest$cluster[[i]],
+      in_cell_types = in_cell_types,
+      regions = regions,
+      output_dir = output_dir,
+      cell_type_file = cell_type_file,
+      cluster_assignment_file = cluster_assignment_file,
+      covariates = covariates,
+      eqtl_root = eqtl_root,
+      force_factor_covariates = force_factor_covariates
+    )
+  }
 
-        regions <- .parse_manifest_vector(
-            manifest$regions[[i]]
-        )
-
-        output_paths[[i]] <- .run_private_eqtl_analysis(
-            cluster = manifest$cluster[[i]],
-            in_cell_types = in_cell_types,
-            regions = regions,
-            output_dir = output_dir,
-            cell_type_file = cell_type_file,
-            cluster_assignment_file = cluster_assignment_file,
-            covariates = covariates,
-            eqtl_root = eqtl_root,
-            force_factor_covariates = force_factor_covariates
-        )
-    }
-
-    invisible(output_paths)
+  invisible(output_paths)
 }
-run_private_eqtl_manifest <- function(
-        manifest_file,
-        output_dir,
-        cell_type_file,
-        cluster_assignment_file,
-        covariates,
-        eqtl_root,
-        force_factor_covariates
-) {
-    manifest <- data.table::fread(manifest_file)
+run_private_eqtl_manifest <- function(manifest_file,
+                                      output_dir,
+                                      cell_type_file,
+                                      cluster_assignment_file,
+                                      covariates,
+                                      eqtl_root,
+                                      force_factor_covariates) {
+  manifest <- data.table::fread(manifest_file)
 
-    dir.create(
-        output_dir,
-        recursive = TRUE,
-        showWarnings = FALSE
+  dir.create(
+    output_dir,
+    recursive = TRUE,
+    showWarnings = FALSE
+  )
+
+  output_paths <- vector(
+    "list",
+    nrow(manifest)
+  )
+
+  for (i in seq_len(nrow(manifest))) {
+    in_cell_types <- .parse_manifest_vector(
+      manifest$in_cell_types[[i]]
     )
 
-    output_paths <- vector(
-        "list",
-        nrow(manifest)
+    regions <- .parse_manifest_vector(
+      manifest$regions[[i]]
     )
 
-    for (i in seq_len(nrow(manifest))) {
-        in_cell_types <- .parse_manifest_vector(
-            manifest$in_cell_types[[i]]
-        )
+    output_paths[[i]] <- .run_private_eqtl_analysis(
+      cluster = manifest$cluster[[i]],
+      in_cell_types = in_cell_types,
+      regions = regions,
+      output_dir = output_dir,
+      cell_type_file = cell_type_file,
+      cluster_assignment_file = cluster_assignment_file,
+      covariates = covariates,
+      eqtl_root = eqtl_root,
+      force_factor_covariates = force_factor_covariates
+    )
+  }
 
-        regions <- .parse_manifest_vector(
-            manifest$regions[[i]]
-        )
-
-        output_paths[[i]] <- .run_private_eqtl_analysis(
-            cluster = manifest$cluster[[i]],
-            in_cell_types = in_cell_types,
-            regions = regions,
-            output_dir = output_dir,
-            cell_type_file = cell_type_file,
-            cluster_assignment_file = cluster_assignment_file,
-            covariates = covariates,
-            eqtl_root = eqtl_root,
-            force_factor_covariates = force_factor_covariates
-        )
-    }
-
-    invisible(output_paths)
+  invisible(output_paths)
 }
 
 .parse_manifest_vector <- function(x) {
-    strsplit(x, ",", fixed = TRUE)[[1]]
+  strsplit(x, ",", fixed = TRUE)[[1]]
 }
 
 
 .make_analysis_id <- function(cluster, in_cell_types, regions) {
-    paste0(
-        "cluster",
-        cluster,
-        "_",
-        paste(in_cell_types, collapse = "-"),
-        "__",
-        paste(regions, collapse = "-")
-    )
+  paste0(
+    "cluster",
+    cluster,
+    "_",
+    paste(in_cell_types, collapse = "-"),
+    "__",
+    paste(regions, collapse = "-")
+  )
 }
 
 
 .make_output_paths <- function(output_dir, analysis_id) {
-    prefix <- file.path(output_dir, analysis_id)
+  prefix <- file.path(output_dir, analysis_id)
 
-    list(
-        gathered_file = paste0(prefix, ".data.txt"),
-        covariate_mapping_file = paste0(prefix, ".covariate_list.txt"),
-        report_outfile = paste0(prefix, ".report.txt"),
-        summary_outfile = paste0(prefix, ".summary.txt"),
-        results_outfile = paste0(prefix, ".linear_model_test.txt"),
-        outPDF = paste0(prefix, ".linear_model_test.pdf")
-    )
+  list(
+    gathered_file = paste0(prefix, ".data.txt"),
+    covariate_mapping_file = paste0(prefix, ".covariate_list.txt"),
+    report_outfile = paste0(prefix, ".report.txt"),
+    summary_outfile = paste0(prefix, ".summary.txt"),
+    results_outfile = paste0(prefix, ".linear_model_test.txt"),
+    outPDF = paste0(prefix, ".linear_model_test.pdf")
+  )
 }
 
 
-.run_private_eqtl_analysis <- function(
-        cluster,
-        in_cell_types,
-        regions,
-        output_dir,
-        cell_type_file,
-        cluster_assignment_file,
-        covariates,
-        eqtl_root,
-        force_factor_covariates
-) {
-    analysis_id <- .make_analysis_id(
-        cluster = cluster,
-        in_cell_types = in_cell_types,
-        regions = regions
-    )
+.run_private_eqtl_analysis <- function(cluster,
+                                       in_cell_types,
+                                       regions,
+                                       output_dir,
+                                       cell_type_file,
+                                       cluster_assignment_file,
+                                       covariates,
+                                       eqtl_root,
+                                       force_factor_covariates) {
+  analysis_id <- .make_analysis_id(
+    cluster = cluster,
+    in_cell_types = in_cell_types,
+    regions = regions
+  )
 
-    paths <- .make_output_paths(
-        output_dir = output_dir,
-        analysis_id = analysis_id
-    )
+  paths <- .make_output_paths(
+    output_dir = output_dir,
+    analysis_id = analysis_id
+  )
 
-    message("Running ", analysis_id)
+  message("Running ", analysis_id)
 
-    bican.mccarroll.eqtl::build_cluster_dataframe(
-        cell_type_file = cell_type_file,
-        cluster_assignment_file = cluster_assignment_file,
-        cluster = cluster,
-        in_cell_types = in_cell_types,
-        covariates = covariates,
-        eqtl_root = eqtl_root,
-        regions = regions,
-        outfile = paths$gathered_file,
-        covariate_list_outfile = paths$covariate_mapping_file,
-        report_outfile = paths$report_outfile
-    )
+  bican.mccarroll.eqtl::build_cluster_dataframe(
+    cell_type_file = cell_type_file,
+    cluster_assignment_file = cluster_assignment_file,
+    cluster = cluster,
+    in_cell_types = in_cell_types,
+    covariates = covariates,
+    eqtl_root = eqtl_root,
+    regions = regions,
+    outfile = paths$gathered_file,
+    covariate_list_outfile = paths$covariate_mapping_file,
+    report_outfile = paths$report_outfile
+  )
 
-    bican.mccarroll.eqtl::run_cell_type_specific_eqtl_tests(
-        gathered_file = paths$gathered_file,
-        covariate_mapping_file = paths$covariate_mapping_file,
-        force_factor_covariates = force_factor_covariates,
-        results_outfile = paths$results_outfile,
-        summary_outfile = paths$summary_outfile,
-        outPDF = paths$outPDF
-    )
+  bican.mccarroll.eqtl::run_cell_type_specific_eqtl_tests(
+    gathered_file = paths$gathered_file,
+    covariate_mapping_file = paths$covariate_mapping_file,
+    force_factor_covariates = force_factor_covariates,
+    results_outfile = paths$results_outfile,
+    summary_outfile = paths$summary_outfile,
+    outPDF = paths$outPDF
+  )
 
-    invisible(paths)
+  invisible(paths)
 }
-
-

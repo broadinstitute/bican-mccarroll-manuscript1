@@ -1,49 +1,54 @@
 plot_interaction_sanity <- function(interaction_path,
                                     subset_one_path,
                                     subset_two_path) {
+  read_de <- function(path) {
+    x <- read.table(path,
+      header = TRUE, sep = "\t",
+      stringsAsFactors = FALSE, row.names = 1
+    )
+    x$gene <- rownames(x)
+    x
+  }
 
-    read_de <- function(path) {
-        x <- read.table(path, header = TRUE, sep = "\t",
-                        stringsAsFactors = FALSE, row.names = 1)
-        x$gene <- rownames(x)
-        x
-    }
+  interaction <- read_de(interaction_path)
+  subset_one <- read_de(subset_one_path)
+  subset_two <- read_de(subset_two_path)
 
-    interaction <- read_de(interaction_path)
-    subset_one  <- read_de(subset_one_path)
-    subset_two  <- read_de(subset_two_path)
+  merged <- merge(subset_one[, c("gene", "logFC")],
+    subset_two[, c("gene", "logFC")],
+    by = "gene",
+    suffixes = c("_base", "_comp")
+  )
 
-    merged <- merge(subset_one[, c("gene","logFC")],
-                    subset_two[, c("gene","logFC")],
-                    by="gene",
-                    suffixes=c("_base","_comp"))
+  merged <- merge(merged,
+    interaction[, c("gene", "logFC")],
+    by = "gene"
+  )
 
-    merged <- merge(merged,
-                    interaction[, c("gene","logFC")],
-                    by="gene")
+  names(merged)[names(merged) == "logFC"] <- "logFC_interaction"
 
-    names(merged)[names(merged)=="logFC"] <- "logFC_interaction"
+  merged$expected <- merged$logFC_comp - merged$logFC_base
 
-    merged$expected <- merged$logFC_comp - merged$logFC_base
+  r <- cor(merged$expected, merged$logFC_interaction, use = "complete.obs")
 
-    r <- cor(merged$expected, merged$logFC_interaction, use="complete.obs")
+  # Make R CMD CHECK Happy
+  expected <- logFC_interaction <- NULL
 
-    #Make R CMD CHECK Happy
-    expected <- logFC_interaction <- NULL
+  p <- ggplot2::ggplot(
+    merged,
+    ggplot2::aes(x = expected, y = logFC_interaction)
+  ) +
+    ggplot2::geom_point(alpha = 0.3) +
+    ggplot2::geom_abline(slope = 1, intercept = 0, color = "red") +
+    ggplot2::labs(
+      x = "Expected slope difference (comparison - baseline)",
+      y = "Interaction logFC",
+      title = paste("Interaction sanity check (R =", round(r, 3), ")")
+    )
 
-    p <- ggplot2::ggplot(merged,
-                         ggplot2::aes(x=expected, y=logFC_interaction)) +
-        ggplot2::geom_point(alpha=0.3) +
-        ggplot2::geom_abline(slope=1, intercept=0, color="red") +
-        ggplot2::labs(
-            x="Expected slope difference (comparison - baseline)",
-            y="Interaction logFC",
-            title=paste("Interaction sanity check (R =", round(r,3),")")
-        )
+  print(p)
 
-    print(p)
-
-    invisible(list(data=merged, correlation=r))
+  invisible(list(data = merged, correlation = r))
 }
 
 # plot_interaction_sanity(

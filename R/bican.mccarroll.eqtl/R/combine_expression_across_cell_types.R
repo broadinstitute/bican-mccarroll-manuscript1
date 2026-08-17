@@ -25,45 +25,47 @@
 #' @importFrom data.table fread fwrite
 #' @importFrom logger log_info
 combine_expression_across_cell_types <- function(eqtl_dir,
-                                                  region_cell_type_path,
-                                                  output_path = NULL) {
+                                                 region_cell_type_path,
+                                                 output_path = NULL) {
+  region_cell_type_dt <- data.table::fread(region_cell_type_path)
+  ct_keys <- paste0(region_cell_type_dt$cell_type, "__", region_cell_type_dt$region)
+  logger::log_info("Combining expression for {length(ct_keys)} cell type/region groups")
 
-    region_cell_type_dt <- data.table::fread(region_cell_type_path)
-    ct_keys <- paste0(region_cell_type_dt$cell_type, "__", region_cell_type_dt$region)
-    logger::log_info("Combining expression for {length(ct_keys)} cell type/region groups")
+  read_and_format <- function(ct_key) {
+    bed_path <- file.path(
+      eqtl_dir, ct_key,
+      paste0(ct_key, ".gene_expression_tpm.bed.gz")
+    )
+    logger::log_info("Reading: {ct_key}")
+    dt <- data.table::fread(bed_path)
 
-    read_and_format <- function(ct_key) {
-        bed_path <- file.path(eqtl_dir, ct_key,
-                              paste0(ct_key, ".gene_expression_tpm.bed.gz"))
-        logger::log_info("Reading: {ct_key}")
-        dt <- data.table::fread(bed_path)
+    # Remove chr, start, end columns (first 3)
+    dt[, c(1, 2, 3) := NULL]
 
-        # Remove chr, start, end columns (first 3)
-        dt[, c(1, 2, 3) := NULL]
+    # Rename sample columns: append _<ct_key> (skip first col which is pid)
+    old_names <- names(dt)[-1]
+    new_names <- paste0(old_names, "_", ct_key)
+    data.table::setnames(dt, old_names, new_names)
 
-        # Rename sample columns: append _<ct_key> (skip first col which is pid)
-        old_names <- names(dt)[-1]
-        new_names <- paste0(old_names, "_", ct_key)
-        data.table::setnames(dt, old_names, new_names)
+    return(dt)
+  }
 
-        return(dt)
-    }
+  expression_list <- lapply(ct_keys, read_and_format)
 
-    expression_list <- lapply(ct_keys, read_and_format)
+  # Merge all cell types by pid (full outer join)
+  combined_dt <- expression_list[[1]]
+  for (i in seq(2, length(expression_list))) {
+    combined_dt <- merge(combined_dt, expression_list[[i]],
+      by = "pid", all = TRUE
+    )
+  }
 
-    # Merge all cell types by pid (full outer join)
-    combined_dt <- expression_list[[1]]
-    for (i in seq(2, length(expression_list))) {
-        combined_dt <- merge(combined_dt, expression_list[[i]],
-                             by = "pid", all = TRUE)
-    }
+  logger::log_info("Combined: {nrow(combined_dt)} genes x {ncol(combined_dt) - 1} sample columns")
 
-    logger::log_info("Combined: {nrow(combined_dt)} genes x {ncol(combined_dt) - 1} sample columns")
+  if (!is.null(output_path)) {
+    data.table::fwrite(combined_dt, output_path, sep = "\t")
+    logger::log_info("Written to: {output_path}")
+  }
 
-    if (!is.null(output_path)) {
-        data.table::fwrite(combined_dt, output_path, sep = "\t")
-        logger::log_info("Written to: {output_path}")
-    }
-
-    return(combined_dt)
+  return(combined_dt)
 }

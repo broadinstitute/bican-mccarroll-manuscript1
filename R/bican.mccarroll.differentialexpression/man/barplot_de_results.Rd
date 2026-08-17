@@ -9,7 +9,9 @@ barplot_de_results(
   file_pattern,
   cellTypeListFile = NULL,
   pdf_output_file = NULL,
-  svg_output_file = NULL
+  svg_output_file = NULL,
+  width = NULL,
+  height = NULL
 )
 }
 \arguments{
@@ -26,9 +28,14 @@ When `NULL`, no PDF is written.}
 
 \item{svg_output_file}{Optional path for writing the plot to an SVG file.
 When `NULL`, no SVG is written.}
+
+\item{width}{Optional plot width (inches) passed to `ggplot2::ggsave()`.}
+
+\item{height}{Optional plot height (inches) passed to `ggplot2::ggsave()`.}
 }
 \value{
-A `ggplot` object.
+A `ggplot` object (or a `cowplot` grob when the data span more than
+  one region/interaction).
 }
 \description{
 Parses differential expression result files and creates faceted bar plots

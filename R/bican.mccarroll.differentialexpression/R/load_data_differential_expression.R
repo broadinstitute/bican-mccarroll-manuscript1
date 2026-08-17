@@ -42,26 +42,25 @@
 #' }
 #'
 #' @export
-gather_de_results<-function (in_dir, file_pattern="age", cellTypeListFile=NULL, fdrThreshold=0.01) {
+gather_de_results <- function(in_dir, file_pattern = "age", cellTypeListFile = NULL, fdrThreshold = 0.01) {
+  d <- parse_de_inputs(in_dir, file_pattern, cellTypeListFile)
+  # make mash inputs
+  inputs_union <- make_joint_inputs(d, coef_col = "logFC", t_col = "t", fdr_col = "adj.P.Val", gene_mode = "union")
+  # Filter results to genes that pass an FDR threshold in at least one condition
+  idxPassFDRAny <- which(apply(inputs_union$FDR, 1, function(x) any(x < fdrThreshold)))
+  # how many genes pass an FDR < 0.05 in any condition?
+  nGenesFDR <- length(idxPassFDRAny)
+  logger::log_info("Number of genes with at least one condition that passes [", fdrThreshold, "] FDR [", nGenesFDR, "]")
 
-    d=parse_de_inputs(in_dir, file_pattern, cellTypeListFile)
-    #make mash inputs
-    inputs_union<-make_joint_inputs(d, coef_col = "logFC", t_col = "t", fdr_col = "adj.P.Val", gene_mode="union")
-    #Filter results to genes that pass an FDR threshold in at least one condition
-    idxPassFDRAny<-which(apply(inputs_union$FDR, 1, function (x) any(x<fdrThreshold)))
-    #how many genes pass an FDR < 0.05 in any condition?
-    nGenesFDR=length(idxPassFDRAny)
-    logger::log_info("Number of genes with at least one condition that passes [", fdrThreshold, "] FDR [", nGenesFDR, "]")
+  # Filter all the gene matrixes to only those that pass the FDR threshold in at least one condition
+  is_gene_matrix <- vapply(inputs_union, function(x) is.matrix(x) && nrow(x) == nrow(inputs_union$FDR), logical(1))
 
-    #Filter all the gene matrixes to only those that pass the FDR threshold in at least one condition
-    is_gene_matrix <- vapply(inputs_union, function(x) is.matrix(x) && nrow(x) == nrow(inputs_union$FDR), logical(1))
+  inputs_union[is_gene_matrix] <- lapply(
+    inputs_union[is_gene_matrix],
+    function(m) m[idxPassFDRAny, , drop = FALSE]
+  )
 
-    inputs_union[is_gene_matrix] <- lapply(
-        inputs_union[is_gene_matrix],
-        function(m) m[idxPassFDRAny, , drop = FALSE]
-    )
-
-    return (inputs_union)
+  return(inputs_union)
 }
 
 
@@ -136,145 +135,139 @@ gather_de_results<-function (in_dir, file_pattern="age", cellTypeListFile=NULL, 
 #' and assigned \code{SE = big_se}).
 #'
 #' @export
-make_joint_inputs <- function(
-        df,
-        coef_col = "logFC",
-        t_col    = "t",
-        p_col    = "P.Value",
-        fdr_col  = "adj.P.Val",
-        gene_mode = c("union", "intersect"),
-        big_se   = 1e6,
-        fill_missing_fdr = NA_real_
-) {
-    gene_mode <- match.arg(gene_mode)
+make_joint_inputs <- function(df,
+                              coef_col = "logFC",
+                              t_col = "t",
+                              p_col = "P.Value",
+                              fdr_col = "adj.P.Val",
+                              gene_mode = c("union", "intersect"),
+                              big_se = 1e6,
+                              fill_missing_fdr = NA_real_) {
+  gene_mode <- match.arg(gene_mode)
 
-    stopifnot(is.data.frame(df))
+  stopifnot(is.data.frame(df))
 
-    meta_cols <- c("gene", "cell_type", "interaction", "contrast")
-    if (!all(meta_cols %in% colnames(df))) {
-        stop(
-            "Input df must contain columns: ",
-            paste(meta_cols, collapse = ", "),
-            call. = FALSE
-        )
-    }
-
-    required <- c(coef_col, t_col, p_col, fdr_col)
-    if (!all(required %in% colnames(df))) {
-        stop(
-            "Input df is missing required columns: ",
-            paste(setdiff(required, colnames(df)), collapse = ", "),
-            call. = FALSE
-        )
-    }
-
-    ## Enforce exactly one unique contrast in the input
-    u_contrast <- unique(as.character(df[["contrast"]]))
-    u_contrast <- u_contrast[!is.na(u_contrast) & nzchar(u_contrast)]
-    if (length(u_contrast) != 1L) {
-        stop(
-            "Expected exactly one unique contrast in df$contrast; found: ",
-            paste(u_contrast, collapse = ", "),
-            call. = FALSE
-        )
-    }
-
-    interaction_chr <- as.character(df[["interaction"]])
-    interaction_chr[is.na(interaction_chr) | interaction_chr == ""] <- NA_character_
-
-    ## Enforce your invariant: interaction is either entirely NA or entirely filled.
-    all_na_interaction <- all(is.na(interaction_chr))
-    any_na_interaction <- any(is.na(interaction_chr))
-    if (!all_na_interaction && any_na_interaction) {
-        stop("Mixed NA/non-NA values found in 'interaction'. Input must be consistent.", call. = FALSE)
-    }
-
-    ## Build condition names WITHOUT contrast (since it is constant)
-    if (all_na_interaction) {
-        condition <- as.character(df[["cell_type"]])
-    } else {
-        condition <- paste(df[["cell_type"]], interaction_chr, sep = "__")
-    }
-
-    genes_all <- as.character(df[["gene"]])
-    cond_levels <- unique(condition)
-
-    ## Determine gene set for matrices
-    genes_by_cond <- split(genes_all, condition)
-    if (gene_mode == "union") {
-        genes <- sort(unique(unlist(genes_by_cond, use.names = FALSE)))
-    } else {
-        genes <- sort(unique(Reduce(intersect, genes_by_cond)))
-    }
-    G <- length(genes)
-    C <- length(cond_levels)
-    if (G == 0L) stop("No genes found after applying gene_mode = '", gene_mode, "'.", call. = FALSE)
-    if (C < 2L) stop("Need at least two conditions to build matrices.", call. = FALSE)
-
-    ## Check uniqueness of (gene, condition)
-    key <- paste(condition, genes_all, sep = "\r")
-    if (any(duplicated(key))) {
-        stop("Duplicate (condition, gene) rows found in input df.", call. = FALSE)
-    }
-
-    ## Preallocate outputs
-    Bhat <- matrix(NA_real_, G, C, dimnames = list(genes, cond_levels))
-    Shat <- matrix(NA_real_, G, C, dimnames = list(genes, cond_levels))
-    Tstat<- matrix(NA_real_, G, C, dimnames = list(genes, cond_levels))
-    FDR  <- matrix(NA_real_, G, C, dimnames = list(genes, cond_levels))
-    P_val<- matrix(NA_real_, G, C, dimnames = list(genes, cond_levels))
-
-    ## Fill matrices condition-by-condition
-    for (j in seq_along(cond_levels)) {
-        cj <- cond_levels[[j]]
-        idx <- which(condition == cj)
-        if (!length(idx)) next
-
-        g <- genes_all[idx]
-
-        keep <- g %in% genes
-        if (!any(keep)) next
-        idx <- idx[keep]
-        g <- g[keep]
-
-        beta <- as.numeric(df[idx, coef_col])
-        tt   <- as.numeric(df[idx, t_col])
-        pval <- as.numeric(df[idx, p_col])
-        fdr  <- as.numeric(df[idx, fdr_col])
-
-        se <- abs(beta / tt)
-
-        Bhat[g, j]  <- beta
-        Shat[g, j]  <- se
-        Tstat[g, j] <- tt
-        P_val[g, j] <- pval
-        FDR[g, j]   <- fdr
-    }
-
-    ## Handle missing/invalid
-    missing_mask <- !is.finite(Bhat) | !is.finite(Shat) | (Shat <= 0)
-    if (any(missing_mask)) {
-        Bhat[missing_mask]  <- 0
-        Shat[missing_mask]  <- big_se
-        Tstat[missing_mask] <- 0
-    }
-
-    nas_fdr <- !is.finite(FDR)
-    if (any(nas_fdr)) FDR[nas_fdr] <- fill_missing_fdr
-
-    list(
-        Bhat = Bhat,
-        Shat = Shat,
-        Tstat = Tstat,
-        P_val = P_val,
-        FDR = FDR,
-        missing_mask = missing_mask
+  meta_cols <- c("gene", "cell_type", "interaction", "contrast")
+  if (!all(meta_cols %in% colnames(df))) {
+    stop(
+      "Input df must contain columns: ",
+      paste(meta_cols, collapse = ", "),
+      call. = FALSE
     )
+  }
+
+  required <- c(coef_col, t_col, p_col, fdr_col)
+  if (!all(required %in% colnames(df))) {
+    stop(
+      "Input df is missing required columns: ",
+      paste(setdiff(required, colnames(df)), collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  ## Enforce exactly one unique contrast in the input
+  u_contrast <- unique(as.character(df[["contrast"]]))
+  u_contrast <- u_contrast[!is.na(u_contrast) & nzchar(u_contrast)]
+  if (length(u_contrast) != 1L) {
+    stop(
+      "Expected exactly one unique contrast in df$contrast; found: ",
+      paste(u_contrast, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  interaction_chr <- as.character(df[["interaction"]])
+  interaction_chr[is.na(interaction_chr) | interaction_chr == ""] <- NA_character_
+
+  ## Enforce your invariant: interaction is either entirely NA or entirely filled.
+  all_na_interaction <- all(is.na(interaction_chr))
+  any_na_interaction <- any(is.na(interaction_chr))
+  if (!all_na_interaction && any_na_interaction) {
+    stop("Mixed NA/non-NA values found in 'interaction'. Input must be consistent.", call. = FALSE)
+  }
+
+  ## Build condition names WITHOUT contrast (since it is constant)
+  if (all_na_interaction) {
+    condition <- as.character(df[["cell_type"]])
+  } else {
+    condition <- paste(df[["cell_type"]], interaction_chr, sep = "__")
+  }
+
+  genes_all <- as.character(df[["gene"]])
+  cond_levels <- unique(condition)
+
+  ## Determine gene set for matrices
+  genes_by_cond <- split(genes_all, condition)
+  if (gene_mode == "union") {
+    genes <- sort(unique(unlist(genes_by_cond, use.names = FALSE)))
+  } else {
+    genes <- sort(unique(Reduce(intersect, genes_by_cond)))
+  }
+  G <- length(genes)
+  C <- length(cond_levels)
+  if (G == 0L) stop("No genes found after applying gene_mode = '", gene_mode, "'.", call. = FALSE)
+  if (C < 2L) stop("Need at least two conditions to build matrices.", call. = FALSE)
+
+  ## Check uniqueness of (gene, condition)
+  key <- paste(condition, genes_all, sep = "\r")
+  if (any(duplicated(key))) {
+    stop("Duplicate (condition, gene) rows found in input df.", call. = FALSE)
+  }
+
+  ## Preallocate outputs
+  Bhat <- matrix(NA_real_, G, C, dimnames = list(genes, cond_levels))
+  Shat <- matrix(NA_real_, G, C, dimnames = list(genes, cond_levels))
+  Tstat <- matrix(NA_real_, G, C, dimnames = list(genes, cond_levels))
+  FDR <- matrix(NA_real_, G, C, dimnames = list(genes, cond_levels))
+  P_val <- matrix(NA_real_, G, C, dimnames = list(genes, cond_levels))
+
+  ## Fill matrices condition-by-condition
+  for (j in seq_along(cond_levels)) {
+    cj <- cond_levels[[j]]
+    idx <- which(condition == cj)
+    if (!length(idx)) next
+
+    g <- genes_all[idx]
+
+    keep <- g %in% genes
+    if (!any(keep)) next
+    idx <- idx[keep]
+    g <- g[keep]
+
+    beta <- as.numeric(df[idx, coef_col])
+    tt <- as.numeric(df[idx, t_col])
+    pval <- as.numeric(df[idx, p_col])
+    fdr <- as.numeric(df[idx, fdr_col])
+
+    se <- abs(beta / tt)
+
+    Bhat[g, j] <- beta
+    Shat[g, j] <- se
+    Tstat[g, j] <- tt
+    P_val[g, j] <- pval
+    FDR[g, j] <- fdr
+  }
+
+  ## Handle missing/invalid
+  missing_mask <- !is.finite(Bhat) | !is.finite(Shat) | (Shat <= 0)
+  if (any(missing_mask)) {
+    Bhat[missing_mask] <- 0
+    Shat[missing_mask] <- big_se
+    Tstat[missing_mask] <- 0
+  }
+
+  nas_fdr <- !is.finite(FDR)
+  if (any(nas_fdr)) FDR[nas_fdr] <- fill_missing_fdr
+
+  list(
+    Bhat = Bhat,
+    Shat = Shat,
+    Tstat = Tstat,
+    P_val = P_val,
+    FDR = FDR,
+    missing_mask = missing_mask
+  )
 }
-
-
-
-
 
 
 # parse in many DE inputs, optionally filter by a list of cell types
@@ -323,50 +316,52 @@ make_joint_inputs <- function(
 #' \code{_DE_results.txt}.
 #'
 #' @export
-parse_de_inputs<-function (in_dir, file_pattern="age", cellTypeListFile=NULL) {
-    logger::log_info("Reading DE files from {in_dir} matching pattern '{file_pattern}'")
-    #get the list of files from a directory that match some pattern.
-    f=list.files(in_dir, pattern = paste0(file_pattern), full.names = TRUE)
+parse_de_inputs <- function(in_dir, file_pattern = "age", cellTypeListFile = NULL) {
+  logger::log_info("Reading DE files from {in_dir} matching pattern '{file_pattern}'")
+  # get the list of files from a directory that match some pattern.
+  f <- list.files(in_dir, pattern = paste0(file_pattern), full.names = TRUE)
 
-    d=lapply(f, utils::read.table, sep="\t", header=TRUE,
-             stringsAsFactors = FALSE, check.names = FALSE)
+  d <- lapply(f, utils::read.table,
+    sep = "\t", header = TRUE,
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
 
-    #Set the file names (with5out directories) for each list element
-    names(d)=basename(f)
+  # Set the file names (with5out directories) for each list element
+  names(d) <- basename(f)
 
-    #extract the cell type and contrast from the file name.
-    cell_type_contrast_df<- parse_de_result_filenames(names(d))
+  # extract the cell type and contrast from the file name.
+  cell_type_contrast_df <- parse_de_result_filenames(names(d))
 
-    #add the cell type and contrast to the list of data frames
-    # Add cell_type and contrast as FIRST two columns
-    for (i in seq_along(d)) {
-        df <- d[[i]]
-        df <- cbind(
-            gene = rownames(df),
-            cell_type = cell_type_contrast_df$celltype[i],
-            interaction = cell_type_contrast_df$interaction[i],
-            contrast  = cell_type_contrast_df$contrast[i],
-            df
-        )
-        d[[i]] <- df
-    }
+  # add the cell type and contrast to the list of data frames
+  # Add cell_type and contrast as FIRST two columns
+  for (i in seq_along(d)) {
+    df <- d[[i]]
+    df <- cbind(
+      gene = rownames(df),
+      cell_type = cell_type_contrast_df$celltype[i],
+      interaction = cell_type_contrast_df$interaction[i],
+      contrast = cell_type_contrast_df$contrast[i],
+      df
+    )
+    d[[i]] <- df
+  }
 
-    #make one big dataframe
-    df<-do.call(rbind, d)
-    rownames (df)<-NULL
+  # make one big dataframe
+  df <- do.call(rbind, d)
+  rownames(df) <- NULL
 
 
-    # look for the cell type in the names of the files
-    if (!is.null(cellTypeListFile)) {
-        cellTypeList=utils::read.table(cellTypeListFile, header=FALSE, stringsAsFactors = FALSE)$V1
-        #add the variable tested to make this more specific.
-        #this differentiates MSN_D1_age from MSN_D1_striosome_age.
-        df=df[df$cell_type %in% cellTypeList,]
-        num_unique_cell_types=length(unique(df$cell_type))
-        logger::log_info("Filtered to {num_unique_cell_types} cell types based on provided cell type list.")
-    }
+  # look for the cell type in the names of the files
+  if (!is.null(cellTypeListFile)) {
+    cellTypeList <- utils::read.table(cellTypeListFile, header = FALSE, stringsAsFactors = FALSE)$V1
+    # add the variable tested to make this more specific.
+    # this differentiates MSN_D1_age from MSN_D1_striosome_age.
+    df <- df[df$cell_type %in% cellTypeList, ]
+    num_unique_cell_types <- length(unique(df$cell_type))
+    logger::log_info("Filtered to {num_unique_cell_types} cell types based on provided cell type list.")
+  }
 
-    return (df)
+  return(df)
 }
 
 #' Parse DE result filenames into structured metadata
@@ -407,47 +402,46 @@ parse_de_inputs<-function (in_dir, file_pattern="age", cellTypeListFile=NULL) {
 #'
 #' @export
 parse_de_result_filenames <- function(files) {
+  bn <- basename(files)
 
-    bn <- basename(files)
+  suffix <- "_DE_results.txt"
+  core <- sub(paste0(suffix, "$"), "", bn)
 
-    suffix <- "_DE_results.txt"
-    core <- sub(paste0(suffix, "$"), "", bn)
+  parts <- strsplit(core, "__", fixed = TRUE)
 
-    parts <- strsplit(core, "__", fixed = TRUE)
-
-    n_parts <- vapply(parts, length, integer(1))
-    ok <- n_parts %in% c(2L, 3L)
-    if (!all(ok)) {
-        bad <- bn[!ok]
-        stop(
-            "Unexpected filename format for: ",
-            paste(bad, collapse = ", "),
-            call. = FALSE
-        )
-    }
-
-    celltype <- vapply(parts, function(x) x[[1L]], character(1))
-
-    interaction <- vapply(
-        parts,
-        function(x) if (length(x) == 3L) x[[2L]] else NA_character_,
-        character(1)
+  n_parts <- vapply(parts, length, integer(1))
+  ok <- n_parts %in% c(2L, 3L)
+  if (!all(ok)) {
+    bad <- bn[!ok]
+    stop(
+      "Unexpected filename format for: ",
+      paste(bad, collapse = ", "),
+      call. = FALSE
     )
+  }
 
-    contrast <- vapply(
-        parts,
-        function(x) if (length(x) == 3L) x[[3L]] else x[[2L]],
-        character(1)
-    )
+  celltype <- vapply(parts, function(x) x[[1L]], character(1))
 
-    data.frame(
-        file = files,
-        basename = bn,
-        celltype = celltype,
-        interaction = interaction,
-        contrast = contrast,
-        stringsAsFactors = FALSE
-    )
+  interaction <- vapply(
+    parts,
+    function(x) if (length(x) == 3L) x[[2L]] else NA_character_,
+    character(1)
+  )
+
+  contrast <- vapply(
+    parts,
+    function(x) if (length(x) == 3L) x[[3L]] else x[[2L]],
+    character(1)
+  )
+
+  data.frame(
+    file = files,
+    basename = bn,
+    celltype = celltype,
+    interaction = interaction,
+    contrast = contrast,
+    stringsAsFactors = FALSE
+  )
 }
 
 # find_prefix_matches <- function(full_names, partial_names) {

@@ -35,46 +35,47 @@ get_egene_union_pairs <- function(eqtl_dir,
                                   region_cell_type_path,
                                   qval_threshold = 0.05,
                                   output_path = NULL) {
+  # Make R CMD CHECK Happy
+  phenotype_id <- variant_id <- qval <- NULL
 
-    #Make R CMD CHECK Happy
-    phenotype_id <- variant_id <- qval <- NULL
+  region_cell_type_dt <- data.table::fread(region_cell_type_path)
 
-    region_cell_type_dt <- data.table::fread(region_cell_type_path)
+  results <- vector("list", nrow(region_cell_type_dt))
 
-    results <- vector("list", nrow(region_cell_type_dt))
+  for (i in seq_len(nrow(region_cell_type_dt))) {
+    cell_type <- region_cell_type_dt$cell_type[i]
+    region <- region_cell_type_dt$region[i]
+    subdir <- paste0(cell_type, "__", region)
+    filename <- paste0(subdir, ".cis_qtl.txt.gz")
+    eqtl_file <- file.path(eqtl_dir, subdir, filename)
 
-    for (i in seq_len(nrow(region_cell_type_dt))) {
-        cell_type <- region_cell_type_dt$cell_type[i]
-        region    <- region_cell_type_dt$region[i]
-        subdir    <- paste0(cell_type, "__", region)
-        filename  <- paste0(subdir, ".cis_qtl.txt.gz")
-        eqtl_file <- file.path(eqtl_dir, subdir, filename)
+    logger::log_info("Reading eQTL index: {eqtl_file}")
 
-        logger::log_info("Reading eQTL index: {eqtl_file}")
+    dt <- data.table::fread(eqtl_file, select = c("phenotype_id", "variant_id", "qval"))
+    dt <- dt[dt$qval < qval_threshold, ]
 
-        dt <- data.table::fread(eqtl_file, select = c("phenotype_id", "variant_id", "qval"))
-        dt <- dt[dt$qval < qval_threshold, ]
+    logger::log_info("  {cell_type} / {region}: {nrow(dt)} eGenes at qval < {qval_threshold}")
+    results[[i]] <- dt
+  }
 
-        logger::log_info("  {cell_type} / {region}: {nrow(dt)} eGenes at qval < {qval_threshold}")
-        results[[i]] <- dt
-    }
+  combined <- data.table::rbindlist(results)
 
-    combined <- data.table::rbindlist(results)
+  # Deduplicate to unique (phenotype_id, variant_id) pairs, keeping lowest qval
+  # Make R CMD CHECK Happy
+  phenotype_id <- variant_id <- qval <- NULL
 
-    # Deduplicate to unique (phenotype_id, variant_id) pairs, keeping lowest qval
-    #Make R CMD CHECK Happy
-    phenotype_id <- variant_id <- qval <- NULL
+  data.table::setorder(combined, phenotype_id, variant_id, qval)
+  result <- combined[
+    !duplicated(combined, by = c("phenotype_id", "variant_id")),
+    list(phenotype_id, variant_id, qval)
+  ]
 
-    data.table::setorder(combined, phenotype_id, variant_id, qval)
-    result <- combined[!duplicated(combined, by = c("phenotype_id", "variant_id")),
-                       list(phenotype_id, variant_id, qval)]
+  logger::log_info("Total unique eGene-variant pairs: {nrow(result)}")
 
-    logger::log_info("Total unique eGene-variant pairs: {nrow(result)}")
+  if (!is.null(output_path)) {
+    data.table::fwrite(result, output_path, sep = "\t")
+    logger::log_info("Written to: {output_path}")
+  }
 
-    if (!is.null(output_path)) {
-        data.table::fwrite(result, output_path, sep = "\t")
-        logger::log_info("Written to: {output_path}")
-    }
-
-    return(result)
+  return(result)
 }

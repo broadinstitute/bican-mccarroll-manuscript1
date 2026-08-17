@@ -43,10 +43,10 @@
 #'
 #' @export
 run_private_eqtl_tests_bican <- function(covariates = c(
-                                            "biobank", "age", "imputed_sex",
-                                            "PC1", "PC2", "PC3", "PC4", "PC5",
-                                            "pmi_hr"
-                                          ),
+                                           "biobank", "age", "imputed_sex",
+                                           "PC1", "PC2", "PC3", "PC4", "PC5",
+                                           "pmi_hr"
+                                         ),
                                          force_factor_covariates = c("biobank", "imputed_sex"),
                                          data_cache_dir = NULL) {
   .run_private_eqtl_tests(
@@ -82,10 +82,10 @@ run_private_eqtl_tests_bican <- function(covariates = c(
 #'
 #' @export
 run_private_eqtl_tests_downsampled_bican <- function(covariates = c(
-                                                        "biobank", "age", "imputed_sex",
-                                                        "PC1", "PC2", "PC3", "PC4", "PC5",
-                                                        "pmi_hr"
-                                                      ),
+                                                       "biobank", "age", "imputed_sex",
+                                                       "PC1", "PC2", "PC3", "PC4", "PC5",
+                                                       "pmi_hr"
+                                                     ),
                                                      force_factor_covariates = c("biobank", "imputed_sex"),
                                                      data_cache_dir = NULL) {
   .run_private_eqtl_tests(

@@ -31,99 +31,102 @@
 #' for a gene to be retained. Default is 0.1 (10 percent of samples)
 #' @export
 differential_expression <- function(data_dir, data_name, randVars, fixedVars, contrast_file,
-                                    interaction_var=NULL, absolute_effects=FALSE, cellTypeListFile=NULL,
-                                    outPDF=NULL, result_dir, n_cores = parallel::detectCores() - 2,
+                                    interaction_var = NULL, absolute_effects = FALSE, cellTypeListFile = NULL,
+                                    outPDF = NULL, result_dir, n_cores = parallel::detectCores() - 2,
                                     cpm_cutoff = 1, fraction_samples = 0.1) {
-    #validate the output directory exists
-    if (!dir.exists(result_dir)) {
-        logger::log_info(paste("Creating result directory:", result_dir))
-        dir.create(result_dir, recursive=TRUE)
-    }
-    if (!dir.exists(result_dir)) {
-        stop("Result directory does not exist: ", result_dir)
-    }
+  # validate the output directory exists
+  if (!dir.exists(result_dir)) {
+    logger::log_info(paste("Creating result directory:", result_dir))
+    dir.create(result_dir, recursive = TRUE)
+  }
+  if (!dir.exists(result_dir)) {
+    stop("Result directory does not exist: ", result_dir)
+  }
 
-    #load the DGEList and prepare the data
-    d=bican.mccarroll.differentialexpression::prepare_data_for_differential_expression(data_dir, data_name, randVars, fixedVars, interaction_var=interaction_var)
-    dge=d$dge; fixedVars=d$fixedVars; randVars=d$randVars
+  # load the DGEList and prepare the data
+  d <- bican.mccarroll.differentialexpression::prepare_data_for_differential_expression(data_dir, data_name, randVars, fixedVars, interaction_var = interaction_var)
+  dge <- d$dge
+  fixedVars <- d$fixedVars
+  randVars <- d$randVars
 
-    dge=filter_dgelist_by_celltype_list(dge, cellTypeListFile)
+  dge <- filter_dgelist_by_celltype_list(dge, cellTypeListFile)
 
-    contrast_defs <- read.table(contrast_file, stringsAsFactors = FALSE, sep="\t", header=TRUE)
+  contrast_defs <- read.table(contrast_file, stringsAsFactors = FALSE, sep = "\t", header = TRUE)
 
-    # Variance Partition by cell type
-    cell_type_list=unique(dge$samples$cell_type)
-    if (length(cell_type_list) == 0) {
-        logger::log_info("No cell types found in the DGEList samples.")
-        return(NULL)
-    }
+  # Variance Partition by cell type
+  cell_type_list <- unique(dge$samples$cell_type)
+  if (length(cell_type_list) == 0) {
+    logger::log_info("No cell types found in the DGEList samples.")
+    return(NULL)
+  }
 
-    lineStr <- strrep("=", 80)
+  lineStr <- strrep("=", 80)
 
-    plot_list= list()
+  plot_list <- list()
 
-    for (cellType in cell_type_list) {
-        logger::log_info(lineStr)
-        logger::log_info(paste("Creating differential expression analysis for cell type:", cellType))
-        logger::log_info(lineStr)
+  for (cellType in cell_type_list) {
+    logger::log_info(lineStr)
+    logger::log_info(paste("Creating differential expression analysis for cell type:", cellType))
+    logger::log_info(lineStr)
 
-        dge_cell <- dge[, dge$samples$cell_type == cellType, keep.lib.sizes = TRUE]
-        #filtering samples by library size
-        r<- filter_by_libsize(dge_cell, threshold_sd = 1.96, bins = 50, strTitlePrefix = cellType)
-        dge_cell<- r$dge
+    dge_cell <- dge[, dge$samples$cell_type == cellType, keep.lib.sizes = TRUE]
+    # filtering samples by library size
+    r <- filter_by_libsize(dge_cell, threshold_sd = 1.96, bins = 50, strTitlePrefix = cellType)
+    dge_cell <- r$dge
 
-        #filter to the top 75% of highly expressed genes as a first pass.
-        dge_cell<-filter_top_expressed_genes(dge_cell, gene_filter_frac = 0.75, verbose = TRUE)
-        #filter to cpm cutoff of 1.
-        r2=plot_logCPM_density_quantiles(dge_cell, cpm_cutoff = cpm_cutoff, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5, min_samples=1, fraction_samples=fraction_samples)
-        dge_cell=r2$filtered_dge
+    # filter to the top 75% of highly expressed genes as a first pass.
+    dge_cell <- filter_top_expressed_genes(dge_cell, gene_filter_frac = 0.75, verbose = TRUE)
+    # filter to cpm cutoff of 1.
+    r2 <- plot_logCPM_density_quantiles(dge_cell, cpm_cutoff = cpm_cutoff, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5, min_samples = 1, fraction_samples = fraction_samples)
+    dge_cell <- r2$filtered_dge
 
-        #run differential expression
-        #this produces one list per contrast comparison.
-        z<-differential_expression_one_cell_type(dge_cell, fixedVars, randVars, contrast_defs,
-                                                 interaction_var=interaction_var, absolute_effects=absolute_effects,
-                                                 verbose = TRUE, n_cores = n_cores)
+    # run differential expression
+    # this produces one list per contrast comparison.
+    z <- differential_expression_one_cell_type(dge_cell, fixedVars, randVars, contrast_defs,
+      interaction_var = interaction_var, absolute_effects = absolute_effects,
+      verbose = TRUE, n_cores = n_cores
+    )
 
-        # flatten the results for summary and plotting
-        z_flat <- flatten_de_results(z)
+    # flatten the results for summary and plotting
+    z_flat <- flatten_de_results(z)
 
-        if (length(z_flat) == 0) {
-            logger::log_warn("No non-empty DE result tables to write for this cellType/region.")
-            next
-        }
-
-        #save the results
-        for (contrast in names(z_flat)) {
-            out=z_flat[[contrast]]
-            n=make_de_filename(contrast, cellType, interaction_var = interaction_var, dge=dge_cell, absolute_effects = absolute_effects, suffix="DE_results.txt")
-            outFile <- file.path(result_dir, n)
-            logger::log_info(paste("Saving results to:", outFile))
-            write.table(out, file = outFile, sep = "\t", quote = FALSE, row.names = TRUE, col.names = TRUE)
-        }
-
-        #make a volcano plot for each contrast
-        for (contrast in names(z_flat)) {
-            n=make_de_filename(contrast, cellType, interaction_var = interaction_var, dge=dge_cell, absolute_effects = absolute_effects, suffix="")
-            df <- z_flat[[contrast]]
-            if (nrow(df) > 0) {
-                p <- make_volcano(df, fdr_thresh = 0.05, lfc_thresh = 0,
-                                  top_n_each = 10, title = n)
-                plot_list[[n]] <- p
-            }
-        }
-
+    if (length(z_flat) == 0) {
+      logger::log_warn("No non-empty DE result tables to write for this cellType/region.")
+      next
     }
 
-    if (!is.null(outPDF)) {
-        logger::log_info(paste("Saving all plots to PDF:", outPDF))
-        grDevices::pdf(outPDF)
-        pages=paginate_plots(plot_list, plots_per_page = 2)
-        for (i in 1:length(pages)) {
-            print(pages[[i]])
-        }
-        grDevices::dev.off()
+    # save the results
+    for (contrast in names(z_flat)) {
+      out <- z_flat[[contrast]]
+      n <- make_de_filename(contrast, cellType, interaction_var = interaction_var, dge = dge_cell, absolute_effects = absolute_effects, suffix = "DE_results.txt")
+      outFile <- file.path(result_dir, n)
+      logger::log_info(paste("Saving results to:", outFile))
+      write.table(out, file = outFile, sep = "\t", quote = FALSE, row.names = TRUE, col.names = TRUE)
     }
 
+    # make a volcano plot for each contrast
+    for (contrast in names(z_flat)) {
+      n <- make_de_filename(contrast, cellType, interaction_var = interaction_var, dge = dge_cell, absolute_effects = absolute_effects, suffix = "")
+      df <- z_flat[[contrast]]
+      if (nrow(df) > 0) {
+        p <- make_volcano(df,
+          fdr_thresh = 0.05, lfc_thresh = 0,
+          top_n_each = 10, title = n
+        )
+        plot_list[[n]] <- p
+      }
+    }
+  }
+
+  if (!is.null(outPDF)) {
+    logger::log_info(paste("Saving all plots to PDF:", outPDF))
+    grDevices::pdf(outPDF)
+    pages <- paginate_plots(plot_list, plots_per_page = 2)
+    for (i in 1:length(pages)) {
+      print(pages[[i]])
+    }
+    grDevices::dev.off()
+  }
 }
 
 #' Run differential expression analysis for each cell type and region in the DGEList.
@@ -141,107 +144,109 @@ differential_expression <- function(data_dir, data_name, randVars, fixedVars, co
 #' @param result_dir Directory to save the differential expression results.
 #' @param n_cores Integer. Number of cores for parallel processing.
 #' @export
-differential_expression_region <- function(data_dir, data_name, randVars, fixedVars, contrast_file, cellTypeListFile=NULL, outPDF=NULL, result_dir, n_cores = parallel::detectCores() - 2) {
-    #load the DGEList and prepare the data
-    d=bican.mccarroll.differentialexpression::prepare_data_for_differential_expression(data_dir, data_name, randVars, fixedVars)
-    dge=d$dge; fixedVars=d$fixedVars; randVars=d$randVars
+differential_expression_region <- function(data_dir, data_name, randVars, fixedVars, contrast_file, cellTypeListFile = NULL, outPDF = NULL, result_dir, n_cores = parallel::detectCores() - 2) {
+  # load the DGEList and prepare the data
+  d <- bican.mccarroll.differentialexpression::prepare_data_for_differential_expression(data_dir, data_name, randVars, fixedVars)
+  dge <- d$dge
+  fixedVars <- d$fixedVars
+  randVars <- d$randVars
 
-    dge=filter_dgelist_by_celltype_list(dge, cellTypeListFile)
+  dge <- filter_dgelist_by_celltype_list(dge, cellTypeListFile)
 
-    #if region is listed in the fixedVars, remove it.
-    if ("region" %in% fixedVars) {
-        fixedVars=setdiff(fixedVars, "region")
-        logger::log_info("region found in fixedVars, removing it for region-specific differential expression analysis.")
-    }
+  # if region is listed in the fixedVars, remove it.
+  if ("region" %in% fixedVars) {
+    fixedVars <- setdiff(fixedVars, "region")
+    logger::log_info("region found in fixedVars, removing it for region-specific differential expression analysis.")
+  }
 
-    contrast_defs <- read.table(contrast_file, stringsAsFactors = FALSE, sep="\t", header=TRUE)
+  contrast_defs <- read.table(contrast_file, stringsAsFactors = FALSE, sep = "\t", header = TRUE)
 
-    # Variance Partition by cell type
-    cell_type_list=unique(dge$samples$cell_type)
+  # Variance Partition by cell type
+  cell_type_list <- unique(dge$samples$cell_type)
 
-    if (length(cell_type_list) == 0) {
-        logger::log_info("No cell types found in the DGEList samples.")
-        return(NULL)
-    }
+  if (length(cell_type_list) == 0) {
+    logger::log_info("No cell types found in the DGEList samples.")
+    return(NULL)
+  }
 
-    #cellType="astrocyte";
-    line <- strrep("=", 80)
+  # cellType="astrocyte";
+  line <- strrep("=", 80)
 
-    plot_list= list()
+  plot_list <- list()
 
-    for (cellType in cell_type_list) {
+  for (cellType in cell_type_list) {
+    logger::log_info(line)
+    logger::log_info(paste("Creating differential expression analysis for cell type:", cellType))
+    logger::log_info(line)
 
-        logger::log_info(line)
-        logger::log_info(paste("Creating differential expression analysis for cell type:", cellType))
-        logger::log_info(line)
+    dge_cell <- dge[, dge$samples$cell_type == cellType, keep.lib.sizes = TRUE]
 
-        dge_cell <- dge[, dge$samples$cell_type == cellType, keep.lib.sizes = TRUE]
+    region_list <- unique(dge_cell$samples$region)
 
-        region_list<-unique(dge_cell$samples$region)
+    for (region in region_list) {
+      dge_cell_region <- dge_cell[, dge_cell$samples$region == region, keep.lib.sizes = TRUE]
+      logger::log_info(paste("  Analyzing region:", region, "with", dim(dge_cell_region$samples)[1], "samples."))
 
-        for (region in region_list) {
-            dge_cell_region <- dge_cell[, dge_cell$samples$region == region, keep.lib.sizes = TRUE]
-            logger::log_info(paste("  Analyzing region:", region, "with", dim(dge_cell_region$samples)[1], "samples."))
+      # filtering samples by library size
+      r <- filter_by_libsize(dge_cell_region, threshold_sd = 1.96, bins = 50, strTitlePrefix = cellType)
+      dge_cell_region <- r$dge
 
-            #filtering samples by library size
-            r<- filter_by_libsize(dge_cell_region, threshold_sd = 1.96, bins = 50, strTitlePrefix = cellType)
-            dge_cell_region<- r$dge
+      # filter to the top 75% of highly expressed genes as a first pass.
+      dge_cell_region <- filter_top_expressed_genes(dge_cell_region, gene_filter_frac = 0.75, verbose = TRUE)
+      # filter to cpm cutoff of 1.
+      r2 <- plot_logCPM_density_quantiles(dge_cell_region, cpm_cutoff = 1, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5, min_samples = 1, fraction_samples = 0.1)
+      dge_cell_region <- r2$filtered_dge
 
-            #filter to the top 75% of highly expressed genes as a first pass.
-            dge_cell_region<-filter_top_expressed_genes(dge_cell_region, gene_filter_frac = 0.75, verbose = TRUE)
-            #filter to cpm cutoff of 1.
-            r2=plot_logCPM_density_quantiles(dge_cell_region, cpm_cutoff = 1, logCPM_xlim = c(-5, 15), lower_quantile = 0.05, upper_quantile = 0.95, quantile_steps = 5, min_samples=1, fraction_samples=0.1)
-            dge_cell_region=r2$filtered_dge
+      # run differential expression
+      # this produces one list per contrast comparison.
+      # no interaction or absolute effects for region-specific tests.
+      z <- differential_expression_one_cell_type(dge_cell_region, fixedVars, randVars, contrast_defs,
+        interaction_var = NULL, absolute_effects = FALSE,
+        verbose = TRUE, n_cores = n_cores
+      )
 
-            #run differential expression
-            #this produces one list per contrast comparison.
-            # no interaction or absolute effects for region-specific tests.
-            z<-differential_expression_one_cell_type(dge_cell_region, fixedVars, randVars, contrast_defs,
-                                                     interaction_var=NULL, absolute_effects=FALSE,
-                                                     verbose = TRUE, n_cores = n_cores)
+      # flatten the results for summary and plotting
+      # keep only data frames, keep ONLY inner names, preserve order
+      z_flat <- flatten_de_results(z)
 
-            # flatten the results for summary and plotting
-            # keep only data frames, keep ONLY inner names, preserve order
-            z_flat <- flatten_de_results(z)
+      if (length(z_flat) == 0) {
+        logger::log_warn("No non-empty DE result tables to write for this cellType/region.")
+        next
+      }
 
-            if (length(z_flat) == 0) {
-                logger::log_warn("No non-empty DE result tables to write for this cellType/region.")
-                next
-            }
+      # save the results
+      for (contrast in names(z_flat)) {
+        out <- z_flat[[contrast]]
+        n <- paste0(paste(cellType, region, contrast, sep = "__"), "_DE_results.txt")
+        outFile <- file.path(result_dir, n)
+        logger::log_info(paste("Saving results to:", outFile))
+        write.table(out, file = outFile, sep = "\t", quote = FALSE, row.names = TRUE, col.names = TRUE)
+      }
 
-            #save the results
-            for (contrast in names(z_flat)) {
-                out=z_flat[[contrast]]
-                n=paste0(paste(cellType, region, contrast, sep="__"), "_DE_results.txt")
-                outFile <- file.path(result_dir, n)
-                logger::log_info(paste("Saving results to:", outFile))
-                write.table(out, file = outFile, sep = "\t", quote = FALSE, row.names = TRUE, col.names = TRUE)
-            }
-
-            #make a volcano plot for each contrast
-            for (contrast in names(z_flat)) {
-                n=paste(cellType, region, contrast, sep="_")
-                df <- z_flat[[contrast]]
-                if (nrow(df) > 0) {
-                    p <- make_volcano(df, fdr_thresh = 0.05, lfc_thresh = 0,
-                                      top_n_each = 10, title = paste(cellType, contrast))
-                    plot_list[[n]] <- p
-                }
-            }
-
+      # make a volcano plot for each contrast
+      for (contrast in names(z_flat)) {
+        n <- paste(cellType, region, contrast, sep = "_")
+        df <- z_flat[[contrast]]
+        if (nrow(df) > 0) {
+          p <- make_volcano(df,
+            fdr_thresh = 0.05, lfc_thresh = 0,
+            top_n_each = 10, title = paste(cellType, contrast)
+          )
+          plot_list[[n]] <- p
         }
+      }
     }
+  }
 
-    if (!is.null(outPDF)) {
-        logger::log_info(paste("Saving all plots to PDF:", outPDF))
-        grDevices::pdf(outPDF)
-        pages=paginate_plots(plot_list, plots_per_page = 2)
-        for (i in 1:length(pages)) {
-            print(pages[[i]])
-        }
-        grDevices::dev.off()
+  if (!is.null(outPDF)) {
+    logger::log_info(paste("Saving all plots to PDF:", outPDF))
+    grDevices::pdf(outPDF)
+    pages <- paginate_plots(plot_list, plots_per_page = 2)
+    for (i in 1:length(pages)) {
+      print(pages[[i]])
     }
-
+    grDevices::dev.off()
+  }
 }
 
 
@@ -298,129 +303,131 @@ differential_expression_group_interactions <- function(data_dir,
                                                        n_cores = parallel::detectCores() - 2,
                                                        cpm_cutoff = 1,
                                                        fraction_samples = 0.1) {
+  if (!dir.exists(result_dir)) {
+    logger::log_info(paste("Creating result directory:", result_dir))
+    dir.create(result_dir, recursive = TRUE)
+  }
+  if (!dir.exists(result_dir)) {
+    stop("Result directory does not exist: ", result_dir, call. = FALSE)
+  }
 
-    if (!dir.exists(result_dir)) {
-        logger::log_info(paste("Creating result directory:", result_dir))
-        dir.create(result_dir, recursive = TRUE)
-    }
-    if (!dir.exists(result_dir)) {
-        stop("Result directory does not exist: ", result_dir, call. = FALSE)
-    }
+  d <- bican.mccarroll.differentialexpression::prepare_data_for_differential_expression(
+    data_dir, data_name, randVars, fixedVars
+  )
 
-    d <- bican.mccarroll.differentialexpression::prepare_data_for_differential_expression(
-        data_dir, data_name, randVars, fixedVars
+  dge <- d$dge
+  fixedVars <- d$fixedVars
+  randVars <- d$randVars
+
+  slice_defs <- read_slice_contrasts_file(group_interaction_file)
+
+  plot_list <- list()
+
+  lineStr <- strrep("=", 80)
+
+  for (i in seq_len(nrow(slice_defs))) {
+    row <- slice_defs[i, , drop = FALSE]
+
+    baseline_celltype <- row$baseline_celltype[[1]]
+    baseline_region <- row$baseline_region[[1]]
+    comparison_celltype <- row$comparison_celltype[[1]]
+    comparison_region <- row$comparison_region[[1]]
+
+    logger::log_info(lineStr)
+    logger::log_info(paste0(
+      "Group interaction DE row ", i, ": ",
+      baseline_celltype, " / ", baseline_region,
+      " vs ",
+      comparison_celltype, " / ", comparison_region
+    ))
+    logger::log_info(lineStr)
+
+    run <- .build_slice_contrast_interaction_run(
+      dge = dge,
+      tested_var = tested_var,
+      fixedVars = fixedVars,
+      baseline_celltype = baseline_celltype,
+      baseline_region = baseline_region,
+      comparison_celltype = comparison_celltype,
+      comparison_region = comparison_region,
+      cpm_cutoff = cpm_cutoff,
+      fraction_samples = fraction_samples
     )
 
-    dge <- d$dge
-    fixedVars <- d$fixedVars
-    randVars <- d$randVars
-
-    slice_defs <- read_slice_contrasts_file(group_interaction_file)
-
-    plot_list <- list()
-
-    lineStr <- strrep("=", 80)
-
-    for (i in seq_len(nrow(slice_defs))) {
-
-        row <- slice_defs[i, , drop = FALSE]
-
-        baseline_celltype <- row$baseline_celltype[[1]]
-        baseline_region <- row$baseline_region[[1]]
-        comparison_celltype <- row$comparison_celltype[[1]]
-        comparison_region <- row$comparison_region[[1]]
-
-        logger::log_info(lineStr)
-        logger::log_info(paste0("Group interaction DE row ", i, ": ",
-                                baseline_celltype, " / ", baseline_region,
-                                " vs ",
-                                comparison_celltype, " / ", comparison_region))
-        logger::log_info(lineStr)
-
-        run <- .build_slice_contrast_interaction_run(
-            dge = dge,
-            tested_var = tested_var,
-            fixedVars = fixedVars,
-            baseline_celltype = baseline_celltype,
-            baseline_region = baseline_region,
-            comparison_celltype = comparison_celltype,
-            comparison_region = comparison_region,
-            cpm_cutoff = cpm_cutoff,
-            fraction_samples = fraction_samples
-        )
-
-        if (isTRUE(run$skip)) {
-            logger::log_warn(paste("Skipping row", i, "-", run$reason))
-            next
-        }
-
-        z <- differential_expression_one_cell_type(
-            run$dge_cell,
-            run$fixedVars,
-            randVars,
-            run$contrast_defs,
-            interaction_var = run$interaction_var,
-            absolute_effects = FALSE,
-            n_cores = n_cores
-        )
-
-        z_flat <- flatten_de_results(z)
-
-        if (!length(z_flat)) {
-            logger::log_warn(paste("No DE results returned for row", i))
-            next
-        }
-
-        if (!(run$target_contrast %in% names(z_flat))) {
-            logger::log_warn(paste0("Target contrast not found for row ", i, ": ", run$target_contrast))
-            logger::log_warn(paste0("Available contrasts: ", paste(names(z_flat), collapse = ", ")))
-            next
-        }
-
-        out <- z_flat[[run$target_contrast]]
-
-        out_name <- paste0(run$cell_type_label, "__", tested_var, "_DE_results.txt")
-        outFile <- file.path(result_dir, out_name)
-
-        logger::log_info(paste("Saving slope-difference results to:", outFile))
-
-        write.table(out,
-                    file = outFile,
-                    sep = "\t",
-                    quote = FALSE,
-                    row.names = TRUE,
-                    col.names = TRUE)
-
-        if (!is.null(outPDF)) {
-            plot_title <- paste0(run$cell_type_label, "__", tested_var)
-            plot_title <- gsub("__", " ", plot_title)
-
-            p <- make_volcano(out,
-                              fdr_thresh = 0.05,
-                              lfc_thresh = 0,
-                              top_n_each = 10,
-                              title = plot_title)
-
-            plot_list[[plot_title]] <- p
-        }
+    if (isTRUE(run$skip)) {
+      logger::log_warn(paste("Skipping row", i, "-", run$reason))
+      next
     }
+
+    z <- differential_expression_one_cell_type(
+      run$dge_cell,
+      run$fixedVars,
+      randVars,
+      run$contrast_defs,
+      interaction_var = run$interaction_var,
+      absolute_effects = FALSE,
+      n_cores = n_cores
+    )
+
+    z_flat <- flatten_de_results(z)
+
+    if (!length(z_flat)) {
+      logger::log_warn(paste("No DE results returned for row", i))
+      next
+    }
+
+    if (!(run$target_contrast %in% names(z_flat))) {
+      logger::log_warn(paste0("Target contrast not found for row ", i, ": ", run$target_contrast))
+      logger::log_warn(paste0("Available contrasts: ", paste(names(z_flat), collapse = ", ")))
+      next
+    }
+
+    out <- z_flat[[run$target_contrast]]
+
+    out_name <- paste0(run$cell_type_label, "__", tested_var, "_DE_results.txt")
+    outFile <- file.path(result_dir, out_name)
+
+    logger::log_info(paste("Saving slope-difference results to:", outFile))
+
+    write.table(out,
+      file = outFile,
+      sep = "\t",
+      quote = FALSE,
+      row.names = TRUE,
+      col.names = TRUE
+    )
 
     if (!is.null(outPDF)) {
-        if (!length(plot_list)) {
-            logger::log_warn("outPDF was provided but no plots were generated.")
-        } else {
-            logger::log_info(paste("Saving all plots to PDF:", outPDF))
-            grDevices::pdf(outPDF)
-            on.exit(grDevices::dev.off(), add = TRUE)
+      plot_title <- paste0(run$cell_type_label, "__", tested_var)
+      plot_title <- gsub("__", " ", plot_title)
 
-            pages <- paginate_plots(plot_list, plots_per_page = 2)
-            for (i in seq_along(pages)) {
-                print(pages[[i]])
-            }
-        }
+      p <- make_volcano(out,
+        fdr_thresh = 0.05,
+        lfc_thresh = 0,
+        top_n_each = 10,
+        title = plot_title
+      )
+
+      plot_list[[plot_title]] <- p
     }
+  }
 
-    invisible(NULL)
+  if (!is.null(outPDF)) {
+    if (!length(plot_list)) {
+      logger::log_warn("outPDF was provided but no plots were generated.")
+    } else {
+      logger::log_info(paste("Saving all plots to PDF:", outPDF))
+      grDevices::pdf(outPDF)
+      on.exit(grDevices::dev.off(), add = TRUE)
+
+      pages <- paginate_plots(plot_list, plots_per_page = 2)
+      for (i in seq_along(pages)) {
+        print(pages[[i]])
+      }
+    }
+  }
+
+  invisible(NULL)
 }
 
 #' Prepare inputs for a between-group interaction DE run
@@ -456,103 +463,109 @@ differential_expression_group_interactions <- function(data_dir,
                                                   comparison_region,
                                                   cpm_cutoff = 1,
                                                   fraction_samples = 0.1) {
+  stopifnot(!missing(dge))
+  stopifnot(!missing(tested_var))
+  stopifnot(!missing(fixedVars))
 
-    stopifnot(!missing(dge))
-    stopifnot(!missing(tested_var))
-    stopifnot(!missing(fixedVars))
+  if (!(tested_var %in% colnames(dge$samples))) {
+    stop("tested_var not found in dge$samples: ", tested_var, call. = FALSE)
+  }
+  if (!is.numeric(dge$samples[[tested_var]])) {
+    stop("tested_var must be numeric (continuous): ", tested_var, call. = FALSE)
+  }
 
-    if (!(tested_var %in% colnames(dge$samples))) {
-        stop("tested_var not found in dge$samples: ", tested_var, call. = FALSE)
-    }
-    if (!is.numeric(dge$samples[[tested_var]])) {
-        stop("tested_var must be numeric (continuous): ", tested_var, call. = FALSE)
-    }
+  # Label the two slices with stable, parseable strings (avoid regex metacharacters).
+  baseline_level <- paste0(baseline_celltype, "__", baseline_region)
+  comparison_level <- paste0(comparison_celltype, "__", comparison_region)
 
-    # Label the two slices with stable, parseable strings (avoid regex metacharacters).
-    baseline_level <- paste0(baseline_celltype, "__", baseline_region)
-    comparison_level <- paste0(comparison_celltype, "__", comparison_region)
+  # Subset to exactly the two requested slices.
+  keep <- (dge$samples$cell_type == baseline_celltype & dge$samples$region == baseline_region) |
+    (dge$samples$cell_type == comparison_celltype & dge$samples$region == comparison_region)
 
-    # Subset to exactly the two requested slices.
-    keep <- (dge$samples$cell_type == baseline_celltype & dge$samples$region == baseline_region) |
-        (dge$samples$cell_type == comparison_celltype & dge$samples$region == comparison_region)
+  dge_cell <- dge[, keep, keep.lib.sizes = TRUE]
+  if (ncol(dge_cell) == 0) {
+    return(list(skip = TRUE, reason = "No samples after subsetting."))
+  }
 
-    dge_cell <- dge[, keep, keep.lib.sizes = TRUE]
-    if (ncol(dge_cell) == 0) {
-        return(list(skip = TRUE, reason = "No samples after subsetting."))
-    }
+  # Build the 2-level factor "test" that encodes the two slices.
+  test <- ifelse(dge_cell$samples$cell_type == baseline_celltype & dge_cell$samples$region == baseline_region,
+    baseline_level, comparison_level
+  )
+  dge_cell$samples$test <- factor(test, levels = c(baseline_level, comparison_level))
 
-    # Build the 2-level factor "test" that encodes the two slices.
-    test <- ifelse(dge_cell$samples$cell_type == baseline_celltype & dge_cell$samples$region == baseline_region,
-                   baseline_level, comparison_level)
-    dge_cell$samples$test <- factor(test, levels = c(baseline_level, comparison_level))
+  # Filter/normalize exactly as the standard entry point does (libsize, top expressed, CPM cutoff).
+  # Title prefix uses the slice label rather than a single cell type.
+  slice_label <- paste0(baseline_level, "__vs__", comparison_level)
 
-    # Filter/normalize exactly as the standard entry point does (libsize, top expressed, CPM cutoff).
-    # Title prefix uses the slice label rather than a single cell type.
-    slice_label <- paste0(baseline_level, "__vs__", comparison_level)
+  r <- filter_by_libsize(dge_cell, threshold_sd = 1.96, bins = 50, strTitlePrefix = slice_label)
+  dge_cell <- r$dge
 
-    r <- filter_by_libsize(dge_cell, threshold_sd = 1.96, bins = 50, strTitlePrefix = slice_label)
-    dge_cell <- r$dge
+  dge_cell <- filter_top_expressed_genes(dge_cell, gene_filter_frac = 0.75, verbose = TRUE)
 
-    dge_cell <- filter_top_expressed_genes(dge_cell, gene_filter_frac = 0.75, verbose = TRUE)
+  r2 <- plot_logCPM_density_quantiles(dge_cell,
+    cpm_cutoff = cpm_cutoff,
+    logCPM_xlim = c(-5, 15),
+    lower_quantile = 0.05,
+    upper_quantile = 0.95,
+    quantile_steps = 5,
+    min_samples = 1,
+    fraction_samples = fraction_samples
+  )
+  dge_cell <- r2$filtered_dge
 
-    r2 <- plot_logCPM_density_quantiles(dge_cell,
-                                        cpm_cutoff = cpm_cutoff,
-                                        logCPM_xlim = c(-5, 15),
-                                        lower_quantile = 0.05,
-                                        upper_quantile = 0.95,
-                                        quantile_steps = 5,
-                                        min_samples = 1,
-                                        fraction_samples = fraction_samples)
-    dge_cell <- r2$filtered_dge
+  if (is.null(dge_cell) || ncol(dge_cell) == 0) {
+    return(list(skip = TRUE, reason = "No samples remaining after filtering."))
+  }
+  if (nrow(dge_cell) == 0) {
+    return(list(skip = TRUE, reason = "No genes remaining after filtering."))
+  }
 
-    if (is.null(dge_cell) || ncol(dge_cell) == 0) {
-        return(list(skip = TRUE, reason = "No samples remaining after filtering."))
-    }
-    if (nrow(dge_cell) == 0) {
-        return(list(skip = TRUE, reason = "No genes remaining after filtering."))
-    }
+  # Modify fixedVars: remove variables that are deterministically encoded by "test".
+  # Do not include the interaction term directly; the DE code will add it when interaction_var is set.
+  fixedVars_run <- setdiff(fixedVars, c("cell_type", "region", "test", tested_var))
+  fixedVars_run <- unique(c(tested_var, "test", fixedVars_run))
 
-    # Modify fixedVars: remove variables that are deterministically encoded by "test".
-    # Do not include the interaction term directly; the DE code will add it when interaction_var is set.
-    fixedVars_run <- setdiff(fixedVars, c("cell_type", "region", "test", tested_var))
-    fixedVars_run <- unique(c(tested_var, "test", fixedVars_run))
+  # Contrast defs: encode tested_var as continuous (reference_level/comparison_level NA),
+  # and encode interaction baseline level via baseline_region (string match).
+  contrast_defs_run <- data.frame(
+    contrast_name = tested_var,
+    variable = tested_var,
+    reference_level = NA_character_,
+    comparison_level = NA_character_,
+    baseline_region = baseline_level,
+    stringsAsFactors = FALSE
+  )
 
-    # Contrast defs: encode tested_var as continuous (reference_level/comparison_level NA),
-    # and encode interaction baseline level via baseline_region (string match).
-    contrast_defs_run <- data.frame(contrast_name = tested_var,
-                                    variable = tested_var,
-                                    reference_level = NA_character_,
-                                    comparison_level = NA_character_,
-                                    baseline_region = baseline_level,
-                                    stringsAsFactors = FALSE)
+  target_contrast <- paste0(tested_var, ":", "test", comparison_level)
+  cell_type_label <- slice_label
 
-    target_contrast <- paste0(tested_var, ":", "test", comparison_level)
-    cell_type_label <- slice_label
-
-    list(skip = FALSE,
-         reason = NULL,
-         dge_cell = dge_cell,
-         fixedVars = fixedVars_run,
-         contrast_defs = contrast_defs_run,
-         interaction_var = "test",
-         baseline_level = baseline_level,
-         comparison_level = comparison_level,
-         target_contrast = target_contrast,
-         cell_type_label = cell_type_label)
+  list(
+    skip = FALSE,
+    reason = NULL,
+    dge_cell = dge_cell,
+    fixedVars = fixedVars_run,
+    contrast_defs = contrast_defs_run,
+    interaction_var = "test",
+    baseline_level = baseline_level,
+    comparison_level = comparison_level,
+    target_contrast = target_contrast,
+    cell_type_label = cell_type_label
+  )
 }
 
 read_slice_contrasts_file <- function(slice_contrasts_file) {
-    slice_defs <- read.table(slice_contrasts_file, stringsAsFactors = FALSE, sep = "\t", header = TRUE)
+  slice_defs <- read.table(slice_contrasts_file, stringsAsFactors = FALSE, sep = "\t", header = TRUE)
 
-    required_cols <- c("baseline_celltype", "baseline_region", "comparison_celltype", "comparison_region")
-    missing_cols <- setdiff(required_cols, colnames(slice_defs))
-    if (length(missing_cols)) {
-        stop("slice_contrasts_file is missing required columns: ",
-             paste(missing_cols, collapse = ", "),
-             call. = FALSE)
-    }
+  required_cols <- c("baseline_celltype", "baseline_region", "comparison_celltype", "comparison_region")
+  missing_cols <- setdiff(required_cols, colnames(slice_defs))
+  if (length(missing_cols)) {
+    stop("slice_contrasts_file is missing required columns: ",
+      paste(missing_cols, collapse = ", "),
+      call. = FALSE
+    )
+  }
 
-    slice_defs
+  slice_defs
 }
 
 make_de_filename <- function(contrast,
@@ -561,65 +574,69 @@ make_de_filename <- function(contrast,
                              dge = NULL,
                              absolute_effects = FALSE,
                              suffix = "DE_results.txt") {
+  if (is.null(interaction_var)) {
+    return(paste0(cell_type, "__", contrast, "_", suffix))
+  }
 
-    if (is.null(interaction_var)) {
-        return(paste0(cell_type, "__", contrast, "_", suffix))
-    }
+  if (is.null(dge) || is.null(dge$samples) || !(interaction_var %in% colnames(dge$samples))) {
+    stop("When interaction_var is not NULL, dge$samples must contain column '", interaction_var, "'.",
+      call. = FALSE
+    )
+  }
 
-    if (is.null(dge) || is.null(dge$samples) || !(interaction_var %in% colnames(dge$samples))) {
-        stop("When interaction_var is not NULL, dge$samples must contain column '", interaction_var, "'.",
-             call. = FALSE)
-    }
+  # Valid interaction levels (factor-safe)
+  iv <- dge$samples[[interaction_var]]
+  valid_levels <- if (is.factor(iv)) levels(iv) else unique(as.character(iv))
+  valid_levels <- valid_levels[!is.na(valid_levels) & nzchar(valid_levels)]
 
-    # Valid interaction levels (factor-safe)
-    iv <- dge$samples[[interaction_var]]
-    valid_levels <- if (is.factor(iv)) levels(iv) else unique(as.character(iv))
-    valid_levels <- valid_levels[!is.na(valid_levels) & nzchar(valid_levels)]
+  x <- contrast
 
-    x <- contrast
+  # Handle encodings like "age:regionNAC" -> "age:NAC" when not absolute effects
+  if (!absolute_effects) {
+    x <- sub(paste0(":", interaction_var), ":", x, fixed = TRUE)
+  }
 
-    # Handle encodings like "age:regionNAC" -> "age:NAC" when not absolute effects
-    if (!absolute_effects) {
-        x <- sub(paste0(":", interaction_var), ":", x, fixed = TRUE)
-    }
+  # Normalize ":" -> "_" (so "age:NAC" -> "age_NAC")
+  x <- gsub(":", "_", x, fixed = TRUE)
 
-    # Normalize ":" -> "_" (so "age:NAC" -> "age_NAC")
-    x <- gsub(":", "_", x, fixed = TRUE)
+  # Identify interaction level as a suffix token "_<level>"
+  hits <- valid_levels[vapply(
+    valid_levels,
+    function(lvl) grepl(paste0("_", lvl, "$"), x),
+    logical(1)
+  )]
 
-    # Identify interaction level as a suffix token "_<level>"
-    hits <- valid_levels[vapply(
-        valid_levels,
-        function(lvl) grepl(paste0("_", lvl, "$"), x),
-        logical(1)
-    )]
+  if (!length(hits)) {
+    stop("Could not parse interaction level from contrast '", contrast,
+      "' (normalized '", x, "') using interaction_var='", interaction_var, "'.",
+      call. = FALSE
+    )
+  }
 
-    if (!length(hits)) {
-        stop("Could not parse interaction level from contrast '", contrast,
-             "' (normalized '", x, "') using interaction_var='", interaction_var, "'.",
-             call. = FALSE)
-    }
+  # If overlapping suffixes exist, choose the longest match
+  interaction_level <- hits[[which.max(nchar(hits))]]
 
-    # If overlapping suffixes exist, choose the longest match
-    interaction_level <- hits[[ which.max(nchar(hits)) ]]
+  # Contrast name is whatever precedes "_<interaction_level>"
+  contrast_name <- sub(paste0("_", interaction_level, "$"), "", x)
 
-    # Contrast name is whatever precedes "_<interaction_level>"
-    contrast_name <- sub(paste0("_", interaction_level, "$"), "", x)
-
-    paste0(cell_type, "__", interaction_level, "__", contrast_name, "_", suffix)
+  paste0(cell_type, "__", interaction_level, "__", contrast_name, "_", suffix)
 }
 
 
-
 flatten_de_results <- function(z) {
-    z_flat <- do.call(c, lapply(unname(z), function(x) {
-        if (!is.list(x)) return(list())
-        x[vapply(x, is.data.frame, logical(1))]
-    }))
+  z_flat <- do.call(c, lapply(unname(z), function(x) {
+    if (!is.list(x)) {
+      return(list())
+    }
+    x[vapply(x, is.data.frame, logical(1))]
+  }))
 
-    if (length(z_flat) == 0) return(list())
+  if (length(z_flat) == 0) {
+    return(list())
+  }
 
-    keep <- vapply(z_flat, function(df) nrow(df) > 0, logical(1))
-    z_flat[keep]
+  keep <- vapply(z_flat, function(df) nrow(df) > 0, logical(1))
+  z_flat[keep]
 }
 
 ########################
@@ -628,117 +645,121 @@ flatten_de_results <- function(z) {
 ########################
 
 # Dispatcher: pooled DE modes per contrast_group with validation for interactions
-differential_expression_one_cell_type <- function(
-        dge_cell,
-        fixedVars,
-        randVars,
-        contrast_defs,
-        interaction_var = NULL,          # NULL or factor name
-        absolute_effects = FALSE,        # FALSE: use differential_expression_one_cell_type_contrast_group for Mode 1/2
-        verbose = TRUE,
-        n_cores = parallel::detectCores() - 2
-){
-    msg <- function(...) if (isTRUE(verbose)) message(sprintf(...))
+differential_expression_one_cell_type <- function(dge_cell,
+                                                  fixedVars,
+                                                  randVars,
+                                                  contrast_defs,
+                                                  interaction_var = NULL, # NULL or factor name
+                                                  absolute_effects = FALSE, # FALSE: use differential_expression_one_cell_type_contrast_group for Mode 1/2
+                                                  verbose = TRUE,
+                                                  n_cores = parallel::detectCores() - 2) {
+  msg <- function(...) if (isTRUE(verbose)) message(sprintf(...))
 
-    stopifnot(is.list(dge_cell), is.data.frame(contrast_defs))
-    dge <- dge_cell
-    if (!is.null(dge$samples) && exists("sanitize_levels", mode = "function")) {
-        dge$samples <- sanitize_levels(dge$samples)
+  stopifnot(is.list(dge_cell), is.data.frame(contrast_defs))
+  dge <- dge_cell
+  if (!is.null(dge$samples) && exists("sanitize_levels", mode = "function")) {
+    dge$samples <- sanitize_levels(dge$samples)
+  }
+
+  # Continuous if contrast_defs rows for var have both levels NA; else fall back to sample type
+  is_continuous_var <- function(var, df, samples) {
+    rows <- df[df$variable == var, , drop = FALSE]
+    if (nrow(rows)) {
+      all(is.na(rows$reference_level) & is.na(rows$comparison_level))
+    } else {
+      is.numeric(samples[[var]])
+    }
+  }
+
+  contrast_groups <- unique(as.character(contrast_defs$variable))
+  out <- vector("list", length(contrast_groups))
+  names(out) <- contrast_groups
+
+  for (cg in contrast_groups) {
+    cg_is_cont <- is_continuous_var(cg, contrast_defs, dge$samples)
+
+    msg(
+      "DE for contrast_group='%s' (interaction_var=%s, absolute_effects=%s, continuous=%s)",
+      cg, ifelse(is.null(interaction_var), "NULL", interaction_var),
+      absolute_effects, cg_is_cont
+    )
+
+    if (!absolute_effects) {
+      # Validate: if an interaction_var is requested for relative interactions,
+      # the tested contrast must be continuous. Otherwise skip.
+      if (!is.null(interaction_var) && !cg_is_cont) {
+        msg("SKIP: '%s' has categorical contrasts in contrast_defs; relative interactions require continuous.", cg)
+        out[[cg]] <- list()
+        next
+      }
+
+      # Validate: if an interaction_var is requested, the baseline must be present in the data
+      # for some data sets they only have a single region, and the interaction is inappropriate.
+      if (!is.null(interaction_var)) {
+        baseline_level <- contrast_defs[contrast_defs$variable == cg & is.na(contrast_defs$comparison_level), "baseline_region"]
+        levs <- unique(dge$samples[[interaction_var]])
+        if (!(baseline_level %in% unique(dge$samples[[interaction_var]]))) {
+          msg(
+            "SKIP: baseline level '%s' for interaction_var '%s' not found in data for contrast_group '%s'.",
+            baseline_level, interaction_var, cg
+          )
+          out[[cg]] <- list()
+          next
+        }
+        if (length(levs) < 2) {
+          msg(
+            "SKIP: interaction_var '%s' has only one level in data for contrast_group '%s'.",
+            interaction_var, cg
+          )
+          out[[cg]] <- list()
+          next
+        }
+      }
+
+      # Unified path for Mode 1 (no interaction) and Mode 2 (relative interaction vs baseline)
+      out[[cg]] <- differential_expression_one_cell_type_contrast_group(
+        dge_cell = dge,
+        fixedVars = fixedVars,
+        randVars = randVars,
+        contrast_defs = contrast_defs,
+        contrast_group = cg,
+        interaction_var = interaction_var, # NULL => average effect; factor name => relative interactions
+        verbose = verbose,
+        n_cores = n_cores
+      )
+      next
     }
 
-    # Continuous if contrast_defs rows for var have both levels NA; else fall back to sample type
-    is_continuous_var <- function(var, df, samples){
-        rows <- df[df$variable == var, , drop = FALSE]
-        if (nrow(rows)) {
-            all(is.na(rows$reference_level) & is.na(rows$comparison_level))
-        } else {
-            is.numeric(samples[[var]])
-        }
+    # absolute_effects = TRUE
+    if (cg_is_cont) {
+      # Mode 3: absolute per-level slopes for continuous covariate
+      if (is.null(interaction_var)) stop("interaction_var required for absolute_effects=TRUE with continuous '", cg, "'.")
+      out[[cg]] <- continuous_by_factor_differential_expression(
+        dge_cell = dge,
+        fixedVars = fixedVars,
+        randVars = randVars,
+        interaction_var = interaction_var,
+        continuous_var = cg,
+        verbose = verbose,
+        n_cores = n_cores
+      )
+    } else {
+      # Mode 4: categorical-by-categorical within-stratum contrasts (names from contrast_defs)
+      if (is.null(interaction_var)) stop("interaction_var required for absolute_effects=TRUE with categorical '", cg, "'.")
+      out[[cg]] <- categorical_by_categorical_differential_expression(
+        dge_cell = dge,
+        fixedVars = fixedVars,
+        randVars = randVars,
+        contrast_defs = contrast_defs,
+        factor_var = cg,
+        interaction_var = interaction_var,
+        verbose = verbose,
+        n_cores = n_cores
+      )
     }
+  }
 
-    contrast_groups <- unique(as.character(contrast_defs$variable))
-    out <- vector("list", length(contrast_groups))
-    names(out) <- contrast_groups
-
-    for (cg in contrast_groups) {
-        cg_is_cont <- is_continuous_var(cg, contrast_defs, dge$samples)
-
-        msg("DE for contrast_group='%s' (interaction_var=%s, absolute_effects=%s, continuous=%s)",
-            cg, ifelse(is.null(interaction_var), "NULL", interaction_var),
-            absolute_effects, cg_is_cont)
-
-        if (!absolute_effects) {
-            # Validate: if an interaction_var is requested for relative interactions,
-            # the tested contrast must be continuous. Otherwise skip.
-            if (!is.null(interaction_var) && !cg_is_cont) {
-                msg("SKIP: '%s' has categorical contrasts in contrast_defs; relative interactions require continuous.", cg)
-                out[[cg]] <- list()
-                next
-            }
-
-            #Validate: if an interaction_var is requested, the baseline must be present in the data
-            #for some data sets they only have a single region, and the interaction is inappropriate.
-            if (!is.null(interaction_var)) {
-                baseline_level <- contrast_defs[contrast_defs$variable == cg & is.na(contrast_defs$comparison_level), "baseline_region"]
-                levs=unique(dge$samples[[interaction_var]])
-                if (!(baseline_level %in% unique(dge$samples[[interaction_var]]))) {
-                    msg("SKIP: baseline level '%s' for interaction_var '%s' not found in data for contrast_group '%s'.",
-                        baseline_level, interaction_var, cg)
-                    out[[cg]] <- list()
-                    next
-                }
-                if (length(levs) < 2) {
-                    msg("SKIP: interaction_var '%s' has only one level in data for contrast_group '%s'.",
-                        interaction_var, cg)
-                    out[[cg]] <- list()
-                    next
-                }
-            }
-
-            # Unified path for Mode 1 (no interaction) and Mode 2 (relative interaction vs baseline)
-            out[[cg]] <- differential_expression_one_cell_type_contrast_group(
-                dge_cell       = dge,
-                fixedVars      = fixedVars,
-                randVars       = randVars,
-                contrast_defs  = contrast_defs,
-                contrast_group = cg,
-                interaction_var= interaction_var,   # NULL => average effect; factor name => relative interactions
-                verbose        = verbose,
-                n_cores        = n_cores
-            )
-            next
-        }
-
-        # absolute_effects = TRUE
-        if (cg_is_cont) {
-            # Mode 3: absolute per-level slopes for continuous covariate
-            if (is.null(interaction_var)) stop("interaction_var required for absolute_effects=TRUE with continuous '", cg, "'.")
-            out[[cg]] <- continuous_by_factor_differential_expression(
-                dge_cell       = dge,
-                fixedVars      = fixedVars,
-                randVars       = randVars,
-                interaction_var= interaction_var,
-                continuous_var = cg,
-                verbose        = verbose,
-                n_cores        = n_cores
-            )
-        } else {
-            # Mode 4: categorical-by-categorical within-stratum contrasts (names from contrast_defs)
-            if (is.null(interaction_var)) stop("interaction_var required for absolute_effects=TRUE with categorical '", cg, "'.")
-            out[[cg]] <- categorical_by_categorical_differential_expression(
-                dge_cell       = dge,
-                fixedVars      = fixedVars,
-                randVars       = randVars,
-                contrast_defs  = contrast_defs,
-                factor_var     = cg,
-                interaction_var= interaction_var,
-                verbose        = verbose,
-                n_cores        = n_cores
-            )
-        }
-    }
-
-    out
+  out
 }
 
 #########################################
@@ -781,92 +802,90 @@ differential_expression_one_cell_type <- function(
 #' @import BiocParallel
 #' @import stats
 #' @export
-continuous_by_factor_differential_expression <- function(
-        dge_cell,
-        fixedVars,                          # include interaction_var and covariates; do NOT include continuous_var or its interaction
-        randVars,
-        interaction_var = "region",         # factor
-        continuous_var = "age",             # numeric
-        verbose = TRUE,
-        n_cores = parallel::detectCores() - 2
-){
-    msg <- function(...) if (isTRUE(verbose)) message(sprintf(...))
+continuous_by_factor_differential_expression <- function(dge_cell,
+                                                         fixedVars, # include interaction_var and covariates; do NOT include continuous_var or its interaction
+                                                         randVars,
+                                                         interaction_var = "region", # factor
+                                                         continuous_var = "age", # numeric
+                                                         verbose = TRUE,
+                                                         n_cores = parallel::detectCores() - 2) {
+  msg <- function(...) if (isTRUE(verbose)) message(sprintf(...))
 
-    # data
-    dge_this <- dge_cell
-    dge_this$samples <- droplevels(dge_this$samples)
-    samp <- dge_this$samples
+  # data
+  dge_this <- dge_cell
+  dge_this$samples <- droplevels(dge_this$samples)
+  samp <- dge_this$samples
 
-    if (!(interaction_var %in% names(samp))) stop("interaction_var '", interaction_var, "' not found.")
-    if (!(continuous_var %in% names(samp))) stop("continuous_var '", continuous_var, "' not found.")
-    if (!is.factor(samp[[interaction_var]])) samp[[interaction_var]] <- factor(samp[[interaction_var]])
-    if (!is.numeric(samp[[continuous_var]])) stop("continuous_var must be numeric.")
+  if (!(interaction_var %in% names(samp))) stop("interaction_var '", interaction_var, "' not found.")
+  if (!(continuous_var %in% names(samp))) stop("continuous_var '", continuous_var, "' not found.")
+  if (!is.factor(samp[[interaction_var]])) samp[[interaction_var]] <- factor(samp[[interaction_var]])
+  if (!is.numeric(samp[[continuous_var]])) stop("continuous_var must be numeric.")
 
-    levs <- levels(samp[[interaction_var]])
+  levs <- levels(samp[[interaction_var]])
 
-    # explicit per-level slope columns
-    cont_cols <- paste0(continuous_var, "_", interaction_var, levs)
-    for (i in seq_along(levs)) {
-        lev <- levs[i]
-        col <- cont_cols[i]
-        samp[[col]] <- as.numeric(samp[[interaction_var]] == lev) * samp[[continuous_var]]
-    }
+  # explicit per-level slope columns
+  cont_cols <- paste0(continuous_var, "_", interaction_var, levs)
+  for (i in seq_along(levs)) {
+    lev <- levs[i]
+    col <- cont_cols[i]
+    samp[[col]] <- as.numeric(samp[[interaction_var]] == lev) * samp[[continuous_var]]
+  }
 
-    # fixed/random effects
-    fv <- unique(fixedVars)
-    # if there's only one level for interaction_var, drop the baseline term,
-    # we'll still evaluate the cont_col for the level that remains - it should be the same as the global result.
-    if (length(levs) < 2) {
-        message("Only one level for ", interaction_var, "; dropping term [", interaction_var, "] from fixed effects.")
-        fv <- setdiff(fv, interaction_var)
-    }
+  # fixed/random effects
+  fv <- unique(fixedVars)
+  # if there's only one level for interaction_var, drop the baseline term,
+  # we'll still evaluate the cont_col for the level that remains - it should be the same as the global result.
+  if (length(levs) < 2) {
+    message("Only one level for ", interaction_var, "; dropping term [", interaction_var, "] from fixed effects.")
+    fv <- setdiff(fv, interaction_var)
+  }
 
-    fv <- drop_single_level_rand_effects(fv, metadata = samp, verbose = verbose)
-    fv <- setdiff(fv, c(continuous_var, paste0(continuous_var, ":", interaction_var)))  # ensure no global cont or interaction
-    fv <- unique(c(fv, cont_cols))                                                      # add explicit slope cols
-    rv <- prune_random_effects_insufficient_replication(randVars, data = samp)
+  fv <- drop_single_level_rand_effects(fv, metadata = samp, verbose = verbose)
+  fv <- setdiff(fv, c(continuous_var, paste0(continuous_var, ":", interaction_var))) # ensure no global cont or interaction
+  fv <- unique(c(fv, cont_cols)) # add explicit slope cols
+  rv <- prune_random_effects_insufficient_replication(randVars, data = samp)
 
-    # formulas
-    rhs_fixed <- paste(fv, collapse = " + ")
-    fixed_form <- stats::as.formula(paste("~ 0 +", rhs_fixed))
-    rand_part  <- if (length(rv)) paste0("(1|", rv, ")", collapse = " + ") else NULL
-    full_form  <- if (!is.null(rand_part)) stats::as.formula(paste("~ 0 +", rhs_fixed, "+", rand_part)) else fixed_form
+  # formulas
+  rhs_fixed <- paste(fv, collapse = " + ")
+  fixed_form <- stats::as.formula(paste("~ 0 +", rhs_fixed))
+  rand_part <- if (length(rv)) paste0("(1|", rv, ")", collapse = " + ") else NULL
+  full_form <- if (!is.null(rand_part)) stats::as.formula(paste("~ 0 +", rhs_fixed, "+", rand_part)) else fixed_form
 
-    # design checks
-    X <- stats::model.matrix(fixed_form, data = samp)
-    if (qr(X)$rank < ncol(X)) stop("Design not full rank. Check fixed effects.")
-    miss <- setdiff(cont_cols, colnames(X))
-    if (length(miss)) stop("Missing per-level slope columns in design: ", paste(miss, collapse = ", "))
+  # design checks
+  X <- stats::model.matrix(fixed_form, data = samp)
+  if (qr(X)$rank < ncol(X)) stop("Design not full rank. Check fixed effects.")
+  miss <- setdiff(cont_cols, colnames(X))
+  if (length(miss)) stop("Missing per-level slope columns in design: ", paste(miss, collapse = ", "))
 
-    # Check for any other issues with the fit, and return early if they are detected.
-    chk <- should_skip_dream_subset(fixed_form, samp, min_n = 50)
+  # Check for any other issues with the fit, and return early if they are detected.
+  chk <- should_skip_dream_subset(fixed_form, samp, min_n = 50)
 
-    if (chk$skip) {
-        logger::log_warn(paste("Skipping dream fit:", chk$reason))
-        return(list())
-    }
+  if (chk$skip) {
+    logger::log_warn(paste("Skipping dream fit:", chk$reason))
+    return(list())
+  }
 
-    # voom + dream + eBayes
-    #param <- BiocParallel::MulticoreParam(workers = n_cores)
-    param <- make_bpparam(n_cores=n_cores)
-    v1 <- variancePartition::voomWithDreamWeights(dge_this, full_form, data = samp, span=0.3, BPPARAM = param)
-    keep <- filter_high_weight_genes(v1, dge_this, quantile_threshold = 0.999)
-    dge_this  <- dge_this[keep, ]
-    v2   <- variancePartition::voomWithDreamWeights(dge_this, full_form, data = samp, span=0.3, BPPARAM = param, plot = FALSE)
+  # voom + dream + eBayes
+  # param <- BiocParallel::MulticoreParam(workers = n_cores)
+  param <- make_bpparam(n_cores = n_cores)
+  v1 <- variancePartition::voomWithDreamWeights(dge_this, full_form, data = samp, span = 0.3, BPPARAM = param)
+  keep <- filter_high_weight_genes(v1, dge_this, quantile_threshold = 0.999)
+  dge_this <- dge_this[keep, ]
+  v2 <- variancePartition::voomWithDreamWeights(dge_this, full_form, data = samp, span = 0.3, BPPARAM = param, plot = FALSE)
 
-    fit <- capture_dream_warnings({
-        variancePartition::dream(v2, full_form, data = samp, BPPARAM = param)
-    })
-    fit <- variancePartition::eBayes(fit, trend = TRUE, robust = TRUE)
+  fit <- capture_dream_warnings({
+    variancePartition::dream(v2, full_form, data = samp, BPPARAM = param)
+  })
+  fit <- variancePartition::eBayes(fit, trend = TRUE, robust = TRUE)
 
-    # outputs: one topTable per level's slope
-    nice_names <- paste0(continuous_var, "_", levs)
-    tabs <- stats::setNames(
-        lapply(seq_along(cont_cols), function(i) variancePartition::topTable(fit, coef = cont_cols[i], number = Inf)),
-        nice_names
-    )
+  # outputs: one topTable per level's slope
+  nice_names <- paste0(continuous_var, "_", levs)
+  tabs <- stats::setNames(
+    lapply(seq_along(cont_cols), function(i) variancePartition::topTable(fit, coef = cont_cols[i], number = Inf)),
+    nice_names
+  )
 
-    tabs
+  tabs
 }
 
 #' Categorical x categorical DE via a combined factor (named by contrast_defs)
@@ -896,158 +915,175 @@ continuous_by_factor_differential_expression <- function(
 #' @import variancePartition
 #' @import BiocParallel
 #' @export
-categorical_by_categorical_differential_expression <- function(
-        dge_cell,
-        fixedVars,
-        randVars,
-        contrast_defs,
-        factor_var      = "imputed_sex",
-        interaction_var = "region",
-        verbose         = TRUE,
-        n_cores         = parallel::detectCores() - 2
-){
-    msg <- function(...) if (isTRUE(verbose)) message(sprintf(...))
+categorical_by_categorical_differential_expression <- function(dge_cell,
+                                                               fixedVars,
+                                                               randVars,
+                                                               contrast_defs,
+                                                               factor_var = "imputed_sex",
+                                                               interaction_var = "region",
+                                                               verbose = TRUE,
+                                                               n_cores = parallel::detectCores() - 2) {
+  msg <- function(...) if (isTRUE(verbose)) message(sprintf(...))
 
-    # --- data prep ---
-    dge <- dge_cell
-    dge$samples <- droplevels(dge$samples)
-    samp <- dge$samples
+  # --- data prep ---
+  dge <- dge_cell
+  dge$samples <- droplevels(dge$samples)
+  samp <- dge$samples
 
-    if (!(factor_var %in% names(samp))) stop("factor_var '", factor_var, "' not found.")
-    if (!(interaction_var %in% names(samp))) stop("interaction_var '", interaction_var, "' not found.")
-    if (!is.factor(samp[[factor_var]]))      samp[[factor_var]]      <- factor(samp[[factor_var]])
-    if (!is.factor(samp[[interaction_var]])) samp[[interaction_var]] <- factor(samp[[interaction_var]])
+  if (!(factor_var %in% names(samp))) stop("factor_var '", factor_var, "' not found.")
+  if (!(interaction_var %in% names(samp))) stop("interaction_var '", interaction_var, "' not found.")
+  if (!is.factor(samp[[factor_var]])) samp[[factor_var]] <- factor(samp[[factor_var]])
+  if (!is.factor(samp[[interaction_var]])) samp[[interaction_var]] <- factor(samp[[interaction_var]])
 
-    levF <- levels(samp[[factor_var]])
-    levR <- levels(samp[[interaction_var]])
-    if (length(levF) < 2) stop("Need >= 2 levels for ", factor_var)
+  levF <- levels(samp[[factor_var]])
+  levR <- levels(samp[[interaction_var]])
+  if (length(levF) < 2) stop("Need >= 2 levels for ", factor_var)
 
-    # Pairs and names from contrast_defs
-    cd <- contrast_defs[contrast_defs$variable == factor_var, c("contrast_name","reference_level","comparison_level"), drop = FALSE]
-    if (!nrow(cd)) stop("contrast_defs has no rows for variable=='", factor_var, "'.")
-    if (any(is.na(cd$reference_level) | is.na(cd$comparison_level)))
-        stop("contrast_defs rows for ", factor_var, " must have reference_level and comparison_level.")
+  # Pairs and names from contrast_defs
+  cd <- contrast_defs[contrast_defs$variable == factor_var, c("contrast_name", "reference_level", "comparison_level"), drop = FALSE]
+  if (!nrow(cd)) stop("contrast_defs has no rows for variable=='", factor_var, "'.")
+  if (any(is.na(cd$reference_level) | is.na(cd$comparison_level))) {
+    stop("contrast_defs rows for ", factor_var, " must have reference_level and comparison_level.")
+  }
 
-    # map a token from contrast_defs to an actual level of factor_var
-    map_token_to_level <- function(tok, levels_vec){
-        tok <- as.character(tok)
-        if (tok %in% levels_vec) return(tok)
-        sani <- make.names(tok, allow_ = TRUE)
-        if (sani %in% levels_vec) return(sani)
-        # numeric like "1","2": levels might also be numeric-coded as characters
-        if (suppressWarnings(!is.na(as.numeric(tok))) && (tok %in% levels_vec)) return(tok)
-        stop("Token '", tok, "' not found among levels: ", paste(levels_vec, collapse = ", "))
+  # map a token from contrast_defs to an actual level of factor_var
+  map_token_to_level <- function(tok, levels_vec) {
+    tok <- as.character(tok)
+    if (tok %in% levels_vec) {
+      return(tok)
     }
-    cd$reference_level  <- vapply(cd$reference_level,  map_token_to_level, character(1), levels_vec = levF)
-    cd$comparison_level <- vapply(cd$comparison_level, map_token_to_level, character(1), levels_vec = levF)
-
-    # Combined factor with explicit labels
-    # we're going to use samp as the design matrix, and are just appending a single column
-    # that is the interaction of factor_var and interaction_var so we can
-    # construct contrasts within each level of interaction_var.
-    # for example, this might contain all combinations of sex and region that are tested as explicit levels.
-    samp$combo <- interaction(samp[[factor_var]], samp[[interaction_var]], sep="__", drop=TRUE)
-    levC <- levels(samp$combo)
-
-    # --- fixed/random effects ---
-    # TODO: is this reasonable to put here?
-    fv <- drop_single_level_rand_effects(fixedVars, metadata = samp, verbose = verbose)
-    fv <- setdiff(unique(fv), c(factor_var, interaction_var, paste0(factor_var, ":", interaction_var)))
-    fv <- c("combo", fv)
-
-    rv <- prune_random_effects_insufficient_replication(randVars, data = samp)
-
-    # --- formulas ---
-    rhs_fixed <- paste(fv, collapse = " + ")
-    fixed_form <- stats::as.formula(paste("~ 0 +", rhs_fixed))
-    rand_part  <- if (length(rv)) paste0("(1|", rv, ")", collapse = " + ") else NULL
-    full_form  <- if (!is.null(rand_part)) stats::as.formula(paste("~ 0 +", rhs_fixed, "+", rand_part)) else fixed_form
-
-    # --- design ---
-    X <- stats::model.matrix(fixed_form, data = samp)
-    if (qr(X)$rank < ncol(X)) stop("Design not full rank.")
-
-    # Check for any other issues with the fit, and return early if they are detected.
-    chk <- should_skip_dream_subset(fixed_form, samp, min_n = 50)
-
-    if (chk$skip) {
-        logger::log_warn(paste("Skipping dream fit:", chk$reason))
-        return(list())
+    sani <- make.names(tok, allow_ = TRUE)
+    if (sani %in% levels_vec) {
+      return(sani)
     }
-
-    # Map "A__R" labels to the actual design columns created by model.matrix
-    combocols <- grep("^combo", colnames(X), value = TRUE)
-    if (!length(combocols)) stop("No 'combo' columns found in design.")
-    find_combo_col <- function(level_label) {
-        cand <- c(
-            paste0("combo", level_label),
-            paste0("combo", make.names(level_label, allow_ = TRUE)),
-            paste0("combo", make.names(level_label, allow_ = FALSE))
-        )
-        hit <- cand[cand %in% combocols]
-        if (length(hit)) return(hit[1])
-        # fallback on suffix matching
-        suff <- sub("^combo", "", combocols)
-        m1 <- make.names(level_label, allow_ = TRUE)
-        m2 <- make.names(level_label, allow_ = FALSE)
-        if (level_label %in% suff) return(paste0("combo", level_label))
-        if (m1 %in% suff)         return(paste0("combo", m1))
-        if (m2 %in% suff)         return(paste0("combo", m2))
-        NA_character_
+    # numeric like "1","2": levels might also be numeric-coded as characters
+    if (suppressWarnings(!is.na(as.numeric(tok))) && (tok %in% levels_vec)) {
+      return(tok)
     }
-    combo_map <- stats::setNames(vapply(levC, find_combo_col, character(1)), levC)
-    if (anyNA(combo_map)) {
-        bad <- names(combo_map)[is.na(combo_map)]
-        stop("Could not map combo level(s) to design columns: ", paste(bad, collapse = ", "))
-    }
+    stop("Token '", tok, "' not found among levels: ", paste(levels_vec, collapse = ", "))
+  }
+  cd$reference_level <- vapply(cd$reference_level, map_token_to_level, character(1), levels_vec = levF)
+  cd$comparison_level <- vapply(cd$comparison_level, map_token_to_level, character(1), levels_vec = levF)
 
-    # --- build contrast matrix L (all specified pairs, in every region) ---
-    # columns named "<contrast_name>_<region>"
-    pairs <- do.call(rbind, lapply(levR, function(r) {
-        data.frame(region = r,
-                   contrast_name    = cd$contrast_name,
-                   reference_level  = cd$reference_level,
-                   comparison_level = cd$comparison_level,
-                   stringsAsFactors = FALSE)
-    }))
+  # Combined factor with explicit labels
+  # we're going to use samp as the design matrix, and are just appending a single column
+  # that is the interaction of factor_var and interaction_var so we can
+  # construct contrasts within each level of interaction_var.
+  # for example, this might contain all combinations of sex and region that are tested as explicit levels.
+  samp$combo <- interaction(samp[[factor_var]], samp[[interaction_var]], sep = "__", drop = TRUE)
+  levC <- levels(samp$combo)
 
-    coef_names <- colnames(X)
-    L <- matrix(0, nrow = length(coef_names), ncol = nrow(pairs),
-                dimnames = list(coef_names, paste0(pairs$contrast_name, "_", pairs$region)))
+  # --- fixed/random effects ---
+  # TODO: is this reasonable to put here?
+  fv <- drop_single_level_rand_effects(fixedVars, metadata = samp, verbose = verbose)
+  fv <- setdiff(unique(fv), c(factor_var, interaction_var, paste0(factor_var, ":", interaction_var)))
+  fv <- c("combo", fv)
 
-    for (i in seq_len(nrow(pairs))) {
-        A <- pairs$reference_level[i]
-        B <- pairs$comparison_level[i]
-        R <- pairs$region[i]
-        lvlB <- paste0(B, "__", R)
-        lvlA <- paste0(A, "__", R)
-        colB <- combo_map[[lvlB]]
-        colA <- combo_map[[lvlA]]
-        if (is.na(colB) || is.na(colA)) stop("Missing combo cell(s) for ", B, " or ", A, " at ", R)
+  rv <- prune_random_effects_insufficient_replication(randVars, data = samp)
 
-        L[colB, i] <-  1
-        L[colA, i] <- -1
-    }
+  # --- formulas ---
+  rhs_fixed <- paste(fv, collapse = " + ")
+  fixed_form <- stats::as.formula(paste("~ 0 +", rhs_fixed))
+  rand_part <- if (length(rv)) paste0("(1|", rv, ")", collapse = " + ") else NULL
+  full_form <- if (!is.null(rand_part)) stats::as.formula(paste("~ 0 +", rhs_fixed, "+", rand_part)) else fixed_form
 
-    # --- voom + dream with L ---
-    param <- make_bpparam(n_cores=n_cores)
-    v1 <- variancePartition::voomWithDreamWeights(dge, full_form, data = samp, span=0.3, BPPARAM = param)
-    keep <- filter_high_weight_genes(v1, dge, quantile_threshold = 0.999)
-    dge2 <- dge[keep, ]
-    v2 <- variancePartition::voomWithDreamWeights(dge2, full_form, data = samp, span=0.3, BPPARAM = param, plot = FALSE)
+  # --- design ---
+  X <- stats::model.matrix(fixed_form, data = samp)
+  if (qr(X)$rank < ncol(X)) stop("Design not full rank.")
 
-    fit <- capture_dream_warnings({
-        variancePartition::dream(v2, full_form, data = samp, BPPARAM = param, L = L)
-    })
-    fit <- variancePartition::eBayes(fit, trend = TRUE, robust = TRUE)
+  # Check for any other issues with the fit, and return early if they are detected.
+  chk <- should_skip_dream_subset(fixed_form, samp, min_n = 50)
 
-    # --- results ---
-    tabs <- stats::setNames(
-        lapply(colnames(L), function(nm) variancePartition::topTable(fit, coef = nm, number = Inf)),
-        colnames(L)
+  if (chk$skip) {
+    logger::log_warn(paste("Skipping dream fit:", chk$reason))
+    return(list())
+  }
+
+  # Map "A__R" labels to the actual design columns created by model.matrix
+  combocols <- grep("^combo", colnames(X), value = TRUE)
+  if (!length(combocols)) stop("No 'combo' columns found in design.")
+  find_combo_col <- function(level_label) {
+    cand <- c(
+      paste0("combo", level_label),
+      paste0("combo", make.names(level_label, allow_ = TRUE)),
+      paste0("combo", make.names(level_label, allow_ = FALSE))
     )
+    hit <- cand[cand %in% combocols]
+    if (length(hit)) {
+      return(hit[1])
+    }
+    # fallback on suffix matching
+    suff <- sub("^combo", "", combocols)
+    m1 <- make.names(level_label, allow_ = TRUE)
+    m2 <- make.names(level_label, allow_ = FALSE)
+    if (level_label %in% suff) {
+      return(paste0("combo", level_label))
+    }
+    if (m1 %in% suff) {
+      return(paste0("combo", m1))
+    }
+    if (m2 %in% suff) {
+      return(paste0("combo", m2))
+    }
+    NA_character_
+  }
+  combo_map <- stats::setNames(vapply(levC, find_combo_col, character(1)), levC)
+  if (anyNA(combo_map)) {
+    bad <- names(combo_map)[is.na(combo_map)]
+    stop("Could not map combo level(s) to design columns: ", paste(bad, collapse = ", "))
+  }
 
-    tabs
+  # --- build contrast matrix L (all specified pairs, in every region) ---
+  # columns named "<contrast_name>_<region>"
+  pairs <- do.call(rbind, lapply(levR, function(r) {
+    data.frame(
+      region = r,
+      contrast_name = cd$contrast_name,
+      reference_level = cd$reference_level,
+      comparison_level = cd$comparison_level,
+      stringsAsFactors = FALSE
+    )
+  }))
+
+  coef_names <- colnames(X)
+  L <- matrix(0,
+    nrow = length(coef_names), ncol = nrow(pairs),
+    dimnames = list(coef_names, paste0(pairs$contrast_name, "_", pairs$region))
+  )
+
+  for (i in seq_len(nrow(pairs))) {
+    A <- pairs$reference_level[i]
+    B <- pairs$comparison_level[i]
+    R <- pairs$region[i]
+    lvlB <- paste0(B, "__", R)
+    lvlA <- paste0(A, "__", R)
+    colB <- combo_map[[lvlB]]
+    colA <- combo_map[[lvlA]]
+    if (is.na(colB) || is.na(colA)) stop("Missing combo cell(s) for ", B, " or ", A, " at ", R)
+
+    L[colB, i] <- 1
+    L[colA, i] <- -1
+  }
+
+  # --- voom + dream with L ---
+  param <- make_bpparam(n_cores = n_cores)
+  v1 <- variancePartition::voomWithDreamWeights(dge, full_form, data = samp, span = 0.3, BPPARAM = param)
+  keep <- filter_high_weight_genes(v1, dge, quantile_threshold = 0.999)
+  dge2 <- dge[keep, ]
+  v2 <- variancePartition::voomWithDreamWeights(dge2, full_form, data = samp, span = 0.3, BPPARAM = param, plot = FALSE)
+
+  fit <- capture_dream_warnings({
+    variancePartition::dream(v2, full_form, data = samp, BPPARAM = param, L = L)
+  })
+  fit <- variancePartition::eBayes(fit, trend = TRUE, robust = TRUE)
+
+  # --- results ---
+  tabs <- stats::setNames(
+    lapply(colnames(L), function(nm) variancePartition::topTable(fit, coef = nm, number = Inf)),
+    colnames(L)
+  )
+
+  tabs
 }
 
 
@@ -1093,268 +1129,278 @@ categorical_by_categorical_differential_expression <- function(
 #' @importFrom variancePartition voomWithDreamWeights dream eBayes topTable
 #' @importFrom BiocParallel MulticoreParam
 #' @importFrom stats model.matrix as.formula relevel contr.treatment
-differential_expression_one_cell_type_contrast_group <- function(
-        dge_cell, fixedVars, randVars, contrast_defs,
-        contrast_group = "age",
-        interaction_var = "region",          # set NULL to disable interactions
-        verbose = TRUE,
-        n_cores = parallel::detectCores() - 2
-){
-    # ---- helpers -----------------------------------------------------------
-    .get_baseline <- function(df, var) {
-        x <- unique(na.omit(df$baseline_region[df$variable == var]))
-        if (length(x) == 1) x else NULL
-    }
+differential_expression_one_cell_type_contrast_group <- function(dge_cell, fixedVars, randVars, contrast_defs,
+                                                                 contrast_group = "age",
+                                                                 interaction_var = "region", # set NULL to disable interactions
+                                                                 verbose = TRUE,
+                                                                 n_cores = parallel::detectCores() - 2) {
+  # ---- helpers -----------------------------------------------------------
+  .get_baseline <- function(df, var) {
+    x <- unique(na.omit(df$baseline_region[df$variable == var]))
+    if (length(x) == 1) x else NULL
+  }
 
-    .ensure_treatment_coding <- function(df, var, baseline) {
-        # Make sure the column is a factor
-        if (!is.factor(df[[var]])) df[[var]] <- factor(df[[var]])
+  .ensure_treatment_coding <- function(df, var, baseline) {
+    # Make sure the column is a factor
+    if (!is.factor(df[[var]])) df[[var]] <- factor(df[[var]])
 
-        # Relevel so that 'baseline' is the reference level
-        df[[var]] <- stats::relevel(df[[var]], ref = baseline)
+    # Relevel so that 'baseline' is the reference level
+    df[[var]] <- stats::relevel(df[[var]], ref = baseline)
 
-        # Apply treatment coding contrasts with that baseline
-        contrasts(df[[var]]) <- stats::contr.treatment(
-            nlevels(df[[var]]),
-            base = which(levels(df[[var]]) == baseline)
-        )
-        df
-    }
-
-    #
-    .pick_int_name <- function(cols, a, b, lev) {
-        x <- paste0(a, ":", b, lev)
-        y <- paste0(b, lev, ":", a)
-        if (x %in% cols) x else if (y %in% cols) y else NA_character_
-    }
-
-    # ---- data --------------------------------------------------------------
-    dge_cell_this <- dge_cell
-    dge_cell_this$samples <- droplevels(dge_cell_this$samples)
-
-    # random effects
-    rv <- prune_random_effects_insufficient_replication(randVars, data = dge_cell_this$samples)
-
-    # fixed effects
-    fv <- fixedVars
-    fv <- move_to_front(fv, contrast_group)
-    fv <- drop_single_level_rand_effects(fv, metadata = dge_cell_this$samples, verbose = verbose)
-
-    # interaction toggle + baseline
-    baseline <- NULL
-    add_interaction <- FALSE
-    if (!is.null(interaction_var)) {
-        baseline <- .get_baseline(contrast_defs, contrast_group)
-        add_interaction <- !is.null(baseline)
-    }
-
-    # if requested, enforce treatment coding for the interaction factor on DATA
-    if (add_interaction) {
-        stopifnot(interaction_var %in% names(dge_cell_this$samples))
-        dge_cell_this$samples <- .ensure_treatment_coding(dge_cell_this$samples, interaction_var, baseline)
-        inter_term <- paste0(contrast_group, ":", interaction_var)
-        if (!(inter_term %in% fv)) fv <- c(fv, inter_term)
-    }
-
-    # ---- formulas ----------------------------------------------------------
-    rand_part  <- if (length(rv)) paste0("(1|", rv, ")", collapse = " + ") else NULL
-    fixed_part <- paste(fv, collapse = " + ")
-    fixed_form <- stats::as.formula(paste("~ 0 +", fixed_part))
-    full_form  <- stats::as.formula(paste("~ 0 +", paste(c(fixed_part, rand_part), collapse = " + ")))
-
-    design <- stats::model.matrix(fixed_form, data = dge_cell_this$samples)
-    if (qr(design)$rank < ncol(design)) stop("Design matrix not full rank.")
-
-    # contrasts for factor main-effects of the contrast_group (if any)
-    contrast_defs_this <- contrast_defs[contrast_defs$variable == contrast_group, , drop = FALSE]
-    contrast_defs_this <- sanitize_contrast_levels(contrast_defs_this, design, verbose = verbose)
-    contrast_matrix    <- generate_contrasts_from_defs(contrast_defs_this, design)
-    has_contrasts_groups <- !all(is.na(contrast_defs_this$reference_level) & is.na(contrast_defs_this$comparison_level))
-    L <- if (has_contrasts_groups) contrast_matrix else NULL
-
-    # Check for any other issues with the fit, and return early if they are detected.
-    chk <- should_skip_dream_subset(fixed_form, dge_cell_this$samples, min_n = 50)
-
-    if (chk$skip) {
-        logger::log_warn(paste("Skipping dream fit:", chk$reason))
-        return(list())
-    }
-
-    # ---- fit ---------------------------------------------------------------
-    #param <- BiocParallel::MulticoreParam(workers = n_cores)
-    param <- make_bpparam(n_cores=n_cores)
-    vobj <- variancePartition::voomWithDreamWeights(
-        counts = dge_cell_this, formula = full_form, data = dge_cell_this$samples, span=0.3, BPPARAM = param
+    # Apply treatment coding contrasts with that baseline
+    contrasts(df[[var]]) <- stats::contr.treatment(
+      nlevels(df[[var]]),
+      base = which(levels(df[[var]]) == baseline)
     )
-    keep <- filter_high_weight_genes(vobj, dge_cell_this, quantile_threshold = 0.999)
-    dge_cell_this <- dge_cell_this[keep, ]
-    vobj <- variancePartition::voomWithDreamWeights(
-        dge_cell_this, full_form, data = dge_cell_this$samples, span=0.3, BPPARAM = param, plot = FALSE
+    df
+  }
+
+  #
+  .pick_int_name <- function(cols, a, b, lev) {
+    x <- paste0(a, ":", b, lev)
+    y <- paste0(b, lev, ":", a)
+    if (x %in% cols) x else if (y %in% cols) y else NA_character_
+  }
+
+  # ---- data --------------------------------------------------------------
+  dge_cell_this <- dge_cell
+  dge_cell_this$samples <- droplevels(dge_cell_this$samples)
+
+  # random effects
+  rv <- prune_random_effects_insufficient_replication(randVars, data = dge_cell_this$samples)
+
+  # fixed effects
+  fv <- fixedVars
+  fv <- move_to_front(fv, contrast_group)
+  fv <- drop_single_level_rand_effects(fv, metadata = dge_cell_this$samples, verbose = verbose)
+
+  # interaction toggle + baseline
+  baseline <- NULL
+  add_interaction <- FALSE
+  if (!is.null(interaction_var)) {
+    baseline <- .get_baseline(contrast_defs, contrast_group)
+    add_interaction <- !is.null(baseline)
+  }
+
+  # if requested, enforce treatment coding for the interaction factor on DATA
+  if (add_interaction) {
+    stopifnot(interaction_var %in% names(dge_cell_this$samples))
+    dge_cell_this$samples <- .ensure_treatment_coding(dge_cell_this$samples, interaction_var, baseline)
+    inter_term <- paste0(contrast_group, ":", interaction_var)
+    if (!(inter_term %in% fv)) fv <- c(fv, inter_term)
+  }
+
+  # ---- formulas ----------------------------------------------------------
+  rand_part <- if (length(rv)) paste0("(1|", rv, ")", collapse = " + ") else NULL
+  fixed_part <- paste(fv, collapse = " + ")
+  fixed_form <- stats::as.formula(paste("~ 0 +", fixed_part))
+  full_form <- stats::as.formula(paste("~ 0 +", paste(c(fixed_part, rand_part), collapse = " + ")))
+
+  design <- stats::model.matrix(fixed_form, data = dge_cell_this$samples)
+  if (qr(design)$rank < ncol(design)) stop("Design matrix not full rank.")
+
+  # contrasts for factor main-effects of the contrast_group (if any)
+  contrast_defs_this <- contrast_defs[contrast_defs$variable == contrast_group, , drop = FALSE]
+  contrast_defs_this <- sanitize_contrast_levels(contrast_defs_this, design, verbose = verbose)
+  contrast_matrix <- generate_contrasts_from_defs(contrast_defs_this, design)
+  has_contrasts_groups <- !all(is.na(contrast_defs_this$reference_level) & is.na(contrast_defs_this$comparison_level))
+  L <- if (has_contrasts_groups) contrast_matrix else NULL
+
+  # Check for any other issues with the fit, and return early if they are detected.
+  chk <- should_skip_dream_subset(fixed_form, dge_cell_this$samples, min_n = 50)
+
+  if (chk$skip) {
+    logger::log_warn(paste("Skipping dream fit:", chk$reason))
+    return(list())
+  }
+
+  # ---- fit ---------------------------------------------------------------
+  # param <- BiocParallel::MulticoreParam(workers = n_cores)
+  param <- make_bpparam(n_cores = n_cores)
+  vobj <- variancePartition::voomWithDreamWeights(
+    counts = dge_cell_this, formula = full_form, data = dge_cell_this$samples, span = 0.3, BPPARAM = param
+  )
+  keep <- filter_high_weight_genes(vobj, dge_cell_this, quantile_threshold = 0.999)
+  dge_cell_this <- dge_cell_this[keep, ]
+  vobj <- variancePartition::voomWithDreamWeights(
+    dge_cell_this, full_form,
+    data = dge_cell_this$samples, span = 0.3, BPPARAM = param, plot = FALSE
+  )
+
+  # keep the pre ebayes fit for absolute effects
+  fit <- capture_dream_warnings({
+    variancePartition::dream(
+      exprObj = vobj, formula = full_form,
+      data = dge_cell_this$samples, BPPARAM = param, L = L
     )
+  })
+  fitmm <- variancePartition::eBayes(fit, trend = TRUE, robust = TRUE)
 
-    #keep the pre ebayes fit for absolute effects
-    fit <- capture_dream_warnings({
-        variancePartition::dream(exprObj = vobj, formula = full_form,
-                                 data = dge_cell_this$samples, BPPARAM = param, L = L)
-    })
-    fitmm <- variancePartition::eBayes(fit, trend = TRUE, robust = TRUE)
+  log_decide_tests_summary(fitmm, L = L, label = paste("DREAM DE summary for", contrast_group))
 
-    log_decide_tests_summary(fitmm, L = L, label = paste("DREAM DE summary for", contrast_group))
+  # ---- collect results ---------------------------------------------------
+  tt <- list()
 
-    # ---- collect results ---------------------------------------------------
-    tt <- list()
+  # 1) factor contrasts (if any)
+  if (!is.null(L)) {
+    have <- intersect(colnames(L), colnames(coef(fitmm)))
+    for (cn in have) tt[[cn]] <- variancePartition::topTable(fitmm, coef = cn, number = Inf)
+  }
 
-    # 1) factor contrasts (if any)
-    if (!is.null(L)) {
-        have <- intersect(colnames(L), colnames(coef(fitmm)))
-        for (cn in have) tt[[cn]] <- variancePartition::topTable(fitmm, coef = cn, number = Inf)
-    }
+  coef_names <- colnames(coef(fitmm))
 
-    coef_names <- colnames(coef(fitmm))
-
-    # 2) main continuous effect always, but rename if interaction is active
-    if (contrast_group %in% coef_names) {
-        main_tbl <- variancePartition::topTable(fitmm, coef = contrast_group, number = Inf)
-        main_name <- contrast_group
-        if (add_interaction) {
-            main_name <- paste0(contrast_group, ":", interaction_var, baseline)
-        }
-        tt[[main_name]] <- main_tbl
-    }
-
-    # 3) interaction terms, if requested
+  # 2) main continuous effect always, but rename if interaction is active
+  if (contrast_group %in% coef_names) {
+    main_tbl <- variancePartition::topTable(fitmm, coef = contrast_group, number = Inf)
+    main_name <- contrast_group
     if (add_interaction) {
-        levs <- levels(dge_cell_this$samples[[interaction_var]])
-        # for each level including baseline, create a name contrast_group:interaction_var<lev>
-        # baseline uses the renamed main effect; others use explicit interaction coefs
-        for (lev in levs) {
-            nm <- paste0(contrast_group, ":", interaction_var, lev)
-            if (lev == baseline) {
-                # already stored as main_name
-                next
-            } else {
-                ic <- .pick_int_name(coef_names, contrast_group, paste0(interaction_var), lev)
-                if (is.na(ic)) next
-                tt[[nm]] <- variancePartition::topTable(fitmm, coef = ic, number = Inf)
-            }
-        }
+      main_name <- paste0(contrast_group, ":", interaction_var, baseline)
     }
+    tt[[main_name]] <- main_tbl
+  }
 
-    tt
+  # 3) interaction terms, if requested
+  if (add_interaction) {
+    levs <- levels(dge_cell_this$samples[[interaction_var]])
+    # for each level including baseline, create a name contrast_group:interaction_var<lev>
+    # baseline uses the renamed main effect; others use explicit interaction coefs
+    for (lev in levs) {
+      nm <- paste0(contrast_group, ":", interaction_var, lev)
+      if (lev == baseline) {
+        # already stored as main_name
+        next
+      } else {
+        ic <- .pick_int_name(coef_names, contrast_group, paste0(interaction_var), lev)
+        if (is.na(ic)) next
+        tt[[nm]] <- variancePartition::topTable(fitmm, coef = ic, number = Inf)
+      }
+    }
+  }
+
+  tt
 }
 
 generate_contrasts_from_defs <- function(contrast_defs, design_matrix) {
-    # escape any regex metacharacters (incl. hyphen)
-    .rex_escape <- function(x) gsub("([][{}()+*^$|\\.?<>\\-])", "\\\\\\1", x)
+  # escape any regex metacharacters (incl. hyphen)
+  .rex_escape <- function(x) gsub("([][{}()+*^$|\\.?<>\\-])", "\\\\\\1", x)
 
-    stopifnot(is.data.frame(contrast_defs))
-    stopifnot(is.matrix(design_matrix) || is.data.frame(design_matrix))
+  stopifnot(is.data.frame(contrast_defs))
+  stopifnot(is.matrix(design_matrix) || is.data.frame(design_matrix))
 
-    # Drop interaction columns entirely
-    design_cols_raw  <- colnames(design_matrix)
-    design_cols_raw  <- design_cols_raw[!grepl(":", design_cols_raw, fixed = TRUE)]
+  # Drop interaction columns entirely
+  design_cols_raw <- colnames(design_matrix)
+  design_cols_raw <- design_cols_raw[!grepl(":", design_cols_raw, fixed = TRUE)]
 
-    # Safe names for makeContrasts
-    design_cols_safe <- make.names(design_cols_raw, unique = TRUE)
-    raw2safe <- stats::setNames(design_cols_safe, design_cols_raw)
-    safe2raw <- stats::setNames(design_cols_raw,  design_cols_safe)
+  # Safe names for makeContrasts
+  design_cols_safe <- make.names(design_cols_raw, unique = TRUE)
+  raw2safe <- stats::setNames(design_cols_safe, design_cols_raw)
+  safe2raw <- stats::setNames(design_cols_raw, design_cols_safe)
 
-    # --- translators work only on NON-interaction columns ---
-    translate_side <- function(expr, var, design_cols) {
-        if (is.na(expr) || is.null(expr) || nchar(trimws(expr)) == 0) return("0")
-        s <- gsub("\\s+", "", as.character(expr))
+  # --- translators work only on NON-interaction columns ---
+  translate_side <- function(expr, var, design_cols) {
+    if (is.na(expr) || is.null(expr) || nchar(trimws(expr)) == 0) {
+      return("0")
+    }
+    s <- gsub("\\s+", "", as.character(expr))
 
-        var_pat  <- paste0("^", .rex_escape(var))
-        var_cols <- grep(var_pat, design_cols, value = TRUE)
-        if (length(var_cols) == 0)
-            stop("No design columns found for factor '", var, "'. Did you use '~ 0 + ", var, " + ...'?")
-
-        levels_available <- sub(var_pat, "", var_cols)
-
-        # remap numeric tokens like "1" -> "X1" if present
-        m <- gregexpr("[A-Za-z0-9_.-]+", s, perl = TRUE)
-        toks <- regmatches(s, m)[[1]]
-        if (length(toks)) {
-            mapped <- vapply(toks, function(tok) {
-                if (grepl("^[0-9]+(\\.[0-9]+)?$", tok)) {
-                    sani <- make.names(tok)
-                    if (sani %in% levels_available) sani else tok
-                } else tok
-            }, character(1))
-            regmatches(s, m)[[1]] <- mapped
-        }
-
-        # replace level tokens with full column names (var + level)
-        levels_available <- levels_available[order(nchar(levels_available), decreasing = TRUE)]
-        for (lev in levels_available) {
-            s <- gsub(paste0("(?<![A-Za-z0-9_.])", .rex_escape(lev), "(?![A-Za-z0-9_.])"),
-                      paste0(var, lev), s, perl = TRUE)
-        }
-        s
+    var_pat <- paste0("^", .rex_escape(var))
+    var_cols <- grep(var_pat, design_cols, value = TRUE)
+    if (length(var_cols) == 0) {
+      stop("No design columns found for factor '", var, "'. Did you use '~ 0 + ", var, " + ...'?")
     }
 
-    contrast_list <- list()
-    for (i in seq_len(nrow(contrast_defs))) {
-        row <- contrast_defs[i, ]
-        cname <- as.character(row$contrast_name)
-        var   <- as.character(row$variable)
-        ref   <- row$reference_level
-        comp  <- row$comparison_level
+    levels_available <- sub(var_pat, "", var_cols)
 
-        # Continuous: expect a single column named exactly <var> (no interactions)
-        if ((is.na(ref) || length(ref) == 0) && (is.na(comp) || length(comp) == 0)) {
-            if (!(var %in% design_cols_raw)) stop("Continuous term '", var, "' not found in design.")
-            contrast_list[[cname]] <- var
-            next
+    # remap numeric tokens like "1" -> "X1" if present
+    m <- gregexpr("[A-Za-z0-9_.-]+", s, perl = TRUE)
+    toks <- regmatches(s, m)[[1]]
+    if (length(toks)) {
+      mapped <- vapply(toks, function(tok) {
+        if (grepl("^[0-9]+(\\.[0-9]+)?$", tok)) {
+          sani <- make.names(tok)
+          if (sani %in% levels_available) sani else tok
+        } else {
+          tok
         }
-
-        comp_str <- translate_side(comp, var, design_cols_raw)
-        ref_str  <- translate_side(ref,  var, design_cols_raw)
-
-        contrast_list[[cname]] <-
-            if (identical(ref_str, "0")) comp_str else
-                if (identical(comp_str, "0")) paste0("0 - (", ref_str, ")") else
-                    paste0("(", comp_str, ") - (", ref_str, ")")
+      }, character(1))
+      regmatches(s, m)[[1]] <- mapped
     }
 
-    # safeify expressions for limma
-    safeify_expr <- function(expr) {
-        s <- expr
-        raws <- names(raw2safe)[order(nchar(names(raw2safe)), decreasing = TRUE)]
-        for (r in raws) {
-            pat <- paste0("(?<![A-Za-z0-9_.])", .rex_escape(r), "(?![A-Za-z0-9_.])")
-            s <- gsub(pat, raw2safe[[r]], s, perl = TRUE)
-        }
-        s
+    # replace level tokens with full column names (var + level)
+    levels_available <- levels_available[order(nchar(levels_available), decreasing = TRUE)]
+    for (lev in levels_available) {
+      s <- gsub(paste0("(?<![A-Za-z0-9_.])", .rex_escape(lev), "(?![A-Za-z0-9_.])"),
+        paste0(var, lev), s,
+        perl = TRUE
+      )
     }
-    contrast_list_safe <- lapply(contrast_list, safeify_expr)
+    s
+  }
 
-    CM_safe <- do.call(limma::makeContrasts,
-                       args = c(contrast_list_safe, list(levels = design_cols_safe)))
+  contrast_list <- list()
+  for (i in seq_len(nrow(contrast_defs))) {
+    row <- contrast_defs[i, ]
+    cname <- as.character(row$contrast_name)
+    var <- as.character(row$variable)
+    ref <- row$reference_level
+    comp <- row$comparison_level
 
-    #TODO: I'd like to switch to variancePartition::makeContrastsDream for consistency, but I would need to pass in data.
-    # CM_safe <- do.call(variancePartition::makeContrastsDream,
-    #                     args = c(contrast_list_safe, list(levels = design_cols_safe)))
+    # Continuous: expect a single column named exactly <var> (no interactions)
+    if ((is.na(ref) || length(ref) == 0) && (is.na(comp) || length(comp) == 0)) {
+      if (!(var %in% design_cols_raw)) stop("Continuous term '", var, "' not found in design.")
+      contrast_list[[cname]] <- var
+      next
+    }
 
-    # map rows back so contrasts.fit aligns with the fit
-    rownames(CM_safe) <- unname(safe2raw[rownames(CM_safe)])
-    CM_safe
+    comp_str <- translate_side(comp, var, design_cols_raw)
+    ref_str <- translate_side(ref, var, design_cols_raw)
+
+    contrast_list[[cname]] <-
+      if (identical(ref_str, "0")) {
+        comp_str
+      } else if (identical(comp_str, "0")) {
+        paste0("0 - (", ref_str, ")")
+      } else {
+        paste0("(", comp_str, ") - (", ref_str, ")")
+      }
+  }
+
+  # safeify expressions for limma
+  safeify_expr <- function(expr) {
+    s <- expr
+    raws <- names(raw2safe)[order(nchar(names(raw2safe)), decreasing = TRUE)]
+    for (r in raws) {
+      pat <- paste0("(?<![A-Za-z0-9_.])", .rex_escape(r), "(?![A-Za-z0-9_.])")
+      s <- gsub(pat, raw2safe[[r]], s, perl = TRUE)
+    }
+    s
+  }
+  contrast_list_safe <- lapply(contrast_list, safeify_expr)
+
+  CM_safe <- do.call(limma::makeContrasts,
+    args = c(contrast_list_safe, list(levels = design_cols_safe))
+  )
+
+  # TODO: I'd like to switch to variancePartition::makeContrastsDream for consistency, but I would need to pass in data.
+  # CM_safe <- do.call(variancePartition::makeContrastsDream,
+  #                     args = c(contrast_list_safe, list(levels = design_cols_safe)))
+
+  # map rows back so contrasts.fit aligns with the fit
+  rownames(CM_safe) <- unname(safe2raw[rownames(CM_safe)])
+  CM_safe
 }
-
-
 
 
 sanitize_levels <- function(df, exclude = character()) {
-    for (col in setdiff(names(df), exclude)) {
-        if (is.factor(df[[col]])) {
-            levels(df[[col]]) <- make.names(levels(df[[col]]))
-        } else if (is.character(df[[col]])) {
-            df[[col]] <- make.names(df[[col]])
-        }
+  for (col in setdiff(names(df), exclude)) {
+    if (is.factor(df[[col]])) {
+      levels(df[[col]]) <- make.names(levels(df[[col]]))
+    } else if (is.character(df[[col]])) {
+      df[[col]] <- make.names(df[[col]])
     }
-    df
+  }
+  df
 }
-
 
 
 # Simple, design-aware sanitizer:
@@ -1363,200 +1409,218 @@ sanitize_levels <- function(df, exclude = character()) {
 # - After sanitizing both sides: drop rows where exactly one side is NA.
 # - Keep rows where both sides are NA (continuous) or both valid (factor contrast).
 sanitize_contrast_levels <- function(contrast_defs, design_matrix, verbose = TRUE) {
-    stopifnot(is.data.frame(contrast_defs))
-    stopifnot(is.matrix(design_matrix) || is.data.frame(design_matrix))
+  stopifnot(is.data.frame(contrast_defs))
+  stopifnot(is.matrix(design_matrix) || is.data.frame(design_matrix))
 
-    design_cols <- colnames(design_matrix)
+  design_cols <- colnames(design_matrix)
 
-    sanitize_expr_for_var <- function(expr, var) {
-        # NA means "no expression" (allowed for continuous rows or 0-side)
-        if (length(expr) == 0 || is.na(expr)) return(NA_character_)
-        s <- as.character(expr)
-
-        # pull suffixes for this var from design (means coding: ~ 0 + var)
-        var_pat  <- paste0("^", var)
-        var_cols <- grep(var_pat, design_cols, value = TRUE)
-        if (!length(var_cols)) return(NA_character_)  # no columns -> treat as invalid for this var
-        lvl_suffixes <- sub(var_pat, "", var_cols)
-
-        # tokenize: contiguous level-like chunks; leave operators/parens
-        m <- gregexpr("[A-Za-z0-9_.-]+", s, perl = TRUE)
-        toks <- regmatches(s, m)[[1]]
-        if (!length(toks)) return(NA_character_)  # nothing meaningful -> invalid
-
-        had_unknown <- FALSE
-        mapped <- vapply(toks, function(tok) {
-            # numeric literal? could be a level like "1"/"2" *or* a true number (e.g., "/2")
-            if (grepl("^[0-9]+(\\.[0-9]+)?$", tok)) {
-                # prefer direct suffix match, else try make.names("1")->"X1"
-                if (tok %in% lvl_suffixes) return(tok)
-                tok_sani <- make.names(tok)
-                if (tok_sani %in% lvl_suffixes) return(tok_sani)
-                return(tok)  # true numeric constant
-            }
-            # text token already a suffix?
-            if (tok %in% lvl_suffixes) return(tok)
-            # try sanitized text
-            tok_sani <- make.names(tok)
-            if (tok_sani %in% lvl_suffixes) return(tok_sani)
-
-            had_unknown <<- TRUE
-            tok  # keep to reinsert (we'll null out the whole side below)
-        }, character(1))
-
-        if (had_unknown) return(NA_character_)  # this side invalid -> caller will drop the row
-
-        # put mapped tokens back (still suffixes, not full var+suffix)
-        regmatches(s, m)[[1]] <- mapped
-        s
+  sanitize_expr_for_var <- function(expr, var) {
+    # NA means "no expression" (allowed for continuous rows or 0-side)
+    if (length(expr) == 0 || is.na(expr)) {
+      return(NA_character_)
     }
+    s <- as.character(expr)
 
-    out <- contrast_defs
-    # force character columns and sanitize per-row
-    out$reference_level  <- NA_character_
-    out$comparison_level <- NA_character_
-    for (i in seq_len(nrow(out))) {
-        var <- as.character(contrast_defs$variable[i])
-        out$reference_level[i]  <- sanitize_expr_for_var(contrast_defs$reference_level[i],  var)
-        out$comparison_level[i] <- sanitize_expr_for_var(contrast_defs$comparison_level[i], var)
-    }
+    # pull suffixes for this var from design (means coding: ~ 0 + var)
+    var_pat <- paste0("^", var)
+    var_cols <- grep(var_pat, design_cols, value = TRUE)
+    if (!length(var_cols)) {
+      return(NA_character_)
+    } # no columns -> treat as invalid for this var
+    lvl_suffixes <- sub(var_pat, "", var_cols)
 
-    # Decide which rows to keep:
-    # - keep if both sides NA (continuous)
-    # - keep if both sides non-NA (valid factor contrast)
-    # - drop if exactly one side is NA
-    both_na     <- is.na(out$reference_level) & is.na(out$comparison_level)
-    both_non_na <- !is.na(out$reference_level) & !is.na(out$comparison_level)
-    keep <- both_na | both_non_na
+    # tokenize: contiguous level-like chunks; leave operators/parens
+    m <- gregexpr("[A-Za-z0-9_.-]+", s, perl = TRUE)
+    toks <- regmatches(s, m)[[1]]
+    if (!length(toks)) {
+      return(NA_character_)
+    } # nothing meaningful -> invalid
 
-    dropped <- out$contrast_name[!keep]
-    if (verbose && length(dropped)) {
-        message(sprintf("Dropping %d contrast(s) due to missing/unknown levels: %s",
-                        length(dropped), paste(dropped, collapse = ", ")))
-    }
+    had_unknown <- FALSE
+    mapped <- vapply(toks, function(tok) {
+      # numeric literal? could be a level like "1"/"2" *or* a true number (e.g., "/2")
+      if (grepl("^[0-9]+(\\.[0-9]+)?$", tok)) {
+        # prefer direct suffix match, else try make.names("1")->"X1"
+        if (tok %in% lvl_suffixes) {
+          return(tok)
+        }
+        tok_sani <- make.names(tok)
+        if (tok_sani %in% lvl_suffixes) {
+          return(tok_sani)
+        }
+        return(tok) # true numeric constant
+      }
+      # text token already a suffix?
+      if (tok %in% lvl_suffixes) {
+        return(tok)
+      }
+      # try sanitized text
+      tok_sani <- make.names(tok)
+      if (tok_sani %in% lvl_suffixes) {
+        return(tok_sani)
+      }
 
-    out[keep, , drop = FALSE]
+      had_unknown <<- TRUE
+      tok # keep to reinsert (we'll null out the whole side below)
+    }, character(1))
+
+    if (had_unknown) {
+      return(NA_character_)
+    } # this side invalid -> caller will drop the row
+
+    # put mapped tokens back (still suffixes, not full var+suffix)
+    regmatches(s, m)[[1]] <- mapped
+    s
+  }
+
+  out <- contrast_defs
+  # force character columns and sanitize per-row
+  out$reference_level <- NA_character_
+  out$comparison_level <- NA_character_
+  for (i in seq_len(nrow(out))) {
+    var <- as.character(contrast_defs$variable[i])
+    out$reference_level[i] <- sanitize_expr_for_var(contrast_defs$reference_level[i], var)
+    out$comparison_level[i] <- sanitize_expr_for_var(contrast_defs$comparison_level[i], var)
+  }
+
+  # Decide which rows to keep:
+  # - keep if both sides NA (continuous)
+  # - keep if both sides non-NA (valid factor contrast)
+  # - drop if exactly one side is NA
+  both_na <- is.na(out$reference_level) & is.na(out$comparison_level)
+  both_non_na <- !is.na(out$reference_level) & !is.na(out$comparison_level)
+  keep <- both_na | both_non_na
+
+  dropped <- out$contrast_name[!keep]
+  if (verbose && length(dropped)) {
+    message(sprintf(
+      "Dropping %d contrast(s) due to missing/unknown levels: %s",
+      length(dropped), paste(dropped, collapse = ", ")
+    ))
+  }
+
+  out[keep, , drop = FALSE]
 }
 
 
 move_to_front <- function(vec, name_to_move) {
-    if (!(name_to_move %in% vec)) {
-        stop(sprintf("'%s' not found in vector", name_to_move))
-    }
-    c(name_to_move, setdiff(vec, name_to_move))
+  if (!(name_to_move %in% vec)) {
+    stop(sprintf("'%s' not found in vector", name_to_move))
+  }
+  c(name_to_move, setdiff(vec, name_to_move))
 }
 
 log_decide_tests_summary <- function(fit, L, label = "DE summary") {
-    contrast_names <- colnames(L)
-    out <- summary(limma::decideTests(fit)[, contrast_names, drop = FALSE])
-    logger::log_info("{label}:\n{paste(capture.output(print(out)), collapse = '\n')}")
+  contrast_names <- colnames(L)
+  out <- summary(limma::decideTests(fit)[, contrast_names, drop = FALSE])
+  logger::log_info("{label}:\n{paste(capture.output(print(out)), collapse = '\n')}")
 }
 
 
 # Filter genes with extreme voom weights
-#TODO: remove dge argument, no longer needed.
-filter_high_weight_genes <- function(vobj, dge, quantile_threshold = 0.999, max_threshold=1e10, verbose = TRUE) {
-    stopifnot(!is.null(vobj), !is.null(vobj$E), !is.null(vobj$weights))
-
-    tested_genes <- rownames(vobj$E)
-    weights <- vobj$weights
-
-    # If weights have rownames, enforce ordering to tested_genes
-    if (!is.null(rownames(weights))) {
-        weights <- weights[tested_genes, , drop = FALSE]
-    } else {
-        if (nrow(weights) != length(tested_genes)) {
-            stop("weights rows do not match tested genes and have no rownames to align.")
-        }
-    }
-
-    # row-wise max, tolerate all-NA rows
-    max_w <- apply(weights, 1, function(x) if (all(is.na(x))) NA_real_ else max(x, na.rm = TRUE))
-    finite_idx <- is.finite(max_w)
-    if (!any(finite_idx)) stop("No finite weights to compute threshold.")
-
-    thr <- stats::quantile(max_w[finite_idx], quantile_threshold, na.rm = TRUE)
-    #if the threshold is still above some very high threshold, reduce it.
-    if(thr > max_threshold)
-        thr <- max_threshold
-    keep_idx <- finite_idx & (max_w < thr)
-
-    if (verbose) {
-        message(sprintf(
-            "Filtering %d of %d genes (%.2f%%) with extreme weights (quantile %.3f -> %.2e)",
-            sum(!keep_idx), length(keep_idx), 100 * sum(!keep_idx) / length(keep_idx),
-            quantile_threshold, thr
-        ))
-    }
-
-    tested_genes[keep_idx]
-}
-
-#TODO: new version of filtering with extra diagnostics.  Remove old version once sure this is good.
+# TODO: remove dge argument, no longer needed.
 filter_high_weight_genes <- function(vobj, dge, quantile_threshold = 0.999, max_threshold = 1e10, verbose = TRUE) {
-    stopifnot(!is.null(vobj), !is.null(vobj$E), !is.null(vobj$weights))
+  stopifnot(!is.null(vobj), !is.null(vobj$E), !is.null(vobj$weights))
 
-    tested_genes <- rownames(vobj$E)
-    weights <- vobj$weights
+  tested_genes <- rownames(vobj$E)
+  weights <- vobj$weights
 
-    # If weights have rownames, enforce ordering to tested_genes
-    if (!is.null(rownames(weights))) {
-        weights <- weights[tested_genes, , drop = FALSE]
-    } else {
-        if (nrow(weights) != length(tested_genes)) {
-            stop("weights rows do not match tested genes and have no rownames to align.")
-        }
+  # If weights have rownames, enforce ordering to tested_genes
+  if (!is.null(rownames(weights))) {
+    weights <- weights[tested_genes, , drop = FALSE]
+  } else {
+    if (nrow(weights) != length(tested_genes)) {
+      stop("weights rows do not match tested genes and have no rownames to align.")
     }
+  }
 
-    # row-wise max, tolerate all-NA rows
-    max_w <- apply(weights, 1, function(x) if (all(is.na(x))) NA_real_ else max(x, na.rm = TRUE))
-    finite_idx <- is.finite(max_w)
-    if (!any(finite_idx)) stop("No finite weights to compute threshold.")
+  # row-wise max, tolerate all-NA rows
+  max_w <- apply(weights, 1, function(x) if (all(is.na(x))) NA_real_ else max(x, na.rm = TRUE))
+  finite_idx <- is.finite(max_w)
+  if (!any(finite_idx)) stop("No finite weights to compute threshold.")
 
-    thr <- stats::quantile(max_w[finite_idx], quantile_threshold, na.rm = TRUE)
-    if (thr > max_threshold) {
-        thr <- max_threshold
-    }
+  thr <- stats::quantile(max_w[finite_idx], quantile_threshold, na.rm = TRUE)
+  # if the threshold is still above some very high threshold, reduce it.
+  if (thr > max_threshold) {
+    thr <- max_threshold
+  }
+  keep_idx <- finite_idx & (max_w < thr)
 
-    keep_idx <- finite_idx & (max_w < thr)
+  if (verbose) {
+    message(sprintf(
+      "Filtering %d of %d genes (%.2f%%) with extreme weights (quantile %.3f -> %.2e)",
+      sum(!keep_idx), length(keep_idx), 100 * sum(!keep_idx) / length(keep_idx),
+      quantile_threshold, thr
+    ))
+  }
 
-    if (verbose) {
-        n_filtered <- sum(!keep_idx)
-        n_total <- length(keep_idx)
-        pct_filtered <- 100 * n_filtered / n_total
-
-        message(sprintf(
-            "Filtering %d of %d genes (%.2f%%) with extreme weights (quantile %.3f -> %.2e)",
-            n_filtered, n_total, pct_filtered, quantile_threshold, thr
-        ))
-
-        # Regime diagnostics (no behavior change)
-        wmax <- max(weights, na.rm = TRUE)
-        n_at_max <- sum(finite_idx & (abs(max_w - wmax) < 1e-8))
-        pct_at_max <- 100 * n_at_max / sum(finite_idx)
-
-        message(sprintf(
-            "Weight regime: max(weight)=%.2e; genes with max_w at global max: %d of %d (%.2f%%)",
-            wmax, n_at_max, sum(finite_idx), pct_at_max
-        ))
-
-        # Heuristic interpretation: many filtered at low cap vs few at huge cap
-        if (pct_filtered >= 5 && thr < 1e3) {
-            message(sprintf(
-                "NOTE: Many genes filtered (%.2f%%) at a low threshold (%.2e). This pattern is consistent with capped/saturated weights and likely upstream depth/detection imbalance.",
-                pct_filtered, thr
-            ))
-        } else if (pct_filtered <= 1 && thr >= 1e5) {
-            message(sprintf(
-                "NOTE: Few genes filtered (%.2f%%) but at a very high threshold (%.2e), consistent with isolated off-trend genes.",
-                pct_filtered, thr
-            ))
-        }
-    }
-
-    tested_genes[keep_idx]
+  tested_genes[keep_idx]
 }
 
+# TODO: new version of filtering with extra diagnostics.  Remove old version once sure this is good.
+filter_high_weight_genes <- function(vobj, dge, quantile_threshold = 0.999, max_threshold = 1e10, verbose = TRUE) {
+  stopifnot(!is.null(vobj), !is.null(vobj$E), !is.null(vobj$weights))
+
+  tested_genes <- rownames(vobj$E)
+  weights <- vobj$weights
+
+  # If weights have rownames, enforce ordering to tested_genes
+  if (!is.null(rownames(weights))) {
+    weights <- weights[tested_genes, , drop = FALSE]
+  } else {
+    if (nrow(weights) != length(tested_genes)) {
+      stop("weights rows do not match tested genes and have no rownames to align.")
+    }
+  }
+
+  # row-wise max, tolerate all-NA rows
+  max_w <- apply(weights, 1, function(x) if (all(is.na(x))) NA_real_ else max(x, na.rm = TRUE))
+  finite_idx <- is.finite(max_w)
+  if (!any(finite_idx)) stop("No finite weights to compute threshold.")
+
+  thr <- stats::quantile(max_w[finite_idx], quantile_threshold, na.rm = TRUE)
+  if (thr > max_threshold) {
+    thr <- max_threshold
+  }
+
+  keep_idx <- finite_idx & (max_w < thr)
+
+  if (verbose) {
+    n_filtered <- sum(!keep_idx)
+    n_total <- length(keep_idx)
+    pct_filtered <- 100 * n_filtered / n_total
+
+    message(sprintf(
+      "Filtering %d of %d genes (%.2f%%) with extreme weights (quantile %.3f -> %.2e)",
+      n_filtered, n_total, pct_filtered, quantile_threshold, thr
+    ))
+
+    # Regime diagnostics (no behavior change)
+    wmax <- max(weights, na.rm = TRUE)
+    n_at_max <- sum(finite_idx & (abs(max_w - wmax) < 1e-8))
+    pct_at_max <- 100 * n_at_max / sum(finite_idx)
+
+    message(sprintf(
+      "Weight regime: max(weight)=%.2e; genes with max_w at global max: %d of %d (%.2f%%)",
+      wmax, n_at_max, sum(finite_idx), pct_at_max
+    ))
+
+    # Heuristic interpretation: many filtered at low cap vs few at huge cap
+    if (pct_filtered >= 5 && thr < 1e3) {
+      message(sprintf(
+        "NOTE: Many genes filtered (%.2f%%) at a low threshold (%.2e). This pattern is consistent with capped/saturated weights and likely upstream depth/detection imbalance.",
+        pct_filtered, thr
+      ))
+    } else if (pct_filtered <= 1 && thr >= 1e5) {
+      message(sprintf(
+        "NOTE: Few genes filtered (%.2f%%) but at a very high threshold (%.2e), consistent with isolated off-trend genes.",
+        pct_filtered, thr
+      ))
+    }
+  }
+
+  tested_genes[keep_idx]
+}
 
 
 #' Decide whether to skip a dream fit for a small or unstable subset
@@ -1577,280 +1641,295 @@ filter_high_weight_genes <- function(vobj, dge, quantile_threshold = 0.999, max_
 #'   \code{df_resid}, and \code{kappa}.
 #'
 should_skip_dream_subset <- function(fixed_form, samp,
-                                           min_n = 25,
-                                           min_df_resid = 10,
-                                           max_kappa = 1e10) {
+                                     min_n = 25,
+                                     min_df_resid = 10,
+                                     max_kappa = 1e10) {
+  n <- nrow(samp)
+  if (n < min_n) {
+    return(list(
+      skip = TRUE,
+      reason = sprintf("Too few samples: n=%d < %d", n, min_n),
+      n = n, p = NA_integer_, df_resid = NA_integer_, kappa = NA_real_
+    ))
+  }
 
-    n <- nrow(samp)
-    if (n < min_n) {
-        return(list(skip = TRUE,
-                    reason = sprintf("Too few samples: n=%d < %d", n, min_n),
-                    n = n, p = NA_integer_, df_resid = NA_integer_, kappa = NA_real_))
-    }
+  X <- stats::model.matrix(fixed_form, data = samp)
+  p <- ncol(X)
 
-    X <- stats::model.matrix(fixed_form, data = samp)
-    p <- ncol(X)
+  df_resid <- n - p
+  if (df_resid < min_df_resid) {
+    return(list(
+      skip = TRUE,
+      reason = sprintf("Too few residual degrees of freedom: df_resid=%d < %d", df_resid, min_df_resid),
+      n = n, p = p, df_resid = df_resid, kappa = NA_real_
+    ))
+  }
 
-    df_resid <- n - p
-    if (df_resid < min_df_resid) {
-        return(list(skip = TRUE,
-                    reason = sprintf("Too few residual degrees of freedom: df_resid=%d < %d", df_resid, min_df_resid),
-                    n = n, p = p, df_resid = df_resid, kappa = NA_real_))
-    }
+  sv <- base::svd(X, nu = 0, nv = 0)$d
+  kappa_est <- max(sv) / min(sv)
 
-    sv <- base::svd(X, nu = 0, nv = 0)$d
-    kappa_est <- max(sv) / min(sv)
+  if (!is.finite(kappa_est) || kappa_est > max_kappa) {
+    return(list(
+      skip = TRUE,
+      reason = sprintf("Ill-conditioned design: kappa~%.2e > %.2e", kappa_est, max_kappa),
+      n = n, p = p, df_resid = df_resid, kappa = kappa_est
+    ))
+  }
 
-    if (!is.finite(kappa_est) || kappa_est > max_kappa) {
-        return(list(skip = TRUE,
-                    reason = sprintf("Ill-conditioned design: kappa~%.2e > %.2e", kappa_est, max_kappa),
-                    n = n, p = p, df_resid = df_resid, kappa = kappa_est))
-    }
-
-    list(skip = FALSE,
-         reason = "",
-         n = n,
-         p = p,
-         df_resid = df_resid,
-         kappa = kappa_est)
+  list(
+    skip = FALSE,
+    reason = "",
+    n = n,
+    p = p,
+    df_resid = df_resid,
+    kappa = kappa_est
+  )
 }
 
 
-
 capture_dream_warnings <- function(expr) {
-    warning_msgs <- character()
+  warning_msgs <- character()
 
-    result <- withCallingHandlers(
-        expr,
-        warning = function(w) {
-            msg <- conditionMessage(w)
-            if (grepl("Model failed to converge with .*negative eigenvalue", msg)) {
-                warning_msgs <<- c(warning_msgs, msg)
-                invokeRestart("muffleWarning")  # Suppress the warning
-            }
-        }
-    )
-
-    failed_count <- length(warning_msgs)
-    if (failed_count > 0) {
-        message(sprintf("%d genes failed to converge", failed_count))
+  result <- withCallingHandlers(
+    expr,
+    warning = function(w) {
+      msg <- conditionMessage(w)
+      if (grepl("Model failed to converge with .*negative eigenvalue", msg)) {
+        warning_msgs <<- c(warning_msgs, msg)
+        invokeRestart("muffleWarning") # Suppress the warning
+      }
     }
+  )
 
-    return(result)
+  failed_count <- length(warning_msgs)
+  if (failed_count > 0) {
+    message(sprintf("%d genes failed to converge", failed_count))
+  }
+
+  return(result)
 }
 
 summarize_top_tables_for_celltype <- function(topTables_list,
                                               lfc_threshold = 0.5,
                                               pval_threshold = 0.05) {
-    # Initialize result holder
-    summary_list <- list()
+  # Initialize result holder
+  summary_list <- list()
 
-    for (contrast_group in names(topTables_list)) {
-        group_results <- topTables_list[[contrast_group]]
-        for (contrast_name in names(group_results)) {
-            df <- group_results[[contrast_name]]
+  for (contrast_group in names(topTables_list)) {
+    group_results <- topTables_list[[contrast_group]]
+    for (contrast_name in names(group_results)) {
+      df <- group_results[[contrast_name]]
 
-            # Define status per gene
-            status <- rep("NotSig", nrow(df))
-            status[df$logFC >= lfc_threshold & df$adj.P.Val < pval_threshold] <- "Up"
-            status[df$logFC <= -lfc_threshold & df$adj.P.Val < pval_threshold] <- "Down"
+      # Define status per gene
+      status <- rep("NotSig", nrow(df))
+      status[df$logFC >= lfc_threshold & df$adj.P.Val < pval_threshold] <- "Up"
+      status[df$logFC <= -lfc_threshold & df$adj.P.Val < pval_threshold] <- "Down"
 
-            # Tabulate and align
-            tab <- table(factor(status, levels = c("Down", "NotSig", "Up")))
-            summary_list[[contrast_name]] <- tab
-        }
+      # Tabulate and align
+      tab <- table(factor(status, levels = c("Down", "NotSig", "Up")))
+      summary_list[[contrast_name]] <- tab
     }
+  }
 
-    # Combine to a matrix
-    summary_matrix <- do.call(cbind, summary_list)
-    return(summary_matrix)
+  # Combine to a matrix
+  summary_matrix <- do.call(cbind, summary_list)
+  return(summary_matrix)
 }
-
 
 
 make_volcano <- function(df,
-                             fdr_thresh = 0.05,
-                             lfc_thresh = 0,
-                             top_n_each = 10,
-                             title = NULL,
-                             point_alpha = 0.6,
-                             add_counts_inset = TRUE) {
+                         fdr_thresh = 0.05,
+                         lfc_thresh = 0,
+                         top_n_each = 10,
+                         title = NULL,
+                         point_alpha = 0.6,
+                         add_counts_inset = TRUE) {
+  if (!all(c("logFC", "P.Value", "adj.P.Val") %in% names(df))) {
+    stop("df must contain: logFC, P.Value, adj.P.Val")
+  }
+  if (is.null(rownames(df))) {
+    stop("Row names must contain gene symbols for labeling.")
+  }
 
-    if (!all(c("logFC", "P.Value", "adj.P.Val") %in% names(df)))
-        stop("df must contain: logFC, P.Value, adj.P.Val")
-    if (is.null(rownames(df)))
-        stop("Row names must contain gene symbols for labeling.")
+  d <- df
+  d$neglog10FDR <- -log10(pmax(d$adj.P.Val, .Machine$double.xmin))
+  d$sig <- d$adj.P.Val <= fdr_thresh & abs(d$logFC) >= lfc_thresh
 
-    d <- df
-    d$neglog10FDR <- -log10(pmax(d$adj.P.Val, .Machine$double.xmin))
-    d$sig <- d$adj.P.Val <= fdr_thresh & abs(d$logFC) >= lfc_thresh
+  d$dir <- ifelse(d$sig & d$logFC < 0, "down",
+    ifelse(d$sig & d$logFC > 0, "up", "ns")
+  )
+  # Fix display order to match your legend preference
+  d$dir <- factor(d$dir, levels = c("down", "ns", "up"))
 
-    d$dir <- ifelse(d$sig & d$logFC < 0, "down",
-                    ifelse(d$sig & d$logFC > 0, "up", "ns"))
-    # Fix display order to match your legend preference
-    d$dir <- factor(d$dir, levels = c("down", "ns", "up"))
+  # labels: top |logFC| among FDR-significant hits, split by direction
+  sig_up <- d[d$dir == "up", , drop = FALSE]
+  sig_down <- d[d$dir == "down", , drop = FALSE]
+  ord_up <- if (nrow(sig_up)) order(-abs(sig_up$logFC), sig_up$adj.P.Val) else integer(0)
+  ord_down <- if (nrow(sig_down)) order(-abs(sig_down$logFC), sig_down$adj.P.Val) else integer(0)
+  lab_up <- if (length(ord_up)) utils::head(sig_up[ord_up, , drop = FALSE], top_n_each) else d[0, ]
+  lab_down <- if (length(ord_down)) utils::head(sig_down[ord_down, , drop = FALSE], top_n_each) else d[0, ]
+  labs <- rbind(lab_up, lab_down)
+  if (nrow(labs)) labs$label <- rownames(labs)
 
-    # labels: top |logFC| among FDR-significant hits, split by direction
-    sig_up   <- d[d$dir == "up",   , drop = FALSE]
-    sig_down <- d[d$dir == "down", , drop = FALSE]
-    ord_up   <- if (nrow(sig_up))   order(-abs(sig_up$logFC), sig_up$adj.P.Val)   else integer(0)
-    ord_down <- if (nrow(sig_down)) order(-abs(sig_down$logFC), sig_down$adj.P.Val) else integer(0)
-    lab_up   <- if (length(ord_up))   utils::head(sig_up[ord_up,   , drop = FALSE], top_n_each) else d[0,]
-    lab_down <- if (length(ord_down)) utils::head(sig_down[ord_down, , drop = FALSE], top_n_each) else d[0,]
-    labs <- rbind(lab_up, lab_down)
-    if (nrow(labs)) labs$label <- rownames(labs)
+  # counts (ordered down/ns/up)
+  n_down <- sum(d$dir == "down", na.rm = TRUE)
+  n_ns <- sum(d$dir == "ns", na.rm = TRUE)
+  n_up <- sum(d$dir == "up", na.rm = TRUE)
 
-    # counts (ordered down/ns/up)
-    n_down <- sum(d$dir == "down", na.rm = TRUE)
-    n_ns   <- sum(d$dir == "ns",   na.rm = TRUE)
-    n_up   <- sum(d$dir == "up",   na.rm = TRUE)
+  col_map <- c("down" = "steelblue3", "ns" = "gray70", "up" = "firebrick2")
 
-    col_map <- c("down" = "steelblue3", "ns" = "gray70", "up" = "firebrick2")
+  legend_labels <- c(
+    down = sprintf("down (%s)", format(n_down, big.mark = ",")),
+    ns   = sprintf("ns (%s)", format(n_ns, big.mark = ",")),
+    up   = sprintf("up (%s)", format(n_up, big.mark = ","))
+  )
 
-    legend_labels <- c(
-        down = sprintf("down (%s)", format(n_down, big.mark = ",")),
-        ns   = sprintf("ns (%s)",   format(n_ns,   big.mark = ",")),
-        up   = sprintf("up (%s)",   format(n_up,   big.mark = ","))
+  # Make R CMD HAPPY
+  logFC <- neglog10FDR <- label <- NULL
+
+  p <- ggplot2::ggplot(d, ggplot2::aes(x = logFC, y = neglog10FDR, color = dir)) +
+    ggplot2::geom_point(alpha = point_alpha, size = 1.2) +
+    ggplot2::scale_color_manual(
+      values = c("down" = "steelblue3", "ns" = "gray70", "up" = "firebrick2"),
+      breaks = c("down", "ns", "up"),
+      labels = legend_labels,
+      drop   = FALSE
+    ) +
+    ggplot2::geom_hline(yintercept = -log10(fdr_thresh), linetype = "dashed", linewidth = 0.4) +
+    ggplot2::labs(
+      title = title,
+      x = "log2 fold change",
+      y = expression(-log[10]("FDR")),
+      color = "Direction"
+    ) +
+    ggplot2::theme_classic(base_size = 12)
+
+  # Symmetric x-axis
+  xmax <- max(abs(d$logFC), lfc_thresh, na.rm = TRUE)
+  if (is.finite(xmax) && xmax > 0) {
+    xlim <- c(-1, 1) * (1.1 * xmax)
+    p <- p + ggplot2::scale_x_continuous(
+      limits = xlim,
+      expand = ggplot2::expansion(mult = 0)
     )
-
-    # Make R CMD HAPPY
-    logFC<- neglog10FDR <- label <- NULL
-
-    p <- ggplot2::ggplot(d, ggplot2::aes(x = logFC, y = neglog10FDR, color = dir)) +
-        ggplot2::geom_point(alpha = point_alpha, size = 1.2) +
-        ggplot2::scale_color_manual(
-            values = c("down" = "steelblue3", "ns" = "gray70", "up" = "firebrick2"),
-            breaks = c("down", "ns", "up"),
-            labels = legend_labels,
-            drop   = FALSE
-        ) +
-        ggplot2::geom_hline(yintercept = -log10(fdr_thresh), linetype = "dashed", linewidth = 0.4) +
-        ggplot2::labs(
-            title = title,
-            x = "log2 fold change",
-            y = expression(-log[10]("FDR")),
-            color = "Direction"
-        ) +
-        ggplot2::theme_classic(base_size = 12)
-
-    # Symmetric x-axis
-    xmax <- max(abs(d$logFC), lfc_thresh, na.rm = TRUE)
-    if (is.finite(xmax) && xmax > 0) {
-        xlim <- c(-1, 1) * (1.1 * xmax)
-        p <- p + ggplot2::scale_x_continuous(limits = xlim,
-                                             expand = ggplot2::expansion(mult = 0))
-    }
+  }
 
 
-    if (lfc_thresh > 0) {
-        p <- p + ggplot2::geom_vline(xintercept = c(-lfc_thresh, lfc_thresh),
-                                     linetype = "dotted", linewidth = 0.4)
-    }
+  if (lfc_thresh > 0) {
+    p <- p + ggplot2::geom_vline(
+      xintercept = c(-lfc_thresh, lfc_thresh),
+      linetype = "dotted", linewidth = 0.4
+    )
+  }
 
-    if (nrow(labs) > 0) {
-        # TODO: ggrepel now requires R 4.5, revisit.
-        # p <- p + ggrepel::geom_text_repel(
-        #     data = labs,
-        #     ggplot2::aes(x = logFC, y = neglog10FDR, label = label),
-        #     size = 3,
-        #     color = "black",
-        #     min.segment.length = 0,
-        #     max.overlaps = 10000,
-        #     box.padding = 0.3,
-        #     point.padding = 0.2,
-        #     show.legend = FALSE  # keep legend showing points
-        # )
-    }
+  if (nrow(labs) > 0) {
+    # TODO: ggrepel now requires R 4.5, revisit.
+    # p <- p + ggrepel::geom_text_repel(
+    #     data = labs,
+    #     ggplot2::aes(x = logFC, y = neglog10FDR, label = label),
+    #     size = 3,
+    #     color = "black",
+    #     min.segment.length = 0,
+    #     max.overlaps = 10000,
+    #     box.padding = 0.3,
+    #     point.padding = 0.2,
+    #     show.legend = FALSE  # keep legend showing points
+    # )
+  }
 
 
-    return (p)
+  return(p)
 }
 
 paginate_plots <- function(plots, plots_per_page = 2) {
-    if (!length(plots)) return(invisible(list()))
-    ppp <- as.integer(plots_per_page)
-    if (is.na(ppp) || ppp < 1) stop("plots_per_page must be a positive integer.")
+  if (!length(plots)) {
+    return(invisible(list()))
+  }
+  ppp <- as.integer(plots_per_page)
+  if (is.na(ppp) || ppp < 1) stop("plots_per_page must be a positive integer.")
 
-    # pad with blanks so length is a multiple of ppp
-    n_pad <- (ppp - (length(plots) %% ppp)) %% ppp
-    if (n_pad > 0) plots <- c(plots, rep(list(cowplot::ggdraw()), n_pad))
+  # pad with blanks so length is a multiple of ppp
+  n_pad <- (ppp - (length(plots) %% ppp)) %% ppp
+  if (n_pad > 0) plots <- c(plots, rep(list(cowplot::ggdraw()), n_pad))
 
-    idx <- split(seq_along(plots), ceiling(seq_along(plots) / ppp))
+  idx <- split(seq_along(plots), ceiling(seq_along(plots) / ppp))
 
-    pages <- lapply(idx, function(ii) {
-        cowplot::plot_grid(
-            plotlist = plots[ii],
-            ncol = 1, nrow = ppp,
-            align = "v",
-            rel_heights = rep(1, ppp)
-        )
-    })
+  pages <- lapply(idx, function(ii) {
+    cowplot::plot_grid(
+      plotlist = plots[ii],
+      ncol = 1, nrow = ppp,
+      align = "v",
+      rel_heights = rep(1, ppp)
+    )
+  })
 
-    return (pages)
+  return(pages)
 }
 
 
-#quickly regenerate the PDF from the files in the result directory.
-generate_pdf_from_files<-function (result_dir, outPDF) {
-    files=list.files(result_dir, pattern="_DE_results.txt", full.names = TRUE, recursive = TRUE)
-    plot_list= list()
-    i=1
-    for (f in files) {
-        df=read.table(f, header=T, stringsAsFactors=F, sep="\t")
-        n=gsub("_DE_results.txt", "", basename(f))
-        p <- make_volcano(df, fdr_thresh = 0.05, lfc_thresh = 0,
-                          top_n_each = 10, title = n)
-        plot_list[[i]] <- p
-        i=i+1
-    }
+# quickly regenerate the PDF from the files in the result directory.
+generate_pdf_from_files <- function(result_dir, outPDF) {
+  files <- list.files(result_dir, pattern = "_DE_results.txt", full.names = TRUE, recursive = TRUE)
+  plot_list <- list()
+  i <- 1
+  for (f in files) {
+    df <- read.table(f, header = T, stringsAsFactors = F, sep = "\t")
+    n <- gsub("_DE_results.txt", "", basename(f))
+    p <- make_volcano(df,
+      fdr_thresh = 0.05, lfc_thresh = 0,
+      top_n_each = 10, title = n
+    )
+    plot_list[[i]] <- p
+    i <- i + 1
+  }
 
-    if (!is.null(outPDF)) {
-        logger::log_info(paste("Saving all plots to PDF:", outPDF))
-        grDevices::pdf(outPDF)
-        pages=paginate_plots(plot_list, plots_per_page = 2)
-        for (i in 1:length(pages)) {
-            print(pages[[i]])
-        }
-        grDevices::dev.off()
+  if (!is.null(outPDF)) {
+    logger::log_info(paste("Saving all plots to PDF:", outPDF))
+    grDevices::pdf(outPDF)
+    pages <- paginate_plots(plot_list, plots_per_page = 2)
+    for (i in 1:length(pages)) {
+      print(pages[[i]])
     }
+    grDevices::dev.off()
+  }
 }
 
-filter_dgelist_by_celltype_list<-function (dge, cellTypeListFile=NULL) {
-    if (is.null(cellTypeListFile)) {
-        return(dge)
-    }
+filter_dgelist_by_celltype_list <- function(dge, cellTypeListFile = NULL) {
+  if (is.null(cellTypeListFile)) {
+    return(dge)
+  }
 
-    size_prefilter <- dim(dge)[2]
+  size_prefilter <- dim(dge)[2]
 
-    cell_type_list=read.table(cellTypeListFile, stringsAsFactors = FALSE, sep="\t", header=FALSE)$V1
-    idx=dge$samples$cell_type %in% cell_type_list
-    if (any(is.na(idx))) {
-        stop("Some cell types in the list are not present in the DGEList samples.")
-    }
-    dge_filtered <- dge[, idx, keep.lib.sizes = TRUE]
-    size_postfilter <- dim(dge_filtered)[2]
-    logger::log_info(paste("Filtered DGEList from", size_prefilter, "to", size_postfilter, "metacells based on cell type list."))
-    dge_filtered$samples$cell_type <- factor(dge_filtered$samples$cell_type, levels = cell_type_list)
-    return(dge_filtered)
+  cell_type_list <- read.table(cellTypeListFile, stringsAsFactors = FALSE, sep = "\t", header = FALSE)$V1
+  idx <- dge$samples$cell_type %in% cell_type_list
+  if (any(is.na(idx))) {
+    stop("Some cell types in the list are not present in the DGEList samples.")
+  }
+  dge_filtered <- dge[, idx, keep.lib.sizes = TRUE]
+  size_postfilter <- dim(dge_filtered)[2]
+  logger::log_info(paste("Filtered DGEList from", size_prefilter, "to", size_postfilter, "metacells based on cell type list."))
+  dge_filtered$samples$cell_type <- factor(dge_filtered$samples$cell_type, levels = cell_type_list)
+  return(dge_filtered)
 }
 
 # for parallel processing on macOS and UGER/Linux.
 make_bpparam <- function(n_cores) {
-    # If we only want one core, or running on UGER (SGE/UGE),
-    # fall back to SerialParam for safety.
+  # If we only want one core, or running on UGER (SGE/UGE),
+  # fall back to SerialParam for safety.
 
-    if (n_cores <= 1) {
-        param=BiocParallel::SerialParam()
-        logger::log_info("Using SerialParam for single-core execution.")
-    } else {
-        param=BiocParallel::MulticoreParam(
-            workers       = n_cores,
-            stop.on.error = TRUE,
-            progressbar   = FALSE
-        )
-        logger::log_info(paste("Using MulticoreParam with", n_cores, "workers."))
-    }
-    return (param)
+  if (n_cores <= 1) {
+    param <- BiocParallel::SerialParam()
+    logger::log_info("Using SerialParam for single-core execution.")
+  } else {
+    param <- BiocParallel::MulticoreParam(
+      workers       = n_cores,
+      stop.on.error = TRUE,
+      progressbar   = FALSE
+    )
+    logger::log_info(paste("Using MulticoreParam with", n_cores, "workers."))
+  }
+  return(param)
 }
 
 

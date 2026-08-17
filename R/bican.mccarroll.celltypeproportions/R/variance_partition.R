@@ -56,8 +56,7 @@ utils::globalVariables(c("logit_fraction_nuclei", "variable", "variance_explaine
 #' @param pseudocount Value to add to zero counts to avoid issues with logit.
 #'
 #' @returns Dataframe of logit-transformed cell type proportions, with rows for each cell type and columns for each sample.
-compute_logit_CTP <- function(sample_ctp, cell_type_col, pseudocount=0.5) {
-
+compute_logit_CTP <- function(sample_ctp, cell_type_col, pseudocount = 0.5) {
   ctp_logit <- sample_ctp |>
     dplyr::select(sample_id, dplyr::all_of(cell_type_col), n_nuclei) |>
     dplyr::mutate(n_nuclei = ifelse(n_nuclei == 0, pseudocount, n_nuclei)) |>
@@ -77,7 +76,6 @@ compute_logit_CTP <- function(sample_ctp, cell_type_col, pseudocount=0.5) {
     tibble::column_to_rownames(cell_type_col)
 
   return(ctp_logit)
-
 }
 
 
@@ -87,13 +85,11 @@ compute_logit_CTP <- function(sample_ctp, cell_type_col, pseudocount=0.5) {
 #'
 #' @return Dataframe with sample IDs as rownames, ordered to match the columns of the CTP matrix.
 format_metadata_for_vp <- function(sample_metadata_df) {
-
   sample_metadata_ordered <- sample_metadata_df |>
     dplyr::arrange(sample_id) |>
     tibble::column_to_rownames("sample_id")
 
   return(sample_metadata_ordered)
-
 }
 
 
@@ -105,8 +101,7 @@ format_metadata_for_vp <- function(sample_metadata_df) {
 #' @param pseudocount Value to add to zero counts to avoid issues with logit.
 #'
 #' @return List containing logit-transformed CTP matrix and formatted metadata dataframe, ready for variance partition analysis.
-prepare_vp_input <- function(sample_ctp, sample_metadata, cell_type_col, pseudocount=0.5) {
-
+prepare_vp_input <- function(sample_ctp, sample_metadata, cell_type_col, pseudocount = 0.5) {
   ctp_logit <- compute_logit_CTP(sample_ctp, cell_type_col, pseudocount)
   sample_metadata_ordered <- format_metadata_for_vp(sample_metadata)
 
@@ -116,7 +111,6 @@ prepare_vp_input <- function(sample_ctp, sample_metadata, cell_type_col, pseudoc
   )
 
   return(vp_input)
-
 }
 
 
@@ -128,9 +122,8 @@ prepare_vp_input <- function(sample_ctp, sample_metadata, cell_type_col, pseudoc
 #'
 #' @return varPartResults object containing the results of the variance partition analysis,
 #'  with variance explained for each variable and cell type.
-run_variance_partition <- function(vp_input, formula, cell_types=NULL) {
-
-  if(!is.null(cell_types)) {
+run_variance_partition <- function(vp_input, formula, cell_types = NULL) {
+  if (!is.null(cell_types)) {
     logger::log_info("Running variance partition for cell types: {paste(cell_types, collapse = ', ')}")
     ctp_logit <- vp_input$ctp_logit[rownames(vp_input$ctp_logit) %in% cell_types, ]
   } else {
@@ -140,7 +133,6 @@ run_variance_partition <- function(vp_input, formula, cell_types=NULL) {
   varPart <- variancePartition::fitExtractVarPartModel(ctp_logit, formula, vp_input$sample_metadata)
 
   return(varPart)
-
 }
 
 
@@ -154,13 +146,11 @@ run_variance_partition <- function(vp_input, formula, cell_types=NULL) {
 #' @param pseudocount Value to add to zero counts to avoid issues with logit
 #'
 #' @return varPartResults object containing the results of the variance partition analysis,
-format_and_run_variance_partition <- function(sample_ctp, sample_metadata, cell_type_col, formula, cell_types=NULL, pseudocount=0.5) {
-
+format_and_run_variance_partition <- function(sample_ctp, sample_metadata, cell_type_col, formula, cell_types = NULL, pseudocount = 0.5) {
   vp_input <- prepare_vp_input(sample_ctp, sample_metadata, cell_type_col, pseudocount)
   vp_results <- run_variance_partition(vp_input, formula, cell_types)
 
   return(vp_results)
-
 }
 
 
@@ -171,7 +161,6 @@ format_and_run_variance_partition <- function(sample_ctp, sample_metadata, cell_
 #' @return Dataframe combining variance explained for each variable and cell type across all analyses,
 #' with a column for cell type and columns for each variable's variance explained.
 combine_variance_partition_results <- function(vp_results_list) {
-
   combined_results <- vp_results_list |>
     purrr::imap_dfr(function(x, i) {
       as.data.frame(x) |>
@@ -179,7 +168,6 @@ combine_variance_partition_results <- function(vp_results_list) {
     })
 
   return(combined_results)
-
 }
 
 
@@ -192,7 +180,6 @@ combine_variance_partition_results <- function(vp_results_list) {
 #'
 #' @return Dataframe containing sample IDs, cell type labels, and scaled QC covariate values for the specified cell type, formatted for variance partition input.
 extract_cell_type_specific_qc_covariates <- function(sample_ctp, cell_type, cell_type_col, qc_covariate_cols) {
-
   cell_type_df <- sample_ctp |>
     dplyr::filter(.data[[cell_type_col]] == cell_type)
 
@@ -202,7 +189,6 @@ extract_cell_type_specific_qc_covariates <- function(sample_ctp, cell_type, cell
     dplyr::arrange(sample_id)
 
   return(cell_type_qc_covariates)
-
 }
 
 
@@ -217,14 +203,13 @@ extract_cell_type_specific_qc_covariates <- function(sample_ctp, cell_type, cell
 #'
 #' @return List containing the logit-transformed CTP matrix for the specified cell type
 #' and the formatted metadata dataframe with cell type-specific QC covariates, ready for variance partition analysis.
-prepare_vp_input_one_cell_type <- function(sample_ctp, sample_metadata, cell_type, cell_type_col, qc_covariate_cols, pseudocount=0.5) {
-
+prepare_vp_input_one_cell_type <- function(sample_ctp, sample_metadata, cell_type, cell_type_col, qc_covariate_cols, pseudocount = 0.5) {
   ctp_logit <- compute_logit_CTP(sample_ctp, cell_type_col, pseudocount)
   metadata <- format_metadata_for_vp(sample_metadata)
   qc_covariates <- extract_cell_type_specific_qc_covariates(sample_ctp, cell_type, cell_type_col, qc_covariate_cols)
 
   # duplicate to get past number of rows check for VP
-  ctp_logit_cell_type <- ctp_logit[c(cell_type, cell_type), ,]
+  ctp_logit_cell_type <- ctp_logit[c(cell_type, cell_type), , ]
 
   metadata_cell_type <- dplyr::bind_cols(
     metadata[colnames(ctp_logit_cell_type), ],
@@ -235,7 +220,6 @@ prepare_vp_input_one_cell_type <- function(sample_ctp, sample_metadata, cell_typ
     ctp_logit = ctp_logit_cell_type,
     metadata = metadata_cell_type
   ))
-
 }
 
 
@@ -250,17 +234,15 @@ prepare_vp_input_one_cell_type <- function(sample_ctp, sample_metadata, cell_typ
 #' @param pseudocount Value to add to zero counts to avoid issues with logit.
 #'
 #' @return Dataframe containing the variance explained for each variable.
-fit_vp_one_cell_type <- function(sample_ctp, sample_metadata, formula, cell_type, cell_type_col, qc_covariate_cols, pseudocount=0.5) {
-
+fit_vp_one_cell_type <- function(sample_ctp, sample_metadata, formula, cell_type, cell_type_col, qc_covariate_cols, pseudocount = 0.5) {
   vp_input <- prepare_vp_input_one_cell_type(sample_ctp, sample_metadata, cell_type, cell_type_col, qc_covariate_cols, pseudocount)
 
   ctp_logit_cell_type <- vp_input$ctp_logit
   metadata_cell_type <- vp_input$metadata
 
-  cell_type_varPart <- variancePartition::fitExtractVarPartModel(ctp_logit_cell_type, formula, metadata_cell_type)[cell_type,]
+  cell_type_varPart <- variancePartition::fitExtractVarPartModel(ctp_logit_cell_type, formula, metadata_cell_type)[cell_type, ]
 
   return(cell_type_varPart)
-
 }
 
 
@@ -275,8 +257,7 @@ fit_vp_one_cell_type <- function(sample_ctp, sample_metadata, formula, cell_type
 #' @param pseudocount Value to add to zero counts to avoid issues with logit.
 #'
 #' @return Dataframe combining variance explained for each variable and cell type across all specified cell types.
-run_variance_partition_per_cell_type <- function(sample_ctp, sample_metadata, formula, cell_types, cell_type_col, qc_covariate_cols, pseudocount=0.5) {
-
+run_variance_partition_per_cell_type <- function(sample_ctp, sample_metadata, formula, cell_types, cell_type_col, qc_covariate_cols, pseudocount = 0.5) {
   vp_results_per_cell_type <- lapply(cell_types, function(cell_type) {
     fit_vp_one_cell_type(sample_ctp, sample_metadata, formula, cell_type, cell_type_col, qc_covariate_cols, pseudocount)
   })
@@ -287,7 +268,6 @@ run_variance_partition_per_cell_type <- function(sample_ctp, sample_metadata, fo
     tibble::rownames_to_column("cell_type")
 
   return(combined_results)
-
 }
 
 
@@ -297,7 +277,6 @@ run_variance_partition_per_cell_type <- function(sample_ctp, sample_metadata, fo
 #'
 #' @return ggplot of violin and boxplots of variance explained for each variable across cell types.
 plot_variance_partition_results <- function(combined_results) {
-
   combined_results_long <- combined_results |>
     tidyr::pivot_longer(cols = -cell_type, names_to = "variable", values_to = "variance_explained") |>
     dplyr::mutate(
@@ -310,11 +289,12 @@ plot_variance_partition_results <- function(combined_results) {
 
   ggplot2::ggplot(
     combined_results_long,
-    ggplot2::aes(x = variable, y = variance_explained, fill=variable)) +
-    ggplot2::geom_violin(scale="width") +
-    ggplot2::geom_boxplot(width=0.1) +
+    ggplot2::aes(x = variable, y = variance_explained, fill = variable)
+  ) +
+    ggplot2::geom_violin(scale = "width") +
+    ggplot2::geom_boxplot(width = 0.1) +
     ggplot2::labs(
-      y="Variance explained (%)"
+      y = "Variance explained (%)"
     ) +
     ggplot2::theme_bw() +
     ggplot2::theme(
@@ -323,4 +303,3 @@ plot_variance_partition_results <- function(combined_results) {
     ) +
     ggplot2::scale_fill_manual(values = base_colors)
 }
-
