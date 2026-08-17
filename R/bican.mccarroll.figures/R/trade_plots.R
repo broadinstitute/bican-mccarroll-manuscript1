@@ -221,6 +221,107 @@ plot_trade_analysis_Ling <- function(force_recompute = FALSE,
 }
 
 
+#' Generate the TRADE figure for the BICAN sea_ad_mtg_mmc analysis
+#'
+#' Plots the BICAN TRADE analysis of autosome age effects across the SEA-AD
+#' supertype cell types for which BICAN
+#' \code{LEVEL_6_sea_ad_mtg_mmc} DE results were generated.
+#'
+#' @param force_recompute Logical scalar. If \code{TRUE}, ignore an existing
+#'   cache file, recompute TRADE results, and overwrite the cache. Defaults to
+#'   \code{FALSE}.
+#' @param data_cache_dir Directory used to store cached TRADE results. If
+#'   \code{NULL}, the directory is resolved from
+#'   \code{options("bican.mccarroll.figures.cache_dir")}.
+#' @param outDir Output directory used to write the SVG file. If \code{NULL},
+#'   the directory is resolved from
+#'   \code{options("bican.mccarroll.figures.out_dir")}.
+#'
+#' @return Invisibly returns \code{NULL}. This function is called for its side
+#'   effects.
+#'
+#' @export
+plot_trade_analysis_bican_sea_ad_mtg_mmc <- function(force_recompute = FALSE,
+                                                     data_cache_dir = NULL,
+                                                     outDir = NULL) {
+  de_dir <- "differential_expression/results/LEVEL_6_sea_ad_mtg_mmc/sex_age/cell_type"
+  ct_file <- "differential_expression/metadata/cell_types_for_sea_ad_mtg_mmc_plots.txt"
+
+  .plot_trade_analysis(
+    de_dir = de_dir,
+    cache_name = "trade_BICAN_sea_ad_mtg_mmc_age_autosomes.tsv",
+    dataset_id = "BICAN_sea_ad_mtg_mmc",
+    gene_to_chr_path = NULL,
+    ct_file = ct_file,
+    data_cache_dir = data_cache_dir,
+    outDir = outDir,
+    hide_cell_type_axis = FALSE,
+    bar_fill = "black",
+    x_label = "Transcriptome-wide impact (TRADE)",
+    width = 5,
+    height = 9,
+    contrast = "__age_DE_results\\.txt$",
+    contrast_id = "age",
+    force_recompute = force_recompute
+  )
+}
+
+
+#' Generate the TRADE figure for the PMID_39402379 (Gabitto et al. 2024) analysis
+#'
+#' Plots the TRADE analysis of autosome effects across the SEA-AD supertype
+#' cell types for which BICAN \code{LEVEL_6_sea_ad_mtg_mmc} DE results were
+#' generated, for each of the four PMID_39402379 contrasts.
+#'
+#' @param contrast Character vector of one or more of \code{"ad_cps"},
+#'   \code{"early_ad_cps"}, \code{"late_ad_cps"}, \code{"versus_all"}.
+#' @param force_recompute Logical scalar. If \code{TRUE}, ignore an existing
+#'   cache file, recompute TRADE results, and overwrite the cache. Defaults to
+#'   \code{FALSE}.
+#' @param data_cache_dir Directory used to store cached TRADE results. If
+#'   \code{NULL}, the directory is resolved from
+#'   \code{options("bican.mccarroll.figures.cache_dir")}.
+#' @param outDir Output directory used to write the SVG files. If \code{NULL},
+#'   the directory is resolved from
+#'   \code{options("bican.mccarroll.figures.out_dir")}.
+#'
+#' @return Invisibly returns \code{NULL}. This function is called for its side
+#'   effects.
+#'
+#' @export
+plot_trade_analysis_PMID_39402379 <- function(
+  contrast = c("ad_cps", "early_ad_cps", "late_ad_cps", "versus_all"),
+  force_recompute = FALSE,
+  data_cache_dir = NULL,
+  outDir = NULL
+) {
+  de_dir <- "differential_expression/external_comparison_PMID_39402379/voom-like"
+  ct_file <- "differential_expression/metadata/cell_types_for_sea_ad_mtg_mmc_plots.txt"
+
+  for (ct in contrast) {
+    .plot_trade_analysis(
+      de_dir = de_dir,
+      cache_name = sprintf("trade_PMID_39402379_%s_autosomes.tsv", ct),
+      dataset_id = "PMID_39402379",
+      gene_to_chr_path = NULL,
+      ct_file = ct_file,
+      data_cache_dir = data_cache_dir,
+      outDir = outDir,
+      hide_cell_type_axis = FALSE,
+      bar_fill = "black",
+      x_label = "Transcriptome-wide impact (TRADE)",
+      width = 5,
+      height = 9,
+      contrast = sprintf("__MTG__%s_DE_results\\.txt$", ct),
+      contrast_id = ct,
+      force_recompute = force_recompute
+    )
+  }
+
+  invisible(NULL)
+}
+
+
 #' Plot TRADE results as a barplot across regions (expects input already filtered)
 #'
 #' @param trade_results A data.table produced by run_trade(), already filtered to a single cell type.
@@ -295,7 +396,13 @@ trade_barplot_regions <- function(trade_results,
                                  x_label = "Transcriptome-wide impact (TRADE)",
                                  width = 5,
                                  height = 9,
+                                 contrast = "age",
+                                 contrast_id = NULL,
                                  force_recompute = FALSE) {
+  if (is.null(contrast_id)) {
+    contrast_id <- contrast
+  }
+
   paths <- resolve_trade_paths(
     de_dir = de_dir,
     gene_to_chr_path = gene_to_chr_path,
@@ -313,7 +420,7 @@ trade_barplot_regions <- function(trade_results,
   } else {
     de_dt <- bican.mccarroll.differentialexpression::load_trade_data(
       data_path = paths$de_dir,
-      contrast = "age",
+      contrast = contrast,
       gene_to_chr_path = paths$gene_to_chr_path,
       cellTypeListFile = paths$ct_file,
       regions_use = NULL
@@ -375,7 +482,7 @@ trade_barplot_regions <- function(trade_results,
   }
 
   out_file <- paste0(
-    "trade_", dataset_id, "_age_autosomes_barplot.svg"
+    "trade_", dataset_id, "_", contrast_id, "_autosomes_barplot.svg"
   )
 
   save_plot_svg(

@@ -9,6 +9,8 @@
 # )
 #
 # plot_sex_de_by_chromosome_bican()
+# plot_de_summary_barplot_bican_sea_ad_mtg_mmc()
+# plot_de_summary_barplot_pmid_39402379()
 
 #' Plot BICAN sex-effect differential expression by chromosome group
 #'
@@ -77,6 +79,97 @@ plot_sex_de_by_chromosome_bican <- function(outDir = NULL, alpha = 0.05) {
   )
 
   logger::log_info("DONE plotting sex DE by chromosome for {dataset_id}")
+
+  invisible(result)
+}
+
+
+#' Plot BICAN sea_ad_mtg_mmc differential expression effect counts
+#'
+#' Wires the BICAN LEVEL_6_sea_ad_mtg_mmc age differential expression results
+#' into \code{bican.mccarroll.differentialexpression::barplot_de_results()},
+#' restricted to the SEA-AD supertype cell types for which BICAN DE results
+#' were generated. Writes a single age-effect SVG to the configured figure
+#' output directory (see \code{\link{get_out_dir}}).
+#'
+#' Sex-effect counts by chromosome group already have dedicated handling in
+#' \code{\link{plot_sex_de_by_chromosome_bican}}, so this function only
+#' covers the \code{age} contrast.
+#'
+#' @param outDir Output directory for the generated SVG. If \code{NULL},
+#'   resolved via configured output directory options.
+#'
+#' @return Invisibly returns the `ggplot` object produced by
+#'   \code{bican.mccarroll.differentialexpression::barplot_de_results()}.
+#'
+#' @export
+plot_de_summary_barplot_bican_sea_ad_mtg_mmc <- function(outDir = NULL) {
+  .plot_de_summary_barplot_figure(
+    in_dir = "differential_expression/results/LEVEL_6_sea_ad_mtg_mmc/sex_age/cell_type",
+    file_pattern = "__age_DE_results\\.txt$",
+    cellTypeListFile = "differential_expression/metadata/cell_types_for_sea_ad_mtg_mmc_plots.txt",
+    out_file = "de_summary_barplot_bican_sea_ad_mtg_mmc_age.svg",
+    outDir = outDir
+  )
+}
+
+
+#' Plot PMID_39402379 (Gabitto et al. 2024) differential expression effect counts
+#'
+#' Wires the PMID_39402379 voom-like differential expression results into
+#' \code{bican.mccarroll.differentialexpression::barplot_de_results()},
+#' restricted to the SEA-AD supertype cell types for which BICAN DE results
+#' were generated. Writes one SVG per contrast to the configured figure
+#' output directory (see \code{\link{get_out_dir}}).
+#'
+#' @param contrast Character vector of one or more of \code{"ad_cps"},
+#'   \code{"early_ad_cps"}, \code{"late_ad_cps"}, \code{"versus_all"}.
+#' @param outDir Output directory for the generated SVGs. If \code{NULL},
+#'   resolved via configured output directory options.
+#'
+#' @return Invisibly returns a named list (by contrast) of the `ggplot`
+#'   objects produced by
+#'   \code{bican.mccarroll.differentialexpression::barplot_de_results()}.
+#'
+#' @export
+plot_de_summary_barplot_pmid_39402379 <- function(
+  contrast = c("ad_cps", "early_ad_cps", "late_ad_cps", "versus_all"),
+  outDir = NULL
+) {
+  results <- lapply(contrast, function(ct) {
+    .plot_de_summary_barplot_figure(
+      in_dir = "differential_expression/external_comparison_PMID_39402379/voom-like",
+      file_pattern = sprintf("__MTG__%s_DE_results\\.txt$", ct),
+      cellTypeListFile = "differential_expression/metadata/cell_types_for_sea_ad_mtg_mmc_plots.txt",
+      out_file = sprintf("de_summary_barplot_PMID_39402379_%s.svg", ct),
+      outDir = outDir
+    )
+  })
+  names(results) <- contrast
+
+  invisible(results)
+}
+
+
+.plot_de_summary_barplot_figure <- function(in_dir,
+                                            file_pattern,
+                                            cellTypeListFile = NULL,
+                                            out_file,
+                                            outDir = NULL) {
+  paths <- resolve_de_summary_barplot_paths(
+    in_dir = in_dir,
+    cellTypeListFile = cellTypeListFile,
+    outDir = outDir
+  )
+
+  result <- bican.mccarroll.differentialexpression::barplot_de_results(
+    in_dir = paths$in_dir,
+    file_pattern = file_pattern,
+    cellTypeListFile = paths$cellTypeListFile,
+    svg_output_file = file.path(paths$outDir, out_file)
+  )
+
+  logger::log_info("DONE plotting DE summary barplot: {out_file}")
 
   invisible(result)
 }

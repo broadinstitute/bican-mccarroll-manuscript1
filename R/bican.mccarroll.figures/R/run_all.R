@@ -25,6 +25,8 @@ run_all <- function() {
   bican.mccarroll.figures::age_prediction_uncorrected_residual_pairwise_scatter_region()
   bican.mccarroll.figures::age_prediction_examples()
   bican.mccarroll.figures::plot_trade_analysis_bican()
+  bican.mccarroll.figures::plot_trade_analysis_bican_sea_ad_mtg_mmc()
+  bican.mccarroll.figures::plot_trade_analysis_PMID_39402379()
   bican.mccarroll.figures::plot_kmeans_age()
   bican.mccarroll.figures::plot_ancestry_pca()
 
@@ -34,10 +36,13 @@ run_all <- function() {
   bican.mccarroll.figures::de_sex_age_scatter_plots()
   bican.mccarroll.figures::plot_de_volcano()
   bican.mccarroll.figures::plot_sex_de_by_chromosome_bican()
+  bican.mccarroll.figures::plot_de_summary_barplot_bican_sea_ad_mtg_mmc()
+  bican.mccarroll.figures::plot_de_summary_barplot_pmid_39402379()
 
   bican.mccarroll.figures::plot_de_sign_test_snap200_age_bican()
   bican.mccarroll.figures::plot_de_sign_test_pmid_40903571_bican()
   bican.mccarroll.figures::plot_de_sign_test_pmid_39227716_bican()
+  bican.mccarroll.figures::plot_de_sign_test_pmid_39402379_bican()
   bican.mccarroll.figures::plot_de_sign_test_snap200_sex_bican()
 
   bican.mccarroll.figures::run_private_eqtl_tests_bican()
