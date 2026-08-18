@@ -31,11 +31,207 @@
 # )
 
 
+#' Compute per-cell-type differential expression effect counts
+#'
+#' Parses differential expression result files and counts genes with
+#' positive and negative log fold changes passing an adjusted P-value
+#' threshold of 0.05, for each cell type / interaction combination. This is
+#' the data-gathering half of \code{barplot_de_results()}, split out so
+#' callers can cache the counts and skip re-parsing the raw DE files on
+#' subsequent plot renders.
+#'
+#' @param in_dir Directory containing the differential expression result files.
+#' @param file_pattern Pattern used to identify differential expression result
+#'   files.
+#' @param cellTypeListFile Optional path to a file specifying the cell types to
+#'   include.
+#'
+#' @return A data.table with columns \code{cell_type}, \code{interaction},
+#'   \code{contrast}, \code{n_up}, and \code{n_down} (one row per cell type /
+#'   interaction combination).
+#'
+#' @export
+compute_de_result_counts <- function(in_dir, file_pattern, cellTypeListFile = NULL) {
+  # Make R CMD CHECK happy
+  . <- adj.P.Val <- logFC <- cell_type <- n_up <- n_down <- contrast <- NULL
+
+  d <- parse_de_inputs(in_dir, file_pattern, cellTypeListFile)
+
+  setDT(d)
+
+  contrast_title <- unique(d$contrast)
+
+  if (length(contrast_title) != 1L) {
+    stop("Expected exactly one unique contrast value in d.")
+  }
+
+  de_counts <- d[
+    adj.P.Val < 0.05 & logFC != 0,
+    .(
+      n_up = sum(logFC > 0),
+      n_down = sum(logFC < 0)
+    ),
+    by = .(cell_type, interaction)
+  ]
+
+  # Include cell type/interaction combinations with zero significant genes
+  all_groups <- unique(d[, .(cell_type, interaction)])
+
+  de_counts <- merge(
+    all_groups,
+    de_counts,
+    by = c("cell_type", "interaction"),
+    all.x = TRUE
+  )
+
+  de_counts[is.na(n_up), n_up := 0L]
+  de_counts[is.na(n_down), n_down := 0L]
+
+  de_counts[, contrast := contrast_title]
+
+  setorder(de_counts, interaction, cell_type)
+
+  de_counts
+}
+
+
 #' Plot differential expression result counts
 #'
-#' Parses differential expression result files and creates faceted bar plots
-#' showing the number of genes with positive and negative log fold changes
-#' passing an adjusted P-value threshold of 0.05.
+#' Creates faceted bar plots showing the number of genes with positive and
+#' negative log fold changes, from a counts table produced by
+#' \code{compute_de_result_counts()}.
+#'
+#' @param de_counts A data.table produced by \code{compute_de_result_counts()},
+#'   with columns \code{cell_type}, \code{interaction}, \code{contrast},
+#'   \code{n_up}, and \code{n_down}.
+#' @param pdf_output_file Optional path for writing the plot to a PDF file.
+#'   When `NULL`, no PDF is written.
+#' @param svg_output_file Optional path for writing the plot to an SVG file.
+#'   When `NULL`, no SVG is written.
+#' @param width Optional plot width (inches) passed to `ggplot2::ggsave()`.
+#' @param height Optional plot height (inches) passed to `ggplot2::ggsave()`.
+#'
+#' @return A `ggplot` object (or a `cowplot` grob when the data span more than
+#'   one region/interaction).
+#'
+#' @export
+barplot_de_results_from_counts <- function(de_counts,
+                                           pdf_output_file = NULL,
+                                           svg_output_file = NULL,
+                                           width = NULL,
+                                           height = NULL) {
+  # Make R CMD CHECK happy
+  direction <- n_genes <- contrast <- interaction <- NULL
+
+  de_counts <- data.table::as.data.table(de_counts)
+
+  # An all-NA `interaction` column round-trips through a TSV cache as
+  # logical (fread cannot infer character type from NA-only data); coerce
+  # back so downstream `interaction` handling is stable regardless of
+  # whether `de_counts` was freshly computed or loaded from cache.
+  de_counts[, interaction := as.character(interaction)]
+
+  contrast_title <- unique(de_counts$contrast)
+
+  if (length(contrast_title) != 1L) {
+    stop("Expected exactly one unique contrast value in de_counts.")
+  }
+
+  de_counts_long <- melt(
+    de_counts[, !"contrast"],
+    id.vars = c("cell_type", "interaction"),
+    measure.vars = c("n_up", "n_down"),
+    variable.name = "direction",
+    value.name = "n_genes"
+  )
+
+  de_counts_long[
+    ,
+    direction := factor(
+      direction,
+      levels = c("n_up", "n_down"),
+      labels = c("Positive logFC", "Negative logFC")
+    )
+  ]
+
+  y_max <- max(de_counts_long$n_genes, na.rm = TRUE)
+
+  if (!is.finite(y_max) || y_max <= 0) {
+    y_max <- 1
+  }
+
+  regions <- unique(stats::na.omit(de_counts_long$interaction))
+
+  if (length(regions) <= 1L) {
+    # No region/interaction column (2-part filenames) or a single region
+    # (e.g. one-region external datasets): a single panel is sufficient,
+    # the two-panel cowplot split below only makes sense when there is an
+    # outlier region to separate out.
+    p_panels <- .de_count_barplot(
+      de_counts_long,
+      facet = length(regions) == 1L,
+      title = contrast_title,
+      y_max = y_max,
+      legend = TRUE
+    )
+  } else {
+    outlier_region <- find_cell_type_outlier(de_counts_long)
+
+    other_data <- de_counts_long[
+      de_counts_long$interaction != outlier_region, ,
+      drop = FALSE
+    ]
+
+    outlier_data <- de_counts_long[
+      de_counts_long$interaction == outlier_region, ,
+      drop = FALSE
+    ]
+
+    p_other <- .de_count_barplot(
+      other_data,
+      facet = TRUE,
+      facet_ncol = 2,
+      title = contrast_title,
+      y_max = y_max,
+      legend = TRUE
+    )
+
+    p_outlier <- .de_count_barplot(
+      outlier_data,
+      facet = TRUE,
+      title = NULL,
+      y_max = y_max,
+      legend = FALSE
+    )
+
+    p_panels <- cowplot::plot_grid(
+      p_other,
+      p_outlier,
+      ncol = 1,
+      rel_heights = c(2, 1),
+      align = "v",
+      axis = "lr"
+    )
+  }
+
+  .save_de_plot(
+    p_panels,
+    pdf_output_file = pdf_output_file,
+    svg_output_file = svg_output_file,
+    width = width,
+    height = height
+  )
+
+  p_panels
+}
+
+
+#' Plot differential expression result counts from raw DE result files
+#'
+#' Convenience one-shot wrapper combining \code{compute_de_result_counts()}
+#' and \code{barplot_de_results_from_counts()}. Callers that want to cache
+#' the counts table between plot renders should call those two functions
+#' directly instead.
 #'
 #' @param in_dir Directory containing the differential expression result files.
 #' @param file_pattern Pattern used to identify differential expression result
@@ -46,179 +242,96 @@
 #'   When `NULL`, no PDF is written.
 #' @param svg_output_file Optional path for writing the plot to an SVG file.
 #'   When `NULL`, no SVG is written.
+#' @param width Optional plot width (inches) passed to `ggplot2::ggsave()`.
+#' @param height Optional plot height (inches) passed to `ggplot2::ggsave()`.
 #'
-#' @return A `ggplot` object.
+#' @return A `ggplot` object (or a `cowplot` grob when the data span more than
+#'   one region/interaction).
 #'
 #' @export
-barplot_de_results <- function(
-        in_dir,
-        file_pattern,
-        cellTypeListFile = NULL,
-        pdf_output_file = NULL,
-        svg_output_file = NULL) {
+barplot_de_results <- function(in_dir,
+                               file_pattern,
+                               cellTypeListFile = NULL,
+                               pdf_output_file = NULL,
+                               svg_output_file = NULL,
+                               width = NULL,
+                               height = NULL) {
+  de_counts <- compute_de_result_counts(in_dir, file_pattern, cellTypeListFile)
 
-    # Make R CMD CHECK happy
-    . <- adj.P.Val <- logFC <- cell_type <- n_up <- n_down <- direction <- n_genes <- NULL
+  barplot_de_results_from_counts(
+    de_counts,
+    pdf_output_file = pdf_output_file,
+    svg_output_file = svg_output_file,
+    width = width,
+    height = height
+  )
+}
 
-    d <- parse_de_inputs(in_dir, file_pattern, cellTypeListFile)
 
-    setDT(d)
+#' Build one count-barplot panel
+#'
+#' Shared panel builder used by \code{barplot_de_results_from_counts()} for
+#' the single-panel, one-region, and two-panel (outlier-split) layouts.
+#'
+#' @param data A long-format data.table with columns `cell_type`, `n_genes`,
+#'   `direction`, and (when `facet = TRUE`) `interaction`.
+#' @param facet Logical scalar. If `TRUE`, facet by `interaction`.
+#' @param facet_ncol Optional integer number of facet columns.
+#' @param title Optional plot title.
+#' @param y_max Numeric upper y-axis limit.
+#' @param legend Logical scalar. If `TRUE`, show the fill legend on top.
+#'
+#' @return A `ggplot` object.
+.de_count_barplot <- function(data,
+                              facet = FALSE,
+                              facet_ncol = NULL,
+                              title = NULL,
+                              y_max,
+                              legend = TRUE) {
+  # Make R CMD CHECK happy
+  cell_type <- n_genes <- direction <- interaction <- NULL
 
-    de_counts <- d[
-        adj.P.Val < 0.05 & logFC != 0,
-        .(
-            n_up = sum(logFC > 0),
-            n_down = sum(logFC < 0)
-        ),
-        by = .(cell_type, interaction)
-    ]
-
-    # Include cell type/interaction combinations with zero significant genes
-    all_groups <- unique(d[, .(cell_type, interaction)])
-
-    de_counts <- merge(
-        all_groups,
-        de_counts,
-        by = c("cell_type", "interaction"),
-        all.x = TRUE
+  p <- ggplot2::ggplot(
+    data,
+    ggplot2::aes(
+      x = cell_type,
+      y = n_genes,
+      fill = direction
     )
-
-    de_counts[is.na(n_up), n_up := 0L]
-    de_counts[is.na(n_down), n_down := 0L]
-
-    setorder(de_counts, interaction, cell_type)
-
-    de_counts_long <- melt(
-        de_counts,
-        id.vars = c("cell_type", "interaction"),
-        measure.vars = c("n_up", "n_down"),
-        variable.name = "direction",
-        value.name = "n_genes"
-    )
-
-    de_counts_long[
-        ,
-        direction := factor(
-            direction,
-            levels = c("n_up", "n_down"),
-            labels = c("Positive logFC", "Negative logFC")
-        )
-    ]
-
-    contrast_title <- unique(d$contrast)
-
-    if (length(contrast_title) != 1L) {
-        stop("Expected exactly one unique contrast value in d.")
-    }
-
-    y_max <- max(de_counts_long$n_genes, na.rm = TRUE)
-
-    if (!is.finite(y_max) || y_max <= 0) {
-        y_max <- 1
-    }
-
-    outlier_region <- find_cell_type_outlier(de_counts_long)
-
-    other_data <- de_counts_long[
-        de_counts_long$interaction != outlier_region,
-        ,
-        drop = FALSE
-    ]
-
-    outlier_data <- de_counts_long[
-        de_counts_long$interaction == outlier_region,
-        ,
-        drop = FALSE
-    ]
-
-    p_other <- ggplot2::ggplot(
-        other_data,
-        ggplot2::aes(
-            x = cell_type,
-            y = n_genes,
-            fill = direction
-        )
+  ) +
+    ggplot2::geom_col(
+      position = ggplot2::position_dodge(width = 0.8),
+      width = 0.7
     ) +
-        ggplot2::geom_col(
-            position = ggplot2::position_dodge(width = 0.8),
-            width = 0.7
-        ) +
-        ggplot2::facet_wrap(
-            ~ interaction,
-            ncol = 2
-        ) +
-        ggplot2::scale_x_discrete(
-            labels = function(x) gsub("_", " ", x, fixed = TRUE)
-        ) +
-        ggplot2::scale_y_continuous(
-            limits = c(0, y_max)
-        ) +
-        ggplot2::labs(
-            title = contrast_title,
-            x = NULL,
-            y = NULL,
-            fill = "Direction"
-        ) +
-        ggplot2::theme_bw() +
-        ggplot2::theme(
-            plot.title = ggplot2::element_text(hjust = 0.5),
-            axis.text.x = ggplot2::element_text(
-                angle = 45,
-                hjust = 1
-            ),
-            legend.position = "top"
-        )
-
-    p_outlier <- ggplot2::ggplot(
-        outlier_data,
-        ggplot2::aes(
-            x = cell_type,
-            y = n_genes,
-            fill = direction
-        )
+    ggplot2::scale_x_discrete(
+      labels = function(x) gsub("_", " ", x, fixed = TRUE)
     ) +
-        ggplot2::geom_col(
-            position = ggplot2::position_dodge(width = 0.8),
-            width = 0.7
-        ) +
-        ggplot2::facet_wrap(
-            ~ interaction
-        ) +
-        ggplot2::scale_x_discrete(
-            labels = function(x) gsub("_", " ", x, fixed = TRUE)
-        ) +
-        ggplot2::scale_y_continuous(
-            limits = c(0, y_max)
-        ) +
-        ggplot2::labs(
-            x = NULL,
-            y = NULL
-        ) +
-        ggplot2::theme_bw() +
-        ggplot2::theme(
-            axis.text.x = ggplot2::element_text(
-                angle = 45,
-                hjust = 1
-            ),
-            legend.position = "none"
-        )
-
-    p_panels <- cowplot::plot_grid(
-        p_other,
-        p_outlier,
-        ncol = 1,
-        rel_heights = c(2, 1),
-        align = "v",
-        axis = "lr"
+    ggplot2::scale_y_continuous(
+      limits = c(0, y_max)
+    ) +
+    ggplot2::labs(
+      title = title,
+      x = NULL,
+      y = NULL,
+      fill = "Direction"
+    ) +
+    ggplot2::theme_bw() +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(hjust = 0.5),
+      axis.text.x = ggplot2::element_text(
+        angle = 45,
+        hjust = 1
+      ),
+      legend.position = if (legend) "top" else "none"
     )
 
-    .save_de_plot(
-        p_panels,
-        pdf_output_file = pdf_output_file,
-        svg_output_file = svg_output_file
-    )
+  if (facet) {
+    facet_args <- list(facets = ggplot2::vars(interaction))
+    if (!is.null(facet_ncol)) facet_args$ncol <- facet_ncol
+    p <- p + do.call(ggplot2::facet_wrap, facet_args)
+  }
 
-    p_panels
+  p
 }
 
 #' Write a plot to PDF and/or SVG
@@ -234,70 +347,68 @@ barplot_de_results <- function(
 #' @param height Optional plot height passed to `ggplot2::ggsave()`.
 #'
 #' @return Invisibly returns `NULL`.
-.save_de_plot <- function(
-        plot,
-        pdf_output_file = NULL,
-        svg_output_file = NULL,
-        width = NULL,
-        height = NULL) {
-
-    save_one <- function(path) {
-        output_dir <- dirname(path)
-        if (!dir.exists(output_dir)) {
-            dir.create(output_dir, recursive = TRUE)
-        }
-
-        args <- list(filename = path, plot = plot)
-        if (!is.null(width)) args$width <- width
-        if (!is.null(height)) args$height <- height
-
-        do.call(ggplot2::ggsave, args)
+.save_de_plot <- function(plot,
+                          pdf_output_file = NULL,
+                          svg_output_file = NULL,
+                          width = NULL,
+                          height = NULL) {
+  save_one <- function(path) {
+    output_dir <- dirname(path)
+    if (!dir.exists(output_dir)) {
+      dir.create(output_dir, recursive = TRUE)
     }
 
-    if (!is.null(pdf_output_file)) save_one(pdf_output_file)
-    if (!is.null(svg_output_file)) save_one(svg_output_file)
+    args <- list(filename = path, plot = plot)
+    if (!is.null(width)) args$width <- width
+    if (!is.null(height)) args$height <- height
 
-    invisible(NULL)
+    do.call(ggplot2::ggsave, args)
+  }
+
+  if (!is.null(pdf_output_file)) save_one(pdf_output_file)
+  if (!is.null(svg_output_file)) save_one(svg_output_file)
+
+  invisible(NULL)
 }
 
 
 .sanitize_filename <- function(x) {
-    gsub("[^A-Za-z0-9_.-]+", "_", x)
+  gsub("[^A-Za-z0-9_.-]+", "_", x)
 }
 
 
-#find the region that is the outlier in cell type usage.  Usually DFC.
+# find the region that is the outlier in cell type usage.  Usually DFC.
 find_cell_type_outlier <- function(data) {
-    cell_types <- split(
-        as.character(data$cell_type),
-        as.character(data$interaction)
-    )
-    cell_types <- lapply(cell_types, unique)
+  cell_types <- split(
+    as.character(data$cell_type),
+    as.character(data$interaction)
+  )
+  cell_types <- lapply(cell_types, unique)
 
-    regions <- names(cell_types)
-    distances <- matrix(
-        0,
-        nrow = length(regions),
-        ncol = length(regions),
-        dimnames = list(regions, regions)
-    )
+  regions <- names(cell_types)
+  distances <- matrix(
+    0,
+    nrow = length(regions),
+    ncol = length(regions),
+    dimnames = list(regions, regions)
+  )
 
-    for (i in seq_along(regions)) {
-        for (j in seq_along(regions)) {
-            shared <- length(intersect(
-                cell_types[[i]],
-                cell_types[[j]]
-            ))
-            total <- length(union(
-                cell_types[[i]],
-                cell_types[[j]]
-            ))
+  for (i in seq_along(regions)) {
+    for (j in seq_along(regions)) {
+      shared <- length(intersect(
+        cell_types[[i]],
+        cell_types[[j]]
+      ))
+      total <- length(union(
+        cell_types[[i]],
+        cell_types[[j]]
+      ))
 
-            distances[i, j] <- 1 - shared / total
-        }
+      distances[i, j] <- 1 - shared / total
     }
+  }
 
-    regions[which.max(rowMeans(distances))]
+  regions[which.max(rowMeans(distances))]
 }
 
 
@@ -313,60 +424,58 @@ find_cell_type_outlier <- function(data) {
 #'
 #' @return A data.table with an added \code{chromosome_group} column.
 #' @export
-annotate_de_chromosome_group <- function(
-        d,
-        contig_yaml_file,
-        reduced_gtf_file) {
+annotate_de_chromosome_group <- function(d,
+                                         contig_yaml_file,
+                                         reduced_gtf_file) {
+  # Make R CMD CHECK happy
+  . <- gene <- chr <- annotationType <- gene_name <- chromosome_group <- i.chromosome_group <- NULL
 
-    # Make R CMD CHECK happy
-    . <- gene <- chr <- annotationType <- gene_name <- chromosome_group <- i.chromosome_group <- NULL
+  data.table::setDT(d)
 
-    data.table::setDT(d)
+  contig_groups <- unlist(
+    yaml::yaml.load_file(contig_yaml_file)
+  )
 
-    contig_groups <- unlist(
-        yaml::yaml.load_file(contig_yaml_file)
-    )
+  autosomes <- names(contig_groups[contig_groups == "autosome"])
 
-    autosomes <- names(contig_groups[contig_groups == "autosome"])
+  gtf <- data.table::fread(
+    reduced_gtf_file,
+    header = TRUE,
+    sep = "\t",
+    stringsAsFactors = FALSE
+  )
 
-    gtf <- data.table::fread(
-        reduced_gtf_file,
-        header = TRUE,
-        sep = "\t",
-        stringsAsFactors = FALSE
-    )
-
-    gene_annotation <- unique(
-        gtf[
-            annotationType == "gene" &
-                chr %in% c(autosomes, "chrX", "chrY"),
-            .(
-                gene = gene_name,
-                chromosome_group = data.table::fifelse(
-                    chr %in% autosomes,
-                    "Autosome",
-                    "X/Y"
-                )
-            )
-        ],
-        by = "gene"
-    )
-
-    d[
-        gene_annotation,
-        chromosome_group := i.chromosome_group,
-        on = "gene"
-    ]
-
-    d[
-        ,
-        chromosome_group := factor(
-            chromosome_group,
-            levels = c("Autosome", "X/Y")
+  gene_annotation <- unique(
+    gtf[
+      annotationType == "gene" &
+        chr %in% c(autosomes, "chrX", "chrY"),
+      .(
+        gene = gene_name,
+        chromosome_group = data.table::fifelse(
+          chr %in% autosomes,
+          "Autosome",
+          "X/Y"
         )
-    ]
+      )
+    ],
+    by = "gene"
+  )
 
-    d
+  d[
+    gene_annotation,
+    chromosome_group := i.chromosome_group,
+    on = "gene"
+  ]
+
+  d[
+    ,
+    chromosome_group := factor(
+      chromosome_group,
+      levels = c("Autosome", "X/Y")
+    )
+  ]
+
+  d
 }
 
 
@@ -377,62 +486,61 @@ annotate_de_chromosome_group <- function(
 #' @return A data.table with gene counts by cell type, interaction, and
 #'   chromosome group.
 make_sex_de_chromosome_counts <- function(d) {
+  # Make R CMD CHECK happy
+  . <- cell_type <- interaction <- chromosome_group <- n_genes <- NULL
 
-    # Make R CMD CHECK happy
-    . <- cell_type <- interaction <- chromosome_group <- n_genes <- NULL
-
-    observed_counts <- d[
-        ,
-        .(n_genes = .N),
-        by = .(
-            cell_type,
-            interaction,
-            chromosome_group
-        )
-    ]
-
-    all_groups <- unique(
-        d[, .(cell_type, interaction)]
+  observed_counts <- d[
+    ,
+    .(n_genes = .N),
+    by = .(
+      cell_type,
+      interaction,
+      chromosome_group
     )
+  ]
 
-    complete_groups <- all_groups[
-        ,
-        .(
-            chromosome_group = factor(
-                c("Autosome", "X/Y"),
-                levels = c("Autosome", "X/Y")
-            )
-        ),
-        by = .(
-            cell_type,
-            interaction
-        )
-    ]
+  all_groups <- unique(
+    d[, .(cell_type, interaction)]
+  )
 
-    counts <- merge(
-        complete_groups,
-        observed_counts,
-        by = c(
-            "cell_type",
-            "interaction",
-            "chromosome_group"
-        ),
-        all.x = TRUE
+  complete_groups <- all_groups[
+    ,
+    .(
+      chromosome_group = factor(
+        c("Autosome", "X/Y"),
+        levels = c("Autosome", "X/Y")
+      )
+    ),
+    by = .(
+      cell_type,
+      interaction
     )
+  ]
 
-    counts[
-        is.na(n_genes),
-        n_genes := 0L
-    ]
+  counts <- merge(
+    complete_groups,
+    observed_counts,
+    by = c(
+      "cell_type",
+      "interaction",
+      "chromosome_group"
+    ),
+    all.x = TRUE
+  )
 
-    data.table::setorder(
-        counts,
-        interaction,
-        cell_type,
-        chromosome_group
-    )
+  counts[
+    is.na(n_genes),
+    n_genes := 0L
+  ]
 
-    counts
+  data.table::setorder(
+    counts,
+    interaction,
+    cell_type,
+    chromosome_group
+  )
+
+  counts
 }
 
 
@@ -443,54 +551,52 @@ make_sex_de_chromosome_counts <- function(d) {
 #' @param alpha Adjusted P-value threshold used to select genes.
 #'
 #' @return A ggplot object.
-plot_sex_de_chromosome_counts <- function(
-        counts,
-        title,
-        alpha = 0.05) {
+plot_sex_de_chromosome_counts <- function(counts,
+                                          title,
+                                          alpha = 0.05) {
+  # Make R CMD CHECK happy
+  cell_type_label <- cell_type <- n_genes <- chromosome_group <- NULL
 
-    # Make R CMD CHECK happy
-    cell_type_label <- cell_type <- n_genes <- chromosome_group <- NULL
+  # to make the cell type labels look nicer.
+  counts[, cell_type_label := gsub("_", " ", cell_type)]
 
-    #to make the cell type labels look nicer.
-    counts[, cell_type_label := gsub("_", " ", cell_type)]
-
-    ggplot2::ggplot(
-        counts,
-        ggplot2::aes(
-            x = cell_type_label,
-            y = n_genes,
-            fill = chromosome_group
-        )
+  ggplot2::ggplot(
+    counts,
+    ggplot2::aes(
+      x = cell_type_label,
+      y = n_genes,
+      fill = chromosome_group
+    )
+  ) +
+    ggplot2::geom_col(
+      position = ggplot2::position_dodge(width = 0.8),
+      width = 0.7
     ) +
-        ggplot2::geom_col(
-            position = ggplot2::position_dodge(width = 0.8),
-            width = 0.7
-        ) +
-        ggplot2::facet_wrap(
-            ~ interaction,
-            ncol = 2,
-            scales = "free_x"
-        ) +
-        ggplot2::labs(
-            title = title,
-            subtitle = sprintf(
-                "Significant genes by chromosome group; adjusted P-value < %.2g",
-                alpha
-            ),
-            x = NULL,
-            y = "Number of significant genes",
-            fill = "Chromosome group"
-        ) +
-        ggplot2::theme_bw() +
-        ggplot2::theme(
-            plot.title = ggplot2::element_text(hjust = 0.5),
-            plot.subtitle = ggplot2::element_text(hjust = 0.5),
-            axis.text.x = ggplot2::element_text(
-                angle = 45,
-                hjust = 1
-            ),
-            legend.position = "top"
-        )
+    ggplot2::facet_wrap(
+      ~interaction,
+      ncol = 2,
+      scales = "free_x"
+    ) +
+    ggplot2::labs(
+      title = title,
+      subtitle = sprintf(
+        "Significant genes by chromosome group; adjusted P-value < %.2g",
+        alpha
+      ),
+      x = NULL,
+      y = "Number of significant genes",
+      fill = "Chromosome group"
+    ) +
+    ggplot2::theme_bw() +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(hjust = 0.5),
+      plot.subtitle = ggplot2::element_text(hjust = 0.5),
+      axis.text.x = ggplot2::element_text(
+        angle = 45,
+        hjust = 1
+      ),
+      legend.position = "top"
+    )
 }
 
 
@@ -502,64 +608,62 @@ plot_sex_de_chromosome_counts <- function(
 #' @param alpha Adjusted P-value threshold used to select genes.
 #'
 #' @return A ggplot object.
-plot_sex_de_chromosome_density <- function(
-        d,
-        interaction_name,
-        title,
-        alpha = 0.05) {
+plot_sex_de_chromosome_density <- function(d,
+                                           interaction_name,
+                                           title,
+                                           alpha = 0.05) {
+  # Make R CMD CHECK happy
+  interaction <- cell_type <- chromosome_group <- logFC <- cell_type_label <- NULL
 
-    # Make R CMD CHECK happy
-    interaction <- cell_type <- chromosome_group <- logFC <- cell_type_label <- NULL
+  plot_data <- d[
+    interaction == interaction_name
+  ]
 
-    plot_data <- d[
-        interaction == interaction_name
-    ]
+  plot_data[, cell_type_label := gsub("_", " ", cell_type)]
 
-    plot_data[, cell_type_label := gsub("_", " ", cell_type)]
-
-    ggplot2::ggplot(
-        plot_data,
-        ggplot2::aes(
-            x = logFC,
-            color = chromosome_group,
-            fill = chromosome_group
-        )
+  ggplot2::ggplot(
+    plot_data,
+    ggplot2::aes(
+      x = logFC,
+      color = chromosome_group,
+      fill = chromosome_group
+    )
+  ) +
+    ggplot2::geom_density(
+      alpha = 0.2,
+      linewidth = 0.8,
+      na.rm = TRUE
     ) +
-        ggplot2::geom_density(
-            alpha = 0.2,
-            linewidth = 0.8,
-            na.rm = TRUE
-        ) +
-        ggplot2::geom_vline(
-            xintercept = 0,
-            linetype = "dashed",
-            linewidth = 0.4
-        ) +
-        ggplot2::facet_wrap(
-            ~ cell_type_label,
-            scales = "free_y"
-        ) +
-        ggplot2::labs(
-            title = sprintf(
-                "%s: %s",
-                title,
-                interaction_name
-            ),
-            subtitle = sprintf(
-                "Signed logFC distributions; adjusted P-value < %.2g",
-                alpha
-            ),
-            x = "Signed log fold change",
-            y = "Density",
-            color = "Chromosome group",
-            fill = "Chromosome group"
-        ) +
-        ggplot2::theme_bw() +
-        ggplot2::theme(
-            plot.title = ggplot2::element_text(hjust = 0.5),
-            plot.subtitle = ggplot2::element_text(hjust = 0.5),
-            legend.position = "top"
-        )
+    ggplot2::geom_vline(
+      xintercept = 0,
+      linetype = "dashed",
+      linewidth = 0.4
+    ) +
+    ggplot2::facet_wrap(
+      ~cell_type_label,
+      scales = "free_y"
+    ) +
+    ggplot2::labs(
+      title = sprintf(
+        "%s: %s",
+        title,
+        interaction_name
+      ),
+      subtitle = sprintf(
+        "Signed logFC distributions; adjusted P-value < %.2g",
+        alpha
+      ),
+      x = "Signed log fold change",
+      y = "Density",
+      color = "Chromosome group",
+      fill = "Chromosome group"
+    ) +
+    ggplot2::theme_bw() +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(hjust = 0.5),
+      plot.subtitle = ggplot2::element_text(hjust = 0.5),
+      legend.position = "top"
+    )
 }
 
 
@@ -593,147 +697,145 @@ plot_sex_de_chromosome_density <- function(
 #'
 #' @return Invisibly returns the significant results, count data, and plots.
 #' @export
-plot_sex_de_by_chromosome <- function(
-        in_dir,
-        file_pattern,
-        contig_yaml_file,
-        reduced_gtf_file,
-        cellTypeListFile = NULL,
-        alpha = 0.05,
-        pdf_output_file = NULL,
-        svg_barplot_file = NULL,
-        svg_density_dir = NULL,
-        svg_density_prefix = "") {
+plot_sex_de_by_chromosome <- function(in_dir,
+                                      file_pattern,
+                                      contig_yaml_file,
+                                      reduced_gtf_file,
+                                      cellTypeListFile = NULL,
+                                      alpha = 0.05,
+                                      pdf_output_file = NULL,
+                                      svg_barplot_file = NULL,
+                                      svg_density_dir = NULL,
+                                      svg_density_prefix = "") {
+  adj.P.Val <- logFC <- chromosome_group <- contrast <- interaction <- NULL
 
-    adj.P.Val <- logFC <- chromosome_group <- contrast <- interaction <- NULL
+  d <- parse_de_inputs(
+    in_dir,
+    file_pattern,
+    cellTypeListFile
+  )
 
-    d <- parse_de_inputs(
-        in_dir,
-        file_pattern,
-        cellTypeListFile
+  data.table::setDT(d)
+
+  d <- annotate_de_chromosome_group(
+    d,
+    contig_yaml_file,
+    reduced_gtf_file
+  )
+
+  significant <- d[
+    adj.P.Val < alpha &
+      is.finite(logFC) &
+      logFC != 0 &
+      !is.na(chromosome_group)
+  ]
+
+  if (nrow(significant) == 0L) {
+    stop(
+      "No significant autosomal or X/Y genes were found.",
+      call. = FALSE
     )
+  }
 
-    data.table::setDT(d)
+  contrast_title <- "Sex differential expression"
 
-    d <- annotate_de_chromosome_group(
-        d,
-        contig_yaml_file,
-        reduced_gtf_file
-    )
+  counts <- make_sex_de_chromosome_counts(significant)
 
-    significant <- d[
-        adj.P.Val < alpha &
-            is.finite(logFC) &
-            logFC != 0 &
-            !is.na(chromosome_group)
-    ]
+  count_plot <- plot_sex_de_chromosome_counts(
+    counts,
+    title = contrast_title,
+    alpha = alpha
+  )
 
-    if (nrow(significant) == 0L) {
-        stop(
-            "No significant autosomal or X/Y genes were found.",
-            call. = FALSE
-        )
-    }
+  interaction_names <- sort(
+    unique(significant$interaction)
+  )
 
-    contrast_title <- "Sex differential expression"
-
-    counts <- make_sex_de_chromosome_counts(significant)
-
-    count_plot <- plot_sex_de_chromosome_counts(
-        counts,
+  density_plots <- lapply(
+    interaction_names,
+    function(interaction_name) {
+      plot_sex_de_chromosome_density(
+        significant,
+        interaction_name = interaction_name,
         title = contrast_title,
         alpha = alpha
-    )
+      )
+    }
+  )
 
-    interaction_names <- sort(
-        unique(significant$interaction)
-    )
+  names(density_plots) <- interaction_names
 
-    density_plots <- lapply(
-        interaction_names,
-        function(interaction_name) {
-            plot_sex_de_chromosome_density(
-                significant,
-                interaction_name = interaction_name,
-                title = contrast_title,
-                alpha = alpha
-            )
-        }
-    )
+  if (!is.null(pdf_output_file)) {
+    output_dir <- dirname(pdf_output_file)
 
-    names(density_plots) <- interaction_names
-
-    if (!is.null(pdf_output_file)) {
-        output_dir <- dirname(pdf_output_file)
-
-        if (!dir.exists(output_dir)) {
-            dir.create(
-                output_dir,
-                recursive = TRUE
-            )
-        }
-
-        grDevices::pdf(
-            pdf_output_file,
-            width = 11,
-            height = 8.5,
-            onefile = TRUE
-        )
-
-        on.exit(
-            grDevices::dev.off(),
-            add = TRUE
-        )
-
-        print(count_plot)
-
-        for (p in density_plots) {
-            print(p)
-        }
+    if (!dir.exists(output_dir)) {
+      dir.create(
+        output_dir,
+        recursive = TRUE
+      )
     }
 
-    if (!is.null(svg_barplot_file)) {
-        .save_de_plot(
-            count_plot,
-            svg_output_file = svg_barplot_file,
-            width = 11,
-            height = 8.5
-        )
-    }
-
-    if (!is.null(svg_density_dir)) {
-        if (!dir.exists(svg_density_dir)) {
-            dir.create(
-                svg_density_dir,
-                recursive = TRUE
-            )
-        }
-
-        for (interaction_name in interaction_names) {
-            out_file <- file.path(
-                svg_density_dir,
-                paste0(
-                    svg_density_prefix,
-                    .sanitize_filename(interaction_name),
-                    ".svg"
-                )
-            )
-
-            ggplot2::ggsave(
-                filename = out_file,
-                plot = density_plots[[interaction_name]],
-                width = 11,
-                height = 8.5
-            )
-        }
-    }
-
-    invisible(
-        list(
-            significant_genes = significant,
-            count_summary = counts,
-            count_plot = count_plot,
-            density_plots = density_plots
-        )
+    grDevices::pdf(
+      pdf_output_file,
+      width = 11,
+      height = 8.5,
+      onefile = TRUE
     )
+
+    on.exit(
+      grDevices::dev.off(),
+      add = TRUE
+    )
+
+    print(count_plot)
+
+    for (p in density_plots) {
+      print(p)
+    }
+  }
+
+  if (!is.null(svg_barplot_file)) {
+    .save_de_plot(
+      count_plot,
+      svg_output_file = svg_barplot_file,
+      width = 11,
+      height = 8.5
+    )
+  }
+
+  if (!is.null(svg_density_dir)) {
+    if (!dir.exists(svg_density_dir)) {
+      dir.create(
+        svg_density_dir,
+        recursive = TRUE
+      )
+    }
+
+    for (interaction_name in interaction_names) {
+      out_file <- file.path(
+        svg_density_dir,
+        paste0(
+          svg_density_prefix,
+          .sanitize_filename(interaction_name),
+          ".svg"
+        )
+      )
+
+      ggplot2::ggsave(
+        filename = out_file,
+        plot = density_plots[[interaction_name]],
+        width = 11,
+        height = 8.5
+      )
+    }
+  }
+
+  invisible(
+    list(
+      significant_genes = significant,
+      count_summary = counts,
+      count_plot = count_plot,
+      density_plots = density_plots
+    )
+  )
 }

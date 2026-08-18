@@ -1,5 +1,5 @@
 test_that("default works", {
-  expect_equal(hello(), 'Hello, world!')
+  expect_equal(hello(), "Hello, world!")
 })
 test_that("hello function works with mom argument", {
   expect_equal(hello(mom = TRUE), "Hi, mom!")

@@ -57,4 +57,5 @@
 #' configure paths explicitly in their session or script.
 #'
 #' @keywords internal
+#' @import data.table
 "_PACKAGE"

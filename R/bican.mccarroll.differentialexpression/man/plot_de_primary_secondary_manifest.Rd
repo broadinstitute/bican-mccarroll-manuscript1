@@ -18,7 +18,8 @@ plot_de_primary_secondary_manifest(
   min_num_genes = 20,
   alpha = 0.05,
   width = 7,
-  height = 7
+  height = 7,
+  scale_effects = FALSE
 )
 }
 \arguments{
@@ -61,13 +62,20 @@ cell type to be included in the sign-concordance summary.}
 genes.}
 
 \item{width, height}{Dimensions (inches) for the per-cell-type scatter SVGs.}
+
+\item{scale_effects}{Logical scalar. If \code{TRUE}, each cell type's
+primary and secondary logFC values are independently rescaled to
+\code{[-1, 1]} before plotting (see
+\code{\link{plot_de_primary_secondary_from_data}}). Defaults to
+\code{FALSE}.}
 }
 \value{
 Invisibly returns a list with elements \code{per_cell_type} (a list
   of per-cell-type results), \code{sign_results} (a data frame of
-  sign-concordance statistics per cell type), and \code{sign_summary_plot}
-  (the summary bar plot, or \code{NULL} if no cell type passed
-  \code{min_num_genes}).
+  sign-concordance statistics per cell type), \code{sign_summary_plot}
+  (the sign-concordance summary bar plot), and \code{cor_summary_plot}
+  (the analogous summary bar plot of per-cell-type correlation). Both
+  summary plots are \code{NULL} if no cell type passed \code{min_num_genes}.
 }
 \description{
 For each cell type listed in \code{manifest_file}, reads a primary and

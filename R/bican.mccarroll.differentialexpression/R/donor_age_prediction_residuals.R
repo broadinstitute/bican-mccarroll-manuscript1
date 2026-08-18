@@ -70,64 +70,67 @@ compare_age_residuals_celltype_region <- function(model_file, prediction_file,
                                                   value_var = "resid_mean",
                                                   exclude_donor_age_range = c(),
                                                   out_pdf_file = NULL) {
+  model_predictions <- load_model_predictions(prediction_file, cellTypeListFile)
 
-    model_predictions <- load_model_predictions(prediction_file, cellTypeListFile)
+  if (length(exclude_donor_age_range) == 2) {
+    age_min <- exclude_donor_age_range[1]
+    age_max <- exclude_donor_age_range[2]
+    logger::log_info(sprintf(
+      "Excluding donors with age in range [%s, %s] from analysis",
+      age_min, age_max
+    ))
+    model_predictions <- model_predictions[!(
+      model_predictions$age >= age_min & model_predictions$age <= age_max
+    ), ]
+  }
 
-    if (length(exclude_donor_age_range) == 2) {
-        age_min <- exclude_donor_age_range[1]
-        age_max <- exclude_donor_age_range[2]
-        logger::log_info(sprintf(
-            "Excluding donors with age in range [%s, %s] from analysis",
-            age_min, age_max
-        ))
-        model_predictions <- model_predictions[!(
-            model_predictions$age >= age_min & model_predictions$age <= age_max
-        ), ]
+  all_models <- load_models(model_file, cellTypeListFile)
+
+  if (!is.null(out_pdf_file)) {
+    grDevices::pdf(out_pdf_file, width = 11, height = 11)
+  }
+  on.exit(
+    {
+      if (!is.null(out_pdf_file)) grDevices::dev.off()
+    },
+    add = TRUE
+  )
+
+  for (current_region in unique(model_predictions$region)) {
+    logger::log_info("Processing region: ", current_region)
+    out <- plot_residuals_for_subset(
+      model_predictions = model_predictions,
+      all_models = all_models,
+      mode = "within_region",
+      region = current_region,
+      value_var = value_var
+    )
+    if (!is.null(out)) {
+      ComplexHeatmap::draw(out$jaccard_heatmap, heatmap_legend_side = "right")
+      ComplexHeatmap::draw(out$corr_heatmap, heatmap_legend_side = "right")
+      ComplexHeatmap::draw(out$coef_corr_heatmap, heatmap_legend_side = "right")
+      for (p in out$scatter_pages) print(p)
     }
+  }
 
-    all_models <- load_models(model_file, cellTypeListFile)
-
-    if (!is.null(out_pdf_file))
-        grDevices::pdf(out_pdf_file, width = 11, height = 11)
-    on.exit({
-        if (!is.null(out_pdf_file)) grDevices::dev.off()
-    }, add = TRUE)
-
-    for (current_region in unique(model_predictions$region)) {
-        logger::log_info("Processing region: ", current_region)
-        out <- plot_residuals_for_subset(
-            model_predictions = model_predictions,
-            all_models = all_models,
-            mode = "within_region",
-            region = current_region,
-            value_var = value_var
-        )
-        if (!is.null(out)) {
-            ComplexHeatmap::draw(out$jaccard_heatmap, heatmap_legend_side = "right")
-            ComplexHeatmap::draw(out$corr_heatmap, heatmap_legend_side = "right")
-            ComplexHeatmap::draw(out$coef_corr_heatmap, heatmap_legend_side = "right")
-            for (p in out$scatter_pages) print(p)
-        }
+  for (current_cell_type in unique(model_predictions$cell_type)) {
+    logger::log_info("Processing cell type: ", current_cell_type)
+    out <- plot_residuals_for_subset(
+      model_predictions = model_predictions,
+      all_models = all_models,
+      mode = "within_cell_type",
+      cell_type = current_cell_type,
+      value_var = value_var
+    )
+    if (!is.null(out)) {
+      ComplexHeatmap::draw(out$jaccard_heatmap, heatmap_legend_side = "right")
+      ComplexHeatmap::draw(out$corr_heatmap, heatmap_legend_side = "right")
+      ComplexHeatmap::draw(out$coef_corr_heatmap, heatmap_legend_side = "right")
+      for (p in out$scatter_pages) print(p)
     }
+  }
 
-    for (current_cell_type in unique(model_predictions$cell_type)) {
-        logger::log_info("Processing cell type: ", current_cell_type)
-        out <- plot_residuals_for_subset(
-            model_predictions = model_predictions,
-            all_models = all_models,
-            mode = "within_cell_type",
-            cell_type = current_cell_type,
-            value_var = value_var
-        )
-        if (!is.null(out)) {
-            ComplexHeatmap::draw(out$jaccard_heatmap, heatmap_legend_side = "right")
-            ComplexHeatmap::draw(out$corr_heatmap, heatmap_legend_side = "right")
-            ComplexHeatmap::draw(out$coef_corr_heatmap, heatmap_legend_side = "right")
-            for (p in out$scatter_pages) print(p)
-        }
-    }
-
-    invisible(NULL)
+  invisible(NULL)
 }
 
 #############################
@@ -189,52 +192,51 @@ plot_residual_pair_scatter_one <- function(model_predictions,
                                            lm_linewidth = 0.6,
                                            annotate_r_size = 5,
                                            pad_frac = 0.1) {
+  mode <- match.arg(mode)
+  .require_slice_args(mode, cell_type, region)
+  dims <- .mode_dims(mode)
 
-    mode <- match.arg(mode)
-    .require_slice_args(mode, cell_type, region)
-    dims <- .mode_dims(mode)
+  mp <- .slice_predictions(model_predictions, mode, cell_type, region)
+  if (.warn_if_fewer_than_2_groups(mp, dims$group_var, .default_title_label(mode, cell_type, region))) {
+    return(NULL)
+  }
 
-    mp <- .slice_predictions(model_predictions, mode, cell_type, region)
-    if (.warn_if_fewer_than_2_groups(mp, dims$group_var, .default_title_label(mode, cell_type, region))) {
-        return(NULL)
-    }
+  # Pull the two groups and intersect donors
+  data.table::setDT(mp)
+  dt_x <- mp[get(dims$group_var) == x_group, c(donor_id_col, value_var, color_var), with = FALSE]
+  dt_y <- mp[get(dims$group_var) == y_group, c(donor_id_col, value_var), with = FALSE]
 
-    # Pull the two groups and intersect donors
-    data.table::setDT(mp)
-    dt_x <- mp[get(dims$group_var) == x_group, c(donor_id_col, value_var, color_var), with = FALSE]
-    dt_y <- mp[get(dims$group_var) == y_group, c(donor_id_col, value_var), with = FALSE]
+  data.table::setnames(dt_x, c(donor_id_col, value_var, color_var), c("donor", "x", "color_value"))
+  data.table::setnames(dt_y, c(donor_id_col, value_var), c("donor", "y"))
 
-    data.table::setnames(dt_x, c(donor_id_col, value_var, color_var), c("donor", "x", "color_value"))
-    data.table::setnames(dt_y, c(donor_id_col, value_var), c("donor", "y"))
+  df <- merge(dt_x, dt_y, by = "donor", all = FALSE, sort = FALSE)
+  if (nrow(df) < 2) {
+    logger::log_warn("Skipping pair plot: <2 donors in intersection for requested groups")
+    return(NULL)
+  }
 
-    df <- merge(dt_x, dt_y, by = "donor", all = FALSE, sort = FALSE)
-    if (nrow(df) < 2) {
-        logger::log_warn("Skipping pair plot: <2 donors in intersection for requested groups")
-        return(NULL)
-    }
+  # Build a 2-col matrix and reuse the matrix plotter for consistent styling
+  res_mat <- as.matrix(df[, c("x", "y")])
+  rownames(res_mat) <- df[["donor"]]
+  colnames(res_mat) <- c(x_group, y_group)
 
-    # Build a 2-col matrix and reuse the matrix plotter for consistent styling
-    res_mat <- as.matrix(df[, c("x", "y")])
-    rownames(res_mat) <- df[["donor"]]
-    colnames(res_mat) <- c(x_group, y_group)
+  donor_meta <- df[, c("donor", "color_value")]
+  data.table::setnames(donor_meta, c("donor", "color_value"), c(donor_id_col, color_var))
 
-    donor_meta <- df[, c("donor", "color_value")]
-    data.table::setnames(donor_meta, c("donor", "color_value"), c(donor_id_col, color_var))
-
-    .plot_residual_pair_scatter_one_matrix(
-        res_mat = res_mat,
-        x_name = x_group,
-        y_name = y_group,
-        donor_meta = donor_meta,
-        donor_id_col = donor_id_col,
-        color_var = color_var,
-        color_title = color_title,
-        point_size = point_size,
-        point_alpha = point_alpha,
-        lm_linewidth = lm_linewidth,
-        annotate_r_size = annotate_r_size,
-        pad_frac = pad_frac
-    )
+  .plot_residual_pair_scatter_one_matrix(
+    res_mat = res_mat,
+    x_name = x_group,
+    y_name = y_group,
+    donor_meta = donor_meta,
+    donor_id_col = donor_id_col,
+    color_var = color_var,
+    color_title = color_title,
+    point_size = point_size,
+    point_alpha = point_alpha,
+    lm_linewidth = lm_linewidth,
+    annotate_r_size = annotate_r_size,
+    pad_frac = pad_frac
+  )
 }
 
 #' Plot residual correlation heatmap within a slice
@@ -288,58 +290,57 @@ plot_residual_corr_heatmap <- function(model_predictions,
                                        row_fontsize = 9,
                                        col_fontsize = 9,
                                        cell_fontsize = 9,
-                                       legend_title="Correlation") {
+                                       legend_title = "Correlation") {
+  mode <- match.arg(mode)
 
-    mode <- match.arg(mode)
+  # Slice + choose compared dimension
+  dims <- .mode_dims(mode)
+  .require_slice_args(mode = mode, cell_type = cell_type, region = region)
 
-    # Slice + choose compared dimension
-    dims <- .mode_dims(mode)
-    .require_slice_args(mode = mode, cell_type = cell_type, region = region)
+  mp <- model_predictions
+  if (identical(dims$slice_var, "region")) {
+    mp <- mp[mp$region == region, , drop = FALSE]
+    spread_var <- "cell_type"
+    title_label <- if (is.null(title)) sprintf("Age Prediction residuals (predicted - actual)\nregion [%s]", region) else title
+  } else {
+    mp <- mp[mp$cell_type == cell_type, , drop = FALSE]
+    spread_var <- "region"
+    title_label <- if (is.null(title)) sprintf("Age Prediction residuals (predicted - actual)\ncell type [%s]", cell_type) else title
+  }
 
-    mp <- model_predictions
-    if (identical(dims$slice_var, "region")) {
-        mp <- mp[mp$region == region, , drop = FALSE]
-        spread_var <- "cell_type"
-        title_label <- if (is.null(title)) sprintf("Age Prediction residuals (predicted - actual)\nregion [%s]", region) else title
-    } else {
-        mp <- mp[mp$cell_type == cell_type, , drop = FALSE]
-        spread_var <- "region"
-        title_label <- if (is.null(title)) sprintf("Age Prediction residuals (predicted - actual)\ncell type [%s]", cell_type) else title
-    }
+  # Need >=2 groups
+  n_groups <- length(unique(mp[[spread_var]]))
+  if (n_groups < 2) {
+    logger::log_warn(sprintf("Only %d unique %s present; returning NULL", n_groups, spread_var))
+    return(NULL)
+  }
 
-    # Need >=2 groups
-    n_groups <- length(unique(mp[[spread_var]]))
-    if (n_groups < 2) {
-        logger::log_warn(sprintf("Only %d unique %s present; returning NULL", n_groups, spread_var))
-        return(NULL)
-    }
+  # donor x group residual matrix
+  res_mat <- donor_wide_matrix(
+    model_predictions = mp,
+    spread_var = spread_var,
+    value_var = value_var
+  )
 
-    # donor x group residual matrix
-    res_mat <- donor_wide_matrix(
-        model_predictions = mp,
-        spread_var = spread_var,
-        value_var = value_var
-    )
+  # Heatmap object (clustered)
+  ht <- .plot_residual_corr_heatmap_matrix(
+    res_mat = res_mat,
+    title = title_label,
+    annotate_cells = annotate_cells,
+    row_fontsize = row_fontsize,
+    col_fontsize = col_fontsize,
+    cell_fontsize = cell_fontsize,
+    legend_title
+  )
 
-    # Heatmap object (clustered)
-    ht <- .plot_residual_corr_heatmap_matrix(
-        res_mat = res_mat,
-        title = title_label,
-        annotate_cells = annotate_cells,
-        row_fontsize = row_fontsize,
-        col_fontsize = col_fontsize,
-        cell_fontsize = cell_fontsize,
-        legend_title
-    )
+  # Extract clustered order without drawing to the active device
+  ord <- .get_heatmap_order_names(ht, colnames(res_mat))
 
-    # Extract clustered order without drawing to the active device
-    ord <- .get_heatmap_order_names(ht, colnames(res_mat))
-
-    list(
-        heatmap = ht,
-        row_order_names = ord$row_order_names,
-        column_order_names = ord$column_order_names
-    )
+  list(
+    heatmap = ht,
+    row_order_names = ord$row_order_names,
+    column_order_names = ord$column_order_names
+  )
 }
 
 #' Plot Jaccard overlap heatmap for aging programs within a slice
@@ -399,41 +400,40 @@ plot_jaccard_overlap_heatmap <- function(all_models,
                                          row_order_names = NULL,
                                          column_order_names = NULL,
                                          legend_title = "Jaccard") {
+  mode <- match.arg(mode)
+  .require_slice_args(mode, cell_type, region)
+  dims <- .mode_dims(mode)
 
-    mode <- match.arg(mode)
-    .require_slice_args(mode, cell_type, region)
-    dims <- .mode_dims(mode)
+  am <- .slice_models(all_models, mode, cell_type, region)
 
-    am <- .slice_models(all_models, mode, cell_type, region)
-
-    # Default title logic matches plot_residual_corr_heatmap:
-    if (is.null(title)) {
-        if (identical(dims$slice_var, "region")) {
-            title <- sprintf("Cell-type gene overlap in aging programs\nregion [%s]", region)
-        } else {
-            title <- sprintf("Region gene overlap in aging programs\ncell type [%s]", cell_type)
-        }
+  # Default title logic matches plot_residual_corr_heatmap:
+  if (is.null(title)) {
+    if (identical(dims$slice_var, "region")) {
+      title <- sprintf("Cell-type gene overlap in aging programs\nregion [%s]", region)
+    } else {
+      title <- sprintf("Region gene overlap in aging programs\ncell type [%s]", cell_type)
     }
+  }
 
-    J <- jaccard_by_group(
-        am,
-        group_var = dims$group_var,
-        coef_thresh = coef_thresh
-    )
+  J <- jaccard_by_group(
+    am,
+    group_var = dims$group_var,
+    coef_thresh = coef_thresh
+  )
 
-    ht <- plot_jaccard_heatmap(
-        J,
-        title = title,
-        annotate_cells = annotate_cells,
-        row_fontsize = row_fontsize,
-        col_fontsize = col_fontsize,
-        cell_fontsize = cell_fontsize,
-        row_order_names = row_order_names,
-        column_order_names = column_order_names,
-        legend_title=legend_title
-    )
+  ht <- plot_jaccard_heatmap(
+    J,
+    title = title,
+    annotate_cells = annotate_cells,
+    row_fontsize = row_fontsize,
+    col_fontsize = col_fontsize,
+    cell_fontsize = cell_fontsize,
+    row_order_names = row_order_names,
+    column_order_names = column_order_names,
+    legend_title = legend_title
+  )
 
-    list(jaccard = J, heatmap = ht)
+  list(jaccard = J, heatmap = ht)
 }
 
 plot_residuals_for_subset <- function(model_predictions,
@@ -447,102 +447,101 @@ plot_residuals_for_subset <- function(model_predictions,
                                       facet_font_size = 8,
                                       coef_thresh = 0,
                                       corr_title = NULL) {
+  mode <- match.arg(mode)
+  .require_slice_args(mode, cell_type, region)
+  dims <- .mode_dims(mode)
 
-    mode <- match.arg(mode)
-    .require_slice_args(mode, cell_type, region)
-    dims <- .mode_dims(mode)
+  title_label <- .default_title_label(mode, cell_type, region)
 
-    title_label <- .default_title_label(mode, cell_type, region)
+  # Build res_mat once for paged scatter (efficient) and for extracting ordering
+  mp_sub <- .slice_predictions(model_predictions, mode, cell_type, region)
+  if (.warn_if_fewer_than_2_groups(mp_sub, dims$group_var, title_label)) {
+    return(invisible(NULL))
+  }
 
-    # Build res_mat once for paged scatter (efficient) and for extracting ordering
-    mp_sub <- .slice_predictions(model_predictions, mode, cell_type, region)
-    if (.warn_if_fewer_than_2_groups(mp_sub, dims$group_var, title_label)) {
-        return(invisible(NULL))
-    }
+  res_mat <- donor_wide_matrix(
+    model_predictions = mp_sub,
+    spread_var = dims$group_var,
+    value_var = value_var
+  )
 
-    res_mat <- donor_wide_matrix(
-        model_predictions = mp_sub,
-        spread_var = dims$group_var,
-        value_var = value_var
-    )
+  donor_age <- unique(mp_sub[, c("donor", "age")])
 
-    donor_age <- unique(mp_sub[, c("donor", "age")])
+  p_scatter_pages <- plot_residual_pair_scatter_paged(
+    res_mat = res_mat,
+    cellType = title_label,
+    per_page = per_page,
+    facet_font_size = facet_font_size,
+    donor_meta = donor_age,
+    donor_id_col = "donor",
+    color_var = "age",
+    color_title = "Donor age"
+  )
 
-    p_scatter_pages <- plot_residual_pair_scatter_paged(
-        res_mat = res_mat,
-        cellType = title_label,
-        per_page = per_page,
-        facet_font_size = facet_font_size,
-        donor_meta = donor_age,
-        donor_id_col = "donor",
-        color_var = "age",
-        color_title = "Donor age"
-    )
+  ht_corr_out <- plot_residual_corr_heatmap(
+    model_predictions = mp_sub,
+    mode = mode,
+    cell_type = cell_type,
+    region = region,
+    value_var = value_var,
+    title = corr_title,
+    annotate_cells = annotate_cells,
+    row_fontsize = 16,
+    col_fontsize = 16,
+    cell_fontsize = 16
+  )
 
-    ht_corr_out <- plot_residual_corr_heatmap(
-        model_predictions = mp_sub,
-        mode = mode,
-        cell_type = cell_type,
-        region = region,
-        value_var = value_var,
-        title = corr_title,
-        annotate_cells = annotate_cells,
-        row_fontsize = 16,
-        col_fontsize = 16,
-        cell_fontsize = 16
-    )
+  # Pull heatmap + clustered ordering directly from the returned list
+  ht_corr <- NULL
+  row_order_names <- NULL
+  col_order_names <- NULL
 
-    # Pull heatmap + clustered ordering directly from the returned list
-    ht_corr <- NULL
-    row_order_names <- NULL
-    col_order_names <- NULL
+  if (!is.null(ht_corr_out)) {
+    ht_corr <- ht_corr_out$heatmap
+    row_order_names <- ht_corr_out$row_order_names
+    col_order_names <- ht_corr_out$column_order_names
+  }
 
-    if (!is.null(ht_corr_out)) {
-        ht_corr <- ht_corr_out$heatmap
-        row_order_names <- ht_corr_out$row_order_names
-        col_order_names <- ht_corr_out$column_order_names
-    }
-
-    tmp_j <- plot_jaccard_overlap_heatmap(
-        all_models = all_models,
-        mode = mode,
-        cell_type = cell_type,
-        region = region,
-        coef_thresh = coef_thresh,
-        title = sprintf("Cell-type gene overlap in aging programs\nregion [%s]", region),
-        annotate_cells = annotate_cells,
-        row_fontsize = 16,
-        col_fontsize = 16,
-        cell_fontsize = 16,
-        row_order_names = row_order_names,
-        column_order_names = col_order_names
-    )
+  tmp_j <- plot_jaccard_overlap_heatmap(
+    all_models = all_models,
+    mode = mode,
+    cell_type = cell_type,
+    region = region,
+    coef_thresh = coef_thresh,
+    title = sprintf("Cell-type gene overlap in aging programs\nregion [%s]", region),
+    annotate_cells = annotate_cells,
+    row_fontsize = 16,
+    col_fontsize = 16,
+    cell_fontsize = 16,
+    row_order_names = row_order_names,
+    column_order_names = col_order_names
+  )
 
 
-    cc <- coef_corr_on_intersect(
-        .slice_models(all_models, mode, cell_type, region),
-        group_var = dims$group_var
-    )
+  cc <- coef_corr_on_intersect(
+    .slice_models(all_models, mode, cell_type, region),
+    group_var = dims$group_var
+  )
 
-    ht_coef <- plot_coef_corr_heatmap(
-        coef_correlation = cc$coef_correlation,
-        overlap_gene_counts = cc$overlap_gene_counts,
-        title = paste0(dims$group_var, " coef correlation (intersect genes) ", title_label),
-        annotate_cells = annotate_cells,
-        row_fontsize = 16,
-        col_fontsize = 16,
-        cell_fontsize = 16
-    )
+  ht_coef <- plot_coef_corr_heatmap(
+    coef_correlation = cc$coef_correlation,
+    overlap_gene_counts = cc$overlap_gene_counts,
+    title = paste0(dims$group_var, " coef correlation (intersect genes) ", title_label),
+    annotate_cells = annotate_cells,
+    row_fontsize = 16,
+    col_fontsize = 16,
+    cell_fontsize = 16
+  )
 
-    # Return objects; caller decides whether to draw/print
-    invisible(list(
-        res_mat = res_mat,
-        scatter_pages = p_scatter_pages,
-        corr_heatmap = ht_corr,
-        jaccard = tmp_j$jaccard,
-        jaccard_heatmap = tmp_j$heatmap,
-        coef_corr_heatmap = ht_coef
-    ))
+  # Return objects; caller decides whether to draw/print
+  invisible(list(
+    res_mat = res_mat,
+    scatter_pages = p_scatter_pages,
+    corr_heatmap = ht_corr,
+    jaccard = tmp_j$jaccard,
+    jaccard_heatmap = tmp_j$heatmap,
+    coef_corr_heatmap = ht_coef
+  ))
 }
 
 plot_residual_pair_scatter_paged <- function(res_mat,
@@ -559,63 +558,70 @@ plot_residual_pair_scatter_paged <- function(res_mat,
                                              lm_linewidth = 0.6,
                                              annotate_r_size = 5,
                                              pad_frac = 0.1) {
-    stopifnot(is.matrix(res_mat))
+  stopifnot(is.matrix(res_mat))
 
-    regs <- colnames(res_mat)
-    if (length(regs) < 2)
-        stop("Need >=2 groups (columns) in res_mat")
+  regs <- colnames(res_mat)
+  if (length(regs) < 2) {
+    stop("Need >=2 groups (columns) in res_mat")
+  }
 
-    prs <- utils::combn(regs, 2, simplify = FALSE)
+  prs <- utils::combn(regs, 2, simplify = FALSE)
 
-    plots <- list()
-    for (pair in prs) {
-        pan <- .plot_residual_pair_scatter_one_matrix(
-            res_mat = res_mat,
-            x_name = pair[1],
-            y_name = pair[2],
-            donor_meta = donor_meta,
-            donor_id_col = donor_id_col,
-            color_var = color_var,
-            color_title = color_title,
-            point_size = point_size,
-            point_alpha = point_alpha,
-            lm_linewidth = lm_linewidth,
-            annotate_r_size = annotate_r_size,
-            pad_frac = pad_frac
-        )
-        if (!is.null(pan))
-            plots[[length(plots) + 1]] <- pan
+  plots <- list()
+  for (pair in prs) {
+    pan <- .plot_residual_pair_scatter_one_matrix(
+      res_mat = res_mat,
+      x_name = pair[1],
+      y_name = pair[2],
+      donor_meta = donor_meta,
+      donor_id_col = donor_id_col,
+      color_var = color_var,
+      color_title = color_title,
+      point_size = point_size,
+      point_alpha = point_alpha,
+      lm_linewidth = lm_linewidth,
+      annotate_r_size = annotate_r_size,
+      pad_frac = pad_frac
+    )
+    if (!is.null(pan)) {
+      plots[[length(plots) + 1]] <- pan
+    }
+  }
+
+  if (!length(plots)) {
+    stop("No valid pairs after filtering")
+  }
+
+  if (is.null(ncol)) {
+    ncol <- ceiling(sqrt(per_page))
+  }
+  nrow <- ceiling(per_page / ncol)
+
+  blanks <- function(n) {
+    replicate(n, ggplot2::ggplot() +
+      ggplot2::theme_void(), simplify = FALSE)
+  }
+
+  page_title <- "Age Prediction residuals (predicted - actual)"
+  if (!is.null(cellType)) {
+    page_title <- paste(cellType, page_title, sep = "\n")
+  }
+
+  pages <- list()
+  for (s in seq(1, length(plots), by = per_page)) {
+    page_plots <- plots[s:min(s + per_page - 1, length(plots))]
+    if (length(page_plots) < per_page) {
+      page_plots <- c(page_plots, blanks(per_page - length(page_plots)))
     }
 
-    if (!length(plots))
-        stop("No valid pairs after filtering")
+    grid <- cowplot::plot_grid(plotlist = page_plots, ncol = ncol, nrow = nrow)
 
-    if (is.null(ncol))
-        ncol <- ceiling(sqrt(per_page))
-    nrow <- ceiling(per_page / ncol)
+    pages[[length(pages) + 1]] <- cowplot::ggdraw() +
+      cowplot::draw_label(page_title, x = 0, y = 1, hjust = 0, vjust = 1, size = 14) +
+      cowplot::draw_plot(grid, y = 0, height = 0.94)
+  }
 
-    blanks <- function(n) {
-        replicate(n, ggplot2::ggplot() + ggplot2::theme_void(), simplify = FALSE)
-    }
-
-    page_title <- "Age Prediction residuals (predicted - actual)"
-    if (!is.null(cellType))
-        page_title <- paste(cellType, page_title, sep = "\n")
-
-    pages <- list()
-    for (s in seq(1, length(plots), by = per_page)) {
-        page_plots <- plots[s:min(s + per_page - 1, length(plots))]
-        if (length(page_plots) < per_page)
-            page_plots <- c(page_plots, blanks(per_page - length(page_plots)))
-
-        grid <- cowplot::plot_grid(plotlist = page_plots, ncol = ncol, nrow = nrow)
-
-        pages[[length(pages) + 1]] <- cowplot::ggdraw() +
-            cowplot::draw_label(page_title, x = 0, y = 1, hjust = 0, vjust = 1, size = 14) +
-            cowplot::draw_plot(grid, y = 0, height = 0.94)
-    }
-
-    pages
+  pages
 }
 
 ########################
@@ -647,48 +653,47 @@ plot_residual_pair_scatter_paged <- function(res_mat,
 #' @importFrom stats as.formula
 #' @noRd
 donor_wide_matrix <- function(model_predictions, spread_var, value_var) {
-    data.table::setDT(model_predictions)
+  data.table::setDT(model_predictions)
 
-    f <- stats::as.formula(paste0("donor ~ ", spread_var))
-    wide_dt <- data.table::dcast(
-        model_predictions,
-        formula = f,
-        value.var = value_var
-    )
+  f <- stats::as.formula(paste0("donor ~ ", spread_var))
+  wide_dt <- data.table::dcast(
+    model_predictions,
+    formula = f,
+    value.var = value_var
+  )
 
-    mat <- as.matrix(wide_dt[, -1])
-    rownames(mat) <- wide_dt$donor
-    mat
+  mat <- as.matrix(wide_dt[, -1])
+  rownames(mat) <- wide_dt$donor
+  mat
 }
-
 
 
 # Pairwise correlation across groups, using intersected genes for each pair
 # Returns list(C=cor_matrix, N=overlap_counts)
 coef_corr_on_intersect <- function(all_models, group_var, method = "pearson") {
-    stopifnot(
-        all(c("feature", "coef") %in% names(all_models)),
-        group_var %in% names(all_models)
-    )
+  stopifnot(
+    all(c("feature", "coef") %in% names(all_models)),
+    group_var %in% names(all_models)
+  )
 
-    # feature x group coefficient matrix (NA if gene absent)
-    mat <- coef_matrix_by_group(all_models, group_var = group_var)
+  # feature x group coefficient matrix (NA if gene absent)
+  mat <- coef_matrix_by_group(all_models, group_var = group_var)
 
-    # pairwise correlation on intersecting genes
-    coef_correlation <- stats::cor(
-        mat,
-        use = "pairwise.complete.obs",
-        method = method
-    )
+  # pairwise correlation on intersecting genes
+  coef_correlation <- stats::cor(
+    mat,
+    use = "pairwise.complete.obs",
+    method = method
+  )
 
-    # number of intersecting genes per pair
-    keep <- is.finite(mat)
-    overlap_gene_counts <- as.matrix(t(keep) %*% keep)
+  # number of intersecting genes per pair
+  keep <- is.finite(mat)
+  overlap_gene_counts <- as.matrix(t(keep) %*% keep)
 
-    list(
-        coef_correlation = coef_correlation,
-        overlap_gene_counts = overlap_gene_counts
-    )
+  list(
+    coef_correlation = coef_correlation,
+    overlap_gene_counts = overlap_gene_counts
+  )
 }
 
 plot_coef_corr_heatmap <- function(coef_correlation,
@@ -696,94 +701,94 @@ plot_coef_corr_heatmap <- function(coef_correlation,
                                    title = "Coefficient correlation (intersect genes)",
                                    annotate_cells = TRUE,
                                    cluster_if_complete = TRUE,
-                                   row_fontsize=10,
-                                   col_fontsize=10,
-                                   cell_fontsize=10) {
-    stopifnot(
-        requireNamespace("ComplexHeatmap", quietly = TRUE),
-        requireNamespace("circlize", quietly = TRUE),
-        requireNamespace("grid", quietly = TRUE)
-    )
+                                   row_fontsize = 10,
+                                   col_fontsize = 10,
+                                   cell_fontsize = 10) {
+  stopifnot(
+    requireNamespace("ComplexHeatmap", quietly = TRUE),
+    requireNamespace("circlize", quietly = TRUE),
+    requireNamespace("grid", quietly = TRUE)
+  )
 
-    # Only cluster if the matrix is complete (no NA/NaN/Inf)
-    complete_mat <- all(is.finite(coef_correlation))
-    do_cluster <- isTRUE(cluster_if_complete) && complete_mat
+  # Only cluster if the matrix is complete (no NA/NaN/Inf)
+  complete_mat <- all(is.finite(coef_correlation))
+  do_cluster <- isTRUE(cluster_if_complete) && complete_mat
 
-    col_fun <- circlize::colorRamp2(
-        c(-1, 0, 1),
-        c("#3b4cc0", "white", "#b40426")
-    )
+  col_fun <- circlize::colorRamp2(
+    c(-1, 0, 1),
+    c("#3b4cc0", "white", "#b40426")
+  )
 
-    cell_fun <- if (isTRUE(annotate_cells)) {
-        function(j, i, x, y, w, h, fill) {
-            r <- coef_correlation[i, j]
-            n <- overlap_gene_counts[i, j]
-            lab <- if (!is.finite(r)) {
-                sprintf("NA\n(n=%d)", n)
-            } else {
-                sprintf("%.2f\n(n=%d)", r, n)
-            }
-            grid::grid.text(lab, x, y, gp = grid::gpar(fontsize = cell_fontsize))
-        }
-    } else {
-        NULL
+  cell_fun <- if (isTRUE(annotate_cells)) {
+    function(j, i, x, y, w, h, fill) {
+      r <- coef_correlation[i, j]
+      n <- overlap_gene_counts[i, j]
+      lab <- if (!is.finite(r)) {
+        sprintf("NA\n(n=%d)", n)
+      } else {
+        sprintf("%.2f\n(n=%d)", r, n)
+      }
+      grid::grid.text(lab, x, y, gp = grid::gpar(fontsize = cell_fontsize))
     }
+  } else {
+    NULL
+  }
 
-    ComplexHeatmap::Heatmap(
-        coef_correlation,
-        name = "r",
-        col = col_fun,
-        na_col = "grey90",
-        cluster_rows = do_cluster,
-        cluster_columns = do_cluster,
-        show_row_dend = do_cluster,
-        show_column_dend = do_cluster,
-        row_names_gp = grid::gpar(fontsize = row_fontsize),
-        column_names_gp = grid::gpar(fontsize = col_fontsize),
-        heatmap_legend_param = list(
-            at = c(-1, -0.5, 0, 0.5, 1),
-            title = "Correlation"
-        ),
-        cell_fun = cell_fun,
-        column_title = title
-    )
+  ComplexHeatmap::Heatmap(
+    coef_correlation,
+    name = "r",
+    col = col_fun,
+    na_col = "grey90",
+    cluster_rows = do_cluster,
+    cluster_columns = do_cluster,
+    show_row_dend = do_cluster,
+    show_column_dend = do_cluster,
+    row_names_gp = grid::gpar(fontsize = row_fontsize),
+    column_names_gp = grid::gpar(fontsize = col_fontsize),
+    heatmap_legend_param = list(
+      at = c(-1, -0.5, 0, 0.5, 1),
+      title = "Correlation"
+    ),
+    cell_fun = cell_fun,
+    column_title = title
+  )
 }
 
 # Build Jaccard matrix of selected features per level of `group_var`
 jaccard_by_group <- function(all_models, group_var, coef_thresh = 0) {
-    stopifnot(
-        all(c("feature", "coef") %in% names(all_models)),
-        group_var %in% names(all_models)
-    )
+  stopifnot(
+    all(c("feature", "coef") %in% names(all_models)),
+    group_var %in% names(all_models)
+  )
 
-    cols <- c("feature", group_var)
-    sel  <- abs(all_models[["coef"]]) > coef_thresh
+  cols <- c("feature", group_var)
+  sel <- abs(all_models[["coef"]]) > coef_thresh
 
-    if (data.table::is.data.table(all_models)) {
-        df <- all_models[sel, cols, with = FALSE]
-    } else {
-        df <- all_models[sel, cols, drop = FALSE]
-    }
+  if (data.table::is.data.table(all_models)) {
+    df <- all_models[sel, cols, with = FALSE]
+  } else {
+    df <- all_models[sel, cols, drop = FALSE]
+  }
 
-    df <- unique(df)  # one row per (feature, group)
+  df <- unique(df) # one row per (feature, group)
 
-    feats <- sort(unique(df[["feature"]]))
-    grps  <- sort(unique(df[[group_var]]))
+  feats <- sort(unique(df[["feature"]]))
+  grps <- sort(unique(df[[group_var]]))
 
-    A <- matrix(
-        FALSE,
-        nrow = length(feats),
-        ncol = length(grps),
-        dimnames = list(feats, grps)
-    )
+  A <- matrix(
+    FALSE,
+    nrow = length(feats),
+    ncol = length(grps),
+    dimnames = list(feats, grps)
+  )
 
-    A[cbind(match(df[["feature"]], feats), match(df[[group_var]], grps))] <- TRUE
+  A[cbind(match(df[["feature"]], feats), match(df[[group_var]], grps))] <- TRUE
 
-    XtX <- crossprod(A)
-    n   <- matrix(colSums(A), ncol = ncol(A), nrow = ncol(A))
-    J   <- as.matrix(XtX / (n + t(n) - XtX))
-    diag(J) <- 1
-    J
+  XtX <- crossprod(A)
+  n <- matrix(colSums(A), ncol = ncol(A), nrow = ncol(A))
+  J <- as.matrix(XtX / (n + t(n) - XtX))
+  diag(J) <- 1
+  J
 }
 
 plot_jaccard_heatmap <- function(J,
@@ -795,112 +800,115 @@ plot_jaccard_heatmap <- function(J,
                                  row_order_names = NULL,
                                  column_order_names = NULL,
                                  legend_title = "Jaccard") {
-    stopifnot(is.matrix(J))
+  stopifnot(is.matrix(J))
 
-    # Validate / map optional name-based ordering to indices
-    row_order <- NULL
-    column_order <- NULL
+  # Validate / map optional name-based ordering to indices
+  row_order <- NULL
+  column_order <- NULL
 
-    if (!is.null(row_order_names)) {
-        stopifnot(is.character(row_order_names))
-        if (is.null(rownames(J)))
-            stop("J must have rownames when row_order_names is provided")
-
-        miss <- setdiff(row_order_names, rownames(J))
-        if (length(miss) > 0L) {
-            warning(sprintf(
-                "row_order_names contains %d names not present in J (showing up to 10): %s",
-                length(miss),
-                paste(utils::head(miss, 10), collapse = ", ")
-            ), call. = FALSE)
-        }
-
-        row_order_names <- row_order_names[row_order_names %in% rownames(J)]
-        row_order <- match(row_order_names, rownames(J))
-
-        if (length(row_order) == 0L)
-            row_order <- NULL
+  if (!is.null(row_order_names)) {
+    stopifnot(is.character(row_order_names))
+    if (is.null(rownames(J))) {
+      stop("J must have rownames when row_order_names is provided")
     }
 
-    if (!is.null(column_order_names)) {
-        stopifnot(is.character(column_order_names))
-        if (is.null(colnames(J)))
-            stop("J must have colnames when column_order_names is provided")
-
-        miss <- setdiff(column_order_names, colnames(J))
-        if (length(miss) > 0L) {
-            warning(sprintf(
-                "column_order_names contains %d names not present in J (showing up to 10): %s",
-                length(miss),
-                paste(utils::head(miss, 10), collapse = ", ")
-            ), call. = FALSE)
-        }
-
-        column_order_names <- column_order_names[column_order_names %in% colnames(J)]
-        column_order <- match(column_order_names, colnames(J))
-
-        if (length(column_order) == 0L)
-            column_order <- NULL
+    miss <- setdiff(row_order_names, rownames(J))
+    if (length(miss) > 0L) {
+      warning(sprintf(
+        "row_order_names contains %d names not present in J (showing up to 10): %s",
+        length(miss),
+        paste(utils::head(miss, 10), collapse = ", ")
+      ), call. = FALSE)
     }
 
-    # If an explicit order is provided, do not recluster that axis
-    cluster_rows <- is.null(row_order)
-    cluster_columns <- is.null(column_order)
+    row_order_names <- row_order_names[row_order_names %in% rownames(J)]
+    row_order <- match(row_order_names, rownames(J))
 
-    col_fun <- circlize::colorRamp2(c(0, 0.5, 1), c("#f7fbff", "#6baed6", "#08306b"))
+    if (length(row_order) == 0L) {
+      row_order <- NULL
+    }
+  }
 
-    cf <- if (isTRUE(annotate_cells)) {
-        function(j, i, x, y, width, height, fill) {
-            grid::grid.text(sprintf("%.2f", J[i, j]), x, y, gp = grid::gpar(fontsize = cell_fontsize))
-        }
-    } else {
-        NULL
+  if (!is.null(column_order_names)) {
+    stopifnot(is.character(column_order_names))
+    if (is.null(colnames(J))) {
+      stop("J must have colnames when column_order_names is provided")
     }
 
-    ComplexHeatmap::Heatmap(
-        J,
-        name = "J",
-        col = col_fun,
-        cluster_rows = cluster_rows,
-        cluster_columns = cluster_columns,
-        row_order = row_order,
-        column_order = column_order,
-        row_title = NULL,
-        column_title = title,
-        show_row_dend = cluster_rows,
-        show_column_dend = cluster_columns,
-        row_names_gp = grid::gpar(fontsize = row_fontsize),
-        column_names_gp = grid::gpar(fontsize = col_fontsize),
-        heatmap_legend_param = list(at = c(0, 0.5, 1), title = legend_title),
-        cell_fun = cf
-    )
+    miss <- setdiff(column_order_names, colnames(J))
+    if (length(miss) > 0L) {
+      warning(sprintf(
+        "column_order_names contains %d names not present in J (showing up to 10): %s",
+        length(miss),
+        paste(utils::head(miss, 10), collapse = ", ")
+      ), call. = FALSE)
+    }
+
+    column_order_names <- column_order_names[column_order_names %in% colnames(J)]
+    column_order <- match(column_order_names, colnames(J))
+
+    if (length(column_order) == 0L) {
+      column_order <- NULL
+    }
+  }
+
+  # If an explicit order is provided, do not recluster that axis
+  cluster_rows <- is.null(row_order)
+  cluster_columns <- is.null(column_order)
+
+  col_fun <- circlize::colorRamp2(c(0, 0.5, 1), c("#f7fbff", "#6baed6", "#08306b"))
+
+  cf <- if (isTRUE(annotate_cells)) {
+    function(j, i, x, y, width, height, fill) {
+      grid::grid.text(sprintf("%.2f", J[i, j]), x, y, gp = grid::gpar(fontsize = cell_fontsize))
+    }
+  } else {
+    NULL
+  }
+
+  ComplexHeatmap::Heatmap(
+    J,
+    name = "J",
+    col = col_fun,
+    cluster_rows = cluster_rows,
+    cluster_columns = cluster_columns,
+    row_order = row_order,
+    column_order = column_order,
+    row_title = NULL,
+    column_title = title,
+    show_row_dend = cluster_rows,
+    show_column_dend = cluster_columns,
+    row_names_gp = grid::gpar(fontsize = row_fontsize),
+    column_names_gp = grid::gpar(fontsize = col_fontsize),
+    heatmap_legend_param = list(at = c(0, 0.5, 1), title = legend_title),
+    cell_fun = cf
+  )
 }
 
 
 # calculate correlation on the model coefficients that overlap in a pair of comparisons.
 # feature x <group_var> matrix of coefficients (NA where a feature is absent)
 coef_matrix_by_group <- function(all_models, group_var) {
-    stopifnot(
-        all(c("feature", "coef") %in% names(all_models)),
-        group_var %in% names(all_models)
-    )
+  stopifnot(
+    all(c("feature", "coef") %in% names(all_models)),
+    group_var %in% names(all_models)
+  )
 
-    cols <- c("feature", group_var, "coef")
+  cols <- c("feature", group_var, "coef")
 
-    if (data.table::is.data.table(all_models)) {
-        df <- all_models[, cols, with = FALSE]
-    } else {
-        df <- all_models[, cols, drop = FALSE]
-    }
+  if (data.table::is.data.table(all_models)) {
+    df <- all_models[, cols, with = FALSE]
+  } else {
+    df <- all_models[, cols, drop = FALSE]
+  }
 
-    f <- stats::as.formula(paste0("feature ~ ", group_var))
-    wide_dt <- data.table::dcast(data.table::as.data.table(df), f, value.var = "coef")
+  f <- stats::as.formula(paste0("feature ~ ", group_var))
+  wide_dt <- data.table::dcast(data.table::as.data.table(df), f, value.var = "coef")
 
-    mat <- as.matrix(wide_dt[, -1, with = FALSE])
-    rownames(mat) <- wide_dt[["feature"]]
-    mat
+  mat <- as.matrix(wide_dt[, -1, with = FALSE])
+  rownames(mat) <- wide_dt[["feature"]]
+  mat
 }
-
 
 
 ####################
@@ -908,50 +916,51 @@ coef_matrix_by_group <- function(all_models, group_var) {
 ####################
 
 
-load_models <- function (model_file, cellTypeListFile=NULL) {
+load_models <- function(model_file, cellTypeListFile = NULL) {
+  all_models <- data.table::fread(model_file,
+    header = TRUE,
+    sep = "\t",
+    stringsAsFactors = FALSE
+  )
 
-    all_models=data.table::fread(model_file,
-          header = TRUE,
-          sep = "\t",
-          stringsAsFactors = FALSE)
+  if (!is.null(cellTypeListFile)) {
+    cell_types <- read.table(cellTypeListFile,
+      header = FALSE,
+      stringsAsFactors = FALSE
+    )$V1
+    all_models <- all_models[all_models$cell_type %in% cell_types, ]
+  }
 
-    if (!is.null(cellTypeListFile)) {
-        cell_types = read.table(cellTypeListFile,
-                                header = FALSE,
-                                stringsAsFactors = FALSE)$V1
-        all_models = all_models[all_models$cell_type %in% cell_types, ]
-    }
-
-    strCell=paste0("[", length(unique(all_models$cell_type)), "] cell types")
-    strRegion=paste0("[", length(unique(all_models$region)), "] regions")
-    str=paste0("Loaded model coefficients for ", strCell, " ", strRegion)
-    logger::log_info(str)
-    return(all_models)
+  strCell <- paste0("[", length(unique(all_models$cell_type)), "] cell types")
+  strRegion <- paste0("[", length(unique(all_models$region)), "] regions")
+  str <- paste0("Loaded model coefficients for ", strCell, " ", strRegion)
+  logger::log_info(str)
+  return(all_models)
 }
 
-load_model_predictions <- function (prediction_file, cellTypeListFile=NULL) {
+load_model_predictions <- function(prediction_file, cellTypeListFile = NULL) {
+  all_preds <- data.table::fread(prediction_file,
+    header = TRUE,
+    sep = "\t",
+    stringsAsFactors = FALSE
+  )
+
+  if (!is.null(cellTypeListFile)) {
+    cell_types <- read.table(cellTypeListFile,
+      header = FALSE,
+      stringsAsFactors = FALSE
+    )$V1
+    all_preds <- all_preds[all_preds$cell_type %in% cell_types, ]
+  }
 
 
-    all_preds=data.table::fread(prediction_file,
-                                 header = TRUE,
-                                 sep = "\t",
-                                 stringsAsFactors = FALSE)
+  strCell <- paste0("[", length(unique(all_preds$cell_type)), "] cell types")
+  strRegion <- paste0("[", length(unique(all_preds$region)), "] regions")
+  strDonor <- paste0("[", length(unique(all_preds$donor)), "] donors")
+  str <- paste0("Loaded donor predictions for ", strCell, " ", strRegion, " ", strDonor)
 
-    if (!is.null(cellTypeListFile)) {
-        cell_types = read.table(cellTypeListFile,
-                                header = FALSE,
-                                stringsAsFactors = FALSE)$V1
-        all_preds = all_preds[all_preds$cell_type %in% cell_types, ]
-    }
-
-
-    strCell=paste0("[", length(unique(all_preds$cell_type)), "] cell types")
-    strRegion=paste0("[", length(unique(all_preds$region)), "] regions")
-    strDonor=paste0("[", length(unique(all_preds$donor)), "] donors")
-    str=paste0("Loaded donor predictions for ", strCell, " ", strRegion, " ", strDonor)
-
-    logger::log_info(str)
-    return(all_preds)
+  logger::log_info(str)
+  return(all_preds)
 }
 
 #' Plot heatmap of residual correlations
@@ -990,45 +999,45 @@ load_model_predictions <- function (prediction_file, cellTypeListFile=NULL) {
                                                row_fontsize = 9,
                                                col_fontsize = 9,
                                                cell_fontsize = 9,
-                                               legend_title="Correlation") {
-    stopifnot(is.matrix(res_mat))
+                                               legend_title = "Correlation") {
+  stopifnot(is.matrix(res_mat))
 
-    C <- stats::cor(res_mat, use = "pairwise.complete.obs")
+  C <- stats::cor(res_mat, use = "pairwise.complete.obs")
 
-    col_fun <- circlize::colorRamp2(c(-1, 0, 1), c("#3b4cc0", "white", "#b40426"))
+  col_fun <- circlize::colorRamp2(c(-1, 0, 1), c("#3b4cc0", "white", "#b40426"))
 
-    if (is.null(title)) {
-        title <- "Age Prediction residuals (predicted - actual)"
+  if (is.null(title)) {
+    title <- "Age Prediction residuals (predicted - actual)"
+  }
+
+  cf <- if (isTRUE(annotate_cells)) {
+    function(j, i, x, y, width, height, fill) {
+      grid::grid.text(
+        sprintf("%.2f", C[i, j]),
+        x,
+        y,
+        gp = grid::gpar(fontsize = cell_fontsize)
+      )
     }
+  } else {
+    NULL
+  }
 
-    cf <- if (isTRUE(annotate_cells)) {
-        function(j, i, x, y, width, height, fill) {
-            grid::grid.text(
-                sprintf("%.2f", C[i, j]),
-                x,
-                y,
-                gp = grid::gpar(fontsize = cell_fontsize)
-            )
-        }
-    } else {
-        NULL
-    }
-
-    ComplexHeatmap::Heatmap(
-        C,
-        name = "r",
-        col = col_fun,
-        cluster_rows = TRUE,
-        cluster_columns = TRUE,
-        row_title = NULL,
-        column_title = title,
-        show_row_dend = FALSE,
-        show_column_dend = FALSE,
-        row_names_gp = grid::gpar(fontsize = row_fontsize),
-        column_names_gp = grid::gpar(fontsize = col_fontsize),
-        heatmap_legend_param = list(at = c(-1, -0.5, 0, 0.5, 1), title = legend_title),
-        cell_fun = cf
-    )
+  ComplexHeatmap::Heatmap(
+    C,
+    name = "r",
+    col = col_fun,
+    cluster_rows = TRUE,
+    cluster_columns = TRUE,
+    row_title = NULL,
+    column_title = title,
+    show_row_dend = FALSE,
+    show_column_dend = FALSE,
+    row_names_gp = grid::gpar(fontsize = row_fontsize),
+    column_names_gp = grid::gpar(fontsize = col_fontsize),
+    heatmap_legend_param = list(at = c(-1, -0.5, 0, 0.5, 1), title = legend_title),
+    cell_fun = cf
+  )
 }
 
 #' Plot residual scatter for a single pair of columns
@@ -1080,128 +1089,134 @@ load_model_predictions <- function (prediction_file, cellTypeListFile=NULL) {
                                                    lm_linewidth = 0.6,
                                                    annotate_r_size = 5,
                                                    pad_frac = 0.1) {
+  stopifnot(is.matrix(res_mat))
+  stopifnot(is.character(x_name) && length(x_name) == 1L)
+  stopifnot(is.character(y_name) && length(y_name) == 1L)
 
-    stopifnot(is.matrix(res_mat))
-    stopifnot(is.character(x_name) && length(x_name) == 1L)
-    stopifnot(is.character(y_name) && length(y_name) == 1L)
+  regs <- colnames(res_mat)
+  if (is.null(regs)) {
+    stop("res_mat must have colnames")
+  }
 
-    regs <- colnames(res_mat)
-    if (is.null(regs))
-        stop("res_mat must have colnames")
+  if (!(x_name %in% regs)) {
+    stop(sprintf("x_name not found in res_mat colnames: %s", x_name))
+  }
+  if (!(y_name %in% regs)) {
+    stop(sprintf("y_name not found in res_mat colnames: %s", y_name))
+  }
+  if (x_name == y_name) {
+    stop("x_name and y_name must be different")
+  }
 
-    if (!(x_name %in% regs))
-        stop(sprintf("x_name not found in res_mat colnames: %s", x_name))
-    if (!(y_name %in% regs))
-        stop(sprintf("y_name not found in res_mat colnames: %s", y_name))
-    if (x_name == y_name)
-        stop("x_name and y_name must be different")
+  donors <- rownames(res_mat)
+  if (is.null(donors)) {
+    stop("res_mat must have rownames containing donor IDs")
+  }
 
-    donors <- rownames(res_mat)
-    if (is.null(donors))
-        stop("res_mat must have rownames containing donor IDs")
+  meta <- NULL
+  if (!is.null(donor_meta)) {
+    stopifnot(is.data.frame(donor_meta) || data.table::is.data.table(donor_meta))
+    stopifnot(donor_id_col %in% names(donor_meta))
+    stopifnot(color_var %in% names(donor_meta))
 
-    meta <- NULL
-    if (!is.null(donor_meta)) {
-        stopifnot(is.data.frame(donor_meta) || data.table::is.data.table(donor_meta))
-        stopifnot(donor_id_col %in% names(donor_meta))
-        stopifnot(color_var %in% names(donor_meta))
+    cols <- c(donor_id_col, color_var)
 
-        cols <- c(donor_id_col, color_var)
-
-        if (data.table::is.data.table(donor_meta)) {
-            meta <- unique(donor_meta[, cols, with = FALSE])
-        } else {
-            meta <- unique(donor_meta[, cols, drop = FALSE])
-        }
-
-        data.table::setnames(meta, cols, c("donor", "color_value"))
+    if (data.table::is.data.table(donor_meta)) {
+      meta <- unique(donor_meta[, cols, with = FALSE])
+    } else {
+      meta <- unique(donor_meta[, cols, drop = FALSE])
     }
 
-    x <- res_mat[, x_name]
-    y <- res_mat[, y_name]
+    data.table::setnames(meta, cols, c("donor", "color_value"))
+  }
 
-    keep <- is.finite(x) & is.finite(y)
-    if (sum(keep) < 2)
-        return(NULL)
+  x <- res_mat[, x_name]
+  y <- res_mat[, y_name]
 
-    df <- data.frame(
-        donor = donors[keep],
-        x = x[keep],
-        y = y[keep],
-        stringsAsFactors = FALSE
+  keep <- is.finite(x) & is.finite(y)
+  if (sum(keep) < 2) {
+    return(NULL)
+  }
+
+  df <- data.frame(
+    donor = donors[keep],
+    x = x[keep],
+    y = y[keep],
+    stringsAsFactors = FALSE
+  )
+
+  if (!is.null(meta)) {
+    df <- merge(df, meta, by = "donor", all.x = TRUE, sort = FALSE)
+  } else {
+    df$color_value <- NA_real_
+  }
+
+  use_color <- any(is.finite(df$color_value))
+  if (is.null(color_title)) {
+    color_title <- color_var
+  }
+
+  r <- stats::cor(df$x, df$y)
+
+  rng <- range(c(df$x, df$y))
+  pad <- diff(rng) * pad_frac
+  lim <- c(rng[1] - pad, rng[2] + pad)
+
+  # R CMD CHECK
+  intercept <- slope <- color_value <- NULL
+
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = x, y = y)) +
+    ggplot2::geom_abline(
+      intercept = 0,
+      slope = 1,
+      color = "black",
+      linetype = "dashed"
     )
 
-    if (!is.null(meta)) {
-        df <- merge(df, meta, by = "donor", all.x = TRUE, sort = FALSE)
-    } else {
-        df$color_value <- NA_real_
-    }
+  if (use_color) {
+    p <- p +
+      ggplot2::geom_point(
+        ggplot2::aes(color = color_value),
+        size = point_size,
+        alpha = point_alpha
+      ) +
+      ggplot2::scale_color_viridis_c(name = color_title)
+  } else {
+    p <- p +
+      ggplot2::geom_point(
+        size = point_size,
+        alpha = point_alpha,
+        color = "steelblue"
+      )
+  }
 
-    use_color <- any(is.finite(df$color_value))
-    if (is.null(color_title))
-        color_title <- color_var
-
-    r <- stats::cor(df$x, df$y)
-
-    rng <- range(c(df$x, df$y))
-    pad <- diff(rng) * pad_frac
-    lim <- c(rng[1] - pad, rng[2] + pad)
-
-    # R CMD CHECK
-    intercept <- slope <- color_value <- NULL
-
-    p <- ggplot2::ggplot(df, ggplot2::aes(x = x, y = y)) +
-        ggplot2::geom_abline(
-            intercept = 0,
-            slope = 1,
-            color = "black",
-            linetype = "dashed"
-        )
-
-    if (use_color) {
-        p <- p +
-            ggplot2::geom_point(
-                ggplot2::aes(color = color_value),
-                size = point_size,
-                alpha = point_alpha
-            ) +
-            ggplot2::scale_color_viridis_c(name = color_title)
-    } else {
-        p <- p +
-            ggplot2::geom_point(
-                size = point_size,
-                alpha = point_alpha,
-                color = "steelblue"
-            )
-    }
-
-    p +
-        ggplot2::geom_smooth(
-            method = "lm",
-            formula = y ~ x,
-            se = FALSE,
-            linewidth = lm_linewidth,
-            color = "red"
-        ) +
-        ggplot2::annotate(
-            "text",
-            x = -Inf,
-            y = Inf,
-            label = sprintf("r = %.2f", r),
-            hjust = -0.1,
-            vjust = 1.2,
-            size = annotate_r_size
-        ) +
-        ggplot2::coord_cartesian(xlim = lim, ylim = lim) +
-        ggplot2::labs(
-            x = paste("Residual in", x_name),
-            y = paste("Residual in", y_name)
-        ) +
-        ggplot2::theme_classic(base_size = 12) +
-        ggplot2::theme(
-            axis.title = ggplot2::element_text(size = 14),
-            axis.text  = ggplot2::element_text(size = 12)
-        )
+  p +
+    ggplot2::geom_smooth(
+      method = "lm",
+      formula = y ~ x,
+      se = FALSE,
+      linewidth = lm_linewidth,
+      color = "red"
+    ) +
+    ggplot2::annotate(
+      "text",
+      x = -Inf,
+      y = Inf,
+      label = sprintf("r = %.2f", r),
+      hjust = -0.1,
+      vjust = 1.2,
+      size = annotate_r_size
+    ) +
+    ggplot2::coord_cartesian(xlim = lim, ylim = lim) +
+    ggplot2::labs(
+      x = paste("Residual in", x_name),
+      y = paste("Residual in", y_name)
+    ) +
+    ggplot2::theme_classic(base_size = 12) +
+    ggplot2::theme(
+      axis.title = ggplot2::element_text(size = 14),
+      axis.text  = ggplot2::element_text(size = 12)
+    )
 }
 
 #################
@@ -1209,98 +1224,96 @@ load_model_predictions <- function (prediction_file, cellTypeListFile=NULL) {
 #################
 
 .mode_dims <- function(mode) {
-    if (identical(mode, "within_region")) {
-        return(list(
-            slice_var = "region",
-            group_var = "cell_type",
-            slice_label = "region"
-        ))
-    }
-    if (identical(mode, "within_cell_type")) {
-        return(list(
-            slice_var = "cell_type",
-            group_var = "region",
-            slice_label = "cell_type"
-        ))
-    }
-    stop("mode must be 'within_region' or 'within_cell_type'", call. = FALSE)
+  if (identical(mode, "within_region")) {
+    return(list(
+      slice_var = "region",
+      group_var = "cell_type",
+      slice_label = "region"
+    ))
+  }
+  if (identical(mode, "within_cell_type")) {
+    return(list(
+      slice_var = "cell_type",
+      group_var = "region",
+      slice_label = "cell_type"
+    ))
+  }
+  stop("mode must be 'within_region' or 'within_cell_type'", call. = FALSE)
 }
 
 .require_slice_args <- function(mode, cell_type, region) {
-    if (identical(mode, "within_region")) {
-        if (is.null(region) || length(region) != 1L) {
-            stop("For mode='within_region', region must be a single value", call. = FALSE)
-        }
-    } else {
-        if (is.null(cell_type) || length(cell_type) != 1L) {
-            stop("For mode='within_cell_type', cell_type must be a single value", call. = FALSE)
-        }
+  if (identical(mode, "within_region")) {
+    if (is.null(region) || length(region) != 1L) {
+      stop("For mode='within_region', region must be a single value", call. = FALSE)
     }
+  } else {
+    if (is.null(cell_type) || length(cell_type) != 1L) {
+      stop("For mode='within_cell_type', cell_type must be a single value", call. = FALSE)
+    }
+  }
 }
 
 .slice_predictions <- function(model_predictions, mode, cell_type, region) {
-    dims <- .mode_dims(mode)
-    data.table::setDT(model_predictions)
+  dims <- .mode_dims(mode)
+  data.table::setDT(model_predictions)
 
-    if (identical(dims$slice_var, "region")) {
-        region_value <- region
-        model_predictions[region == region_value]
-    } else {
-        cell_type_value <- cell_type
-        model_predictions[cell_type == cell_type_value]
-    }
+  if (identical(dims$slice_var, "region")) {
+    region_value <- region
+    model_predictions[region == region_value]
+  } else {
+    cell_type_value <- cell_type
+    model_predictions[cell_type == cell_type_value]
+  }
 }
 
 .slice_models <- function(all_models, mode, cell_type, region) {
-    dims <- .mode_dims(mode)
-    data.table::setDT(all_models)
+  dims <- .mode_dims(mode)
+  data.table::setDT(all_models)
 
-    if (identical(dims$slice_var, "region")) {
-        region_value <- region
-        all_models[region == region_value]
-    } else {
-        cell_type_value <- cell_type
-        all_models[cell_type == cell_type_value]
-    }
+  if (identical(dims$slice_var, "region")) {
+    region_value <- region
+    all_models[region == region_value]
+  } else {
+    cell_type_value <- cell_type
+    all_models[cell_type == cell_type_value]
+  }
 }
 
 .warn_if_fewer_than_2_groups <- function(dt, group_var, label) {
-    n_groups <- length(unique(dt[[group_var]]))
-    if (is.na(n_groups) || n_groups < 2) {
-        logger::log_warn(sprintf(
-            "Skipping %s: only %d unique %s present",
-            label, n_groups, group_var
-        ))
-        return(TRUE)
-    }
-    FALSE
+  n_groups <- length(unique(dt[[group_var]]))
+  if (is.na(n_groups) || n_groups < 2) {
+    logger::log_warn(sprintf(
+      "Skipping %s: only %d unique %s present",
+      label, n_groups, group_var
+    ))
+    return(TRUE)
+  }
+  FALSE
 }
 
 .default_title_label <- function(mode, cell_type, region) {
-    if (identical(mode, "within_region")) {
-        paste0("region [", region, "]")
-    } else {
-        paste0("cell_type [", cell_type, "]")
-    }
+  if (identical(mode, "within_region")) {
+    paste0("region [", region, "]")
+  } else {
+    paste0("cell_type [", cell_type, "]")
+  }
 }
 
 .get_heatmap_order_names <- function(ht, name_vec) {
-    tmp_pdf <- tempfile(fileext = ".pdf")
-    grDevices::pdf(tmp_pdf, width = 4, height = 4)
-    ht_drawn <- ComplexHeatmap::draw(ht, newpage = TRUE)
-    grDevices::dev.off()
-    unlink(tmp_pdf)
+  tmp_pdf <- tempfile(fileext = ".pdf")
+  grDevices::pdf(tmp_pdf, width = 4, height = 4)
+  ht_drawn <- ComplexHeatmap::draw(ht, newpage = TRUE)
+  grDevices::dev.off()
+  unlink(tmp_pdf)
 
-    ro <- ComplexHeatmap::row_order(ht_drawn)
-    co <- ComplexHeatmap::column_order(ht_drawn)
+  ro <- ComplexHeatmap::row_order(ht_drawn)
+  co <- ComplexHeatmap::column_order(ht_drawn)
 
-    if (is.list(ro)) ro <- ro[[1]]
-    if (is.list(co)) co <- co[[1]]
+  if (is.list(ro)) ro <- ro[[1]]
+  if (is.list(co)) co <- co[[1]]
 
-    list(
-        row_order_names = name_vec[ro],
-        column_order_names = name_vec[co]
-    )
+  list(
+    row_order_names = name_vec[ro],
+    column_order_names = name_vec[co]
+  )
 }
-
-

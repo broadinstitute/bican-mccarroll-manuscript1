@@ -1,4 +1,4 @@
 .onLoad <- function(libname, pkgname) {
-    invisible(NULL)
+  invisible(NULL)
 }
 utils::globalVariables(":=")

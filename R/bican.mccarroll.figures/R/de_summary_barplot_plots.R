@@ -9,6 +9,8 @@
 # )
 #
 # plot_sex_de_by_chromosome_bican()
+# plot_de_summary_barplot_bican_sea_ad_mtg_mmc()
+# plot_de_summary_barplot_pmid_39402379()
 
 #' Plot BICAN sex-effect differential expression by chromosome group
 #'
@@ -77,6 +79,153 @@ plot_sex_de_by_chromosome_bican <- function(outDir = NULL, alpha = 0.05) {
   )
 
   logger::log_info("DONE plotting sex DE by chromosome for {dataset_id}")
+
+  invisible(result)
+}
+
+
+#' Plot BICAN sea_ad_mtg_mmc differential expression effect counts
+#'
+#' Wires the BICAN LEVEL_6_sea_ad_mtg_mmc age differential expression results
+#' into
+#' \code{bican.mccarroll.differentialexpression::barplot_de_results_from_counts()},
+#' restricted to the SEA-AD supertype cell types for which BICAN DE results
+#' were generated. Writes a single age-effect SVG to the configured figure
+#' output directory (see \code{\link{get_out_dir}}). The per-cell-type
+#' up/down gene counts are cached as a TSV in the configured cache directory
+#' (see \code{\link{get_cache_dir}}) so subsequent calls can skip re-parsing
+#' the raw DE result files.
+#'
+#' Sex-effect counts by chromosome group already have dedicated handling in
+#' \code{\link{plot_sex_de_by_chromosome_bican}}, so this function only
+#' covers the \code{age} contrast.
+#'
+#' @param outDir Output directory for the generated SVG. If \code{NULL},
+#'   resolved via configured output directory options.
+#' @param data_cache_dir Directory used to store the cached counts TSV. If
+#'   \code{NULL}, the directory is resolved from
+#'   \code{options("bican.mccarroll.figures.cache_dir")}.
+#' @param force_recompute Logical scalar. If \code{TRUE}, ignore an existing
+#'   cache file, recompute the counts, and overwrite the cache. Defaults to
+#'   \code{FALSE}.
+#'
+#' @return Invisibly returns the `ggplot` object produced by
+#'   \code{bican.mccarroll.differentialexpression::barplot_de_results_from_counts()}.
+#'
+#' @export
+plot_de_summary_barplot_bican_sea_ad_mtg_mmc <- function(outDir = NULL,
+                                                         data_cache_dir = NULL,
+                                                         force_recompute = FALSE) {
+  .plot_de_summary_barplot_figure(
+    in_dir = "differential_expression/results/LEVEL_6_sea_ad_mtg_mmc/sex_age/cell_type",
+    file_pattern = "__age_DE_results\\.txt$",
+    cellTypeListFile = "differential_expression/metadata/cell_types_for_sea_ad_mtg_mmc_plots.txt",
+    out_file = "de_summary_barplot_bican_sea_ad_mtg_mmc_age.svg",
+    cache_name = "de_summary_barplot_bican_sea_ad_mtg_mmc_age.tsv",
+    outDir = outDir,
+    data_cache_dir = data_cache_dir,
+    force_recompute = force_recompute
+  )
+}
+
+
+#' Plot PMID_39402379 (Gabitto et al. 2024) differential expression effect counts
+#'
+#' Wires the PMID_39402379 voom-like differential expression results into
+#' \code{bican.mccarroll.differentialexpression::barplot_de_results_from_counts()},
+#' restricted to the SEA-AD supertype cell types for which BICAN DE results
+#' were generated. Writes one SVG per contrast to the configured figure
+#' output directory (see \code{\link{get_out_dir}}). The per-cell-type
+#' up/down gene counts for each contrast are cached as a TSV in the
+#' configured cache directory (see \code{\link{get_cache_dir}}) so subsequent
+#' calls can skip re-parsing the raw DE result files.
+#'
+#' @param contrast Character vector of one or more of \code{"ad_cps"},
+#'   \code{"early_ad_cps"}, \code{"late_ad_cps"}, \code{"versus_all"}.
+#' @param outDir Output directory for the generated SVGs. If \code{NULL},
+#'   resolved via configured output directory options.
+#' @param data_cache_dir Directory used to store the cached counts TSVs. If
+#'   \code{NULL}, the directory is resolved from
+#'   \code{options("bican.mccarroll.figures.cache_dir")}.
+#' @param force_recompute Logical scalar. If \code{TRUE}, ignore existing
+#'   cache files, recompute the counts, and overwrite the cache. Defaults to
+#'   \code{FALSE}.
+#'
+#' @return Invisibly returns a named list (by contrast) of the `ggplot`
+#'   objects produced by
+#'   \code{bican.mccarroll.differentialexpression::barplot_de_results_from_counts()}.
+#'
+#' @export
+plot_de_summary_barplot_pmid_39402379 <- function(
+  contrast = c("ad_cps", "early_ad_cps", "late_ad_cps", "versus_all"),
+  outDir = NULL,
+  data_cache_dir = NULL,
+  force_recompute = FALSE
+) {
+  results <- lapply(contrast, function(ct) {
+    .plot_de_summary_barplot_figure(
+      in_dir = "differential_expression/external_comparison_PMID_39402379/voom-like",
+      file_pattern = sprintf("__MTG__%s_DE_results\\.txt$", ct),
+      cellTypeListFile = "differential_expression/metadata/cell_types_for_sea_ad_mtg_mmc_plots.txt",
+      out_file = sprintf("de_summary_barplot_PMID_39402379_%s.svg", ct),
+      cache_name = sprintf("de_summary_barplot_PMID_39402379_%s.tsv", ct),
+      outDir = outDir,
+      data_cache_dir = data_cache_dir,
+      force_recompute = force_recompute
+    )
+  })
+  names(results) <- contrast
+
+  invisible(results)
+}
+
+
+.plot_de_summary_barplot_figure <- function(in_dir,
+                                            file_pattern,
+                                            cellTypeListFile = NULL,
+                                            out_file,
+                                            cache_name,
+                                            outDir = NULL,
+                                            data_cache_dir = NULL,
+                                            force_recompute = FALSE) {
+  paths <- resolve_de_summary_barplot_paths(
+    in_dir = in_dir,
+    cellTypeListFile = cellTypeListFile,
+    outDir = outDir
+  )
+
+  cache_dir <- .resolve_cache_dir(data_cache_dir)
+  if (is.null(data_cache_dir)) {
+    cache_dir <- file.path(cache_dir, "differential_expression")
+  }
+  .ensure_dir(cache_dir)
+  cache_file <- file.path(cache_dir, cache_name)
+
+  if (!force_recompute && file.exists(cache_file)) {
+    de_counts <- data.table::fread(cache_file)
+  } else {
+    de_counts <- bican.mccarroll.differentialexpression::compute_de_result_counts(
+      in_dir = paths$in_dir,
+      file_pattern = file_pattern,
+      cellTypeListFile = paths$cellTypeListFile
+    )
+
+    utils::write.table(
+      de_counts,
+      file = cache_file,
+      sep = "\t",
+      row.names = FALSE,
+      col.names = TRUE,
+      quote = FALSE
+    )
+  }
+
+  result <- bican.mccarroll.differentialexpression::barplot_de_results_from_counts(
+    de_counts,
+    svg_output_file = file.path(paths$outDir, out_file)
+  )
+
+  logger::log_info("DONE plotting DE summary barplot: {out_file}")
 
   invisible(result)
 }

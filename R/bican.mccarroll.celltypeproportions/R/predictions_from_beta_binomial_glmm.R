@@ -1,4 +1,3 @@
-
 # figures_cache_dir = "/broad/mccarroll/yooolivi/projects/bican/manuscript_1_figures/data_cache"
 #
 # sample_ctp <- read.table(
@@ -27,7 +26,7 @@
 
 #' Calculate the mode of a vector, ignoring NA values.
 #' @param x A vector of values.
-#' 
+#'
 #' @return The mode of the vector.
 get_mode <- function(x) {
   ux <- stats::na.omit(unique(x))
@@ -50,10 +49,8 @@ utils::globalVariables(c("age_decades", "fit", "fit_lower", "fit_upper", "fracti
 #'  @return A data frame containing the prediction grid, with columns for each variable in the model.
 make_prediction_grid <- function(model,
                                  vary = NULL,
-                                 n_points = 100)
-{
-
-  data = stats::model.frame(model)[,-c(1,2)] # drop response counts
+                                 n_points = 100) {
+  data <- stats::model.frame(model)[, -c(1, 2)] # drop response counts
 
   # 1. Get fixed-effect formula (drop random effects)
   form <- reformulas::nobars(stats::formula(model))
@@ -68,7 +65,6 @@ make_prediction_grid <- function(model,
   newdata_list <- list()
 
   for (v in vars) {
-
     # If user wants to vary this variable
     if (!is.null(vary) && v %in% names(vary)) {
       newdata_list[[v]] <- vary[[v]]
@@ -86,10 +82,7 @@ make_prediction_grid <- function(model,
   }
 
   expand.grid(newdata_list, KEEP.OUT.ATTRS = FALSE)
-
 }
-
-
 
 
 #' Generate predictions from a fitted model for a specific brain region,
@@ -101,8 +94,7 @@ make_prediction_grid <- function(model,
 #'
 #' @return A data frame containing the prediction grid with columns for age,
 #' brain region, predicted proportion, and standard errors.
-predict_one_region <- function(model, region_name, region_col="brain_region_abbreviation_simple") {
-
+predict_one_region <- function(model, region_name, region_col = "brain_region_abbreviation_simple") {
   df <- stats::model.frame(model)
 
   vary_list <- stats::setNames(
@@ -115,7 +107,7 @@ predict_one_region <- function(model, region_name, region_col="brain_region_abbr
     vary = vary_list
   )
 
-  predictions <- stats::predict(model, newdata = region_data_to_predict, type = "response", se.fit=TRUE, re.form=NA)
+  predictions <- stats::predict(model, newdata = region_data_to_predict, type = "response", se.fit = TRUE, re.form = NA)
 
   region_data_to_predict$fit <- predictions$fit
   region_data_to_predict$se.fit <- predictions$se.fit
@@ -136,14 +128,14 @@ predict_one_region <- function(model, region_name, region_col="brain_region_abbr
 #' @return A data frame containing the prediction grid with columns for age,
 #' brain region, predicted proportion, and confidence intervals for all specified brain regions.
 #'
-predict_many_regions <- function(model, region_names, region_col="brain_region_abbreviation_simple") {
+predict_many_regions <- function(model, region_names, region_col = "brain_region_abbreviation_simple") {
   prediction_list <- lapply(region_names, function(region) {
     predict_one_region(model, region)
   })
 
   names(prediction_list) <- region_names
 
-  combined_predictions <- dplyr::bind_rows(prediction_list, .id=region_col)
+  combined_predictions <- dplyr::bind_rows(prediction_list, .id = region_col)
 
   return(combined_predictions)
 }
@@ -164,35 +156,33 @@ predict_many_regions <- function(model, region_names, region_col="brain_region_a
 #' @return A ggplot object showing observed data points and model predictions for the
 #' specified cell type across the specified brain regions.
 plot_predictions_over_data <- function(model, cell_type,
-                                       regions=c("CaH", "Pu", "NAC", "ic", "DFC"),
-                                       region_col="brain_region_abbreviation_simple") {
-
+                                       regions = c("CaH", "Pu", "NAC", "ic", "DFC"),
+                                       region_col = "brain_region_abbreviation_simple") {
   df <- as.data.frame(stats::model.frame(model))
   resp <- stats::model.response(df)
   df$fraction_nuclei <- resp[, 1] / rowSums(resp)
   df[[region_col]] <- factor(df[[region_col]], levels = regions)
   df <- df[, -1]
 
-  predictions <- predict_many_regions(model, regions, region_col=region_col)
+  predictions <- predict_many_regions(model, regions, region_col = region_col)
   predictions[[region_col]] <- factor(predictions[[region_col]], levels = regions)
 
   ggplot2::ggplot(
     df |> stats::na.omit(),
-    ggplot2::aes(x=age_decades*10, y=fraction_nuclei)
+    ggplot2::aes(x = age_decades * 10, y = fraction_nuclei)
   ) +
     ggplot2::geom_point() +
-    ggplot2::geom_line(data=predictions, ggplot2::aes(x=age_decades*10, y=fit), color="blue", lwd=1) +
+    ggplot2::geom_line(data = predictions, ggplot2::aes(x = age_decades * 10, y = fit), color = "blue", lwd = 1) +
     ggplot2::geom_ribbon(
-      data=predictions,
-      ggplot2::aes(x=age_decades*10, y=fit, ymin=fit_lower, ymax=fit_upper),
-      alpha=0.2
+      data = predictions,
+      ggplot2::aes(x = age_decades * 10, y = fit, ymin = fit_lower, ymax = fit_upper),
+      alpha = 0.2
     ) +
-    ggplot2::facet_wrap(~brain_region_abbreviation_simple, scales="free", nrow=1) +
-    ggpubr::stat_cor(method="spearman", cor.coef.name = "rho") +
+    ggplot2::facet_wrap(~brain_region_abbreviation_simple, scales = "free", nrow = 1) +
+    ggpubr::stat_cor(method = "spearman", cor.coef.name = "rho") +
     ggplot2::theme_bw() +
     ggplot2::labs(
-      x="age",
-      y=paste(cell_type, "fraction")
+      x = "age",
+      y = paste(cell_type, "fraction")
     )
-
 }

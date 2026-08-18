@@ -97,211 +97,209 @@
 #'   products generated during the run.
 #'
 #' @export
-run_eqtl_manuscript_pipeline <- function(
-        eqtl_dir,
-        out_dir,
-        region_cell_type_path,
-        vcf_path,
-        K,
-        cluster_order,
-        celltype_order_file,
-        celltype_label_map_file,
-        qval = 0.01,
-        force = FALSE,
-        gene_snp_cases = list(
-            list(gene = "XRRA1", chr = "chr11", pos = 74868704),
-            list(gene = "NPAS3", chr = "chr14", pos = 32929955),
-            list(gene = "CEP112", chr = "chr17", pos = 66192315)
-        )) {
+run_eqtl_manuscript_pipeline <- function(eqtl_dir,
+                                         out_dir,
+                                         region_cell_type_path,
+                                         vcf_path,
+                                         K,
+                                         cluster_order,
+                                         celltype_order_file,
+                                         celltype_label_map_file,
+                                         qval = 0.01,
+                                         force = FALSE,
+                                         gene_snp_cases = list(
+                                           list(gene = "XRRA1", chr = "chr11", pos = 74868704),
+                                           list(gene = "NPAS3", chr = "chr14", pos = 32929955),
+                                           list(gene = "CEP112", chr = "chr17", pos = 66192315)
+                                         )) {
+  .validate_run_eqtl_manuscript_pipeline_inputs(
+    eqtl_dir = eqtl_dir,
+    out_dir = out_dir,
+    region_cell_type_path = region_cell_type_path,
+    vcf_path = vcf_path,
+    K = K,
+    cluster_order = cluster_order,
+    qval = qval,
+    force = force,
+    celltype_order_file = celltype_order_file,
+    celltype_label_map_file = celltype_label_map_file,
+    gene_snp_cases = gene_snp_cases
+  )
 
-    .validate_run_eqtl_manuscript_pipeline_inputs(
+  if (!dir.exists(out_dir)) {
+    dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+  }
+
+  paths <- .get_run_eqtl_manuscript_pipeline_paths(
+    out_dir = out_dir,
+    qval = qval,
+    K = K
+  )
+
+  .run_eqtl_manuscript_pipeline_step(
+    step_label = "Step 1: get_egene_union_pairs",
+    output_path = paths$egene_path,
+    force = force,
+    fun = function() {
+      bican.mccarroll.eqtl::get_egene_union_pairs(
         eqtl_dir = eqtl_dir,
-        out_dir = out_dir,
         region_cell_type_path = region_cell_type_path,
-        vcf_path = vcf_path,
-        K = K,
-        cluster_order = cluster_order,
-        qval = qval,
-        force = force,
-        celltype_order_file = celltype_order_file,
-        celltype_label_map_file = celltype_label_map_file,
-        gene_snp_cases = gene_snp_cases
-    )
-
-    if (!dir.exists(out_dir)) {
-        dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+        qval_threshold = qval,
+        output_path = paths$egene_path
+      )
     }
+  )
 
-    paths <- .get_run_eqtl_manuscript_pipeline_paths(
-        out_dir = out_dir,
-        qval = qval,
-        K = K
-    )
+  .run_eqtl_manuscript_pipeline_step(
+    step_label = "Step 2: get_slope_matrix",
+    output_path = paths$slope_path,
+    force = force,
+    fun = function() {
+      bican.mccarroll.eqtl::get_slope_matrix(
+        eqtl_dir = eqtl_dir,
+        region_cell_type_path = region_cell_type_path,
+        egene_union_pairs_path = paths$egene_path,
+        output_path = paths$slope_path
+      )
+    }
+  )
 
-    .run_eqtl_manuscript_pipeline_step(
-        step_label = "Step 1: get_egene_union_pairs",
-        output_path = paths$egene_path,
-        force = force,
-        fun = function() {
-            bican.mccarroll.eqtl::get_egene_union_pairs(
-                eqtl_dir = eqtl_dir,
-                region_cell_type_path = region_cell_type_path,
-                qval_threshold = qval,
-                output_path = paths$egene_path
-            )
-        }
-    )
+  .run_eqtl_manuscript_pipeline_step(
+    step_label = "Step 3: get_pval_nominal_matrix",
+    output_path = paths$pval_path,
+    force = force,
+    fun = function() {
+      bican.mccarroll.eqtl::get_pval_nominal_matrix(
+        eqtl_dir = eqtl_dir,
+        region_cell_type_path = region_cell_type_path,
+        egene_union_pairs_path = paths$egene_path,
+        output_path = paths$pval_path
+      )
+    }
+  )
 
-    .run_eqtl_manuscript_pipeline_step(
-        step_label = "Step 2: get_slope_matrix",
-        output_path = paths$slope_path,
-        force = force,
-        fun = function() {
-            bican.mccarroll.eqtl::get_slope_matrix(
-                eqtl_dir = eqtl_dir,
-                region_cell_type_path = region_cell_type_path,
-                egene_union_pairs_path = paths$egene_path,
-                output_path = paths$slope_path
-            )
-        }
-    )
+  .run_eqtl_manuscript_pipeline_step(
+    step_label = "Step 4: get_pval_nominal_threshold_matrix",
+    output_path = paths$pval_thresh_path,
+    force = force,
+    fun = function() {
+      bican.mccarroll.eqtl::get_pval_nominal_threshold_matrix(
+        eqtl_dir = eqtl_dir,
+        region_cell_type_path = region_cell_type_path,
+        egene_union_pairs_path = paths$egene_path,
+        output_path = paths$pval_thresh_path
+      )
+    }
+  )
 
-    .run_eqtl_manuscript_pipeline_step(
-        step_label = "Step 3: get_pval_nominal_matrix",
-        output_path = paths$pval_path,
-        force = force,
-        fun = function() {
-            bican.mccarroll.eqtl::get_pval_nominal_matrix(
-                eqtl_dir = eqtl_dir,
-                region_cell_type_path = region_cell_type_path,
-                egene_union_pairs_path = paths$egene_path,
-                output_path = paths$pval_path
-            )
-        }
-    )
+  .run_eqtl_manuscript_pipeline_step(
+    step_label = "Step 5: get_index_snp_slope_matrix_with_impute",
+    output_path = paths$index_snp_path,
+    force = force,
+    fun = function() {
+      bican.mccarroll.eqtl::get_index_snp_slope_matrix_with_impute(
+        slope_matrix_path = paths$slope_path,
+        output_path = paths$index_snp_path
+      )
+    }
+  )
 
-    .run_eqtl_manuscript_pipeline_step(
-        step_label = "Step 4: get_pval_nominal_threshold_matrix",
-        output_path = paths$pval_thresh_path,
-        force = force,
-        fun = function() {
-            bican.mccarroll.eqtl::get_pval_nominal_threshold_matrix(
-                eqtl_dir = eqtl_dir,
-                region_cell_type_path = region_cell_type_path,
-                egene_union_pairs_path = paths$egene_path,
-                output_path = paths$pval_thresh_path
-            )
-        }
-    )
+  .run_eqtl_manuscript_pipeline_step(
+    step_label = "Step 6: get_cell_type_pairwise_cor_matrix",
+    output_path = paths$r_squared_path,
+    force = force,
+    fun = function() {
+      bican.mccarroll.eqtl::get_cell_type_pairwise_cor_matrix(
+        slope_matrix_path = paths$slope_path,
+        pval_nominal_matrix_path = paths$pval_path,
+        pval_nominal_threshold_matrix_path = paths$pval_thresh_path,
+        egene_union_pairs_path = paths$egene_path,
+        region_cell_type_path = region_cell_type_path,
+        output_path = paths$r_squared_path
+      )
+    }
+  )
 
-    .run_eqtl_manuscript_pipeline_step(
-        step_label = "Step 5: get_index_snp_slope_matrix_with_impute",
-        output_path = paths$index_snp_path,
-        force = force,
-        fun = function() {
-            bican.mccarroll.eqtl::get_index_snp_slope_matrix_with_impute(
-                slope_matrix_path = paths$slope_path,
-                output_path = paths$index_snp_path
-            )
-        }
-    )
-
-    .run_eqtl_manuscript_pipeline_step(
-        step_label = "Step 6: get_cell_type_pairwise_cor_matrix",
-        output_path = paths$r_squared_path,
-        force = force,
-        fun = function() {
-            bican.mccarroll.eqtl::get_cell_type_pairwise_cor_matrix(
-                slope_matrix_path = paths$slope_path,
-                pval_nominal_matrix_path = paths$pval_path,
-                pval_nominal_threshold_matrix_path = paths$pval_thresh_path,
-                egene_union_pairs_path = paths$egene_path,
-                region_cell_type_path = region_cell_type_path,
-                output_path = paths$r_squared_path
-            )
-        }
-    )
-
-    .run_eqtl_manuscript_pipeline_step(
-        step_label = "Step 7: plot_cell_type_pairwise_cor",
+  .run_eqtl_manuscript_pipeline_step(
+    step_label = "Step 7: plot_cell_type_pairwise_cor",
+    output_path = paths$cor_plot_path,
+    force = force,
+    fun = function() {
+      bican.mccarroll.eqtl::plot_cell_type_pairwise_cor(
+        r_squared_path = paths$r_squared_path,
         output_path = paths$cor_plot_path,
-        force = force,
-        fun = function() {
-            bican.mccarroll.eqtl::plot_cell_type_pairwise_cor(
-                r_squared_path = paths$r_squared_path,
-                output_path = paths$cor_plot_path,
-                celltype_order_file = celltype_order_file,
-                celltype_label_map_file = celltype_label_map_file
-            )
-        }
-    )
-
-    .run_eqtl_manuscript_pipeline_step(
-        step_label = "Step 8: get_index_snp_start_distance",
-        output_path = paths$start_distance_path,
-        force = force,
-        fun = function() {
-            bican.mccarroll.eqtl::get_index_snp_start_distance(
-                eqtl_dir = eqtl_dir,
-                region_cell_type_path = region_cell_type_path,
-                index_snp_matrix_path = paths$index_snp_path,
-                output_path = paths$start_distance_path
-            )
-        }
-    )
-
-    .run_eqtl_manuscript_pipeline_step(
-        step_label = "Step 9: combine_expression_across_cell_types",
-        output_path = paths$combined_expression_path,
-        force = force,
-        fun = function() {
-            bican.mccarroll.eqtl::combine_expression_across_cell_types(
-                eqtl_dir = eqtl_dir,
-                region_cell_type_path = region_cell_type_path,
-                output_path = paths$combined_expression_path
-            )
-        }
-    )
-
-    #this does it's own logging, and is step 9  .
-    .run_eqtl_manuscript_pipeline_gene_snp_plots(
-        out_dir = out_dir,
-        vcf_path = vcf_path,
-        expression_path = paths$combined_expression_path,
-        gene_snp_cases = gene_snp_cases,
-        force = force,
-        width=30,
-        height=4
-    )
-
-
-    .run_eqtl_manuscript_pipeline_kmeans(
-        out_dir = out_dir,
-        K = K,
-        cluster_order = cluster_order,
-        force = force,
         celltype_order_file = celltype_order_file,
         celltype_label_map_file = celltype_label_map_file
-    )
+      )
+    }
+  )
 
-    # .run_eqtl_manuscript_pipeline_step(
-    #     step_label = "Step 11: plot_eqtl_distance_to_tss_boxplot",
-    #     output_path = paths$boxplot_output,
-    #     force = force,
-    #     fun = function() {
-    #         bican.mccarroll.eqtl::plot_eqtl_distance_to_tss_boxplot(
-    #             index_snp_matrix_path = paths$index_snp_path,
-    #             cluster_assignments_path = paths$cluster_assignments_path,
-    #             start_distance_path = paths$start_distance_path,
-    #             output_path = paths$boxplot_output,
-    #             orientation = "horizontal"
-    #         )
-    #     }
-    # )
+  .run_eqtl_manuscript_pipeline_step(
+    step_label = "Step 8: get_index_snp_start_distance",
+    output_path = paths$start_distance_path,
+    force = force,
+    fun = function() {
+      bican.mccarroll.eqtl::get_index_snp_start_distance(
+        eqtl_dir = eqtl_dir,
+        region_cell_type_path = region_cell_type_path,
+        index_snp_matrix_path = paths$index_snp_path,
+        output_path = paths$start_distance_path
+      )
+    }
+  )
 
-    cat("\n===== All steps completed! =====\n")
+  .run_eqtl_manuscript_pipeline_step(
+    step_label = "Step 9: combine_expression_across_cell_types",
+    output_path = paths$combined_expression_path,
+    force = force,
+    fun = function() {
+      bican.mccarroll.eqtl::combine_expression_across_cell_types(
+        eqtl_dir = eqtl_dir,
+        region_cell_type_path = region_cell_type_path,
+        output_path = paths$combined_expression_path
+      )
+    }
+  )
 
-    return(paths)
+  # this does it's own logging, and is step 9  .
+  .run_eqtl_manuscript_pipeline_gene_snp_plots(
+    out_dir = out_dir,
+    vcf_path = vcf_path,
+    expression_path = paths$combined_expression_path,
+    gene_snp_cases = gene_snp_cases,
+    force = force,
+    width = 30,
+    height = 4
+  )
+
+
+  .run_eqtl_manuscript_pipeline_kmeans(
+    out_dir = out_dir,
+    K = K,
+    cluster_order = cluster_order,
+    force = force,
+    celltype_order_file = celltype_order_file,
+    celltype_label_map_file = celltype_label_map_file
+  )
+
+  # .run_eqtl_manuscript_pipeline_step(
+  #     step_label = "Step 11: plot_eqtl_distance_to_tss_boxplot",
+  #     output_path = paths$boxplot_output,
+  #     force = force,
+  #     fun = function() {
+  #         bican.mccarroll.eqtl::plot_eqtl_distance_to_tss_boxplot(
+  #             index_snp_matrix_path = paths$index_snp_path,
+  #             cluster_assignments_path = paths$cluster_assignments_path,
+  #             start_distance_path = paths$start_distance_path,
+  #             output_path = paths$boxplot_output,
+  #             orientation = "horizontal"
+  #         )
+  #     }
+  # )
+
+  cat("\n===== All steps completed! =====\n")
+
+  return(paths)
 }
 
 #' Run the manuscript pipeline with default manuscript settings
@@ -313,329 +311,317 @@ run_eqtl_manuscript_pipeline <- function(
 #'
 #' @inheritParams run_eqtl_manuscript_pipeline
 #' @export
-run_eqtl_manuscript_pipeline_defaults <- function(
-        eqtl_dir = NULL,
-        out_dir = NULL,
-        region_cell_type_path = NULL,
-        vcf_path = NULL,
-        K = 13,
-        cluster_order = "3,6,9,5,7,1,12,0,11,10,4,8,2",
-        celltype_order_file = NULL,
-        celltype_label_map_file = NULL,
-        qval = 0.01,
-        force = TRUE,
-        gene_snp_cases = list(
-            list(gene = "XRRA1", chr = "chr11", pos = 74868704),
-            list(gene = "NPAS3", chr = "chr14", pos = 32929955),
-            list(gene = "CEP112", chr = "chr17", pos = 66192315)
-        )) {
+run_eqtl_manuscript_pipeline_defaults <- function(eqtl_dir = NULL,
+                                                  out_dir = NULL,
+                                                  region_cell_type_path = NULL,
+                                                  vcf_path = NULL,
+                                                  K = 13,
+                                                  cluster_order = "3,6,9,5,7,1,12,0,11,10,4,8,2",
+                                                  celltype_order_file = NULL,
+                                                  celltype_label_map_file = NULL,
+                                                  qval = 0.01,
+                                                  force = TRUE,
+                                                  gene_snp_cases = list(
+                                                    list(gene = "XRRA1", chr = "chr11", pos = 74868704),
+                                                    list(gene = "NPAS3", chr = "chr14", pos = 32929955),
+                                                    list(gene = "CEP112", chr = "chr17", pos = 66192315)
+                                                  )) {
+  if (is.null(eqtl_dir)) {
+    eqtl_dir <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/eqtls/results/LEVEL_6"
+  }
+  if (is.null(out_dir)) {
+    out_dir <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/eqtl_analysis_pipeline_run_jim"
+  }
+  if (is.null(region_cell_type_path)) {
+    region_cell_type_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/manuscript_data/region_cell_type.tsv"
+  }
+  if (is.null(vcf_path)) {
+    vcf_path <- "/broad/bican_um1_mccarroll/vcfs/2025-10-01/BICAN_UM1_WGS_GVS_callset_2025_1001.donors_renamed_filtered_norm.vcf.gz"
+  }
+  if (is.null(celltype_order_file)) {
+    celltype_order_file <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/metadata/cell_type_order_kmeans_main_figure.txt"
+  }
+  if (is.null(celltype_label_map_file)) {
+    celltype_label_map_file <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/metadata/pretty_label_map_kmeans_main_figure.txt"
+  }
 
-    if (is.null(eqtl_dir)) {
-        eqtl_dir <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/eqtls/results/LEVEL_6"
-    }
-    if (is.null(out_dir)) {
-        out_dir <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/eqtl_analysis_pipeline_run_jim"
-    }
-    if (is.null(region_cell_type_path)) {
-        region_cell_type_path <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/manuscript_data/region_cell_type.tsv"
-    }
-    if (is.null(vcf_path)) {
-        vcf_path <- "/broad/bican_um1_mccarroll/vcfs/2025-10-01/BICAN_UM1_WGS_GVS_callset_2025_1001.donors_renamed_filtered_norm.vcf.gz"
-    }
-    if (is.null(celltype_order_file)) {
-        celltype_order_file <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/metadata/cell_type_order_kmeans_main_figure.txt"
-    }
-    if (is.null(celltype_label_map_file)) {
-        celltype_label_map_file <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/eqtls/metadata/pretty_label_map_kmeans_main_figure.txt"
-    }
+  run_eqtl_manuscript_pipeline(
+    eqtl_dir = eqtl_dir,
+    out_dir = out_dir,
+    region_cell_type_path = region_cell_type_path,
+    vcf_path = vcf_path,
+    K = K,
+    cluster_order = cluster_order,
+    celltype_order_file = celltype_order_file,
+    celltype_label_map_file = celltype_label_map_file,
+    qval = qval,
+    force = force,
+    gene_snp_cases = gene_snp_cases
+  )
+}
 
-    run_eqtl_manuscript_pipeline(
-        eqtl_dir = eqtl_dir,
-        out_dir = out_dir,
-        region_cell_type_path = region_cell_type_path,
-        vcf_path = vcf_path,
-        K = K,
-        cluster_order = cluster_order,
-        celltype_order_file = celltype_order_file,
-        celltype_label_map_file = celltype_label_map_file,
-        qval = qval,
-        force = force,
-        gene_snp_cases = gene_snp_cases
+.run_eqtl_manuscript_pipeline_step <- function(step_label,
+                                               output_path,
+                                               force,
+                                               fun) {
+  cat("\n=====", step_label, "=====\n")
+
+  if (!isTRUE(force) && !is.null(output_path) && file.exists(output_path)) {
+    cat("  SKIPPED: file already exists at", output_path, "\n")
+    return(invisible(NULL))
+  }
+
+  out <- fun()
+
+  if (!is.null(output_path)) {
+    cat("  Written to:", output_path, "\n")
+  }
+
+  invisible(out)
+}
+
+.run_eqtl_manuscript_pipeline_kmeans <- function(out_dir,
+                                                 K,
+                                                 cluster_order,
+                                                 force,
+                                                 celltype_order_file,
+                                                 celltype_label_map_file) {
+  cat("\n===== Step 10: K-means clustering (Python) =====\n")
+
+  args <- c(
+    "--out-dir", out_dir,
+    sprintf("--K=%d", K),
+    "--desired-order", cluster_order,
+    "--celltype-order-file", celltype_order_file,
+    "--celltype-label-map-file", celltype_label_map_file
+  )
+
+  if (isTRUE(force)) {
+    args <- c(args, "--force")
+  }
+
+  cat("Running:", paste("test-eqtl-pipeline", paste(args, collapse = " ")), "\n")
+
+  exit_code <- system2("test-eqtl-pipeline", args)
+
+  if (!identical(exit_code, 0L)) {
+    stop("Python K-means pipeline failed")
+  }
+
+  invisible(NULL)
+}
+
+.run_eqtl_manuscript_pipeline_gene_snp_plots <- function(out_dir,
+                                                         vcf_path,
+                                                         expression_path,
+                                                         gene_snp_cases,
+                                                         force,
+                                                         width = 20,
+                                                         height = 4) {
+  cat("\n===== Step 12: plot_gene_snp =====\n")
+
+  for (case in gene_snp_cases) {
+    out_file <- file.path(
+      out_dir,
+      paste0(case$gene, "_", case$chr, "_", case$pos, ".svg")
     )
-}
 
-.run_eqtl_manuscript_pipeline_step <- function(
-        step_label,
-        output_path,
-        force,
-        fun) {
-
-    cat("\n=====", step_label, "=====\n")
-
-    if (!isTRUE(force) && !is.null(output_path) && file.exists(output_path)) {
-        cat("  SKIPPED: file already exists at", output_path, "\n")
-        return(invisible(NULL))
+    if (!isTRUE(force) && file.exists(out_file)) {
+      cat("  SKIPPED:", case$gene, "file already exists at", out_file, "\n")
+      next
     }
 
-    out <- fun()
-
-    if (!is.null(output_path)) {
-        cat("  Written to:", output_path, "\n")
-    }
-
-    invisible(out)
-}
-
-.run_eqtl_manuscript_pipeline_kmeans <- function(
-        out_dir,
-        K,
-        cluster_order,
-        force,
-        celltype_order_file,
-        celltype_label_map_file) {
-
-    cat("\n===== Step 10: K-means clustering (Python) =====\n")
-
-    args <- c(
-        "--out-dir", out_dir,
-        sprintf("--K=%d", K),
-        "--desired-order", cluster_order,
-        "--celltype-order-file", celltype_order_file,
-        "--celltype-label-map-file", celltype_label_map_file
+    bican.mccarroll.eqtl::plot_gene_snp(
+      gene = case$gene,
+      chr = case$chr,
+      pos = case$pos,
+      vcf_path = vcf_path,
+      expression_path = expression_path,
+      output_path = out_file,
+      width = width,
+      height = height
     )
 
-    if (isTRUE(force)) {
-        args <- c(args, "--force")
-    }
+    cat("  ", case$gene, "saved to:", out_file, "\n")
+  }
 
-    cat("Running:", paste("test-eqtl-pipeline", paste(args, collapse = " ")), "\n")
-
-    exit_code <- system2("test-eqtl-pipeline", args)
-
-    if (!identical(exit_code, 0L)) {
-        stop("Python K-means pipeline failed")
-    }
-
-    invisible(NULL)
+  invisible(NULL)
 }
 
-.run_eqtl_manuscript_pipeline_gene_snp_plots <- function(
-        out_dir,
-        vcf_path,
-        expression_path,
-        gene_snp_cases,
-        force,
-        width=20,
-        height=4) {
-
-    cat("\n===== Step 12: plot_gene_snp =====\n")
-
-    for (case in gene_snp_cases) {
-        out_file <- file.path(
-            out_dir,
-            paste0(case$gene, "_", case$chr, "_", case$pos, ".svg")
-        )
-
-        if (!isTRUE(force) && file.exists(out_file)) {
-            cat("  SKIPPED:", case$gene, "file already exists at", out_file, "\n")
-            next
-        }
-
-        bican.mccarroll.eqtl::plot_gene_snp(
-            gene = case$gene,
-            chr = case$chr,
-            pos = case$pos,
-            vcf_path = vcf_path,
-            expression_path = expression_path,
-            output_path = out_file,
-            width = width,
-            height = height
-        )
-
-        cat("  ", case$gene, "saved to:", out_file, "\n")
-    }
-
-    invisible(NULL)
-}
-
-.get_run_eqtl_manuscript_pipeline_paths <- function(
-        out_dir,
-        qval,
-        K) {
-
-    list(
-        egene_path = file.path(
-            out_dir,
-            paste0("egene_union_pairs_qval_", qval, ".tsv")
-        ),
-        slope_path = file.path(
-            out_dir,
-            paste0("slope_matrix_qval_", qval, ".tsv")
-        ),
-        pval_path = file.path(
-            out_dir,
-            paste0("pval_nominal_matrix_qval_", qval, ".tsv")
-        ),
-        pval_thresh_path = file.path(
-            out_dir,
-            paste0("pval_nominal_threshold_matrix_qval_", qval, ".tsv")
-        ),
-        index_snp_path = file.path(
-            out_dir,
-            paste0("index_snp_slope_matrix_with_zero_impute_qval_", qval, ".tsv")
-        ),
-        r_squared_path = file.path(
-            out_dir,
-            paste0("cell_type_pairwise_r_squared_qval_", qval, ".tsv")
-        ),
-        cor_plot_path = file.path(
-            out_dir,
-            paste0("cell_type_cor_plot_qval_", qval, ".svg")
-        ),
-        start_distance_path = file.path(
-            out_dir,
-            paste0("index_snp_start_distance_qval_", qval, ".tsv")
-        ),
-        combined_expression_path = file.path(
-            out_dir,
-            "combined_tpm_expression_across_cell_types.tsv"
-        ),
-        cluster_assignments_path = file.path(
-            out_dir,
-            paste0("cluster_assignments_qval_", qval, "_k", K, ".tsv")
-        ),
-        boxplot_output = file.path(
-            out_dir,
-            "eqtl_distance_to_tss_boxplot.svg"
-        )
+.get_run_eqtl_manuscript_pipeline_paths <- function(out_dir,
+                                                    qval,
+                                                    K) {
+  list(
+    egene_path = file.path(
+      out_dir,
+      paste0("egene_union_pairs_qval_", qval, ".tsv")
+    ),
+    slope_path = file.path(
+      out_dir,
+      paste0("slope_matrix_qval_", qval, ".tsv")
+    ),
+    pval_path = file.path(
+      out_dir,
+      paste0("pval_nominal_matrix_qval_", qval, ".tsv")
+    ),
+    pval_thresh_path = file.path(
+      out_dir,
+      paste0("pval_nominal_threshold_matrix_qval_", qval, ".tsv")
+    ),
+    index_snp_path = file.path(
+      out_dir,
+      paste0("index_snp_slope_matrix_with_zero_impute_qval_", qval, ".tsv")
+    ),
+    r_squared_path = file.path(
+      out_dir,
+      paste0("cell_type_pairwise_r_squared_qval_", qval, ".tsv")
+    ),
+    cor_plot_path = file.path(
+      out_dir,
+      paste0("cell_type_cor_plot_qval_", qval, ".svg")
+    ),
+    start_distance_path = file.path(
+      out_dir,
+      paste0("index_snp_start_distance_qval_", qval, ".tsv")
+    ),
+    combined_expression_path = file.path(
+      out_dir,
+      "combined_tpm_expression_across_cell_types.tsv"
+    ),
+    cluster_assignments_path = file.path(
+      out_dir,
+      paste0("cluster_assignments_qval_", qval, "_k", K, ".tsv")
+    ),
+    boxplot_output = file.path(
+      out_dir,
+      "eqtl_distance_to_tss_boxplot.svg"
     )
+  )
 }
 
-.validate_run_eqtl_manuscript_pipeline_inputs <- function(
-        eqtl_dir,
-        out_dir,
-        region_cell_type_path,
-        vcf_path,
-        K,
-        cluster_order,
-        qval,
-        force,
-        celltype_order_file,
-        celltype_label_map_file,
-        gene_snp_cases) {
+.validate_run_eqtl_manuscript_pipeline_inputs <- function(eqtl_dir,
+                                                          out_dir,
+                                                          region_cell_type_path,
+                                                          vcf_path,
+                                                          K,
+                                                          cluster_order,
+                                                          qval,
+                                                          force,
+                                                          celltype_order_file,
+                                                          celltype_label_map_file,
+                                                          gene_snp_cases) {
+  if (!is.character(eqtl_dir) || length(eqtl_dir) != 1L || is.na(eqtl_dir)) {
+    stop("'eqtl_dir' must be a single character string")
+  }
 
-    if (!is.character(eqtl_dir) || length(eqtl_dir) != 1L || is.na(eqtl_dir)) {
-        stop("'eqtl_dir' must be a single character string")
+  if (!dir.exists(eqtl_dir)) {
+    stop("'eqtl_dir' does not exist: ", eqtl_dir)
+  }
+
+  if (!is.character(out_dir) || length(out_dir) != 1L || is.na(out_dir)) {
+    stop("'out_dir' must be a single character string")
+  }
+
+  if (!is.character(region_cell_type_path) ||
+    length(region_cell_type_path) != 1L ||
+    is.na(region_cell_type_path)) {
+    stop("'region_cell_type_path' must be a single character string")
+  }
+
+  if (!file.exists(region_cell_type_path)) {
+    stop("'region_cell_type_path' does not exist: ", region_cell_type_path)
+  }
+
+  if (!is.character(vcf_path) || length(vcf_path) != 1L || is.na(vcf_path)) {
+    stop("'vcf_path' must be a single character string")
+  }
+
+  if (!file.exists(vcf_path)) {
+    stop("'vcf_path' does not exist: ", vcf_path)
+  }
+
+  if (!is.numeric(K) || length(K) != 1L || is.na(K) || K <= 0) {
+    stop("'K' must be a single positive number")
+  }
+
+  if (K != as.integer(K)) {
+    stop("'K' must be an integer value")
+  }
+
+  if (!is.character(cluster_order) ||
+    length(cluster_order) != 1L ||
+    is.na(cluster_order)) {
+    stop("'cluster_order' must be a single character string")
+  }
+
+  if (!is.numeric(qval) || length(qval) != 1L || is.na(qval)) {
+    stop("'qval' must be a single numeric value")
+  }
+
+  if (qval < 0 || qval > 1) {
+    stop("'qval' must be between 0 and 1")
+  }
+
+  if (!is.logical(force) || length(force) != 1L || is.na(force)) {
+    stop("'force' must be TRUE or FALSE")
+  }
+
+  if (!is.character(celltype_order_file) ||
+    length(celltype_order_file) != 1L ||
+    is.na(celltype_order_file)) {
+    stop("'celltype_order_file' must be a single character string")
+  }
+
+  if (!file.exists(celltype_order_file)) {
+    stop("'celltype_order_file' does not exist: ", celltype_order_file)
+  }
+
+  if (!is.character(celltype_label_map_file) ||
+    length(celltype_label_map_file) != 1L ||
+    is.na(celltype_label_map_file)) {
+    stop("'celltype_label_map_file' must be a single character string")
+  }
+
+  if (!file.exists(celltype_label_map_file)) {
+    stop("'celltype_label_map_file' does not exist: ", celltype_label_map_file)
+  }
+
+  if (!is.list(gene_snp_cases) || length(gene_snp_cases) == 0L) {
+    stop("'gene_snp_cases' must be a non-empty list")
+  }
+
+  for (i in seq_along(gene_snp_cases)) {
+    case <- gene_snp_cases[[i]]
+
+    if (!is.list(case)) {
+      stop("'gene_snp_cases[[", i, "]]' must be a list")
     }
 
-    if (!dir.exists(eqtl_dir)) {
-        stop("'eqtl_dir' does not exist: ", eqtl_dir)
+    required_names <- c("gene", "chr", "pos")
+
+    if (!all(required_names %in% names(case))) {
+      stop(
+        "'gene_snp_cases[[", i,
+        "]]' must contain named elements: gene, chr, pos"
+      )
     }
 
-    if (!is.character(out_dir) || length(out_dir) != 1L || is.na(out_dir)) {
-        stop("'out_dir' must be a single character string")
+    if (!is.character(case$gene) || length(case$gene) != 1L || is.na(case$gene)) {
+      stop("'gene_snp_cases[[", i, "]]$gene' must be a single character string")
     }
 
-    if (!is.character(region_cell_type_path) ||
-        length(region_cell_type_path) != 1L ||
-        is.na(region_cell_type_path)) {
-        stop("'region_cell_type_path' must be a single character string")
+    if (!is.character(case$chr) || length(case$chr) != 1L || is.na(case$chr)) {
+      stop("'gene_snp_cases[[", i, "]]$chr' must be a single character string")
     }
 
-    if (!file.exists(region_cell_type_path)) {
-        stop("'region_cell_type_path' does not exist: ", region_cell_type_path)
+    if (!is.numeric(case$pos) || length(case$pos) != 1L || is.na(case$pos)) {
+      stop("'gene_snp_cases[[", i, "]]$pos' must be a single numeric value")
     }
 
-    if (!is.character(vcf_path) || length(vcf_path) != 1L || is.na(vcf_path)) {
-        stop("'vcf_path' must be a single character string")
+    if (case$pos != as.integer(case$pos) || case$pos < 1) {
+      stop("'gene_snp_cases[[", i, "]]$pos' must be a positive integer value")
     }
+  }
 
-    if (!file.exists(vcf_path)) {
-        stop("'vcf_path' does not exist: ", vcf_path)
-    }
-
-    if (!is.numeric(K) || length(K) != 1L || is.na(K) || K <= 0) {
-        stop("'K' must be a single positive number")
-    }
-
-    if (K != as.integer(K)) {
-        stop("'K' must be an integer value")
-    }
-
-    if (!is.character(cluster_order) ||
-        length(cluster_order) != 1L ||
-        is.na(cluster_order)) {
-        stop("'cluster_order' must be a single character string")
-    }
-
-    if (!is.numeric(qval) || length(qval) != 1L || is.na(qval)) {
-        stop("'qval' must be a single numeric value")
-    }
-
-    if (qval < 0 || qval > 1) {
-        stop("'qval' must be between 0 and 1")
-    }
-
-    if (!is.logical(force) || length(force) != 1L || is.na(force)) {
-        stop("'force' must be TRUE or FALSE")
-    }
-
-    if (!is.character(celltype_order_file) ||
-        length(celltype_order_file) != 1L ||
-        is.na(celltype_order_file)) {
-        stop("'celltype_order_file' must be a single character string")
-    }
-
-    if (!file.exists(celltype_order_file)) {
-        stop("'celltype_order_file' does not exist: ", celltype_order_file)
-    }
-
-    if (!is.character(celltype_label_map_file) ||
-        length(celltype_label_map_file) != 1L ||
-        is.na(celltype_label_map_file)) {
-        stop("'celltype_label_map_file' must be a single character string")
-    }
-
-    if (!file.exists(celltype_label_map_file)) {
-        stop("'celltype_label_map_file' does not exist: ", celltype_label_map_file)
-    }
-
-    if (!is.list(gene_snp_cases) || length(gene_snp_cases) == 0L) {
-        stop("'gene_snp_cases' must be a non-empty list")
-    }
-
-    for (i in seq_along(gene_snp_cases)) {
-        case <- gene_snp_cases[[i]]
-
-        if (!is.list(case)) {
-            stop("'gene_snp_cases[[", i, "]]' must be a list")
-        }
-
-        required_names <- c("gene", "chr", "pos")
-
-        if (!all(required_names %in% names(case))) {
-            stop(
-                "'gene_snp_cases[[", i,
-                "]]' must contain named elements: gene, chr, pos"
-            )
-        }
-
-        if (!is.character(case$gene) || length(case$gene) != 1L || is.na(case$gene)) {
-            stop("'gene_snp_cases[[", i, "]]$gene' must be a single character string")
-        }
-
-        if (!is.character(case$chr) || length(case$chr) != 1L || is.na(case$chr)) {
-            stop("'gene_snp_cases[[", i, "]]$chr' must be a single character string")
-        }
-
-        if (!is.numeric(case$pos) || length(case$pos) != 1L || is.na(case$pos)) {
-            stop("'gene_snp_cases[[", i, "]]$pos' must be a single numeric value")
-        }
-
-        if (case$pos != as.integer(case$pos) || case$pos < 1) {
-            stop("'gene_snp_cases[[", i, "]]$pos' must be a positive integer value")
-        }
-    }
-
-    invisible(NULL)
+  invisible(NULL)
 }

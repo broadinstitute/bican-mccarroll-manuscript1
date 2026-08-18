@@ -38,69 +38,70 @@ get_cell_type_pairwise_cor_matrix <- function(slope_matrix_path,
                                               egene_union_pairs_path,
                                               region_cell_type_path,
                                               output_path = NULL) {
+  slope_dt <- data.table::fread(slope_matrix_path)
+  pval_dt <- data.table::fread(pval_nominal_matrix_path)
+  pval_threshold_dt <- data.table::fread(pval_nominal_threshold_matrix_path)
+  egene_dt <- data.table::fread(egene_union_pairs_path, select = c("phenotype_id", "variant_id"))
 
-    slope_dt <- data.table::fread(slope_matrix_path)
-    pval_dt <- data.table::fread(pval_nominal_matrix_path)
-    pval_threshold_dt <- data.table::fread(pval_nominal_threshold_matrix_path)
-    egene_dt <- data.table::fread(egene_union_pairs_path, select = c("phenotype_id", "variant_id"))
+  # Filter to eGene union pairs
+  slope_dt <- merge(slope_dt, egene_dt, by = c("phenotype_id", "variant_id"))
+  pval_dt <- merge(pval_dt, egene_dt, by = c("phenotype_id", "variant_id"))
+  pval_threshold_dt <- merge(pval_threshold_dt, egene_dt, by = c("phenotype_id", "variant_id"))
 
-    # Filter to eGene union pairs
-    slope_dt <- merge(slope_dt, egene_dt, by = c("phenotype_id", "variant_id"))
-    pval_dt <- merge(pval_dt, egene_dt, by = c("phenotype_id", "variant_id"))
-    pval_threshold_dt <- merge(pval_threshold_dt, egene_dt, by = c("phenotype_id", "variant_id"))
+  # Filter to cell type/region columns
+  region_cell_type_dt <- data.table::fread(region_cell_type_path)
+  ct_cols <- paste0(region_cell_type_dt$cell_type, "__", region_cell_type_dt$region)
+  ct_cols <- intersect(ct_cols, names(slope_dt))
+  ct_cols <- intersect(ct_cols, names(pval_dt))
+  ct_cols <- intersect(ct_cols, names(pval_threshold_dt))
 
-    # Filter to cell type/region columns
-    region_cell_type_dt <- data.table::fread(region_cell_type_path)
-    ct_cols <- paste0(region_cell_type_dt$cell_type, "__", region_cell_type_dt$region)
-    ct_cols <- intersect(ct_cols, names(slope_dt))
-    ct_cols <- intersect(ct_cols, names(pval_dt))
-    ct_cols <- intersect(ct_cols, names(pval_threshold_dt))
+  slope_m <- as.matrix(slope_dt[, ct_cols, with = FALSE])
+  pval_m <- as.matrix(pval_dt[, ct_cols, with = FALSE])
+  pval_thresh_m <- as.matrix(pval_threshold_dt[, ct_cols, with = FALSE])
 
-    slope_m <- as.matrix(slope_dt[, ct_cols, with = FALSE])
-    pval_m <- as.matrix(pval_dt[, ct_cols, with = FALSE])
-    pval_thresh_m <- as.matrix(pval_threshold_dt[, ct_cols, with = FALSE])
+  n <- length(ct_cols)
+  logger::log_info("Computing pairwise Spearman correlations for {n} cell type/regions")
 
-    n <- length(ct_cols)
-    logger::log_info("Computing pairwise Spearman correlations for {n} cell type/regions")
+  cor_matrix <- matrix(NA_real_,
+    nrow = n, ncol = n,
+    dimnames = list(ct_cols, ct_cols)
+  )
 
-    cor_matrix <- matrix(NA_real_, nrow = n, ncol = n,
-                         dimnames = list(ct_cols, ct_cols))
+  for (i in seq_len(n)) {
+    for (j in seq_len(n)) {
+      slope1 <- slope_m[, i]
+      slope2 <- slope_m[, j]
+      pval1 <- pval_m[, i]
+      pval2 <- pval_m[, j]
+      thresh1 <- pval_thresh_m[, i]
+      thresh2 <- pval_thresh_m[, j]
 
-    for (i in seq_len(n)) {
-        for (j in seq_len(n)) {
-            slope1 <- slope_m[, i]
-            slope2 <- slope_m[, j]
-            pval1 <- pval_m[, i]
-            pval2 <- pval_m[, j]
-            thresh1 <- pval_thresh_m[, i]
-            thresh2 <- pval_thresh_m[, j]
+      sig_idx <- which(
+        (!is.na(thresh1) & !is.na(pval1) & pval1 < thresh1) |
+          (!is.na(thresh2) & !is.na(pval2) & pval2 < thresh2)
+      )
 
-            sig_idx <- which(
-                (!is.na(thresh1) & !is.na(pval1) & pval1 < thresh1) |
-                (!is.na(thresh2) & !is.na(pval2) & pval2 < thresh2)
-            )
+      if (length(sig_idx) == 0) {
+        cor_matrix[i, j] <- 0
+        next
+      }
 
-            if (length(sig_idx) == 0) {
-                cor_matrix[i, j] <- 0
-                next
-            }
-
-            cor_matrix[i, j] <- stats::cor(
-                slope1[sig_idx], slope2[sig_idx],
-                use = "pairwise.complete.obs", method = "spearman"
-            )
-        }
+      cor_matrix[i, j] <- stats::cor(
+        slope1[sig_idx], slope2[sig_idx],
+        use = "pairwise.complete.obs", method = "spearman"
+      )
     }
+  }
 
-    r_squared <- cor_matrix^2
+  r_squared <- cor_matrix^2
 
-    logger::log_info("Correlation matrix complete")
+  logger::log_info("Correlation matrix complete")
 
-    if (!is.null(output_path)) {
-        out_dt <- data.table::as.data.table(r_squared, keep.rownames = "cell_type")
-        data.table::fwrite(out_dt, output_path, sep = "\t")
-        logger::log_info("Written to: {output_path}")
-    }
+  if (!is.null(output_path)) {
+    out_dt <- data.table::as.data.table(r_squared, keep.rownames = "cell_type")
+    data.table::fwrite(out_dt, output_path, sep = "\t")
+    logger::log_info("Written to: {output_path}")
+  }
 
-    return(r_squared)
+  return(r_squared)
 }

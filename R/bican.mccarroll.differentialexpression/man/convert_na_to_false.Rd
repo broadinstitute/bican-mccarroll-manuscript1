@@ -24,9 +24,9 @@ character vectors.
 }
 \examples{
 df <- data.frame(
-    ctp_donor_outlier = c(NA, "NA", "3+ CTP outlier samples"),
-    other_col = 1:3,
-    stringsAsFactors = FALSE
+  ctp_donor_outlier = c(NA, "NA", "3+ CTP outlier samples"),
+  other_col = 1:3,
+  stringsAsFactors = FALSE
 )
 
 convert_na_to_false(df, "ctp_donor_outlier")

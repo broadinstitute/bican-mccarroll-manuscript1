@@ -32,8 +32,10 @@
 # )
 
 
-utils::globalVariables(c("sample_id", "n_nuclei", "total_nuclei", "log10_nuclei",
-                         ".data", "numerator_sum", "denominator_sum", "ratio", "z_ratio"))
+utils::globalVariables(c(
+  "sample_id", "n_nuclei", "total_nuclei", "log10_nuclei",
+  ".data", "numerator_sum", "denominator_sum", "ratio", "z_ratio"
+))
 
 #' Filters dataframe.
 #'
@@ -41,14 +43,13 @@ utils::globalVariables(c("sample_id", "n_nuclei", "total_nuclei", "log10_nuclei"
 #' @param filters Character vector of filtering expressions.
 #'
 #' @return Filtered dataframe.
-filter_df <- function(df, filters=NULL) {
-
+filter_df <- function(df, filters = NULL) {
   if (is.null(filters) || length(filters) == 0) {
     logger::log_info("No filtering criteria found.")
     return(df)
   }
 
-  if(!is.character(filters)) {
+  if (!is.character(filters)) {
     stop("`filters` must be a character vector")
   }
 
@@ -58,7 +59,6 @@ filter_df <- function(df, filters=NULL) {
     dplyr::filter(!!!rlang::parse_exprs(filters))
 
   return(filtered_df)
-
 }
 
 
@@ -71,7 +71,6 @@ filter_df <- function(df, filters=NULL) {
 #'
 #' @return Dataframe with cell type proportions and total nuclei counts (raw & z-scored) per grouping.
 compute_ctp <- function(df, group_cols, cell_type_cols) {
-
   # Check if specified columns exist
   missing_cols <- setdiff(c(group_cols, cell_type_cols), colnames(df))
   if (length(missing_cols) > 0) {
@@ -80,17 +79,19 @@ compute_ctp <- function(df, group_cols, cell_type_cols) {
 
   logger::log_info("Computing cell type proportions grouped by: [{paste(group_cols, collapse = ', ')}], using cell type columns: [{paste(cell_type_cols, collapse =', ')}]")
 
-  cell_type_col = paste(cell_type_cols, collapse="__")
+  cell_type_col <- paste(cell_type_cols, collapse = "__")
 
   # Create sample ID by concatenating grouping variables
   # Concatenate cell type columns if there are multiple
   sample_df <- df |>
     tidyr::unite(
-      sample_id, dplyr::all_of(group_cols), sep = "__", remove = FALSE
-      ) |>
+      sample_id, dplyr::all_of(group_cols),
+      sep = "__", remove = FALSE
+    ) |>
     tidyr::unite(
       !!rlang::sym(cell_type_col),
-      dplyr::all_of(cell_type_cols), sep="__", remove=FALSE
+      dplyr::all_of(cell_type_cols),
+      sep = "__", remove = FALSE
     )
 
   # Extract sample information for later joining
@@ -101,14 +102,14 @@ compute_ctp <- function(df, group_cols, cell_type_cols) {
   ctp_df <- sample_df |>
     tidyr::unite(sample_id, dplyr::all_of(group_cols), sep = "__", remove = FALSE) |>
     dplyr::group_by(sample_id, !!rlang::sym(cell_type_col)) |>
-    dplyr::summarise(n_nuclei = dplyr::n(), .groups = 'drop') |>
+    dplyr::summarise(n_nuclei = dplyr::n(), .groups = "drop") |>
     dplyr::group_by(sample_id) |>
     dplyr::mutate(
       total_nuclei = sum(n_nuclei),
       fraction_nuclei = n_nuclei / total_nuclei
     ) |>
     dplyr::ungroup() |>
-    tidyr::complete(sample_id, !!rlang::sym(cell_type_col), fill=list(n_nuclei = 0, fraction_nuclei = 0))
+    tidyr::complete(sample_id, !!rlang::sym(cell_type_col), fill = list(n_nuclei = 0, fraction_nuclei = 0))
 
   nuclei_counts <- ctp_df |>
     dplyr::select(sample_id, total_nuclei) |>
@@ -120,7 +121,7 @@ compute_ctp <- function(df, group_cols, cell_type_cols) {
 
   final_df <- ctp_df |>
     dplyr::select(-total_nuclei) |>
-    dplyr::left_join(sample_info, by ="sample_id") |>
+    dplyr::left_join(sample_info, by = "sample_id") |>
     dplyr::left_join(nuclei_counts, by = "sample_id") |>
     dplyr::select(sample_id, dplyr::all_of(group_cols), dplyr::everything())
 
@@ -138,7 +139,6 @@ compute_ctp <- function(df, group_cols, cell_type_cols) {
 #'
 #' @return Dataframe with mean metrics per cell type and grouping.
 compute_mean_cell_type_metrics <- function(df, group_cols, cell_type_cols, metric_cols) {
-
   # Check if specified columns exist in the data frame
   missing_cols <- setdiff(c(group_cols, cell_type_cols, metric_cols), colnames(df))
   if (length(missing_cols) > 0) {
@@ -147,12 +147,12 @@ compute_mean_cell_type_metrics <- function(df, group_cols, cell_type_cols, metri
 
   logger::log_info("Computing mean cell type metrics grouped by: [{paste(group_cols, collapse = ', ')}], using cell type columns: [{paste(cell_type_cols, collapse =', ')}]")
 
-  cell_type_col <- paste(cell_type_cols, collapse="__")
+  cell_type_col <- paste(cell_type_cols, collapse = "__")
 
   # Compute mean metrics
   mean_metrics_df <- df |>
     tidyr::unite(sample_id, dplyr::all_of(group_cols), sep = "__", remove = FALSE) |>
-    tidyr::unite(!!rlang::sym(cell_type_col), dplyr::all_of(cell_type_cols), sep="__", remove=FALSE) |>
+    tidyr::unite(!!rlang::sym(cell_type_col), dplyr::all_of(cell_type_cols), sep = "__", remove = FALSE) |>
     dplyr::group_by(sample_id, !!rlang::sym(cell_type_col)) |>
     dplyr::summarise(
       dplyr::across(
@@ -181,8 +181,7 @@ compute_mean_cell_type_metrics <- function(df, group_cols, cell_type_cols, metri
 #' @param out_file Optional; Output file to save the results
 #'
 #' @return Dataframe with cell type proportions and optional metrics.
-compute_ctp_and_metrics <- function(df, group_cols, cell_type_cols, metric_cols = NULL, filters = NULL, out_file=NULL) {
-
+compute_ctp_and_metrics <- function(df, group_cols, cell_type_cols, metric_cols = NULL, filters = NULL, out_file = NULL) {
   # Apply filters
   filtered_df <- filter_df(df, filters)
 
@@ -194,7 +193,7 @@ compute_ctp_and_metrics <- function(df, group_cols, cell_type_cols, metric_cols 
     mean_metrics_df <- compute_mean_cell_type_metrics(filtered_df, group_cols, cell_type_cols, metric_cols)
     ctp_df <- dplyr::full_join(
       ctp_df, mean_metrics_df,
-      by=c("sample_id", paste(cell_type_cols, collapse="__"))
+      by = c("sample_id", paste(cell_type_cols, collapse = "__"))
     )
   }
 
@@ -202,12 +201,12 @@ compute_ctp_and_metrics <- function(df, group_cols, cell_type_cols, metric_cols 
   if (!is.null(out_file)) {
     logger::log_info("Saving cell type proportions and metrics to {out_file}")
     utils::write.table(
-      ctp_df, file = out_file, sep = "\t", row.names = FALSE, quote = FALSE
+      ctp_df,
+      file = out_file, sep = "\t", row.names = FALSE, quote = FALSE
     )
   }
 
   return(ctp_df)
-
 }
 
 
@@ -223,8 +222,7 @@ compute_ctp_and_metrics <- function(df, group_cols, cell_type_cols, metric_cols 
 #' @param out_file Optional; Output file to save the results
 #'
 #' @return Dataframe with cell type proportions and optional metrics.
-load_and_compute_ctp_and_metrics <- function(cell_metadata_file, group_cols, cell_type_cols, out_file=NULL, metric_cols = NULL, filters = NULL) {
-
+load_and_compute_ctp_and_metrics <- function(cell_metadata_file, group_cols, cell_type_cols, out_file = NULL, metric_cols = NULL, filters = NULL) {
   # Read input file
   logger::log_info("Loading cell metadata from {cell_metadata_file}")
   df <- utils::read.table(cell_metadata_file, sep = "\t", header = TRUE, stringsAsFactors = FALSE)
@@ -251,9 +249,8 @@ load_and_compute_ctp_and_metrics <- function(cell_metadata_file, group_cols, cel
 #'
 #' @return Dataframe with recomputed cell type proportions based on the new grouping.
 regroup_ctp <- function(ctp_df, group_cols, cell_type_col, cell_type_label_map) {
-
   # check format of new annotation map
-  if(ncol(cell_type_label_map) != 2) {
+  if (ncol(cell_type_label_map) != 2) {
     stop("`cell_type_label_map` must have exactly 2 columns: the first for the {cell_type_col} and the second for the new grouping variable.")
   }
 
@@ -278,7 +275,6 @@ regroup_ctp <- function(ctp_df, group_cols, cell_type_col, cell_type_label_map) 
     dplyr::select(sample_id, dplyr::everything())
 
   return(new_ctp_df)
-
 }
 
 
@@ -298,42 +294,39 @@ regroup_ctp <- function(ctp_df, group_cols, cell_type_col, cell_type_label_map) 
 #' @param group_cols Character vector of columns to group by (e.g., donor ID, brain region).
 #' @param filters Optional; Character vector of filtering expressions to apply to `ctp_df` before calculating ratios.
 #' @param ratio_name Name to assign to the calculated ratio
-#' @param brain_region_col Optional; Column name in `ctp_df` that contains brain region annotations. 
+#' @param brain_region_col Optional; Column name in `ctp_df` that contains brain region annotations.
 #'   If provided, z-scores of ratios will be computed per brain region.
-#' @param z_score_threshold Optional; Numeric threshold for flagging outliers based on z-scores of ratios. 
+#' @param z_score_threshold Optional; Numeric threshold for flagging outliers based on z-scores of ratios.
 #'   If provided, a new column `outlier` will be added to the output indicating whether each sample is an outlier.
 #' @param out_file Optional; Output file to save the generated ratio table.
-#' 
+#'
 #' @return A data frame with calculated ratios and optional z-scores and outlier flags, grouped by specified columns.
 generate_ctp_ratio_table <- function(
-  ctp_df, 
-  numerator, 
+  ctp_df,
+  numerator,
   denominator,
   cell_type_col,
   group_cols,
-  filters=NULL,
+  filters = NULL,
   ratio_name,
-  brain_region_col=NULL,
-  z_score_threshold=NULL,
-  out_file=NULL
+  brain_region_col = NULL,
+  z_score_threshold = NULL,
+  out_file = NULL
 ) {
-
-  # check that columns are present in dataframe 
+  # check that columns are present in dataframe
   missing_cols <- setdiff(c(group_cols, cell_type_col, "n_nuclei", "total_nuclei"), colnames(ctp_df))
   if (length(missing_cols) > 0) {
     stop(paste("The following required columns are missing from `ctp_df`:", paste(missing_cols, collapse = ", ")))
   }
 
-  ctp_df_filtered = filter_df(ctp_df, filters)
+  ctp_df_filtered <- filter_df(ctp_df, filters)
 
   ratio_df <- ctp_df_filtered |>
-
     # group by sample id
     dplyr::group_by(
       dplyr::across(dplyr::all_of(c("sample_id", group_cols, "total_nuclei")))
-      # dplyr::all_of(c("sample_id", group_cols, "total_nuclei")) 
+      # dplyr::all_of(c("sample_id", group_cols, "total_nuclei"))
     ) |>
-    
     # calculate sums for numerator and denominator subsets
     dplyr::summarise(
       # sum nuclei for cell types defined in 'numerator'
@@ -353,16 +346,13 @@ generate_ctp_ratio_table <- function(
       },
       .groups = "drop"
     ) |>
-    
     # compute the final ratio
     dplyr::mutate(ratio = numerator_sum / denominator_sum) |>
-    
     # add the ratio name as a column
     dplyr::mutate(ratio_name = ratio_name) |>
-    
     # return columns needed for plotting
     dplyr::select(dplyr::all_of(c("sample_id", group_cols, "total_nuclei", "ratio", "ratio_name")))
-  
+
   # compute z-scores per brain region
   if (!is.null(brain_region_col)) {
     logger::log_info("Brain region column provided: {brain_region_col}. Computing z-scores of ratios per brain region.")
@@ -379,16 +369,16 @@ generate_ctp_ratio_table <- function(
   if (!is.null(z_score_threshold)) {
     logger::log_info("Z-score threshold provided: {z_score_threshold}. Flagging outliers based on z-scores.")
     ratio_df <- ratio_df |>
-      dplyr::mutate(outlier=abs(z_ratio) > z_score_threshold)
+      dplyr::mutate(outlier = abs(z_ratio) > z_score_threshold)
   } else {
     logger::log_info("No z-score threshold provided, skipping outlier flagging.")
   }
 
-  if(!is.null(out_file)) {
+  if (!is.null(out_file)) {
     logger::log_info("Saving CTP ratio table to {out_file}")
     utils::write.table(ratio_df, file = out_file, sep = "\t", row.names = FALSE, quote = FALSE)
   }
-  
+
   return(ratio_df)
 }
 
@@ -402,12 +392,12 @@ generate_ctp_ratio_table <- function(
 #' @param group_cols Character vector of columns to group by (e.g., donor ID, brain region).
 #' @param filters Optional; Character vector of filtering expressions to apply to the loaded CTP data before calculating ratios.
 #' @param ratio_name Name to assign to the calculated ratio
-#' @param brain_region_col Optional; Column name in `ctp_file` that contains brain region annotations. 
+#' @param brain_region_col Optional; Column name in `ctp_file` that contains brain region annotations.
 #'   If provided, z-scores of ratios will be computed per brain region.
-#' @param z_score_threshold Optional; Numeric threshold for flagging outliers based on z-scores of ratios. 
+#' @param z_score_threshold Optional; Numeric threshold for flagging outliers based on z-scores of ratios.
 #'   If provided, a new column `outlier` will be added to the output indicating whether each sample is an outlier.
 #' @param out_file Optional; Output file to save the generated ratio table.
-#' 
+#'
 #' @return A data frame with calculated ratios and optional z-scores and outlier flags, grouped by specified columns.
 load_and_generate_ctp_ratio_table <- function(
   ctp_file,
@@ -415,16 +405,15 @@ load_and_generate_ctp_ratio_table <- function(
   denominator,
   cell_type_col,
   group_cols,
-  filters=NULL,
+  filters = NULL,
   ratio_name,
-  brain_region_col=NULL,
-  z_score_threshold=NULL,
-  out_file=NULL
+  brain_region_col = NULL,
+  z_score_threshold = NULL,
+  out_file = NULL
 ) {
-  
   logger::log_info("Loading CTP data from {ctp_file}")
   ctp_df <- utils::read.table(ctp_file, sep = "\t", header = TRUE, stringsAsFactors = FALSE)
-  
+
   ratio_df <- generate_ctp_ratio_table(
     ctp_df = ctp_df,
     numerator = numerator,
@@ -437,11 +426,9 @@ load_and_generate_ctp_ratio_table <- function(
     z_score_threshold = z_score_threshold,
     out_file = out_file
   )
-  
+
   return(ratio_df)
 }
-
-
 
 
 #' Extract sample-level metadata from cell-level metadata, applying optional filters and grouping.
@@ -458,8 +445,7 @@ load_and_generate_ctp_ratio_table <- function(
 #' @param out_file Optional; Output file to save the extracted sample metadata.
 #'
 #' @return Dataframe with one row per sample (defined by `group_cols`), including the specified donor-level metadata and aggregated metadata columns.
-extract_sample_metadata <- function(df, group_cols, donor_metadata_cols, metadata_cols_to_group, filters=NULL, out_file=NULL) {
-
+extract_sample_metadata <- function(df, group_cols, donor_metadata_cols, metadata_cols_to_group, filters = NULL, out_file = NULL) {
   filtered_df <- filter_df(df, filters)
 
   sample_metadata <- filtered_df |>
@@ -474,7 +460,7 @@ extract_sample_metadata <- function(df, group_cols, donor_metadata_cols, metadat
     dplyr::mutate(
       dplyr::across(
         dplyr::all_of(metadata_cols_to_group),
-        ~ paste(sort(unique(.x)), collapse=":")
+        ~ paste(sort(unique(.x)), collapse = ":")
       )
     ) |>
     dplyr::ungroup() |>
@@ -505,8 +491,7 @@ extract_sample_metadata <- function(df, group_cols, donor_metadata_cols, metadat
 #' @param out_file Optional; Output file
 #'
 #' @return Dataframe with one row per sample (defined by `group_cols`), including the specified donor-level metadata and aggregated metadata columns.
-load_and_extract_sample_metadata <- function(cell_metadata_file, group_cols, donor_metadata_cols, metadata_cols_to_group, filters=NULL, out_file=NULL) {
-
+load_and_extract_sample_metadata <- function(cell_metadata_file, group_cols, donor_metadata_cols, metadata_cols_to_group, filters = NULL, out_file = NULL) {
   # read input file
   logger::log_info("Loading cell metadata from {cell_metadata_file}")
   df <- utils::read.table(cell_metadata_file, sep = "\t", header = TRUE, stringsAsFactors = FALSE)

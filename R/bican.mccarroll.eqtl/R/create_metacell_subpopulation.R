@@ -26,15 +26,15 @@
 #' @export
 #'
 filter_metacells_to_subpopulation <- function(inDir, outDir, donorListFile) {
-    .filter_files_to_subpopulation(
-        inDir = inDir,
-        outDir = outDir,
-        donorListFile = donorListFile,
-        file_pattern = "metacells\\.txt\\.gz$",
-        id_col = "gene_symbol",
-        compress_output = TRUE,
-        log_every = 10L
-    )
+  .filter_files_to_subpopulation(
+    inDir = inDir,
+    outDir = outDir,
+    donorListFile = donorListFile,
+    file_pattern = "metacells\\.txt\\.gz$",
+    id_col = "gene_symbol",
+    compress_output = TRUE,
+    log_every = 10L
+  )
 }
 
 #' Filter covariate tables to a donor subpopulation
@@ -58,15 +58,15 @@ filter_metacells_to_subpopulation <- function(inDir, outDir, donorListFile) {
 #' @export
 #'
 filter_covariates_to_subpopulation <- function(inDir, outDir, donorListFile) {
-    .filter_files_to_subpopulation(
-        inDir = inDir,
-        outDir = outDir,
-        donorListFile = donorListFile,
-        file_pattern = "covariates\\.txt$",
-        id_col = "id",
-        compress_output = FALSE,
-        log_every = 10L
-    )
+  .filter_files_to_subpopulation(
+    inDir = inDir,
+    outDir = outDir,
+    donorListFile = donorListFile,
+    file_pattern = "covariates\\.txt$",
+    id_col = "id",
+    compress_output = FALSE,
+    log_every = 10L
+  )
 }
 
 
@@ -262,114 +262,112 @@ filter_covariates_to_subpopulation <- function(inDir, outDir, donorListFile) {
                                            output_sep = "\t",
                                            compress_output = TRUE,
                                            log_every = 10L) {
-    stopifnot(
-        is.character(inDir), length(inDir) == 1L, nzchar(inDir),
-        is.character(outDir), length(outDir) == 1L, nzchar(outDir),
-        is.character(donorListFile), length(donorListFile) == 1L, nzchar(donorListFile),
-        is.character(file_pattern), length(file_pattern) == 1L, nzchar(file_pattern),
-        is.character(id_col), length(id_col) == 1L, nzchar(id_col),
-        is.character(input_sep), length(input_sep) == 1L,
-        is.character(output_sep), length(output_sep) == 1L,
-        is.logical(compress_output), length(compress_output) == 1L,
-        is.numeric(log_every), length(log_every) == 1L, !is.na(log_every)
+  stopifnot(
+    is.character(inDir), length(inDir) == 1L, nzchar(inDir),
+    is.character(outDir), length(outDir) == 1L, nzchar(outDir),
+    is.character(donorListFile), length(donorListFile) == 1L, nzchar(donorListFile),
+    is.character(file_pattern), length(file_pattern) == 1L, nzchar(file_pattern),
+    is.character(id_col), length(id_col) == 1L, nzchar(id_col),
+    is.character(input_sep), length(input_sep) == 1L,
+    is.character(output_sep), length(output_sep) == 1L,
+    is.logical(compress_output), length(compress_output) == 1L,
+    is.numeric(log_every), length(log_every) == 1L, !is.na(log_every)
+  )
+
+  if (!dir.exists(inDir)) {
+    stop("inDir does not exist: ", inDir)
+  }
+  if (!file.exists(donorListFile)) {
+    stop("donorListFile does not exist: ", donorListFile)
+  }
+  if (!dir.exists(outDir)) {
+    dir.create(outDir, recursive = TRUE, showWarnings = FALSE)
+  }
+
+  donors <- utils::read.table(
+    donorListFile,
+    header = FALSE,
+    stringsAsFactors = FALSE,
+    sep = "\t",
+    comment.char = "",
+    quote = ""
+  )[[1L]]
+
+  donors <- unique(as.character(donors))
+  donors <- donors[nzchar(donors)]
+  if (length(donors) == 0L) {
+    stop("No donor IDs found in donorListFile: ", donorListFile)
+  }
+
+  fileList <- list.files(
+    inDir,
+    pattern = file_pattern,
+    full.names = TRUE
+  )
+  if (length(fileList) == 0L) {
+    stop("No input files matching pattern '", file_pattern, "' in: ", inDir)
+  }
+
+  outFiles <- character(0)
+
+  for (index in seq_along(fileList)) {
+    f <- fileList[index]
+
+    if (log_every > 0L && index %% log_every == 0L) {
+      logger::log_info("Processing file ", index, " of ", length(fileList), "...")
+    }
+
+    a <- utils::read.table(
+      f,
+      header = TRUE,
+      stringsAsFactors = FALSE,
+      sep = input_sep,
+      comment.char = "",
+      quote = ""
     )
 
-    if (!dir.exists(inDir)) {
-        stop("inDir does not exist: ", inDir)
-    }
-    if (!file.exists(donorListFile)) {
-        stop("donorListFile does not exist: ", donorListFile)
-    }
-    if (!dir.exists(outDir)) {
-        dir.create(outDir, recursive = TRUE, showWarnings = FALSE)
+    if (!(id_col %in% colnames(a))) {
+      stop("Missing required column '", id_col, "' in file: ", f)
     }
 
-    donors <- utils::read.table(
-        donorListFile,
-        header = FALSE,
-        stringsAsFactors = FALSE,
-        sep = "\t",
-        comment.char = "",
-        quote = ""
-    )[[1L]]
-
-    donors <- unique(as.character(donors))
-    donors <- donors[nzchar(donors)]
-    if (length(donors) == 0L) {
-        stop("No donor IDs found in donorListFile: ", donorListFile)
+    donorCols <- intersect(donors, colnames(a))
+    if (length(donorCols) == 0L) {
+      warning("No donor columns matched in file (writing ", id_col, " only): ", f)
     }
 
-    fileList <- list.files(
-        inDir,
-        pattern = file_pattern,
-        full.names = TRUE
-    )
-    if (length(fileList) == 0L) {
-        stop("No input files matching pattern '", file_pattern, "' in: ", inDir)
-    }
+    keepCols <- c(id_col, donorCols)
+    aa <- a[, keepCols, drop = FALSE]
 
-    outFiles <- character(0)
+    outFile <- file.path(outDir, basename(f))
 
-    for (index in seq_along(fileList)) {
-        f <- fileList[index]
-
-        if (log_every > 0L && index %% log_every == 0L) {
-            logger::log_info("Processing file ", index, " of ", length(fileList), "...")
+    if (compress_output) {
+      con <- gzfile(outFile, open = "wt")
+      tryCatch(
+        utils::write.table(
+          aa,
+          file = con,
+          quote = FALSE,
+          sep = output_sep,
+          row.names = FALSE,
+          col.names = TRUE
+        ),
+        finally = {
+          close(con)
         }
-
-        a <- utils::read.table(
-            f,
-            header = TRUE,
-            stringsAsFactors = FALSE,
-            sep = input_sep,
-            comment.char = "",
-            quote = ""
-        )
-
-        if (!(id_col %in% colnames(a))) {
-            stop("Missing required column '", id_col, "' in file: ", f)
-        }
-
-        donorCols <- intersect(donors, colnames(a))
-        if (length(donorCols) == 0L) {
-            warning("No donor columns matched in file (writing ", id_col, " only): ", f)
-        }
-
-        keepCols <- c(id_col, donorCols)
-        aa <- a[, keepCols, drop = FALSE]
-
-        outFile <- file.path(outDir, basename(f))
-
-        if (compress_output) {
-            con <- gzfile(outFile, open = "wt")
-            tryCatch(
-                utils::write.table(
-                    aa,
-                    file = con,
-                    quote = FALSE,
-                    sep = output_sep,
-                    row.names = FALSE,
-                    col.names = TRUE
-                ),
-                finally = {
-                    close(con)
-                }
-            )
-        } else {
-            utils::write.table(
-                aa,
-                file = outFile,
-                quote = FALSE,
-                sep = output_sep,
-                row.names = FALSE,
-                col.names = TRUE
-            )
-        }
-
-        outFiles <- c(outFiles, outFile)
+      )
+    } else {
+      utils::write.table(
+        aa,
+        file = outFile,
+        quote = FALSE,
+        sep = output_sep,
+        row.names = FALSE,
+        col.names = TRUE
+      )
     }
 
-    invisible(outFiles)
+    outFiles <- c(outFiles, outFile)
+  }
+
+  invisible(outFiles)
 }
-
-
