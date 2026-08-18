@@ -31,41 +31,39 @@
 # )
 
 
-#' Plot differential expression result counts
+#' Compute per-cell-type differential expression effect counts
 #'
-#' Parses differential expression result files and creates faceted bar plots
-#' showing the number of genes with positive and negative log fold changes
-#' passing an adjusted P-value threshold of 0.05.
+#' Parses differential expression result files and counts genes with
+#' positive and negative log fold changes passing an adjusted P-value
+#' threshold of 0.05, for each cell type / interaction combination. This is
+#' the data-gathering half of \code{barplot_de_results()}, split out so
+#' callers can cache the counts and skip re-parsing the raw DE files on
+#' subsequent plot renders.
 #'
 #' @param in_dir Directory containing the differential expression result files.
 #' @param file_pattern Pattern used to identify differential expression result
 #'   files.
 #' @param cellTypeListFile Optional path to a file specifying the cell types to
 #'   include.
-#' @param pdf_output_file Optional path for writing the plot to a PDF file.
-#'   When `NULL`, no PDF is written.
-#' @param svg_output_file Optional path for writing the plot to an SVG file.
-#'   When `NULL`, no SVG is written.
-#' @param width Optional plot width (inches) passed to `ggplot2::ggsave()`.
-#' @param height Optional plot height (inches) passed to `ggplot2::ggsave()`.
 #'
-#' @return A `ggplot` object (or a `cowplot` grob when the data span more than
-#'   one region/interaction).
+#' @return A data.table with columns \code{cell_type}, \code{interaction},
+#'   \code{contrast}, \code{n_up}, and \code{n_down} (one row per cell type /
+#'   interaction combination).
 #'
 #' @export
-barplot_de_results <- function(in_dir,
-                               file_pattern,
-                               cellTypeListFile = NULL,
-                               pdf_output_file = NULL,
-                               svg_output_file = NULL,
-                               width = NULL,
-                               height = NULL) {
+compute_de_result_counts <- function(in_dir, file_pattern, cellTypeListFile = NULL) {
   # Make R CMD CHECK happy
-  . <- adj.P.Val <- logFC <- cell_type <- n_up <- n_down <- direction <- n_genes <- NULL
+  . <- adj.P.Val <- logFC <- cell_type <- n_up <- n_down <- contrast <- NULL
 
   d <- parse_de_inputs(in_dir, file_pattern, cellTypeListFile)
 
   setDT(d)
+
+  contrast_title <- unique(d$contrast)
+
+  if (length(contrast_title) != 1L) {
+    stop("Expected exactly one unique contrast value in d.")
+  }
 
   de_counts <- d[
     adj.P.Val < 0.05 & logFC != 0,
@@ -89,10 +87,58 @@ barplot_de_results <- function(in_dir,
   de_counts[is.na(n_up), n_up := 0L]
   de_counts[is.na(n_down), n_down := 0L]
 
+  de_counts[, contrast := contrast_title]
+
   setorder(de_counts, interaction, cell_type)
 
+  de_counts
+}
+
+
+#' Plot differential expression result counts
+#'
+#' Creates faceted bar plots showing the number of genes with positive and
+#' negative log fold changes, from a counts table produced by
+#' \code{compute_de_result_counts()}.
+#'
+#' @param de_counts A data.table produced by \code{compute_de_result_counts()},
+#'   with columns \code{cell_type}, \code{interaction}, \code{contrast},
+#'   \code{n_up}, and \code{n_down}.
+#' @param pdf_output_file Optional path for writing the plot to a PDF file.
+#'   When `NULL`, no PDF is written.
+#' @param svg_output_file Optional path for writing the plot to an SVG file.
+#'   When `NULL`, no SVG is written.
+#' @param width Optional plot width (inches) passed to `ggplot2::ggsave()`.
+#' @param height Optional plot height (inches) passed to `ggplot2::ggsave()`.
+#'
+#' @return A `ggplot` object (or a `cowplot` grob when the data span more than
+#'   one region/interaction).
+#'
+#' @export
+barplot_de_results_from_counts <- function(de_counts,
+                                           pdf_output_file = NULL,
+                                           svg_output_file = NULL,
+                                           width = NULL,
+                                           height = NULL) {
+  # Make R CMD CHECK happy
+  direction <- n_genes <- contrast <- interaction <- NULL
+
+  de_counts <- data.table::as.data.table(de_counts)
+
+  # An all-NA `interaction` column round-trips through a TSV cache as
+  # logical (fread cannot infer character type from NA-only data); coerce
+  # back so downstream `interaction` handling is stable regardless of
+  # whether `de_counts` was freshly computed or loaded from cache.
+  de_counts[, interaction := as.character(interaction)]
+
+  contrast_title <- unique(de_counts$contrast)
+
+  if (length(contrast_title) != 1L) {
+    stop("Expected exactly one unique contrast value in de_counts.")
+  }
+
   de_counts_long <- melt(
-    de_counts,
+    de_counts[, !"contrast"],
     id.vars = c("cell_type", "interaction"),
     measure.vars = c("n_up", "n_down"),
     variable.name = "direction",
@@ -107,12 +153,6 @@ barplot_de_results <- function(in_dir,
       labels = c("Positive logFC", "Negative logFC")
     )
   ]
-
-  contrast_title <- unique(d$contrast)
-
-  if (length(contrast_title) != 1L) {
-    stop("Expected exactly one unique contrast value in d.")
-  }
 
   y_max <- max(de_counts_long$n_genes, na.rm = TRUE)
 
@@ -186,10 +226,52 @@ barplot_de_results <- function(in_dir,
 }
 
 
+#' Plot differential expression result counts from raw DE result files
+#'
+#' Convenience one-shot wrapper combining \code{compute_de_result_counts()}
+#' and \code{barplot_de_results_from_counts()}. Callers that want to cache
+#' the counts table between plot renders should call those two functions
+#' directly instead.
+#'
+#' @param in_dir Directory containing the differential expression result files.
+#' @param file_pattern Pattern used to identify differential expression result
+#'   files.
+#' @param cellTypeListFile Optional path to a file specifying the cell types to
+#'   include.
+#' @param pdf_output_file Optional path for writing the plot to a PDF file.
+#'   When `NULL`, no PDF is written.
+#' @param svg_output_file Optional path for writing the plot to an SVG file.
+#'   When `NULL`, no SVG is written.
+#' @param width Optional plot width (inches) passed to `ggplot2::ggsave()`.
+#' @param height Optional plot height (inches) passed to `ggplot2::ggsave()`.
+#'
+#' @return A `ggplot` object (or a `cowplot` grob when the data span more than
+#'   one region/interaction).
+#'
+#' @export
+barplot_de_results <- function(in_dir,
+                               file_pattern,
+                               cellTypeListFile = NULL,
+                               pdf_output_file = NULL,
+                               svg_output_file = NULL,
+                               width = NULL,
+                               height = NULL) {
+  de_counts <- compute_de_result_counts(in_dir, file_pattern, cellTypeListFile)
+
+  barplot_de_results_from_counts(
+    de_counts,
+    pdf_output_file = pdf_output_file,
+    svg_output_file = svg_output_file,
+    width = width,
+    height = height
+  )
+}
+
+
 #' Build one count-barplot panel
 #'
-#' Shared panel builder used by \code{barplot_de_results()} for the
-#' single-panel, one-region, and two-panel (outlier-split) layouts.
+#' Shared panel builder used by \code{barplot_de_results_from_counts()} for
+#' the single-panel, one-region, and two-panel (outlier-split) layouts.
 #'
 #' @param data A long-format data.table with columns `cell_type`, `n_genes`,
 #'   `direction`, and (when `facet = TRUE`) `interaction`.

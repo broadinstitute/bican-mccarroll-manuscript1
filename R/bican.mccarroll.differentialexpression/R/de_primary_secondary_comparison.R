@@ -114,12 +114,18 @@
 #' @param alpha Adjusted P-value threshold used to select primary-significant
 #'   genes.
 #' @param width,height Dimensions (inches) for the per-cell-type scatter SVGs.
+#' @param scale_effects Logical scalar. If \code{TRUE}, each cell type's
+#'   primary and secondary logFC values are independently rescaled to
+#'   \code{[-1, 1]} before plotting (see
+#'   \code{\link{plot_de_primary_secondary_from_data}}). Defaults to
+#'   \code{FALSE}.
 #'
 #' @return Invisibly returns a list with elements \code{per_cell_type} (a list
 #'   of per-cell-type results), \code{sign_results} (a data frame of
-#'   sign-concordance statistics per cell type), and \code{sign_summary_plot}
-#'   (the summary bar plot, or \code{NULL} if no cell type passed
-#'   \code{min_num_genes}).
+#'   sign-concordance statistics per cell type), \code{sign_summary_plot}
+#'   (the sign-concordance summary bar plot), and \code{cor_summary_plot}
+#'   (the analogous summary bar plot of per-cell-type correlation). Both
+#'   summary plots are \code{NULL} if no cell type passed \code{min_num_genes}.
 #'
 #' @export
 plot_de_primary_secondary_manifest <- function(manifest_file,
@@ -135,7 +141,61 @@ plot_de_primary_secondary_manifest <- function(manifest_file,
                                                min_num_genes = 20,
                                                alpha = 0.05,
                                                width = 7,
-                                               height = 7) {
+                                               height = 7,
+                                               scale_effects = FALSE) {
+  gene_set <- match.arg(gene_set)
+
+  de_data <- compute_de_primary_secondary_data(
+    manifest_file = manifest_file,
+    primary_dataset = primary_dataset,
+    secondary_dataset = secondary_dataset,
+    gene_set = gene_set,
+    contig_yaml_file = contig_yaml_file,
+    reduced_gtf_file = reduced_gtf_file,
+    alpha = alpha
+  )
+
+  plot_de_primary_secondary_from_data(
+    de_data,
+    out_dir = out_dir,
+    primary_dataset = primary_dataset,
+    secondary_dataset = secondary_dataset,
+    primary_label = primary_label,
+    secondary_label = secondary_label,
+    effect_name = effect_name,
+    gene_set = gene_set,
+    min_num_genes = min_num_genes,
+    width = width,
+    height = height,
+    scale_effects = scale_effects
+  )
+}
+
+
+#' Gather per-gene primary/secondary DE comparison data for a manifest
+#'
+#' For each cell type listed in \code{manifest_file}, reads the primary and
+#' secondary differential expression result files and joins them on shared,
+#' primary-significant genes. This is the data-gathering half of
+#' \code{plot_de_primary_secondary_manifest()}, split out so callers can
+#' cache the joined gene-level data (as one table spanning all cell types)
+#' and skip re-parsing the raw DE result files on subsequent plot renders.
+#'
+#' @inheritParams plot_de_primary_secondary_manifest
+#'
+#' @return A data.frame with columns \code{cell_type}, \code{gene},
+#'   \code{secondary_logFC}, \code{secondary_adjP}, \code{primary_logFC}, and
+#'   \code{primary_adjP} (one row per gene per cell type). Cell types with no
+#'   qualifying genes are omitted.
+#'
+#' @export
+compute_de_primary_secondary_data <- function(manifest_file,
+                                              primary_dataset = "bican",
+                                              secondary_dataset = "snap",
+                                              gene_set = c("both", "autosome", "xy"),
+                                              contig_yaml_file = NULL,
+                                              reduced_gtf_file = NULL,
+                                              alpha = 0.05) {
   gene_set <- match.arg(gene_set)
 
   validate_gene_set_metadata(
@@ -149,14 +209,6 @@ plot_de_primary_secondary_manifest <- function(manifest_file,
     contig_yaml_file = contig_yaml_file,
     reduced_gtf_file = reduced_gtf_file
   )
-
-  if (is.null(primary_label)) {
-    primary_label <- make_dataset_label(primary_dataset)
-  }
-
-  if (is.null(secondary_label)) {
-    secondary_label <- make_dataset_label(secondary_dataset)
-  }
 
   manifest <- utils::read.table(
     manifest_file,
@@ -176,20 +228,128 @@ plot_de_primary_secondary_manifest <- function(manifest_file,
     ))
   }
 
-  if (!is.null(out_dir) && !dir.exists(out_dir)) {
-    dir.create(out_dir, recursive = TRUE)
-  }
-
   validate_manifest_files(
     manifest = manifest,
     file_cols = c(primary_dataset, secondary_dataset)
   )
 
-  results <- vector("list", nrow(manifest))
-  names(results) <- manifest$cell_type
+  per_cell_type <- lapply(seq_len(nrow(manifest)), function(i) {
+    cell_type <- manifest$cell_type[i]
 
-  sign_results <- vector("list", nrow(manifest))
-  names(sign_results) <- manifest$cell_type
+    logger::log_info("Processing cell type ", cell_type)
+
+    df <- make_de_primary_secondary_df(
+      primary_file = manifest[[primary_dataset]][i],
+      secondary_file = manifest[[secondary_dataset]][i],
+      genes_to_keep = genes_to_keep,
+      alpha = alpha
+    )
+
+    if (nrow(df) == 0) {
+      return(NULL)
+    }
+
+    df$cell_type <- cell_type
+    df
+  })
+
+  de_data <- do.call(rbind, per_cell_type)
+
+  if (is.null(de_data)) {
+    de_data <- data.frame(
+      cell_type = character(0),
+      gene = character(0),
+      secondary_logFC = numeric(0),
+      secondary_adjP = numeric(0),
+      primary_logFC = numeric(0),
+      primary_adjP = numeric(0),
+      stringsAsFactors = FALSE
+    )
+  }
+
+  de_data[, c(
+    "cell_type", "gene", "secondary_logFC", "secondary_adjP",
+    "primary_logFC", "primary_adjP"
+  )]
+}
+
+
+#' Plot a primary/secondary DE comparison from precomputed per-gene data
+#'
+#' Builds per-cell-type scatter plots and a sign-concordance summary from
+#' gene-level data produced by \code{compute_de_primary_secondary_data()}.
+#' This is the plotting half of \code{plot_de_primary_secondary_manifest()}.
+#'
+#' @param de_data A data.frame produced by
+#'   \code{compute_de_primary_secondary_data()}, with columns
+#'   \code{cell_type}, \code{gene}, \code{secondary_logFC},
+#'   \code{secondary_adjP}, \code{primary_logFC}, and \code{primary_adjP}.
+#' @param out_dir Directory to write per-cell-type scatter SVGs, the summary
+#'   SVG, and the summary TSV. If \code{NULL}, no files are written and only
+#'   the returned list is available.
+#' @param primary_dataset,secondary_dataset Dataset identifiers recorded in
+#'   the summary TSV and used to derive default labels and output filenames;
+#'   the join itself was already performed when \code{de_data} was gathered.
+#' @param primary_label,secondary_label Display labels for the two datasets.
+#'   If \code{NULL}, derived from \code{primary_dataset}/\code{secondary_dataset}.
+#' @param effect_name Human-readable name of the effect being compared (e.g.
+#'   \code{"age effects"}, \code{"sex effects"}), used in plot titles and
+#'   output file names.
+#' @param gene_set Recorded in the summary TSV and output filenames
+#'   (informational only at this stage; restricting to autosomal/sex-linked
+#'   genes already happened when \code{de_data} was gathered).
+#' @param min_num_genes Minimum number of overlapping genes required for a
+#'   cell type to be included in the sign-concordance summary.
+#' @param width,height Dimensions (inches) for the per-cell-type scatter SVGs.
+#' @param scale_effects Logical scalar. If \code{TRUE}, each cell type's
+#'   primary and secondary logFC values are independently rescaled to
+#'   \code{[-1, 1]} (dividing by their own maximum absolute value) before
+#'   plotting, so effect sizes are visually comparable across cell types and
+#'   datasets on very different native scales. Does not affect the
+#'   sign-concordance statistics, which are scale-invariant. Defaults to
+#'   \code{FALSE}.
+#'
+#' @return Invisibly returns a list with elements \code{per_cell_type} (a list
+#'   of per-cell-type results), \code{sign_results} (a data frame of
+#'   sign-concordance statistics per cell type), \code{sign_summary_plot}
+#'   (the sign-concordance summary bar plot), and \code{cor_summary_plot}
+#'   (the analogous summary bar plot of per-cell-type correlation). Both
+#'   summary plots are \code{NULL} if no cell type passed \code{min_num_genes}.
+#'
+#' @export
+plot_de_primary_secondary_from_data <- function(de_data,
+                                                out_dir = NULL,
+                                                primary_dataset = "bican",
+                                                secondary_dataset = "snap",
+                                                primary_label = NULL,
+                                                secondary_label = NULL,
+                                                effect_name = "age effects",
+                                                gene_set = "both",
+                                                min_num_genes = 20,
+                                                width = 7,
+                                                height = 7,
+                                                scale_effects = FALSE) {
+  if (is.null(primary_label)) {
+    primary_label <- make_dataset_label(primary_dataset)
+  }
+
+  if (is.null(secondary_label)) {
+    secondary_label <- make_dataset_label(secondary_dataset)
+  }
+
+  de_data <- as.data.frame(de_data)
+
+  cell_types <- unique(de_data$cell_type)
+
+  results <- vector("list", length(cell_types))
+  names(results) <- cell_types
+
+  sign_results <- vector("list", length(cell_types))
+  names(sign_results) <- cell_types
+
+  if (!is.null(out_dir) && !dir.exists(out_dir)) {
+    dir.create(out_dir, recursive = TRUE)
+  }
 
   output_prefix <- make_output_prefix(
     primary_dataset,
@@ -197,28 +357,20 @@ plot_de_primary_secondary_manifest <- function(manifest_file,
     gene_set = gene_set
   )
 
-  for (i in seq_len(nrow(manifest))) {
-    cell_type <- manifest$cell_type[i]
+  for (cell_type in cell_types) {
+    df <- de_data[de_data$cell_type == cell_type, , drop = FALSE]
 
-    logger::log_info("Processing cell type ", cell_type)
-
-    res <- plot_de_primary_secondary_cell_type(
+    res <- plot_de_primary_secondary_from_df(
       cell_type = cell_type,
-      primary_file = manifest[[primary_dataset]][i],
-      secondary_file = manifest[[secondary_dataset]][i],
+      df = df,
       primary_dataset = primary_dataset,
       secondary_dataset = secondary_dataset,
       primary_label = primary_label,
       secondary_label = secondary_label,
       effect_name = effect_name,
       gene_set = gene_set,
-      genes_to_keep = genes_to_keep,
-      alpha = alpha
+      scale_effects = scale_effects
     )
-
-    if (is.null(res)) {
-      next
-    }
 
     results[[cell_type]] <- res
     sign_results[[cell_type]] <- res$sign_test
@@ -252,11 +404,19 @@ plot_de_primary_secondary_manifest <- function(manifest_file,
     return(invisible(list(
       per_cell_type = results,
       sign_results = sign_results,
-      sign_summary_plot = NULL
+      sign_summary_plot = NULL,
+      cor_summary_plot = NULL
     )))
   }
 
   sign_summary_plot <- plot_sign_test_summary(
+    sign_results = sign_results,
+    primary_label = primary_label,
+    secondary_label = secondary_label,
+    effect_name = effect_name
+  )
+
+  cor_summary_plot <- plot_correlation_summary(
     sign_results = sign_results,
     primary_label = primary_label,
     secondary_label = secondary_label,
@@ -274,6 +434,21 @@ plot_de_primary_secondary_manifest <- function(manifest_file,
         )
       ),
       plot = sign_summary_plot,
+      device = "svg",
+      width = 8,
+      height = max(4, 0.35 * nrow(sign_results) + 2)
+    )
+
+    ggplot2::ggsave(
+      filename = file.path(
+        out_dir,
+        sprintf(
+          "%s_%s_correlation_summary.svg",
+          output_prefix,
+          .sanitize_filename(effect_name)
+        )
+      ),
+      plot = cor_summary_plot,
       device = "svg",
       width = 8,
       height = max(4, 0.35 * nrow(sign_results) + 2)
@@ -298,7 +473,8 @@ plot_de_primary_secondary_manifest <- function(manifest_file,
   invisible(list(
     per_cell_type = results,
     sign_results = sign_results,
-    sign_summary_plot = sign_summary_plot
+    sign_summary_plot = sign_summary_plot,
+    cor_summary_plot = cor_summary_plot
   ))
 }
 
@@ -313,18 +489,8 @@ plot_de_primary_secondary_cell_type <- function(cell_type,
                                                 effect_name = "age effects",
                                                 gene_set = "both",
                                                 genes_to_keep = NULL,
-                                                alpha = 0.05) {
-  # Make R CMD CHECK Happy
-  secondary_logFC <- primary_logFC <- NULL
-
-  if (is.null(primary_label)) {
-    primary_label <- make_dataset_label(primary_dataset)
-  }
-
-  if (is.null(secondary_label)) {
-    secondary_label <- make_dataset_label(secondary_dataset)
-  }
-
+                                                alpha = 0.05,
+                                                scale_effects = FALSE) {
   df <- make_de_primary_secondary_df(
     primary_file = primary_file,
     secondary_file = secondary_file,
@@ -336,6 +502,43 @@ plot_de_primary_secondary_cell_type <- function(cell_type,
     return(NULL)
   }
 
+  plot_de_primary_secondary_from_df(
+    cell_type = cell_type,
+    df = df,
+    primary_dataset = primary_dataset,
+    secondary_dataset = secondary_dataset,
+    primary_label = primary_label,
+    secondary_label = secondary_label,
+    effect_name = effect_name,
+    gene_set = gene_set,
+    scale_effects = scale_effects
+  )
+}
+
+
+plot_de_primary_secondary_from_df <- function(cell_type,
+                                              df,
+                                              primary_dataset = "bican",
+                                              secondary_dataset = "snap",
+                                              primary_label = NULL,
+                                              secondary_label = NULL,
+                                              effect_name = "age effects",
+                                              gene_set = "both",
+                                              scale_effects = FALSE) {
+  # Make R CMD CHECK Happy
+  secondary_logFC <- primary_logFC <- NULL
+
+  if (is.null(primary_label)) {
+    primary_label <- make_dataset_label(primary_dataset)
+  }
+
+  if (is.null(secondary_label)) {
+    secondary_label <- make_dataset_label(secondary_dataset)
+  }
+
+  # Sign concordance and correlation are scale-invariant (dividing by a
+  # positive constant changes neither sign nor Pearson correlation), so these
+  # are always computed on the raw, unscaled effect sizes.
   sign_res <- sign_test_fraction(
     x = df$secondary_logFC,
     y = df$primary_logFC
@@ -347,7 +550,26 @@ plot_de_primary_secondary_cell_type <- function(cell_type,
     use = "complete.obs"
   )
 
-  lims <- range(c(df$secondary_logFC, df$primary_logFC), na.rm = TRUE)
+  plot_df <- df
+  axis_suffix <- ""
+
+  if (scale_effects) {
+    scale_to_unit <- function(x) {
+      m <- max(abs(x), na.rm = TRUE)
+      if (!is.finite(m) || m == 0) m <- 1
+      x / m
+    }
+
+    plot_df$secondary_logFC <- scale_to_unit(plot_df$secondary_logFC)
+    plot_df$primary_logFC <- scale_to_unit(plot_df$primary_logFC)
+    axis_suffix <- " (scaled to [-1, 1])"
+  }
+
+  lims <- if (scale_effects) {
+    c(-1, 1)
+  } else {
+    range(c(plot_df$secondary_logFC, plot_df$primary_logFC), na.rm = TRUE)
+  }
 
   subtitle <- sprintf(
     "%s-significant genes: %.1f%% same sign in %s (%d/%d); cor=%.2f",
@@ -359,15 +581,15 @@ plot_de_primary_secondary_cell_type <- function(cell_type,
     cor_val
   )
 
-  p <- ggplot2::ggplot(df, ggplot2::aes(x = secondary_logFC, y = primary_logFC)) +
+  p <- ggplot2::ggplot(plot_df, ggplot2::aes(x = secondary_logFC, y = primary_logFC)) +
     ggplot2::geom_point(na.rm = TRUE, size = 1.2, alpha = 0.6) +
     ggplot2::geom_abline(intercept = 0, slope = 1, color = "black") +
     ggplot2::coord_cartesian(xlim = lims, ylim = lims) +
     ggplot2::labs(
       title = cell_type,
       subtitle = subtitle,
-      x = sprintf("%s logFC", secondary_label),
-      y = sprintf("%s logFC", primary_label)
+      x = sprintf("%s logFC%s", secondary_label, axis_suffix),
+      y = sprintf("%s logFC%s", primary_label, axis_suffix)
     ) +
     ggplot2::theme_bw(base_size = 12) +
     ggplot2::theme(
@@ -436,6 +658,46 @@ plot_sign_test_summary <- function(sign_results,
     ggplot2::labs(
       x = NULL,
       y = "% same sign",
+      title = title
+    ) +
+    ggplot2::theme_bw(base_size = 12)
+}
+
+
+plot_correlation_summary <- function(sign_results,
+                                     primary_label = "BICAN",
+                                     secondary_label = "SNAP",
+                                     effect_name = "age effects") {
+  # Make R CMD CHECK Happy
+  cell_type <- cor <- NULL
+
+  sign_results <- sign_results[order(sign_results$cor), ]
+
+  sign_results$cell_type <- factor(
+    sign_results$cell_type,
+    levels = sign_results$cell_type
+  )
+
+  title <- sprintf(
+    "%s-significant %s: correlation with %s",
+    primary_label,
+    effect_name,
+    secondary_label
+  )
+
+  ggplot2::ggplot(sign_results, ggplot2::aes(x = cell_type, y = cor)) +
+    ggplot2::geom_col(color = "black") +
+    ggplot2::geom_text(
+      ggplot2::aes(
+        label = sprintf("%.2f", cor),
+        hjust = ifelse(cor >= 0, -0.1, 1.1)
+      ),
+      size = 4
+    ) +
+    ggplot2::coord_flip(ylim = c(-1.15, 1.15)) +
+    ggplot2::labs(
+      x = NULL,
+      y = "Correlation (r)",
       title = title
     ) +
     ggplot2::theme_bw(base_size = 12)

@@ -170,6 +170,142 @@ plot_de_cor_heatmaps_age <- function(de_region_interaction_dir = NULL,
   invisible(NULL)
 }
 
+#' Plot combined BICAN sea_ad_mtg_mmc vs. PMID_39402379 DE correlation heatmap
+#'
+#' Builds a correlation heatmap whose matrix combines two datasets: BICAN
+#' LEVEL_6_sea_ad_mtg_mmc age-effect differential expression results and the
+#' external PMID_39402379 (Gabitto et al. 2024) \code{ad_cps} contrast
+#' results, both restricted to the SEA-AD supertype cell types for which
+#' BICAN DE results were generated. Each cell type appears twice (once per
+#' dataset), so hierarchical clustering can freely reveal whether a BICAN
+#' cell type's age-effect profile clusters tightly with its PMID counterpart,
+#' with some other PMID cell type, or with neither. Row/column labels are
+#' distinguished only by a dataset text suffix (no forced grouping/split),
+#' matching the existing \code{cell_type__region} labeling convention.
+#'
+#' The correlation matrix is cached to a plain-text TSV file to speed up
+#' subsequent runs and to provide reviewer-inspectable intermediate data.
+#' Cell type/dataset combinations with fewer than \code{min_num_genes} of
+#' their own significant genes are dropped from the matrix (see
+#' \code{bican.mccarroll.de.analysis::compute_de_cor_mat_datasets()}), so a
+#' cache built at one \code{min_num_genes} value must be regenerated
+#' (\code{force_recompute = TRUE}) if that value changes.
+#'
+#' @param min_num_genes Minimum number of a cell type/dataset combination's
+#'   own significant genes required to keep it in the matrix. Defaults to
+#'   \code{20}; raise (e.g. to \code{100}) for a stricter matrix.
+#' @param outDir Output directory for generated SVG plots. If \code{NULL},
+#'   resolved via configured output directory options.
+#' @param data_cache_dir Directory used to store cached correlation matrices
+#'   as TSV files. If \code{NULL}, resolved via configured cache directory
+#'   options.
+#' @param force_recompute Logical scalar. If \code{TRUE}, ignore an existing
+#'   cache file, recompute the matrix, and overwrite the cache. Defaults to
+#'   \code{FALSE}.
+#'
+#' @return Invisibly returns the correlation matrix.
+#'
+#' @export
+plot_de_cor_heatmap_bican_sea_ad_vs_pmid_39402379 <- function(
+  min_num_genes = 20,
+  outDir = NULL,
+  data_cache_dir = NULL,
+  force_recompute = FALSE
+) {
+  contrast <- "ad_cps"
+
+  ct_file_rel <- "differential_expression/metadata/cell_types_for_sea_ad_mtg_mmc_plots.txt"
+
+  bican_paths <- resolve_de_cor_paths(
+    de_region_interaction_dir = "differential_expression/results/LEVEL_6_sea_ad_mtg_mmc/sex_age/cell_type",
+    ct_file = ct_file_rel,
+    outDir = outDir,
+    data_cache_dir = data_cache_dir
+  )
+
+  # resolve_de_cor_paths() is a generic in_dir/outDir/cache resolver despite
+  # its "region_interaction" parameter name; reused here (with a PMID in_dir
+  # override) rather than writing a near-duplicate resolver.
+  pmid_paths <- resolve_de_cor_paths(
+    de_region_interaction_dir = "differential_expression/external_comparison_PMID_39402379/voom-like",
+    ct_file = ct_file_rel,
+    outDir = outDir,
+    data_cache_dir = data_cache_dir
+  )
+
+  cell_types_use <- bican.mccarroll.de.analysis::read_cell_types(bican_paths$ct_file)
+
+  cache_file <- file.path(
+    bican_paths$data_cache_dir,
+    sprintf("de_cor_mat_bican_sea_ad_vs_pmid_39402379_%s.tsv", contrast)
+  )
+
+  if (!force_recompute && file.exists(cache_file)) {
+    cor_dt <- data.table::fread(cache_file)
+    rn <- cor_dt[[1]]
+    cor_dt[[1]] <- NULL
+    cor_mat <- as.matrix(cor_dt)
+    rownames(cor_mat) <- rn
+  } else {
+    gene_to_chr <- bican.mccarroll.de.analysis::read_gene_to_chr(bican_paths$gene_to_chr_file)
+
+    de_dt <- bican.mccarroll.de.analysis::read_de_results_datasets(
+      de_dir1 = bican_paths$de_region_interaction_dir,
+      test1 = "__age_DE_results\\.txt$",
+      dataset1 = "BICAN",
+      de_dir2 = pmid_paths$de_region_interaction_dir,
+      test2 = sprintf("__MTG__%s_DE_results\\.txt$", contrast),
+      dataset2 = "PMID_39402379",
+      ct_file = bican_paths$ct_file,
+      gene_to_chr = gene_to_chr
+    )
+
+    cor_mat <- bican.mccarroll.de.analysis::compute_de_cor_mat_datasets(
+      de_dt,
+      cell_types_use = cell_types_use,
+      datasets_use = c("BICAN", "PMID_39402379"),
+      min_num_genes = min_num_genes
+    )
+
+    cor_dt <- as.data.frame(cor_mat, check.names = FALSE)
+    cor_dt <- cbind(cell_type = rownames(cor_mat), cor_dt)
+
+    utils::write.table(
+      cor_dt,
+      file = cache_file,
+      sep = "\t",
+      row.names = FALSE,
+      col.names = TRUE,
+      quote = FALSE
+    )
+  }
+
+  cor_mat <- clean_cor_mat_names(cor_mat)
+
+  out_file <- file.path(
+    bican_paths$outDir,
+    sprintf("de_cor_heatmap_bican_sea_ad_vs_pmid_39402379_%s.svg", contrast)
+  )
+  grDevices::svg(out_file, width = 12, height = 12)
+
+  ht <- bican.mccarroll.de.analysis::plot_de_cor_heatmap_complex(
+    cor_mat,
+    clustering_method = "complete",
+    breaks = seq(-1, 1, length.out = 101),
+    palette_colors = c("steelblue", "white", "darkorange"),
+    legend_title = NULL,
+    show_dendrograms = TRUE
+  )
+
+  ComplexHeatmap::draw(ht)
+  grDevices::dev.off()
+
+  logger::log_info("DONE plotting DE correlation heatmap: {out_file}")
+
+  invisible(cor_mat)
+}
+
+
 clean_cor_mat_names <- function(cor_mat) {
   if (!is.matrix(cor_mat)) {
     stop("clean_cor_mat_names expects a matrix.")

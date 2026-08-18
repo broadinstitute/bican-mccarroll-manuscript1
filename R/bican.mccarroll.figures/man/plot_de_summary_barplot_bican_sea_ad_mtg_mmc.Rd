@@ -4,22 +4,38 @@
 \alias{plot_de_summary_barplot_bican_sea_ad_mtg_mmc}
 \title{Plot BICAN sea_ad_mtg_mmc differential expression effect counts}
 \usage{
-plot_de_summary_barplot_bican_sea_ad_mtg_mmc(outDir = NULL)
+plot_de_summary_barplot_bican_sea_ad_mtg_mmc(
+  outDir = NULL,
+  data_cache_dir = NULL,
+  force_recompute = FALSE
+)
 }
 \arguments{
 \item{outDir}{Output directory for the generated SVG. If \code{NULL},
 resolved via configured output directory options.}
+
+\item{data_cache_dir}{Directory used to store the cached counts TSV. If
+\code{NULL}, the directory is resolved from
+\code{options("bican.mccarroll.figures.cache_dir")}.}
+
+\item{force_recompute}{Logical scalar. If \code{TRUE}, ignore an existing
+cache file, recompute the counts, and overwrite the cache. Defaults to
+\code{FALSE}.}
 }
 \value{
 Invisibly returns the `ggplot` object produced by
-  \code{bican.mccarroll.differentialexpression::barplot_de_results()}.
+  \code{bican.mccarroll.differentialexpression::barplot_de_results_from_counts()}.
 }
 \description{
 Wires the BICAN LEVEL_6_sea_ad_mtg_mmc age differential expression results
-into \code{bican.mccarroll.differentialexpression::barplot_de_results()},
+into
+\code{bican.mccarroll.differentialexpression::barplot_de_results_from_counts()},
 restricted to the SEA-AD supertype cell types for which BICAN DE results
 were generated. Writes a single age-effect SVG to the configured figure
-output directory (see \code{\link{get_out_dir}}).
+output directory (see \code{\link{get_out_dir}}). The per-cell-type
+up/down gene counts are cached as a TSV in the configured cache directory
+(see \code{\link{get_cache_dir}}) so subsequent calls can skip re-parsing
+the raw DE result files.
 }
 \details{
 Sex-effect counts by chromosome group already have dedicated handling in

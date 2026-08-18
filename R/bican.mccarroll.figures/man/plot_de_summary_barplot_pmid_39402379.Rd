@@ -6,7 +6,9 @@
 \usage{
 plot_de_summary_barplot_pmid_39402379(
   contrast = c("ad_cps", "early_ad_cps", "late_ad_cps", "versus_all"),
-  outDir = NULL
+  outDir = NULL,
+  data_cache_dir = NULL,
+  force_recompute = FALSE
 )
 }
 \arguments{
@@ -15,16 +17,27 @@ plot_de_summary_barplot_pmid_39402379(
 
 \item{outDir}{Output directory for the generated SVGs. If \code{NULL},
 resolved via configured output directory options.}
+
+\item{data_cache_dir}{Directory used to store the cached counts TSVs. If
+\code{NULL}, the directory is resolved from
+\code{options("bican.mccarroll.figures.cache_dir")}.}
+
+\item{force_recompute}{Logical scalar. If \code{TRUE}, ignore existing
+cache files, recompute the counts, and overwrite the cache. Defaults to
+\code{FALSE}.}
 }
 \value{
 Invisibly returns a named list (by contrast) of the `ggplot`
   objects produced by
-  \code{bican.mccarroll.differentialexpression::barplot_de_results()}.
+  \code{bican.mccarroll.differentialexpression::barplot_de_results_from_counts()}.
 }
 \description{
 Wires the PMID_39402379 voom-like differential expression results into
-\code{bican.mccarroll.differentialexpression::barplot_de_results()},
+\code{bican.mccarroll.differentialexpression::barplot_de_results_from_counts()},
 restricted to the SEA-AD supertype cell types for which BICAN DE results
 were generated. Writes one SVG per contrast to the configured figure
-output directory (see \code{\link{get_out_dir}}).
+output directory (see \code{\link{get_out_dir}}). The per-cell-type
+up/down gene counts for each contrast are cached as a TSV in the
+configured cache directory (see \code{\link{get_cache_dir}}) so subsequent
+calls can skip re-parsing the raw DE result files.
 }

@@ -523,6 +523,141 @@ compute_de_cor_mat <- function(de_dt,
   out_mat
 }
 
+#' Read and combine DE results from two datasets
+#'
+#' Reads DE results from two directories via \code{read_de_results()}, tags
+#' each with a dataset label (added as a \code{dataset} column), and
+#' \code{rbind}s them into one combined data.table suitable for
+#' \code{compute_de_cor_mat_datasets()}. Both datasets are read against the
+#' same cell type list and gene-to-chromosome mapping.
+#'
+#' @param de_dir1 Directory containing DE results for the first dataset.
+#' @param test1 Test name/regex passed to \code{read_de_results()} for the
+#'   first dataset.
+#' @param dataset1 Label used to tag rows from the first dataset.
+#' @param de_dir2 Directory containing DE results for the second dataset.
+#' @param test2 Test name/regex passed to \code{read_de_results()} for the
+#'   second dataset.
+#' @param dataset2 Label used to tag rows from the second dataset.
+#' @param ct_file Path to cell types file, shared by both datasets.
+#' @param gene_to_chr A data.table with at least "gene" and "chr", shared by
+#'   both datasets.
+#' @return A combined data.table (rbind of both datasets' \code{read_de_results()}
+#'   output) with an added \code{dataset} column.
+#' @export
+read_de_results_datasets <- function(de_dir1, test1, dataset1,
+                                     de_dir2, test2, dataset2,
+                                     ct_file, gene_to_chr) {
+  dataset <- NULL
+
+  de1 <- read_de_results(de_dir1, test1, ct_file, gene_to_chr)
+  de1[, dataset := dataset1]
+
+  de2 <- read_de_results(de_dir2, test2, ct_file, gene_to_chr)
+  de2[, dataset := dataset2]
+
+  rbind(de1, de2)
+}
+
+#' Compute correlation matrix across two DE datasets
+#'
+#' Like \code{compute_de_cor_mat()}, but rows/columns are keyed by
+#' \code{cell_type x dataset} instead of \code{cell_type x region}, so a
+#' correlation matrix can span two DE datasets (e.g. BICAN vs. an external
+#' comparison paper) rather than one dataset's cell-type x region
+#' combinations. Cell type/dataset combinations with fewer than
+#' \code{min_num_genes} of their own significant genes are dropped entirely
+#' (as both a row and a column) rather than kept and left as an all-NA row.
+#'
+#' @param de_dt A combined, prepared DE data.table (rbind of two
+#'   prep_de()/read_de_results() outputs) with an added \code{dataset}
+#'   column identifying which dataset each row came from.
+#' @param cell_types_use Character vector of cell types to include.
+#' @param datasets_use Character vector of dataset labels to include (must
+#'   match values in the \code{dataset} column).
+#' @param fdr_cutoff Adjusted p-value threshold.
+#' @param min_num_genes Minimum number of a cell type/dataset combination's
+#'   own significant genes (\code{adj_p_val < fdr_cutoff}) required to keep
+#'   that combination in the matrix. Defaults to 20; raise (e.g. to 100) for
+#'   a stricter matrix, or lower for a more permissive one.
+#' @return A square numeric matrix with dimnames "cell_type__dataset",
+#'   containing signed rho^2 (as in compute_de_cor_mat()). Dimensions may be
+#'   smaller than length(cell_types_use) * length(datasets_use) if any
+#'   combinations were dropped by the min_num_genes filter.
+#' @export
+compute_de_cor_mat_datasets <- function(de_dt,
+                                        cell_types_use,
+                                        datasets_use,
+                                        fdr_cutoff = 0.05,
+                                        min_num_genes = 20) {
+  cell_type <- dataset <- cr <- gene <- adj_p_val <- log_fc <- n_sig <- NULL
+
+  dt <- data.table::copy(de_dt)
+
+  dt <- dt[cell_type %in% cell_types_use]
+  dt <- dt[dataset %in% datasets_use]
+
+  dt[, cell_type := factor(cell_type, levels = cell_types_use)]
+  dt[, dataset := factor(dataset, levels = datasets_use)]
+  dt[, cr := paste(cell_type, dataset, sep = "__")]
+
+  data.table::setorderv(dt, c("cell_type", "dataset"))
+
+  # Drop cell type/dataset combinations with too few significant genes of
+  # their own, rather than keeping them and leaving an all-NA row/column.
+  sig_counts <- dt[, .(n_sig = sum(adj_p_val < fdr_cutoff, na.rm = TRUE)), by = cr]
+  keep_keys <- sig_counts[n_sig >= min_num_genes, cr]
+
+  keys <- unique(dt$cr)
+  keys <- keys[keys %in% keep_keys]
+
+  n <- length(keys)
+
+  out_mat <- matrix(NA_real_,
+    nrow = n,
+    ncol = n,
+    dimnames = list(keys, keys)
+  )
+
+  for (i in keys) {
+    message(i)
+    for (j in keys) {
+      if (identical(i, j)) {
+        out_mat[i, j] <- 1
+        next
+      }
+
+      a <- dt[cr == i]
+      b <- dt[cr == j]
+      m <- merge(a, b, by = "gene")
+
+      # Make R CMD CHECK Happy
+      adj_p_val.x <- adj_p_val.y <- log_fc.x <- log_fc.y <- NULL
+
+      m_sig <- m[adj_p_val.x < fdr_cutoff | adj_p_val.y < fdr_cutoff]
+
+      # Defensive fallback: even after the per-key drop filter above, two
+      # surviving keys could still share too few genes for cor.test() to
+      # run (BICAN and the external dataset don't use identical gene
+      # panels/annotations). NA out rather than letting the whole matrix
+      # computation crash.
+      ctest <- tryCatch(
+        m_sig[, stats::cor.test(log_fc.x, log_fc.y, method = "spearman")],
+        error = function(e) NULL
+      )
+
+      if (is.null(ctest)) {
+        out_mat[i, j] <- NA_real_
+        next
+      }
+
+      out_mat[i, j] <- sign(ctest$estimate) * ctest$estimate^2
+    }
+  }
+
+  out_mat
+}
+
 #' Plot a correlation heatmap with pheatmap
 #'
 #' @param cor_mat A numeric matrix produced by compute_de_cor_mat.

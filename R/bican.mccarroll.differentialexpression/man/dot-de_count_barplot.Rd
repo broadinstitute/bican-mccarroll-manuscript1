@@ -31,6 +31,6 @@
 A `ggplot` object.
 }
 \description{
-Shared panel builder used by \code{barplot_de_results()} for the
-single-panel, one-region, and two-panel (outlier-split) layouts.
+Shared panel builder used by \code{barplot_de_results_from_counts()} for
+the single-panel, one-region, and two-panel (outlier-split) layouts.
 }

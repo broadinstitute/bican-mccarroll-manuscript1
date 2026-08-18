@@ -138,18 +138,37 @@ plot_de_sign_test_pmid_39227716_bican <- function(outDir = NULL, min_num_genes =
 #' @param outDir Output directory for the generated SVGs/TSVs. If \code{NULL},
 #'   resolved via configured output directory options.
 #' @param min_num_genes Minimum number of overlapping genes required for a
-#'   cell type to be included in the sign-concordance summary.
+#'   cell type to be included in the sign-concordance summary. Defaults to
+#'   \code{1} (rather than the usual \code{20}) since the sea_ad_mtg_mmc
+#'   cell-type list is restricted to the 33 BICAN supertypes, several of
+#'   which have few overlapping significant genes.
 #' @param alpha Adjusted P-value threshold used to select BICAN-significant
 #'   genes.
+#' @param data_cache_dir Directory used to store the cached per-gene
+#'   comparison data (one TSV per contrast). If \code{NULL}, the directory is
+#'   resolved from \code{options("bican.mccarroll.figures.cache_dir")}.
+#' @param force_recompute Logical scalar. If \code{TRUE}, ignore existing
+#'   cache files, recompute the comparison data, and overwrite the cache.
+#'   Defaults to \code{FALSE}.
+#' @param scale_effects Logical scalar. If \code{TRUE}, each cell type's
+#'   BICAN and PMID_39402379 logFC values are independently rescaled to
+#'   \code{[-1, 1]} before plotting, making effect sizes visually comparable
+#'   across cell types despite the two datasets' very different native logFC
+#'   scales (BICAN age effects vs. AD pseudo-progression score effects).
+#'   Does not affect the underlying sign-concordance statistics or the cached
+#'   per-gene data, which stay on the raw scale. Defaults to \code{TRUE} for
+#'   this comparison.
 #'
 #' @return Invisibly returns a named list (by \code{contrast}) of the lists
 #'   produced by
-#'   \code{bican.mccarroll.differentialexpression::plot_de_primary_secondary_manifest()}.
+#'   \code{bican.mccarroll.differentialexpression::plot_de_primary_secondary_from_data()}.
 #'
 #' @export
 plot_de_sign_test_pmid_39402379_bican <- function(
   contrast = c("ad_cps", "early_ad_cps", "late_ad_cps", "versus_all"),
-  outDir = NULL, min_num_genes = 20, alpha = 0.05
+  outDir = NULL, min_num_genes = 1, alpha = 0.05,
+  data_cache_dir = NULL, force_recompute = FALSE,
+  scale_effects = TRUE
 ) {
   results <- lapply(contrast, function(ct) {
     .plot_de_sign_test_figure(
@@ -166,6 +185,10 @@ plot_de_sign_test_pmid_39402379_bican <- function(
       effect_name = sprintf("age vs %s effects", ct),
       min_num_genes = min_num_genes,
       alpha = alpha,
+      cache_name = sprintf("de_sign_test_pmid_39402379_%s.tsv", ct),
+      data_cache_dir = data_cache_dir,
+      force_recompute = force_recompute,
+      scale_effects = scale_effects,
       outDir = outDir
     )
   })
@@ -237,6 +260,10 @@ plot_de_sign_test_snap200_sex_bican <- function(gene_set = c("both", "autosome",
                                       min_num_genes = 20,
                                       alpha = 0.05,
                                       sub_dir = NULL,
+                                      cache_name = NULL,
+                                      data_cache_dir = NULL,
+                                      force_recompute = FALSE,
+                                      scale_effects = FALSE,
                                       outDir = NULL) {
   paths <- resolve_de_sign_test_paths(
     manifest_file = manifest_file,
@@ -254,8 +281,50 @@ plot_de_sign_test_snap200_sex_bican <- function(gene_set = c("both", "autosome",
   }
   .ensure_dir(dataset_out_dir)
 
-  result <- bican.mccarroll.differentialexpression::plot_de_primary_secondary_manifest(
-    manifest_file = paths$manifest_file,
+  if (is.null(cache_name)) {
+    de_data <- bican.mccarroll.differentialexpression::compute_de_primary_secondary_data(
+      manifest_file = paths$manifest_file,
+      primary_dataset = primary_dataset,
+      secondary_dataset = secondary_dataset,
+      gene_set = gene_set,
+      contig_yaml_file = paths$contig_yaml_file,
+      reduced_gtf_file = paths$reduced_gtf_file,
+      alpha = alpha
+    )
+  } else {
+    cache_dir <- .resolve_cache_dir(data_cache_dir)
+    if (is.null(data_cache_dir)) {
+      cache_dir <- file.path(cache_dir, "differential_expression")
+    }
+    .ensure_dir(cache_dir)
+    cache_file <- file.path(cache_dir, cache_name)
+
+    if (!force_recompute && file.exists(cache_file)) {
+      de_data <- data.table::fread(cache_file)
+    } else {
+      de_data <- bican.mccarroll.differentialexpression::compute_de_primary_secondary_data(
+        manifest_file = paths$manifest_file,
+        primary_dataset = primary_dataset,
+        secondary_dataset = secondary_dataset,
+        gene_set = gene_set,
+        contig_yaml_file = paths$contig_yaml_file,
+        reduced_gtf_file = paths$reduced_gtf_file,
+        alpha = alpha
+      )
+
+      utils::write.table(
+        de_data,
+        file = cache_file,
+        sep = "\t",
+        row.names = FALSE,
+        col.names = TRUE,
+        quote = FALSE
+      )
+    }
+  }
+
+  result <- bican.mccarroll.differentialexpression::plot_de_primary_secondary_from_data(
+    de_data,
     out_dir = dataset_out_dir,
     primary_dataset = primary_dataset,
     secondary_dataset = secondary_dataset,
@@ -263,10 +332,8 @@ plot_de_sign_test_snap200_sex_bican <- function(gene_set = c("both", "autosome",
     secondary_label = secondary_label,
     effect_name = effect_name,
     gene_set = gene_set,
-    contig_yaml_file = paths$contig_yaml_file,
-    reduced_gtf_file = paths$reduced_gtf_file,
     min_num_genes = min_num_genes,
-    alpha = alpha
+    scale_effects = scale_effects
   )
 
   logger::log_info(

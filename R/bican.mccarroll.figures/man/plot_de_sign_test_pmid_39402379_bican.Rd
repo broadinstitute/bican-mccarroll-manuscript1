@@ -7,8 +7,11 @@
 plot_de_sign_test_pmid_39402379_bican(
   contrast = c("ad_cps", "early_ad_cps", "late_ad_cps", "versus_all"),
   outDir = NULL,
-  min_num_genes = 20,
-  alpha = 0.05
+  min_num_genes = 1,
+  alpha = 0.05,
+  data_cache_dir = NULL,
+  force_recompute = FALSE,
+  scale_effects = TRUE
 )
 }
 \arguments{
@@ -19,15 +22,35 @@ plot_de_sign_test_pmid_39402379_bican(
 resolved via configured output directory options.}
 
 \item{min_num_genes}{Minimum number of overlapping genes required for a
-cell type to be included in the sign-concordance summary.}
+cell type to be included in the sign-concordance summary. Defaults to
+\code{1} (rather than the usual \code{20}) since the sea_ad_mtg_mmc
+cell-type list is restricted to the 33 BICAN supertypes, several of
+which have few overlapping significant genes.}
 
 \item{alpha}{Adjusted P-value threshold used to select BICAN-significant
 genes.}
+
+\item{data_cache_dir}{Directory used to store the cached per-gene
+comparison data (one TSV per contrast). If \code{NULL}, the directory is
+resolved from \code{options("bican.mccarroll.figures.cache_dir")}.}
+
+\item{force_recompute}{Logical scalar. If \code{TRUE}, ignore existing
+cache files, recompute the comparison data, and overwrite the cache.
+Defaults to \code{FALSE}.}
+
+\item{scale_effects}{Logical scalar. If \code{TRUE}, each cell type's
+BICAN and PMID_39402379 logFC values are independently rescaled to
+\code{[-1, 1]} before plotting, making effect sizes visually comparable
+across cell types despite the two datasets' very different native logFC
+scales (BICAN age effects vs. AD pseudo-progression score effects).
+Does not affect the underlying sign-concordance statistics or the cached
+per-gene data, which stay on the raw scale. Defaults to \code{TRUE} for
+this comparison.}
 }
 \value{
 Invisibly returns a named list (by \code{contrast}) of the lists
   produced by
-  \code{bican.mccarroll.differentialexpression::plot_de_primary_secondary_manifest()}.
+  \code{bican.mccarroll.differentialexpression::plot_de_primary_secondary_from_data()}.
 }
 \description{
 Wires the BICAN/PMID_39402379 (Gabitto et al. 2024) age-effect overlap
