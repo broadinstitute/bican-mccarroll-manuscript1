@@ -22,6 +22,45 @@
 # data_dir="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/metacells/LEVEL_6"; data_name="donor_rxn_DGEList"
 # cellTypeListFile="/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/differential_expression/metadata/cell_types_for_de_filtering_plot.txt"
 
+#' Compute sex-chromosome expression leakage ratios from serialized DGEList files
+#'
+#' Loads a serialized DGEList, restricts it to the requested cell types, and
+#' computes both the village-level and donor-level leakage tables. Pure
+#' compute: does not write any files or build any plots (see
+#' \code{\link{sex_chromosome_leakage_from_files}} for the orchestrator that
+#' also writes tables and plots).
+#'
+#' @param data_dir Directory containing the serialized DGEList (passed to
+#'   \code{\link{loadDGEList}} as \code{dir}).
+#' @param data_name Prefix used by \code{\link{loadDGEList}} to locate the
+#'   \code{*_counts.tsv.gz} / \code{*_samples.tsv.gz} files (passed as
+#'   \code{prefix}).
+#' @param cellTypeListFile Optional file path containing a list of cell
+#'   types to include. If \code{NULL}, uses all cell types present.
+#' @inheritParams compute_sex_chromosome_leakage
+#'
+#' @return A list with elements:
+#'   \itemize{
+#'     \item \code{leakage}: the village-level data frame produced by
+#'       \code{\link{compute_sex_chromosome_leakage}}.
+#'     \item \code{donor_leakage}: the donor-level data frame produced by
+#'       \code{\link{compute_sex_chromosome_leakage_donor_level}}.
+#'   }
+#'
+#' @export
+compute_sex_chromosome_leakage_from_files <- function(data_dir, data_name,
+                                                      cellTypeListFile = NULL,
+                                                      xist_gene = "XIST",
+                                                      y_genes = c("DDX3Y", "RPS4Y1", "USP9Y")) {
+  dge <- loadDGEList(dir = data_dir, prefix = data_name)
+  dge <- filter_dgelist_by_celltype_list(dge, cellTypeListFile)
+
+  leakage_df <- compute_sex_chromosome_leakage(dge, xist_gene = xist_gene, y_genes = y_genes)
+  donor_leakage_df <- compute_sex_chromosome_leakage_donor_level(dge, xist_gene = xist_gene, y_genes = y_genes)
+
+  list(leakage = leakage_df, donor_leakage = donor_leakage_df)
+}
+
 #' Compute sex-chromosome expression leakage ratios (file interface)
 #'
 #'
@@ -46,8 +85,10 @@
 #'       \code{\link{compute_sex_chromosome_leakage}}.
 #'     \item \code{donor_leakage}: the donor-level data frame produced by
 #'       \code{\link{compute_sex_chromosome_leakage_donor_level}}.
-#'     \item \code{plot}: the \code{ggplot2} object produced by
-#'       \code{\link{plot_sex_chromosome_leakage_boxplot}}.
+#'     \item \code{plots}: a list with elements \code{boxplot} (from
+#'       \code{\link{plot_sex_chromosome_leakage_boxplot}}), \code{expression},
+#'       and \code{expression_by_cell_type} (both from
+#'       \code{\link{plot_leakage_numerator_denominator}}).
 #'   }
 #'
 #' @export
@@ -62,11 +103,15 @@ sex_chromosome_leakage_from_files <- function(data_dir, data_name,
   validate_writable_file(outFileDonorLevel)
   validate_writable_file(outSVG)
 
-  dge <- loadDGEList(dir = data_dir, prefix = data_name)
-  dge <- filter_dgelist_by_celltype_list(dge, cellTypeListFile)
-
-  leakage_df <- compute_sex_chromosome_leakage(dge, xist_gene = xist_gene, y_genes = y_genes)
-  donor_leakage_df <- compute_sex_chromosome_leakage_donor_level(dge, xist_gene = xist_gene, y_genes = y_genes)
+  computed <- compute_sex_chromosome_leakage_from_files(
+    data_dir = data_dir,
+    data_name = data_name,
+    cellTypeListFile = cellTypeListFile,
+    xist_gene = xist_gene,
+    y_genes = y_genes
+  )
+  leakage_df <- computed$leakage
+  donor_leakage_df <- computed$donor_leakage
 
   if (!is.null(outFile)) {
     write_sex_chromosome_leakage(leakage_df, outFile)
@@ -77,13 +122,17 @@ sex_chromosome_leakage_from_files <- function(data_dir, data_name,
 
   p <- plot_sex_chromosome_leakage_boxplot(leakage_df, outSVG = outSVG)
 
-
   plots <- plot_leakage_numerator_denominator(leakage_df)
 
-  plots$expression
-  plots$expression_by_cell_type
-
-  invisible(list(leakage = leakage_df, donor_leakage = donor_leakage_df, plot = p))
+  invisible(list(
+    leakage = leakage_df,
+    donor_leakage = donor_leakage_df,
+    plots = list(
+      boxplot = p,
+      expression = plots$expression,
+      expression_by_cell_type = plots$expression_by_cell_type
+    )
+  ))
 }
 
 # Collapses dge to one pseudobulk observation per donor x village x cell type
@@ -539,6 +588,33 @@ write_sex_chromosome_leakage <- function(df, file) {
 # Explore the asymetry between XIST and the Y chromosome leakage
 ###################################################################
 
+#' Explore the asymmetry between XIST and Y-chromosome leakage
+#'
+#' Reshapes a village-level leakage data frame (as produced by
+#' \code{\link{compute_sex_chromosome_leakage}}) into long form, restricted to
+#' rows with complete, positive numerator/denominator values, and builds
+#' plots comparing the "wrong-sex" numerator (e.g. XIST in males) against the
+#' "true-sex" denominator (e.g. XIST in females), plus the derived leakage
+#' ratios and contrasts.
+#'
+#' @param leakage_df A data frame produced by
+#'   \code{\link{compute_sex_chromosome_leakage}}.
+#'
+#' @return A list with elements:
+#'   \itemize{
+#'     \item \code{expression}: ggplot comparing wrong-sex numerator versus
+#'       true-sex denominator, faceted by marker (XIST / Y genes).
+#'     \item \code{expression_by_cell_type}: the same comparison faceted by
+#'       cell type.
+#'     \item \code{ratios}: ggplot of observed leakage ratios by marker.
+#'     \item \code{contrasts}: ggplot decomposing the Y/XIST leakage-ratio
+#'       asymmetry.
+#'     \item \code{plot_data}: a list of the long-form data frames
+#'       (\code{expression}, \code{ratios}, \code{contrasts}) used to build
+#'       the plots above.
+#'   }
+#'
+#' @export
 plot_leakage_numerator_denominator <- function(leakage_df) {
   # Make R CMD CHECK happy
   role <- value <- marker <- leakage_ratio <- contrast <- NULL

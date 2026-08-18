@@ -37,6 +37,7 @@ run_all <- function() {
   bican.mccarroll.figures::de_sex_age_scatter_plots()
   bican.mccarroll.figures::plot_de_volcano()
   bican.mccarroll.figures::plot_sex_de_by_chromosome_bican()
+  bican.mccarroll.figures::plot_sex_chromosome_leakage()
   bican.mccarroll.figures::plot_de_summary_barplot_bican_sea_ad_mtg_mmc()
   bican.mccarroll.figures::plot_de_summary_barplot_pmid_39402379()
 
