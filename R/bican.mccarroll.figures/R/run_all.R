@@ -40,6 +40,7 @@ run_all <- function() {
   bican.mccarroll.figures::plot_sex_chromosome_leakage()
   bican.mccarroll.figures::plot_de_summary_barplot_bican_sea_ad_mtg_mmc()
   bican.mccarroll.figures::plot_de_summary_barplot_pmid_39402379()
+  bican.mccarroll.figures::plot_de_hits_age_bmi_sex_smoking()
 
   bican.mccarroll.figures::plot_de_sign_test_snap200_age_bican()
   bican.mccarroll.figures::plot_de_sign_test_pmid_40903571_bican()

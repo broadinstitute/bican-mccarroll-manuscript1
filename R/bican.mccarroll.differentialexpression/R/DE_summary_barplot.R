@@ -45,13 +45,15 @@
 #'   files.
 #' @param cellTypeListFile Optional path to a file specifying the cell types to
 #'   include.
+#' @param fdr_cutoff Adjusted P-value threshold used to call a gene
+#'   significant. Defaults to 0.05.
 #'
 #' @return A data.table with columns \code{cell_type}, \code{interaction},
 #'   \code{contrast}, \code{n_up}, and \code{n_down} (one row per cell type /
 #'   interaction combination).
 #'
 #' @export
-compute_de_result_counts <- function(in_dir, file_pattern, cellTypeListFile = NULL) {
+compute_de_result_counts <- function(in_dir, file_pattern, cellTypeListFile = NULL, fdr_cutoff = 0.05) {
   # Make R CMD CHECK happy
   . <- adj.P.Val <- logFC <- cell_type <- n_up <- n_down <- contrast <- NULL
 
@@ -61,12 +63,22 @@ compute_de_result_counts <- function(in_dir, file_pattern, cellTypeListFile = NU
 
   contrast_title <- unique(d$contrast)
 
-  if (length(contrast_title) != 1L) {
-    stop("Expected exactly one unique contrast value in d.")
+  if (length(contrast_title) == 0L) {
+    stop(
+      "No DE result files matched in_dir = '", in_dir, "' with file_pattern = '", file_pattern,
+      "'. Check that in_dir exists (relative paths are resolved against the current working ",
+      "directory, not any configured data root) and that file_pattern matches at least one file."
+    )
+  }
+  if (length(contrast_title) > 1L) {
+    stop(
+      "Expected exactly one unique contrast value in d, found ", length(contrast_title), ": ",
+      paste(contrast_title, collapse = ", "), ". Narrow file_pattern to match a single contrast."
+    )
   }
 
   de_counts <- d[
-    adj.P.Val < 0.05 & logFC != 0,
+    adj.P.Val < fdr_cutoff & logFC != 0,
     .(
       n_up = sum(logFC > 0),
       n_down = sum(logFC < 0)

@@ -4,7 +4,12 @@
 \alias{compute_de_result_counts}
 \title{Compute per-cell-type differential expression effect counts}
 \usage{
-compute_de_result_counts(in_dir, file_pattern, cellTypeListFile = NULL)
+compute_de_result_counts(
+  in_dir,
+  file_pattern,
+  cellTypeListFile = NULL,
+  fdr_cutoff = 0.05
+)
 }
 \arguments{
 \item{in_dir}{Directory containing the differential expression result files.}
@@ -14,6 +19,9 @@ files.}
 
 \item{cellTypeListFile}{Optional path to a file specifying the cell types to
 include.}
+
+\item{fdr_cutoff}{Adjusted P-value threshold used to call a gene
+significant. Defaults to 0.05.}
 }
 \value{
 A data.table with columns \code{cell_type}, \code{interaction},
