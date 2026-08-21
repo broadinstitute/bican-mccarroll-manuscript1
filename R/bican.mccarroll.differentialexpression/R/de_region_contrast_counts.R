@@ -22,12 +22,13 @@
 #' smoking contrasts for the same set of regions) — the results are merged
 #' by region, not siloed per source path.
 #'
-#' \code{region} and \code{contrast} are returned as ordered factors, with
-#' levels assigned by first appearance across \code{paths}/\code{contrasts}
-#' (region order first, then contrast order within each region) — this
-#' ordering is what lets \code{\link{plot_de_region_contrast_heatmap}}
-#' produce a hierarchical "region, then its contrasts" axis with no further
-#' bookkeeping.
+#' \code{region} and \code{contrast} are returned as ordered factors —
+#' \code{region} by first appearance across \code{paths}, \code{contrast} by
+#' \code{unique(contrasts)} (i.e. \code{contrasts}' own order is the display
+#' order; list it in the order you want, no separate ordering parameter
+#' needed) — this ordering is what lets
+#' \code{\link{plot_de_region_contrast_heatmap}} produce a hierarchical
+#' "region, then its contrasts" axis with no further bookkeeping.
 #'
 #' @param paths Character vector of DE result directories, one per
 #'   \code{(path, contrast)} pair. The same directory may repeat multiple
@@ -37,7 +38,9 @@
 #'   \code{paths}. Each is turned into an anchored file-matching pattern
 #'   internally (\code{"__<contrast>_DE_results\\.txt$"}), so directories
 #'   containing stray non-DE files (e.g. \code{*_volcano_plots.pdf}) are
-#'   handled safely.
+#'   handled safely. \code{unique(contrasts)} also becomes the \code{contrast}
+#'   column's factor level order, so list contrasts in your desired display
+#'   order.
 #' @param cellTypeListFile Optional path to a file specifying the cell types
 #'   to include, applied to every pair. When supplied, its order is also
 #'   preserved as the \code{cell_type} column's factor level order (see
@@ -76,7 +79,6 @@ compute_de_region_contrast_counts <- function(paths,
   }
 
   region_levels <- character(0)
-  contrast_levels_by_region <- list()
   seen_keys <- character(0)
 
   results <- vector("list", length(paths))
@@ -94,16 +96,7 @@ compute_de_region_contrast_counts <- function(paths,
     data.table::setnames(counts_i, "interaction", "region")
 
     region_values <- unique(as.character(counts_i$region))
-
-    for (r in region_values) {
-      if (!(r %in% region_levels)) {
-        region_levels <- c(region_levels, r)
-      }
-      existing <- contrast_levels_by_region[[r]]
-      if (!(contrasts[i] %in% existing)) {
-        contrast_levels_by_region[[r]] <- c(existing, contrasts[i])
-      }
-    }
+    region_levels <- union(region_levels, region_values)
 
     key <- paste(region_values, contrasts[i], sep = "__")
     dup_keys <- intersect(key, seen_keys)
@@ -122,10 +115,7 @@ compute_de_region_contrast_counts <- function(paths,
   de_counts <- data.table::rbindlist(results, use.names = TRUE)
   de_counts[, n_total := n_up + n_down]
 
-  # Contrast levels ordered by first appearance within each region, then
-  # flattened in region-first-appearance order so a single factor level
-  # ordering works across the whole table.
-  contrast_levels <- unique(unlist(contrast_levels_by_region[region_levels], use.names = FALSE))
+  contrast_levels <- unique(contrasts)
 
   de_counts[, region := factor(region, levels = region_levels)]
   de_counts[, contrast := factor(contrast, levels = contrast_levels)]
@@ -201,6 +191,11 @@ compute_de_region_contrast_counts <- function(paths,
 #'   \code{c(age = "Age", bmi = "BMI", yes_vs_no_smoking = "Smoking")}.
 #'   Contrasts not named in the vector keep their original value. Defaults
 #'   to \code{NULL} (show the raw contrast values).
+#' @param no_color If \code{TRUE}, skip color entirely: every tile is white
+#'   with a black border, and every cell is labeled in black (regardless of
+#'   \code{label_threshold}/\code{label_color_threshold}, which are ignored
+#'   in this mode) — the numbers are the only way to read the values. No
+#'   fill legend is drawn. Defaults to \code{FALSE}.
 #'
 #' @return A \code{ggplot} object.
 #'
@@ -214,7 +209,8 @@ plot_de_region_contrast_heatmap <- function(de_counts,
                                             label_size = 2.2,
                                             label_color_threshold = 1000,
                                             legend_title = NULL,
-                                            contrast_labels = NULL) {
+                                            contrast_labels = NULL,
+                                            no_color = FALSE) {
   metric <- match.arg(metric)
 
   if (is.null(legend_title)) {
@@ -241,6 +237,35 @@ plot_de_region_contrast_heatmap <- function(de_counts,
     }
   }
   d[, cell_type := factor(cell_type, levels = rev(cell_type_order))]
+
+  if (no_color) {
+    p <- ggplot2::ggplot(d, ggplot2::aes(x = contrast, y = cell_type)) +
+      ggplot2::geom_tile(fill = "white", color = "black") +
+      ggplot2::facet_grid(~region, scales = "free_x", space = "free_x") +
+      ggplot2::labs(x = NULL, y = NULL) +
+      ggplot2::theme_bw() +
+      ggplot2::theme(
+        axis.text.x = ggplot2::element_text(angle = 45, hjust = 1),
+        strip.background = ggplot2::element_rect(fill = "white", color = "black")
+      )
+
+    if (!is.null(contrast_labels)) {
+      p <- p + ggplot2::scale_x_discrete(
+        labels = function(x) ifelse(x %in% names(contrast_labels), contrast_labels[x], x)
+      )
+    }
+
+    if (!is.null(label_threshold)) {
+      p <- p + ggplot2::geom_text(
+        data = d,
+        ggplot2::aes(label = .data[[metric]]),
+        color = "black",
+        size = label_size
+      )
+    }
+
+    return(p)
+  }
 
   p <- ggplot2::ggplot(d, ggplot2::aes(x = contrast, y = cell_type, fill = .data[[metric]])) +
     ggplot2::geom_tile(color = "white") +

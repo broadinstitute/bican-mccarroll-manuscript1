@@ -14,7 +14,8 @@ plot_de_region_contrast_heatmap(
   label_size = 2.2,
   label_color_threshold = 1000,
   legend_title = NULL,
-  contrast_labels = NULL
+  contrast_labels = NULL,
+  no_color = FALSE
 )
 }
 \arguments{
@@ -64,6 +65,12 @@ genes"} for \code{"n_down"}).}
 \code{c(age = "Age", bmi = "BMI", yes_vs_no_smoking = "Smoking")}.
 Contrasts not named in the vector keep their original value. Defaults
 to \code{NULL} (show the raw contrast values).}
+
+\item{no_color}{If \code{TRUE}, skip color entirely: every tile is white
+with a black border, and every cell is labeled in black (regardless of
+\code{label_threshold}/\code{label_color_threshold}, which are ignored
+in this mode) — the numbers are the only way to read the values. No
+fill legend is drawn. Defaults to \code{FALSE}.}
 }
 \value{
 A \code{ggplot} object.

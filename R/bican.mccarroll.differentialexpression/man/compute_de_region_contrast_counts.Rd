@@ -23,7 +23,9 @@ times, once per contrast found in it.}
 \code{paths}. Each is turned into an anchored file-matching pattern
 internally (\code{"__<contrast>_DE_results\\.txt$"}), so directories
 containing stray non-DE files (e.g. \code{*_volcano_plots.pdf}) are
-handled safely.}
+handled safely. \code{unique(contrasts)} also becomes the \code{contrast}
+column's factor level order, so list contrasts in your desired display
+order.}
 
 \item{cellTypeListFile}{Optional path to a file specifying the cell types
 to include, applied to every pair. When supplied, its order is also
@@ -64,10 +66,11 @@ smoking contrasts for the same set of regions) — the results are merged
 by region, not siloed per source path.
 }
 \details{
-\code{region} and \code{contrast} are returned as ordered factors, with
-levels assigned by first appearance across \code{paths}/\code{contrasts}
-(region order first, then contrast order within each region) — this
-ordering is what lets \code{\link{plot_de_region_contrast_heatmap}}
-produce a hierarchical "region, then its contrasts" axis with no further
-bookkeeping.
+\code{region} and \code{contrast} are returned as ordered factors —
+\code{region} by first appearance across \code{paths}, \code{contrast} by
+\code{unique(contrasts)} (i.e. \code{contrasts}' own order is the display
+order; list it in the order you want, no separate ordering parameter
+needed) — this ordering is what lets
+\code{\link{plot_de_region_contrast_heatmap}} produce a hierarchical
+"region, then its contrasts" axis with no further bookkeeping.
 }

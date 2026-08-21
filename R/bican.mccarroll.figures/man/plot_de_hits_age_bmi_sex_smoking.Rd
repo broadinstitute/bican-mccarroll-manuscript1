@@ -2,7 +2,7 @@
 % Please edit documentation in R/de_hits_age_bmi_sex_smoking_plots.R
 \name{plot_de_hits_age_bmi_sex_smoking}
 \alias{plot_de_hits_age_bmi_sex_smoking}
-\title{Plot the DE-gene-hit heatmap comparing age, BMI, sex, and smoking}
+\title{Plot the DE-gene-hit heatmap comparing age, sex, BMI, and smoking}
 \usage{
 plot_de_hits_age_bmi_sex_smoking(force_recompute = FALSE)
 }
@@ -20,10 +20,12 @@ Wires the BICAN LEVEL_6 age/BMI/smoking-complete-cases differential
 expression results into
 \code{bican.mccarroll.differentialexpression::compute_de_region_contrast_counts()}
 and \code{bican.mccarroll.differentialexpression::plot_de_region_contrast_heatmap()},
-comparing the number of significant DE genes for the \code{age}, \code{bmi},
-\code{female_vs_male}, and \code{smoker_vs_non_smoker} contrasts across
-regions and cell types. Writes a single SVG to the configured figure
-output directory (see \code{\link{get_out_dir}}).
+comparing the number of significant DE genes for the \code{age},
+\code{female_vs_male}, \code{bmi}, and \code{smoker_vs_non_smoker} contrasts
+(displayed in that order: Age, Sex, BMI, Smoking) across regions and cell
+types. Writes two SVGs to the configured figure output directory (see
+\code{\link{get_out_dir}}) — a color (viridis) version and a no-color
+version (white cells, black borders, numbers only).
 }
 \details{
 The underlying gene-count table is cached as a plain-text TSV file to speed

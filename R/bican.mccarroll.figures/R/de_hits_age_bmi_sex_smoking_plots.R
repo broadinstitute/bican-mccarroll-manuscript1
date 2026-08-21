@@ -13,16 +13,18 @@
 #
 # plot_de_hits_age_bmi_sex_smoking()
 
-#' Plot the DE-gene-hit heatmap comparing age, BMI, sex, and smoking
+#' Plot the DE-gene-hit heatmap comparing age, sex, BMI, and smoking
 #'
 #' Wires the BICAN LEVEL_6 age/BMI/smoking-complete-cases differential
 #' expression results into
 #' \code{bican.mccarroll.differentialexpression::compute_de_region_contrast_counts()}
 #' and \code{bican.mccarroll.differentialexpression::plot_de_region_contrast_heatmap()},
-#' comparing the number of significant DE genes for the \code{age}, \code{bmi},
-#' \code{female_vs_male}, and \code{smoker_vs_non_smoker} contrasts across
-#' regions and cell types. Writes a single SVG to the configured figure
-#' output directory (see \code{\link{get_out_dir}}).
+#' comparing the number of significant DE genes for the \code{age},
+#' \code{female_vs_male}, \code{bmi}, and \code{smoker_vs_non_smoker} contrasts
+#' (displayed in that order: Age, Sex, BMI, Smoking) across regions and cell
+#' types. Writes two SVGs to the configured figure output directory (see
+#' \code{\link{get_out_dir}}) — a color (viridis) version and a no-color
+#' version (white cells, black borders, numbers only).
 #'
 #' The underlying gene-count table is cached as a plain-text TSV file to speed
 #' up subsequent runs and to provide reviewer-inspectable intermediate data;
@@ -62,7 +64,7 @@ plot_de_hits_age_bmi_sex_smoking <- function(force_recompute = FALSE) {
   } else {
     de_counts <- bican.mccarroll.differentialexpression::compute_de_region_contrast_counts(
       paths = rep(paths$in_dir, 4),
-      contrasts = c("age", "bmi", "female_vs_male", "smoker_vs_non_smoker"),
+      contrasts = c("age", "female_vs_male", "bmi", "smoker_vs_non_smoker"),
       cellTypeListFile = paths$ct_file
     )
 
@@ -76,20 +78,35 @@ plot_de_hits_age_bmi_sex_smoking <- function(force_recompute = FALSE) {
     )
   }
 
-  p <- bican.mccarroll.differentialexpression::plot_de_region_contrast_heatmap(
+  contrast_labels <- c(
+    age = "Age",
+    bmi = "BMI",
+    female_vs_male = "Sex",
+    smoker_vs_non_smoker = "Smoking"
+  )
+
+  p_color <- bican.mccarroll.differentialexpression::plot_de_region_contrast_heatmap(
     de_counts,
     label_threshold = 10000,
-    contrast_labels = c(
-      age = "Age",
-      bmi = "BMI",
-      female_vs_male = "Sex",
-      smoker_vs_non_smoker = "Smoking"
-    )
+    contrast_labels = contrast_labels
+  )
+  p_no_color <- bican.mccarroll.differentialexpression::plot_de_region_contrast_heatmap(
+    de_counts,
+    label_threshold = 10000,
+    contrast_labels = contrast_labels,
+    no_color = TRUE
   )
 
   save_plot_svg(
-    p,
+    p_color,
     out_file = "de_hits_age_bmi_sex_smoking.svg",
+    out_dir = paths$outDir,
+    width = 10,
+    height = 7.5
+  )
+  save_plot_svg(
+    p_no_color,
+    out_file = "de_hits_age_bmi_sex_smoking_no_color.svg",
     out_dir = paths$outDir,
     width = 10,
     height = 7.5
