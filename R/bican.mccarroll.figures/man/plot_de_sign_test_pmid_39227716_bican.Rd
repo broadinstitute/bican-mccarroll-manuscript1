@@ -6,7 +6,7 @@
 \usage{
 plot_de_sign_test_pmid_39227716_bican(
   outDir = NULL,
-  min_num_genes = 1,
+  min_num_genes = 20,
   alpha = 0.05
 )
 }

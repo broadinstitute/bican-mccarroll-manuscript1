@@ -11,6 +11,7 @@
 # plot_sex_de_by_chromosome_bican()
 # plot_de_summary_barplot_bican_sea_ad_mtg_mmc()
 # plot_de_summary_barplot_pmid_39402379()
+# plot_de_summary_barplot_kana_2026()
 
 #' Plot BICAN sex-effect differential expression by chromosome group
 #'
@@ -180,6 +181,92 @@ plot_de_summary_barplot_pmid_39402379 <- function(
 }
 
 
+#' Plot Kana et al. 2026 (bioRxiv) differential expression effect counts
+#'
+#' Wires the Kana 2026 CaH \code{ad_cps} voom-like differential expression
+#' results into
+#' \code{bican.mccarroll.differentialexpression::barplot_de_results_from_counts()},
+#' either restricted to the six striatal cell types for which a
+#' Kana-to-BICAN cell type name mapping was defined (see
+#' \code{kana_2026_comparison_setup.R} in
+#' \code{adhoc_scripts/external_data_transforms/}), across all cell types in
+#' the Kana dataset, or both. This is a single-dataset (Kana only) summary;
+#' no BICAN comparison or cell type renaming is involved. Writes one SVG per
+#' requested \code{cell_type_set} to the configured figure output directory
+#' (see \code{\link{get_out_dir}}). The per-cell-type up/down gene counts are
+#' cached as a TSV per set in the configured cache directory (see
+#' \code{\link{get_cache_dir}}).
+#'
+#' @param cell_type_set Character vector of one or more of \code{"mapped"}
+#'   (the six cell types with a BICAN counterpart) or \code{"all"} (every
+#'   cell type in the Kana voom-like directory).
+#' @param outDir Output directory for the generated SVGs. If \code{NULL},
+#'   resolved via configured output directory options.
+#' @param data_cache_dir Directory used to store the cached counts TSVs. If
+#'   \code{NULL}, the directory is resolved from
+#'   \code{options("bican.mccarroll.figures.cache_dir")}.
+#' @param force_recompute Logical scalar. If \code{TRUE}, ignore existing
+#'   cache files, recompute the counts, and overwrite the cache. Defaults to
+#'   \code{FALSE}.
+#'
+#' @return Invisibly returns a named list (by \code{cell_type_set}) of the
+#'   `ggplot` objects produced by
+#'   \code{bican.mccarroll.differentialexpression::barplot_de_results_from_counts()}.
+#'
+#' @export
+plot_de_summary_barplot_kana_2026 <- function(
+  cell_type_set = c("mapped", "all"),
+  outDir = NULL,
+  data_cache_dir = NULL,
+  force_recompute = FALSE
+) {
+  set_spec <- list(
+    mapped = list(
+      cellTypeListFile = "differential_expression/metadata/cell_types_for_kana_2026_plots.txt",
+      suffix = "KANA_2026",
+      width = NULL,
+      height = NULL
+    ),
+    all = list(
+      cellTypeListFile = "differential_expression/metadata/cell_types_for_kana_2026_all_plots.txt",
+      suffix = "KANA_2026_all"
+      # width/height set below, scaled to the actual cell type count: unlike
+      # the TRADE barplot (cell_type on the y-axis, so more cell types need
+      # more height), .de_count_barplot() puts cell_type on the x-axis with
+      # 45-degree labels, so more cell types need more WIDTH, at a fixed,
+      # modest height - not the reverse.
+    )
+  )
+
+  root <- .resolve_data_root_dir(NULL)
+  n_all <- length(bican.mccarroll.de.analysis::read_cell_types(
+    .resolve_under_root(root, set_spec$all$cellTypeListFile)
+  ))
+  set_spec$all$width <- max(12, 0.28 * n_all + 3)
+  set_spec$all$height <- 7
+
+  results <- lapply(cell_type_set, function(set_name) {
+    spec <- set_spec[[set_name]]
+
+    .plot_de_summary_barplot_figure(
+      in_dir = "differential_expression/external_comparison_kana_2026_biorxiv/voom-like",
+      file_pattern = "__CaH__ad_cps_DE_results\\.txt$",
+      cellTypeListFile = spec$cellTypeListFile,
+      out_file = sprintf("de_summary_barplot_%s_ad_cps.svg", spec$suffix),
+      cache_name = sprintf("de_summary_barplot_%s_ad_cps.tsv", spec$suffix),
+      outDir = outDir,
+      data_cache_dir = data_cache_dir,
+      force_recompute = force_recompute,
+      width = spec$width,
+      height = spec$height
+    )
+  })
+  names(results) <- cell_type_set
+
+  invisible(results)
+}
+
+
 .plot_de_summary_barplot_figure <- function(in_dir,
                                             file_pattern,
                                             cellTypeListFile = NULL,
@@ -187,7 +274,9 @@ plot_de_summary_barplot_pmid_39402379 <- function(
                                             cache_name,
                                             outDir = NULL,
                                             data_cache_dir = NULL,
-                                            force_recompute = FALSE) {
+                                            force_recompute = FALSE,
+                                            width = NULL,
+                                            height = NULL) {
   paths <- resolve_de_summary_barplot_paths(
     in_dir = in_dir,
     cellTypeListFile = cellTypeListFile,
@@ -222,7 +311,9 @@ plot_de_summary_barplot_pmid_39402379 <- function(
 
   result <- bican.mccarroll.differentialexpression::barplot_de_results_from_counts(
     de_counts,
-    svg_output_file = file.path(paths$outDir, out_file)
+    svg_output_file = file.path(paths$outDir, out_file),
+    width = width,
+    height = height
   )
 
   logger::log_info("DONE plotting DE summary barplot: {out_file}")

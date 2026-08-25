@@ -322,6 +322,85 @@ plot_trade_analysis_PMID_39402379 <- function(
 }
 
 
+#' Generate the TRADE figure for the Kana et al. 2026 (bioRxiv) CaH analysis
+#'
+#' Plots the TRADE analysis of autosome effects for the Kana 2026 CaH
+#' \code{ad_cps} contrast, either restricted to the six striatal cell types
+#' for which a Kana-to-BICAN cell type name mapping was defined (see
+#' \code{kana_2026_comparison_setup.R} in
+#' \code{adhoc_scripts/external_data_transforms/}), across all cell types in
+#' the Kana dataset, or both. This is a single-dataset (Kana only) analysis;
+#' no BICAN comparison or cell type renaming is involved, unlike
+#' \code{\link{plot_de_cor_heatmap_bican_vs_kana_2026}}.
+#'
+#' @param cell_type_set Character vector of one or more of \code{"mapped"}
+#'   (the six cell types with a BICAN counterpart) or \code{"all"} (every
+#'   cell type in the Kana voom-like directory). Each produces a separate
+#'   cache file and SVG, distinguished by \code{dataset_id}
+#'   (\code{"KANA_2026"} vs. \code{"KANA_2026_all"}).
+#' @param force_recompute Logical scalar. If \code{TRUE}, ignore an existing
+#'   cache file, recompute TRADE results, and overwrite the cache. Defaults to
+#'   \code{FALSE}.
+#' @param data_cache_dir Directory used to store cached TRADE results. If
+#'   \code{NULL}, the directory is resolved from
+#'   \code{options("bican.mccarroll.figures.cache_dir")}.
+#' @param outDir Output directory used to write the SVG files. If \code{NULL},
+#'   the directory is resolved from
+#'   \code{options("bican.mccarroll.figures.out_dir")}.
+#'
+#' @return Invisibly returns \code{NULL}. This function is called for its side
+#'   effects.
+#'
+#' @export
+plot_trade_analysis_kana_2026 <- function(
+  cell_type_set = c("mapped", "all"),
+  force_recompute = FALSE,
+  data_cache_dir = NULL,
+  outDir = NULL
+) {
+  de_dir <- "differential_expression/external_comparison_kana_2026_biorxiv/voom-like"
+
+  set_spec <- list(
+    mapped = list(
+      ct_file = "differential_expression/metadata/cell_types_for_kana_2026_plots.txt",
+      dataset_id = "KANA_2026",
+      height = 9
+    ),
+    all = list(
+      ct_file = "differential_expression/metadata/cell_types_for_kana_2026_all_plots.txt",
+      dataset_id = "KANA_2026_all",
+      # 66 cell types vs. 6 in the "mapped" set; scale height so labels stay
+      # legible rather than reusing the fixed height = 9 tuned for 6 rows.
+      height = max(9, 0.22 * 66 + 2)
+    )
+  )
+
+  for (set_name in cell_type_set) {
+    spec <- set_spec[[set_name]]
+
+    .plot_trade_analysis(
+      de_dir = de_dir,
+      cache_name = sprintf("trade_%s_ad_cps_autosomes.tsv", spec$dataset_id),
+      dataset_id = spec$dataset_id,
+      gene_to_chr_path = NULL,
+      ct_file = spec$ct_file,
+      data_cache_dir = data_cache_dir,
+      outDir = outDir,
+      hide_cell_type_axis = FALSE,
+      bar_fill = "black",
+      x_label = "Transcriptome-wide impact (TRADE)",
+      width = 5,
+      height = spec$height,
+      contrast = "__CaH__ad_cps_DE_results\\.txt$",
+      contrast_id = "ad_cps",
+      force_recompute = force_recompute
+    )
+  }
+
+  invisible(NULL)
+}
+
+
 #' Plot TRADE results as a barplot across regions (expects input already filtered)
 #'
 #' @param trade_results A data.table produced by run_trade(), already filtered to a single cell type.
