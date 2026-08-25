@@ -34,7 +34,8 @@ for (ct in cell_types) {
     z=b[b$bican_cell_type==ct,]
     z=unique (z)
     if (length(unique(z$ID))!=dim(z)[1]) stop ("Mismatch between number of rows and number of unique gene IDs")
-    df=data.frame(logFC=z$logFC, AveExpr=z$AveExpr, t=z$t, P.Value=z$P.Value, adj.P.Val=z$adj.P.Val, B=z$B, z.std=z$z.std)
+    #Note, we're going to scale the logFC to be in decades instead of years so their results match our scaling.
+    df=data.frame(logFC=10*z$logFC, AveExpr=z$AveExpr, t=z$t, P.Value=z$P.Value, adj.P.Val=z$adj.P.Val, B=z$B, z.std=z$z.std)
     rownames(df)=z$ID
     #outFile=paste(outDir, "/", ct, ".age_DE_results.txt", sep="")
     outFile <- file.path( outDir, paste0(ct, "__", region, "__age_DE_results.txt"))
