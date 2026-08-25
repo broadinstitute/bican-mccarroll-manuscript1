@@ -1,16 +1,23 @@
+# source("R/paths.R")
+#
 # options(
 #     bican.mccarroll.figures.data_root_dir =
 #         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis",
 #
 #     bican.mccarroll.figures.out_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository"
-# )
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository",
 #
+#     bican.mccarroll.figures.cache_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository/data_cache"
+# )
+
+
 # plot_de_sign_test_snap200_age_bican()
+# plot_de_sign_test_snap200_sex_bican()
 # plot_de_sign_test_pmid_40903571_bican()
 # plot_de_sign_test_pmid_39227716_bican()
 # plot_de_sign_test_pmid_39402379_bican()
-# plot_de_sign_test_snap200_sex_bican()
+
 
 #' Plot BICAN vs. SNAP age-effect DE sign-test comparison
 #'
@@ -104,7 +111,7 @@ plot_de_sign_test_pmid_40903571_bican <- function(outDir = NULL, min_num_genes =
 #'   \code{bican.mccarroll.differentialexpression::plot_de_primary_secondary_manifest()}.
 #'
 #' @export
-plot_de_sign_test_pmid_39227716_bican <- function(outDir = NULL, min_num_genes = 1, alpha = 0.05) {
+plot_de_sign_test_pmid_39227716_bican <- function(outDir = NULL, min_num_genes = 20, alpha = 0.05) {
   .plot_de_sign_test_figure(
     manifest_file = "differential_expression/external_comparison_PMID_39227716/metadata/PMID_39227716_bican_dfc_age_de_overlap_manifest.tsv",
     dataset_id = "pmid_39227716",
@@ -166,7 +173,7 @@ plot_de_sign_test_pmid_39227716_bican <- function(outDir = NULL, min_num_genes =
 #' @export
 plot_de_sign_test_pmid_39402379_bican <- function(
   contrast = c("ad_cps", "early_ad_cps", "late_ad_cps", "versus_all"),
-  outDir = NULL, min_num_genes = 1, alpha = 0.05,
+  outDir = NULL, min_num_genes = 20, alpha = 0.05,
   data_cache_dir = NULL, force_recompute = FALSE,
   scale_effects = TRUE
 ) {

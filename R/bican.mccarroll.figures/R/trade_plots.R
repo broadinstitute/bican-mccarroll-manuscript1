@@ -178,8 +178,8 @@ plot_trade_analysis_PMID_39227716 <- function(force_recompute = FALSE,
     data_cache_dir = data_cache_dir,
     outDir = outDir,
     hide_cell_type_axis = FALSE,
-    x_breaks = c(0, 0.00001, 0.00002),
-    x_labels = c("0.000", "0.00001", "0.00002"),
+    x_breaks = c(0, 0.001, 0.002),
+    x_labels = c("0.00", "0.001", "0.002"),
     axis_title_x_size = ggplot2::rel(1.5),
     axis_text_x_size = ggplot2::rel(2.25),
     axis_tick_x_linewidth = 0.7,
@@ -206,8 +206,8 @@ plot_trade_analysis_Ling <- function(force_recompute = FALSE,
     data_cache_dir = data_cache_dir,
     outDir = outDir,
     hide_cell_type_axis = FALSE,
-    x_breaks = c(0, 0.00001, 0.00002),
-    x_labels = c("0.000", "0.00001", "0.00002"),
+    x_breaks = c(0, 0.004, 0.006),
+    x_labels = c("0.000", "0.003", "0.006"),
     axis_title_x_size = ggplot2::rel(1.5),
     axis_text_x_size = ggplot2::rel(2.25),
     axis_tick_x_linewidth = 0.7,
@@ -477,8 +477,26 @@ trade_barplot_regions <- function(trade_results,
     if (!is.null(x_labels)) {
       scale_args$labels <- x_labels
     }
+
+    # Extend the visible panel to cover the full requested break range:
+    # otherwise ggplot2 auto-scales to the data range and silently drops any
+    # break (and its label) that falls beyond the tallest bar (this was the
+    # reported bug for plot_trade_analysis_Ling(), whose 0.008 break never
+    # appeared because no bar reaches that far). Union with the actual data
+    # range too, so a bar taller than the requested breaks (e.g. BICAN's max
+    # exceeds its own 0.002 break) is never clipped.
+    xlim_range <- range(c(x_breaks, trade_auto$trade_twi), na.rm = TRUE)
+    # Pad the upper end only: without this, the last break sits exactly at
+    # the panel edge and its label (e.g. "0.008") has no room to render,
+    # getting clipped by the plot's outer margin.
+    xlim_range[2] <- xlim_range[2] + diff(xlim_range) * 0.08
+
     p_bar_age <- p_bar_age +
-      do.call(ggplot2::scale_x_continuous, scale_args)
+      do.call(ggplot2::scale_x_continuous, scale_args) +
+      # coord_cartesian() only zooms the viewport (no data is discarded),
+      # unlike setting `limits` directly on scale_x_continuous, which would
+      # silently drop any bar exceeding it.
+      ggplot2::coord_cartesian(xlim = xlim_range)
   }
 
   out_file <- paste0(

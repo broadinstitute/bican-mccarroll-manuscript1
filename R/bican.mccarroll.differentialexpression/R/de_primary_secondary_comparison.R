@@ -547,7 +547,8 @@ plot_de_primary_secondary_from_df <- function(cell_type,
   cor_val <- stats::cor(
     df$secondary_logFC,
     df$primary_logFC,
-    use = "complete.obs"
+    use = "complete.obs",
+    method = "pearson"
   )
 
   plot_df <- df
