@@ -2,18 +2,18 @@
 ## Set configuration (development only; comment out in package build)
 ## ------------------------------------------------------------------
 
-source("R/paths.R")
-
-options(
-    bican.mccarroll.figures.data_root_dir =
-        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis",
-
-    bican.mccarroll.figures.out_dir =
-        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository",
-
-    bican.mccarroll.figures.cache_dir =
-        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository/data_cache"
-)
+# source("R/paths.R")
+#
+# options(
+#     bican.mccarroll.figures.data_root_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis",
+#
+#     bican.mccarroll.figures.out_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository",
+#
+#     bican.mccarroll.figures.cache_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository/data_cache"
+# )
 
 # cellTypeListFile <- metacell_dir <- age_de_results_dir <- contig_yaml_file <- reduced_gtf_file <- data_cache_dir <- outDir <- NULL
 

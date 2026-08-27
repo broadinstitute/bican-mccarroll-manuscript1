@@ -32,9 +32,23 @@
 #'   be encoded as factors during linear-model testing.
 #' @param data_cache_dir Cache directory under which per-analysis outputs are
 #'   written. If \code{NULL}, resolved via configured cache directory options.
+#' @param force_recompute Logical scalar. If \code{FALSE} (the default),
+#'   manifest rows whose \code{.summary.txt} and \code{.linear_model_test.txt}
+#'   already exist under the cache directory are skipped entirely (no
+#'   re-gathering, no re-fitting). Set to \code{TRUE} to recompute every
+#'   analysis. To force just one analysis to recompute, delete its
+#'   \code{.summary.txt} and \code{.linear_model_test.txt} files instead of
+#'   setting this to \code{TRUE} for the whole manifest.
+#' @param write_pdf Logical scalar. If \code{TRUE}, also write the slow,
+#'   per-gene-variant-pair \code{.linear_model_test.pdf} report for each
+#'   analysis. Nothing in this package reads that PDF; the default,
+#'   \code{FALSE}, skips it and only writes the plain-text results/summary
+#'   files that \code{\link{summarize_private_eqtl_tests_bican}} reads.
 #'
 #' @return Invisibly returns the list produced by
-#'   \code{bican.mccarroll.eqtl::run_cell_type_specific_eqtl_tests_from_manifest()}.
+#'   \code{bican.mccarroll.eqtl::run_cell_type_specific_eqtl_tests_from_manifest()}
+#'   for the analyses that were actually run (cached analyses are not
+#'   included).
 #'
 #' @seealso
 #'   \code{\link[bican.mccarroll.eqtl]{run_cell_type_specific_eqtl_tests_from_manifest}}
@@ -48,7 +62,9 @@ run_private_eqtl_tests_bican <- function(covariates = c(
                                            "pmi_hr"
                                          ),
                                          force_factor_covariates = c("biobank", "imputed_sex"),
-                                         data_cache_dir = NULL) {
+                                         data_cache_dir = NULL,
+                                         force_recompute = FALSE,
+                                         write_pdf = FALSE) {
   .run_private_eqtl_tests(
     manifest_file = "eqtls/metadata/private_eqtl_analysis_manifest.txt",
     cell_type_file = "eqtls/metadata/region_cell_type.tsv",
@@ -57,7 +73,9 @@ run_private_eqtl_tests_bican <- function(covariates = c(
     cache_subdir = "private_eqtl_analysis",
     covariates = covariates,
     force_factor_covariates = force_factor_covariates,
-    data_cache_dir = data_cache_dir
+    data_cache_dir = data_cache_dir,
+    force_recompute = force_recompute,
+    write_pdf = write_pdf
   )
 }
 
@@ -73,7 +91,9 @@ run_private_eqtl_tests_bican <- function(covariates = c(
 #' @inheritParams run_private_eqtl_tests_bican
 #'
 #' @return Invisibly returns the list produced by
-#'   \code{bican.mccarroll.eqtl::run_cell_type_specific_eqtl_tests_from_manifest()}.
+#'   \code{bican.mccarroll.eqtl::run_cell_type_specific_eqtl_tests_from_manifest()}
+#'   for the analyses that were actually run (cached analyses are not
+#'   included).
 #'
 #' @seealso
 #'   \code{\link[bican.mccarroll.eqtl]{run_cell_type_specific_eqtl_tests_from_manifest}}
@@ -87,7 +107,9 @@ run_private_eqtl_tests_downsampled_bican <- function(covariates = c(
                                                        "pmi_hr"
                                                      ),
                                                      force_factor_covariates = c("biobank", "imputed_sex"),
-                                                     data_cache_dir = NULL) {
+                                                     data_cache_dir = NULL,
+                                                     force_recompute = FALSE,
+                                                     write_pdf = FALSE) {
   .run_private_eqtl_tests(
     manifest_file = "eqtls/metadata/private_eqtl_analysis_manifest.txt",
     cell_type_file = "eqtls/metadata/region_cell_type.tsv",
@@ -96,7 +118,9 @@ run_private_eqtl_tests_downsampled_bican <- function(covariates = c(
     cache_subdir = "private_eqtl_analysis_downsampled",
     covariates = covariates,
     force_factor_covariates = force_factor_covariates,
-    data_cache_dir = data_cache_dir
+    data_cache_dir = data_cache_dir,
+    force_recompute = force_recompute,
+    write_pdf = write_pdf
   )
 }
 
@@ -108,7 +132,9 @@ run_private_eqtl_tests_downsampled_bican <- function(covariates = c(
                                     cache_subdir,
                                     covariates,
                                     force_factor_covariates,
-                                    data_cache_dir = NULL) {
+                                    data_cache_dir = NULL,
+                                    force_recompute = FALSE,
+                                    write_pdf = FALSE) {
   paths <- .resolve_private_eqtl_paths(
     manifest_file = manifest_file,
     cell_type_file = cell_type_file,
@@ -118,19 +144,84 @@ run_private_eqtl_tests_downsampled_bican <- function(covariates = c(
     data_cache_dir = data_cache_dir
   )
 
-  result <- bican.mccarroll.eqtl::run_cell_type_specific_eqtl_tests_from_manifest(
+  manifest_to_run <- .filter_uncached_private_eqtl_manifest(
     manifest_file = paths$manifest_file,
+    output_dir = paths$output_dir,
+    force_recompute = force_recompute
+  )
+
+  if (nrow(manifest_to_run) == 0L) {
+    logger::log_info("All private eQTL analyses already cached in {paths$output_dir}")
+    return(invisible(NULL))
+  }
+
+  tmp_manifest <- tempfile(fileext = ".txt")
+  on.exit(unlink(tmp_manifest), add = TRUE)
+  data.table::fwrite(manifest_to_run, tmp_manifest, sep = "\t")
+
+  result <- bican.mccarroll.eqtl::run_cell_type_specific_eqtl_tests_from_manifest(
+    manifest_file = tmp_manifest,
     output_dir = paths$output_dir,
     cell_type_file = paths$cell_type_file,
     cluster_assignment_file = paths$cluster_assignment_file,
     covariates = covariates,
     eqtl_root = paths$eqtl_root,
-    force_factor_covariates = force_factor_covariates
+    force_factor_covariates = force_factor_covariates,
+    write_pdf = write_pdf
   )
 
   logger::log_info("DONE running private eQTL tests to {paths$output_dir}")
 
   invisible(result)
+}
+
+
+#' Filter a private eQTL manifest down to rows not already cached
+#'
+#' For each manifest row, computes the analysis ID and expected output paths
+#' (via \code{bican.mccarroll.eqtl::make_analysis_id()} and
+#' \code{bican.mccarroll.eqtl::make_eqtl_analysis_output_paths()}, the same
+#' helpers \code{run_cell_type_specific_eqtl_tests_from_manifest()} uses
+#' internally to name its outputs) and drops rows whose
+#' \code{.summary.txt} and \code{.linear_model_test.txt} already exist under
+#' \code{output_dir}. This is the sole place caching decisions are made for
+#' the private eQTL pipeline; \code{bican.mccarroll.eqtl} has no cache/skip
+#' logic of its own.
+#'
+#' @param manifest_file Path to the tab-separated manifest.
+#' @param output_dir Directory containing (or that will contain) per-analysis
+#'   outputs.
+#' @param force_recompute Logical scalar. If \code{TRUE}, returns the
+#'   manifest unfiltered.
+#'
+#' @return A data.table containing only the manifest rows that still need to
+#'   be run.
+.filter_uncached_private_eqtl_manifest <- function(manifest_file, output_dir, force_recompute = FALSE) {
+  manifest <- data.table::fread(manifest_file)
+
+  if (isTRUE(force_recompute)) {
+    return(manifest)
+  }
+
+  is_cached <- vapply(seq_len(nrow(manifest)), function(i) {
+    in_cell_types <- bican.mccarroll.eqtl::parse_manifest_vector(manifest$in_cell_types[[i]])
+    regions <- bican.mccarroll.eqtl::parse_manifest_vector(manifest$regions[[i]])
+    analysis_id <- bican.mccarroll.eqtl::make_analysis_id(
+      cluster = manifest$cluster[[i]],
+      in_cell_types = in_cell_types,
+      regions = regions
+    )
+    out_paths <- bican.mccarroll.eqtl::make_eqtl_analysis_output_paths(output_dir, analysis_id)
+    file.exists(out_paths$summary_outfile) && file.exists(out_paths$results_outfile)
+  }, logical(1))
+
+  if (any(is_cached)) {
+    logger::log_info(
+      "Using cached results for {sum(is_cached)} of {nrow(manifest)} private eQTL analyses in {output_dir}"
+    )
+  }
+
+  manifest[!is_cached]
 }
 
 

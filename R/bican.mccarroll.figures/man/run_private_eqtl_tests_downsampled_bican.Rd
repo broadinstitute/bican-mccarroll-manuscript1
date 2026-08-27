@@ -8,7 +8,9 @@ run_private_eqtl_tests_downsampled_bican(
   covariates = c("biobank", "age", "imputed_sex", "PC1", "PC2", "PC3", "PC4", "PC5",
     "pmi_hr"),
   force_factor_covariates = c("biobank", "imputed_sex"),
-  data_cache_dir = NULL
+  data_cache_dir = NULL,
+  force_recompute = FALSE,
+  write_pdf = FALSE
 )
 }
 \arguments{
@@ -20,10 +22,26 @@ be encoded as factors during linear-model testing.}
 
 \item{data_cache_dir}{Cache directory under which per-analysis outputs are
 written. If \code{NULL}, resolved via configured cache directory options.}
+
+\item{force_recompute}{Logical scalar. If \code{FALSE} (the default),
+manifest rows whose \code{.summary.txt} and \code{.linear_model_test.txt}
+already exist under the cache directory are skipped entirely (no
+re-gathering, no re-fitting). Set to \code{TRUE} to recompute every
+analysis. To force just one analysis to recompute, delete its
+\code{.summary.txt} and \code{.linear_model_test.txt} files instead of
+setting this to \code{TRUE} for the whole manifest.}
+
+\item{write_pdf}{Logical scalar. If \code{TRUE}, also write the slow,
+per-gene-variant-pair \code{.linear_model_test.pdf} report for each
+analysis. Nothing in this package reads that PDF; the default,
+\code{FALSE}, skips it and only writes the plain-text results/summary
+files that \code{\link{summarize_private_eqtl_tests_bican}} reads.}
 }
 \value{
 Invisibly returns the list produced by
-  \code{bican.mccarroll.eqtl::run_cell_type_specific_eqtl_tests_from_manifest()}.
+  \code{bican.mccarroll.eqtl::run_cell_type_specific_eqtl_tests_from_manifest()}
+  for the analyses that were actually run (cached analyses are not
+  included).
 }
 \description{
 Wires \code{bican.mccarroll.eqtl::run_cell_type_specific_eqtl_tests_from_manifest()}
