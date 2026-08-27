@@ -85,6 +85,7 @@ plot_de_volcano <- function(de_dir = NULL,
   ggplot2::ggsave(
     filename = out_file,
     plot = p1,
+    device = svglite_manuscript,
     width = 6,
     height = 6,
     units = "in"
@@ -123,6 +124,7 @@ plot_de_volcano <- function(de_dir = NULL,
   ggplot2::ggsave(
     filename = out_file,
     plot = p2,
+    device = svglite_manuscript,
     width = 6,
     height = 6,
     units = "in"

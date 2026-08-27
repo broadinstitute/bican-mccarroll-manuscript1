@@ -606,6 +606,7 @@ plot_de_scatter_svg <- function(df,
   ggplot2::ggsave(
     filename = out_file,
     plot = p,
+    device = svglite_manuscript,
     width = width,
     height = height,
     units = "in"

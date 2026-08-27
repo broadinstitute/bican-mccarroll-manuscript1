@@ -745,18 +745,6 @@ trade_barplot_regions <- function(trade_results,
 }
 
 
-save_plot_svg <- function(plot, out_file, out_dir = ".", width = 14, height = 7) {
-  out_svg <- file.path(out_dir, out_file)
-
-  svglite::svglite(file = out_svg, width = width, height = height)
-  on.exit(grDevices::dev.off(), add = TRUE)
-
-  print(plot)
-
-  invisible(out_svg)
-}
-
-
 resolve_trade_paths <- function(de_dir = NULL,
                                 de_region_subset_dir = NULL,
                                 de_region_interaction_dir = NULL,

@@ -295,7 +295,7 @@ summarize_private_eqtl_tests_downsampled_bican <- function(data_cache_dir = NULL
   if (!is.null(p_fdr)) {
     ggplot2::ggsave(
       file.path(figure_dir, paste0(analysis_id, ".fdr_fraction_by_outgroup.svg")),
-      plot = p_fdr, device = svglite::svglite, width = 10, height = 6
+      plot = p_fdr, device = svglite_manuscript, width = 10, height = 6
     )
   }
 
@@ -303,7 +303,7 @@ summarize_private_eqtl_tests_downsampled_bican <- function(data_cache_dir = NULL
   if (!is.null(p_slopes)) {
     ggplot2::ggsave(
       file.path(figure_dir, paste0(analysis_id, ".in_vs_out_group_slopes.svg")),
-      plot = p_slopes, device = svglite::svglite, width = 7, height = 7
+      plot = p_slopes, device = svglite_manuscript, width = 7, height = 7
     )
   }
 
