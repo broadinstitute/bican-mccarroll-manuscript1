@@ -17,7 +17,9 @@ run_eqtl_manuscript_pipeline_defaults(
   force = TRUE,
   gene_snp_cases = list(list(gene = "XRRA1", chr = "chr11", pos = 74868704), list(gene =
     "NPAS3", chr = "chr14", pos = 32929955), list(gene = "CEP112", chr = "chr17", pos =
-    66192315))
+    66192315)),
+  cor_plot_width = 10,
+  cor_plot_height = 10
 )
 }
 \arguments{
@@ -60,6 +62,16 @@ expected output files already exist.}
 
 \item{gene_snp_cases}{List of named lists defining gene-SNP plots. Each
 element must contain \code{gene}, \code{chr}, and \code{pos}.}
+
+\item{cor_plot_width}{Numeric scalar giving the width (in inches) of the
+cell type-pairwise correlation heatmap. Larger cell type sets (e.g. 30+
+cell types) require a larger width to avoid truncating labels; 20-25
+works well for the supplementary figure cell type set.}
+
+\item{cor_plot_height}{Numeric scalar giving the height (in inches) of the
+cell type-pairwise correlation heatmap. Larger cell type sets (e.g. 30+
+cell types) require a larger height to avoid truncating labels; 20-25
+works well for the supplementary figure cell type set.}
 }
 \description{
 Convenience wrapper around `run_eqtl_manuscript_pipeline()` that fills in the

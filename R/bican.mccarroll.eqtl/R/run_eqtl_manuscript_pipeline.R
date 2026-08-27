@@ -92,6 +92,14 @@
 #'   expected output files already exist.
 #' @param gene_snp_cases List of named lists defining gene-SNP plots. Each
 #'   element must contain \code{gene}, \code{chr}, and \code{pos}.
+#' @param cor_plot_width Numeric scalar giving the width (in inches) of the
+#'   cell type-pairwise correlation heatmap. Larger cell type sets (e.g. 30+
+#'   cell types) require a larger width to avoid truncating labels; 20-25
+#'   works well for the supplementary figure cell type set.
+#' @param cor_plot_height Numeric scalar giving the height (in inches) of the
+#'   cell type-pairwise correlation heatmap. Larger cell type sets (e.g. 30+
+#'   cell types) require a larger height to avoid truncating labels; 20-25
+#'   works well for the supplementary figure cell type set.
 #'
 #' @return A named list containing the inferred output paths for all pipeline
 #'   products generated during the run.
@@ -111,7 +119,9 @@ run_eqtl_manuscript_pipeline <- function(eqtl_dir,
                                            list(gene = "XRRA1", chr = "chr11", pos = 74868704),
                                            list(gene = "NPAS3", chr = "chr14", pos = 32929955),
                                            list(gene = "CEP112", chr = "chr17", pos = 66192315)
-                                         )) {
+                                         ),
+                                         cor_plot_width = 10,
+                                         cor_plot_height = 10) {
   .validate_run_eqtl_manuscript_pipeline_inputs(
     eqtl_dir = eqtl_dir,
     out_dir = out_dir,
@@ -228,6 +238,8 @@ run_eqtl_manuscript_pipeline <- function(eqtl_dir,
       bican.mccarroll.eqtl::plot_cell_type_pairwise_cor(
         r_squared_path = paths$r_squared_path,
         output_path = paths$cor_plot_path,
+        width = cor_plot_width,
+        height = cor_plot_height,
         celltype_order_file = celltype_order_file,
         celltype_label_map_file = celltype_label_map_file
       )
@@ -325,7 +337,9 @@ run_eqtl_manuscript_pipeline_defaults <- function(eqtl_dir = NULL,
                                                     list(gene = "XRRA1", chr = "chr11", pos = 74868704),
                                                     list(gene = "NPAS3", chr = "chr14", pos = 32929955),
                                                     list(gene = "CEP112", chr = "chr17", pos = 66192315)
-                                                  )) {
+                                                  ),
+                                                  cor_plot_width = 10,
+                                                  cor_plot_height = 10) {
   if (is.null(eqtl_dir)) {
     eqtl_dir <- "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/eqtls/results/LEVEL_6"
   }
@@ -356,7 +370,9 @@ run_eqtl_manuscript_pipeline_defaults <- function(eqtl_dir = NULL,
     celltype_label_map_file = celltype_label_map_file,
     qval = qval,
     force = force,
-    gene_snp_cases = gene_snp_cases
+    gene_snp_cases = gene_snp_cases,
+    cor_plot_width = cor_plot_width,
+    cor_plot_height = cor_plot_height
   )
 }
 

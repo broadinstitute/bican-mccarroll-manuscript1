@@ -320,6 +320,8 @@ plot_de_sign_test_snap200_sex_bican <- function(gene_set = c("both", "autosome",
                                       data_cache_dir = NULL,
                                       force_recompute = FALSE,
                                       scale_effects = FALSE,
+                                      show_full_concordance_line = TRUE,
+                                      order_alphabetically = TRUE,
                                       outDir = NULL) {
   paths <- resolve_de_sign_test_paths(
     manifest_file = manifest_file,
@@ -389,7 +391,9 @@ plot_de_sign_test_snap200_sex_bican <- function(gene_set = c("both", "autosome",
     effect_name = effect_name,
     gene_set = gene_set,
     min_num_genes = min_num_genes,
-    scale_effects = scale_effects
+    scale_effects = scale_effects,
+    show_full_concordance_line = show_full_concordance_line,
+    order_alphabetically = order_alphabetically
   )
 
   logger::log_info(

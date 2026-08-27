@@ -99,7 +99,8 @@ plot_trade_analysis_bican <- function(force_recompute = FALSE,
     outDir = outDir,
     width = 5,
     height = 8,
-    force_recompute = force_recompute
+    force_recompute = force_recompute,
+    also_plot_no_celltype_labels = TRUE
   )
 }
 
@@ -606,7 +607,8 @@ trade_barplot_regions <- function(trade_results,
                                          outDir = NULL,
                                          width = 5,
                                          height = 8,
-                                         force_recompute = FALSE) {
+                                         force_recompute = FALSE,
+                                         also_plot_no_celltype_labels = FALSE) {
   paths <- resolve_trade_paths(
     de_region_interaction_dir = de_region_interaction_dir,
     gene_to_chr_path = gene_to_chr_path,
@@ -674,6 +676,24 @@ trade_barplot_regions <- function(trade_results,
     width = width,
     height = height
   )
+
+  if (also_plot_no_celltype_labels) {
+    p_heat_age_no_labels <- p_heat_age +
+      ggplot2::theme(axis.text.y = ggplot2::element_blank())
+
+    out_file_no_labels <- paste0(
+      "trade_", dataset_id,
+      "_age_region_interaction_autosomes_heatmap_no_celltype_labels.svg"
+    )
+
+    save_plot_svg(
+      p_heat_age_no_labels,
+      out_file = out_file_no_labels,
+      out_dir = paths$outDir,
+      width = width,
+      height = height
+    )
+  }
 
   logger::log_info("DONE plotting regional Trade")
   invisible(NULL)

@@ -77,23 +77,23 @@ columns must be separated by commas without quoting the individual values.
 \examples{
 \dontrun{
 run_cell_type_specific_eqtl_tests_from_manifest(
-    manifest_file = "private_eqtl_manifest.tsv",
-    output_dir = "private_eqtl_analysis",
-    cell_type_file = "region_cell_type.tsv",
-    cluster_assignment_file = "cluster_assignments.tsv",
-    covariates = c(
-        "biobank",
-        "age",
-        "imputed_sex",
-        paste0("PC", 1:5),
-        "pmi_hr",
-        paste0("InferredCov", 1:10)
-    ),
-    eqtl_root = "results/LEVEL_6",
-    force_factor_covariates = c(
-        "biobank",
-        "imputed_sex"
-    )
+  manifest_file = "private_eqtl_manifest.tsv",
+  output_dir = "private_eqtl_analysis",
+  cell_type_file = "region_cell_type.tsv",
+  cluster_assignment_file = "cluster_assignments.tsv",
+  covariates = c(
+    "biobank",
+    "age",
+    "imputed_sex",
+    paste0("PC", 1:5),
+    "pmi_hr",
+    paste0("InferredCov", 1:10)
+  ),
+  eqtl_root = "results/LEVEL_6",
+  force_factor_covariates = c(
+    "biobank",
+    "imputed_sex"
+  )
 )
 }
 

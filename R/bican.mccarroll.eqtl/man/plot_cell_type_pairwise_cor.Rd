@@ -22,9 +22,13 @@ column should be named \code{cell_type} and contain row names.}
 \item{output_path}{Character scalar or \code{NULL}.  If non-NULL, the
 heatmap is saved to this path as an SVG file.}
 
-\item{width}{Numeric.  SVG width in pixels (divided by res for inches).  Default 3150.}
+\item{width}{Numeric.  SVG width in inches.  Default 10.  Larger cell type
+sets (e.g. 30+ cell types) require a larger width to avoid truncating row
+labels; 20-25 works well for the supplementary figure cell type set.}
 
-\item{height}{Numeric.  SVG height in pixels (divided by res for inches).  Default 3000.}
+\item{height}{Numeric.  SVG height in inches.  Default 10.  Larger cell type
+sets (e.g. 30+ cell types) require a larger height to avoid truncating
+column labels; 20-25 works well for the supplementary figure cell type set.}
 
 \item{title}{Character scalar.  Plot title.}
 

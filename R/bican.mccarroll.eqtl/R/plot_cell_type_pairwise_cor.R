@@ -14,8 +14,12 @@
 #'   column should be named \code{cell_type} and contain row names.
 #' @param output_path Character scalar or \code{NULL}.  If non-NULL, the
 #'   heatmap is saved to this path as an SVG file.
-#' @param width Numeric.  SVG width in pixels (divided by res for inches).  Default 3150.
-#' @param height Numeric.  SVG height in pixels (divided by res for inches).  Default 3000.
+#' @param width Numeric.  SVG width in inches.  Default 10.  Larger cell type
+#'   sets (e.g. 30+ cell types) require a larger width to avoid truncating row
+#'   labels; 20-25 works well for the supplementary figure cell type set.
+#' @param height Numeric.  SVG height in inches.  Default 10.  Larger cell type
+#'   sets (e.g. 30+ cell types) require a larger height to avoid truncating
+#'   column labels; 20-25 works well for the supplementary figure cell type set.
 #' @param title Character scalar.  Plot title.
 #' @param celltype_order_file  Optional character scalar.  Path to a text file with one cell type per line, specifying the order of rows and columns in the heatmap.  Row names should match those in the R-squared matrix.
 #' @param celltype_label_map_file  Tab-delimited 2-column file with header: cell_type_name and pretty_label.  This maps existing row names to "pretty" labels for display.

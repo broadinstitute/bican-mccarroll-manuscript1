@@ -39,6 +39,12 @@ run_all <- function() {
   bican.mccarroll.figures::plot_de_overlap_enrichment_bican_vs_kana_2026()
 
   bican.mccarroll.figures::de_sex_age_scatter_plots()
+  bican.mccarroll.figures::de_sex_vs_age_effect_scatter_plots()
+  bican.mccarroll.figures::de_sex_vs_age_effect_scatter_plots(autosomes_only = TRUE)
+  #DFC
+  bican.mccarroll.figures::de_sex_vs_age_effect_scatter_plots(region_use="DFC")
+  bican.mccarroll.figures::de_sex_vs_age_effect_scatter_plots(region_use="DFC", autosomes_only = TRUE)
+
   bican.mccarroll.figures::plot_de_volcano()
   bican.mccarroll.figures::plot_sex_de_by_chromosome_bican()
   bican.mccarroll.figures::plot_sex_chromosome_leakage()
@@ -58,4 +64,6 @@ run_all <- function() {
   bican.mccarroll.figures::summarize_private_eqtl_tests_bican()
   bican.mccarroll.figures::run_private_eqtl_tests_downsampled_bican()
   bican.mccarroll.figures::summarize_private_eqtl_tests_downsampled_bican()
+
+  bican.mccarroll.figures::write_eqtl_donor_counts_bican()
 }

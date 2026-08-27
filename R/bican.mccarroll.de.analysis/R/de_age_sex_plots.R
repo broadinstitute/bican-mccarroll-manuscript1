@@ -453,6 +453,281 @@ plot_de_scatter_gg <- function(de_dt,
   p
 }
 
+#' Scatter plot of two DE effect sizes for the same cell type, colored by chromosome
+#'
+#' Plots the log2 fold change from one DE contrast (x) against the log2 fold
+#' change from a second DE contrast (y) for a single cell type (and optionally a
+#' single region), restricted to the most highly expressed genes.
+#'
+#' The two contrasts are supplied as two separate prepared DE tables (e.g. the
+#' cached sex and age tables). Each table is filtered to \code{cell_type_use} /
+#' \code{region_use} and then inner-joined on \code{c("gene", "chr")}. Genes
+#' present in only one of the two tables are dropped; a warning is emitted if
+#' more than 5% of genes are lost this way.
+#'
+#' Gene selection: after the join, genes are ranked by the row-wise mean of the
+#' two \code{ave_expr} columns (limma AveExpr, avg log2-CPM) and the top
+#' \code{top_n_expressed} are retained. When both inputs come from the same
+#' per-cell-type limma fit the two \code{ave_expr} values are identical and this
+#' is simply "top N by average expression". Ranking is performed AFTER the join
+#' so that both axes are guaranteed to have data for every plotted gene. Ties
+#' are broken by \code{gene} ascending so the selection is deterministic.
+#'
+#' Coloring: if \code{chr_color_map} is supplied it must cover every observed
+#' \code{chr} value and no \code{chr} may be \code{NA} (filter or relabel
+#' upstream). Points are drawn in the reverse order of
+#' \code{names(chr_color_map)}, so the LAST entry of the map is drawn on top.
+#'
+#' Unlike \code{\link{plot_de_scatter_gg}}, the two axes are scaled
+#' independently and no y = x reference line is drawn, because the two
+#' contrasts are generally on different effect scales (e.g. sex log2FC versus
+#' age log2FC per decade).
+#'
+#' Spearman rho^2 computed on the plotted genes is annotated in the top-left
+#' corner. No fit line is drawn.
+#'
+#' @param de_dt_x A prepared DE data.table from prep_de/read_de_results,
+#'   supplying the x-axis effect sizes.
+#' @param de_dt_y A prepared DE data.table from prep_de/read_de_results,
+#'   supplying the y-axis effect sizes. May be the same object as
+#'   \code{de_dt_x} if \code{test_x} and \code{test_y} are used to separate the
+#'   contrasts.
+#' @param cell_type_use Cell type label to plot. Applied to both tables.
+#' @param region_use Region label to plot, or NA for region-combined results.
+#'   Applied to both tables.
+#' @param test_x Optional value of the \code{test} column used to subset
+#'   \code{de_dt_x}. If NA (the default) no test filtering is applied and
+#'   \code{de_dt_x} must already contain exactly one test.
+#' @param test_y As \code{test_x}, for \code{de_dt_y}.
+#' @param top_n_expressed Number of most highly expressed genes to retain after
+#'   the join. If NULL, all joined genes are kept. If the joined set has fewer
+#'   than \code{top_n_expressed} genes, all of them are kept.
+#' @param chr_color_map Optional named character vector (or list) mapping
+#'   chromosome label -> color. If provided it must cover every chromosome
+#'   observed in the plotted data, and no chromosome may be NA. If NULL, all
+#'   points are black.
+#' @param show_title Whether to use \code{cell_type_use} as the plot title.
+#'   Callers that want a display label (e.g. underscores replaced with spaces)
+#'   should pass FALSE and set the title via \code{ggplot2::labs()}.
+#' @param symmetric_axes If TRUE (the default) each axis is made symmetric
+#'   about zero, independently of the other axis.
+#' @param point_size Point size passed to \code{ggplot2::geom_point}.
+#' @param rho_label_size Text size of the rho^2 annotation.
+#'
+#' @return A ggplot object, or NULL if fewer than 3 genes survive the join.
+#' @export
+plot_de_effect_pair_scatter_gg <- function(de_dt_x,
+                                           de_dt_y,
+                                           cell_type_use,
+                                           region_use = NA,
+                                           test_x = NA,
+                                           test_y = NA,
+                                           top_n_expressed = 4000,
+                                           chr_color_map = NULL,
+                                           show_title = TRUE,
+                                           symmetric_axes = TRUE,
+                                           point_size = 1.2,
+                                           rho_label_size = 8) {
+  # Make R CMD CHECK happy
+  cell_type <- region <- test <- chr <- gene <- NULL
+  log_fc.x <- log_fc.y <- ave_expr.x <- ave_expr.y <- NULL
+  ave_expr_rank <- col_group <- chr_draw <- draw_order <- NULL
+
+  subset_one <- function(dt, test_use, which_arg) {
+    if (is.na(region_use)) {
+      out <- dt[cell_type == cell_type_use & is.na(region), ]
+    } else {
+      out <- dt[cell_type == cell_type_use & region == region_use, ]
+    }
+
+    if (!is.na(test_use)) {
+      out <- out[test == test_use, ]
+    }
+
+    if (nrow(out) == 0L) {
+      stop(
+        which_arg, " has no rows for cell_type '", cell_type_use,
+        "', region '", region_use, "'",
+        if (!is.na(test_use)) paste0(", test '", test_use, "'") else "",
+        ".",
+        call. = FALSE
+      )
+    }
+
+    n_tests <- length(unique(out[["test"]]))
+    if (n_tests > 1L) {
+      stop(
+        which_arg, " contains ", n_tests, " distinct values of 'test' (",
+        paste(sort(unique(out[["test"]])), collapse = ", "),
+        ") for cell_type '", cell_type_use, "', region '", region_use,
+        "'. Pass test_x/test_y to select a single test; otherwise the join ",
+        "below would produce a Cartesian product.",
+        call. = FALSE
+      )
+    }
+
+    dup <- anyDuplicated(out[["gene"]])
+    if (dup > 0L) {
+      stop(
+        which_arg, " has duplicated genes after filtering (e.g. '",
+        out[["gene"]][dup], "') for cell_type '", cell_type_use,
+        "', region '", region_use, "'. The join requires one row per gene.",
+        call. = FALSE
+      )
+    }
+
+    out
+  }
+
+  x <- subset_one(de_dt_x, test_x, "de_dt_x")
+  y <- subset_one(de_dt_y, test_y, "de_dt_y")
+
+  # Inner join. Keys are gene AND chr: chr is functionally determined by gene
+  # (both tables were annotated from the same gene_to_chr map), so joining on
+  # both avoids chr.x/chr.y suffixes. A gene whose chr disagrees between the two
+  # tables would be silently dropped, which the loss warning below surfaces.
+  m <- merge(x, y, by = c("gene", "chr"))
+
+  n_expected <- min(nrow(x), nrow(y))
+  if (nrow(m) == 0L) {
+    stop(
+      "No genes in common between de_dt_x and de_dt_y for cell_type '",
+      cell_type_use, "', region '", region_use, "'.",
+      call. = FALSE
+    )
+  }
+  if (nrow(m) < 0.95 * n_expected) {
+    warning(
+      "Join retained ", nrow(m), " of ", n_expected,
+      " genes for cell_type '", cell_type_use, "' (",
+      round(100 * (1 - nrow(m) / n_expected), 1),
+      "% lost). Check that 'chr' agrees between the two inputs.",
+      call. = FALSE
+    )
+  }
+
+  m <- data.table::as.data.table(m)
+
+  # Rank by expression and take the top N. Done AFTER the join so that every
+  # plotted gene has both an x and a y value.
+  m[, ave_expr_rank := rowMeans(
+    cbind(ave_expr.x, ave_expr.y),
+    na.rm = TRUE
+  )]
+  m <- m[is.finite(ave_expr_rank), ]
+
+  if (nrow(m) == 0L) {
+    stop(
+      "No genes with a finite ave_expr for cell_type '", cell_type_use,
+      "', region '", region_use, "'.",
+      call. = FALSE
+    )
+  }
+
+  if (!is.null(top_n_expressed)) {
+    # Secondary sort on gene makes the top-N selection deterministic under ties.
+    data.table::setorderv(m, c("ave_expr_rank", "gene"), order = c(-1L, 1L))
+    m <- utils::head(m, min(nrow(m), as.integer(top_n_expressed)))
+  }
+
+  m <- m[is.finite(log_fc.x) & is.finite(log_fc.y), ]
+
+  if (nrow(m) < 3L) {
+    return(NULL)
+  }
+
+  if (!is.null(chr_color_map)) {
+    if (is.list(chr_color_map)) {
+      chr_color_map <- unlist(chr_color_map, use.names = TRUE)
+    }
+
+    n_na_chr <- m[is.na(chr), .N]
+    if (n_na_chr > 0L) {
+      stop(
+        n_na_chr, " of ", nrow(m), " plotted genes have chr == NA for ",
+        "cell_type '", cell_type_use, "'. Drop or relabel unannotated genes ",
+        "before calling this function; NA chromosomes cannot be colored.",
+        call. = FALSE
+      )
+    }
+
+    chroms_obs <- sort(unique(m[["chr"]]))
+    missing_chroms <- setdiff(chroms_obs, names(chr_color_map))
+    if (length(missing_chroms) > 0L) {
+      stop(
+        "chr_color_map does not cover all chromosomes in the data. Missing: ",
+        paste(missing_chroms, collapse = ", "),
+        call. = FALSE
+      )
+    }
+
+    m[, col_group := chr]
+
+    plot_order <- rev(names(chr_color_map))
+    draw_map <- stats::setNames(seq_along(plot_order), plot_order)
+    m[, chr_draw := draw_map[col_group]]
+    m[, draw_order := chr_draw]
+
+    color_values <- chr_color_map
+  } else {
+    m[, col_group := "all"]
+    m[, draw_order := 1L]
+    color_values <- c(all = "black")
+  }
+
+  data.table::setorder(m, draw_order)
+
+  ct <- stats::cor.test(
+    m[["log_fc.x"]],
+    m[["log_fc.y"]],
+    method = "spearman",
+    exact = FALSE
+  )
+  rho_sqrd <- round(as.numeric(ct$estimate)^2, 2)
+  rho_label <- paste0("rho^2 == ", rho_sqrd)
+
+  if (isTRUE(symmetric_axes)) {
+    x_rng <- max(abs(m[["log_fc.x"]]), na.rm = TRUE)
+    y_rng <- max(abs(m[["log_fc.y"]]), na.rm = TRUE)
+    x_limits <- c(-x_rng, x_rng)
+    y_limits <- c(-y_rng, y_rng)
+  } else {
+    x_limits <- range(m[["log_fc.x"]], na.rm = TRUE)
+    y_limits <- range(m[["log_fc.y"]], na.rm = TRUE)
+  }
+
+  p <- ggplot2::ggplot(
+    m,
+    ggplot2::aes(x = log_fc.x, y = log_fc.y)
+  ) +
+    ggplot2::geom_hline(yintercept = 0, linetype = 2) +
+    ggplot2::geom_vline(xintercept = 0, linetype = 2) +
+    ggplot2::geom_point(
+      ggplot2::aes(color = col_group),
+      size = point_size
+    ) +
+    ggplot2::scale_color_manual(values = color_values, name = NULL) +
+    ggplot2::scale_x_continuous(limits = x_limits) +
+    ggplot2::scale_y_continuous(limits = y_limits) +
+    ggplot2::annotate(
+      "text",
+      x = -Inf,
+      y = Inf,
+      label = rho_label,
+      parse = TRUE,
+      hjust = -0.05,
+      vjust = 1.1,
+      size = rho_label_size
+    ) +
+    ggplot2::labs(
+      x = "Effect size, log2",
+      y = "Effect size, log2",
+      title = if (show_title) cell_type_use else NULL
+    )
+
+  p
+}
+
 #' Compute correlation matrix across cell_type x region groups
 #'
 #' Correlations are computed on log_fc among genes passing an FDR filter in either

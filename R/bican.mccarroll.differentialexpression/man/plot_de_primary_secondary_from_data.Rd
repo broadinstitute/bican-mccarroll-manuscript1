@@ -16,7 +16,9 @@ plot_de_primary_secondary_from_data(
   min_num_genes = 20,
   width = 7,
   height = 7,
-  scale_effects = FALSE
+  scale_effects = FALSE,
+  show_full_concordance_line = FALSE,
+  order_alphabetically = FALSE
 )
 }
 \arguments{
@@ -56,6 +58,15 @@ plotting, so effect sizes are visually comparable across cell types and
 datasets on very different native scales. Does not affect the
 sign-concordance statistics, which are scale-invariant. Defaults to
 \code{FALSE}.}
+
+\item{show_full_concordance_line}{Logical scalar. If \code{TRUE}, draws a
+dashed reference line at 100% (a sign test result of 1, i.e. full
+concordance) on the sign-concordance summary plot, extending the axis if
+needed so the line is always visible. Defaults to \code{FALSE}.}
+
+\item{order_alphabetically}{Logical scalar. If \code{TRUE}, orders cell
+types on the sign-concordance summary plot alphabetically instead of by
+sign-test result. Defaults to \code{FALSE}.}
 }
 \value{
 Invisibly returns a list with elements \code{per_cell_type} (a list
