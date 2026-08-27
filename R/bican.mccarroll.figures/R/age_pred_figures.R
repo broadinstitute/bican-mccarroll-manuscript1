@@ -2,18 +2,18 @@
 ## Set configuration (development only; comment out in package build)
 ## ------------------------------------------------------------------
 
-source("R/paths.R")
-
-options(
-    bican.mccarroll.figures.data_root_dir =
-        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis",
-
-    bican.mccarroll.figures.out_dir =
-        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository",
-
-    bican.mccarroll.figures.cache_dir =
-        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository/data_cache"
-)
+# source("R/paths.R")
+#
+# options(
+#     bican.mccarroll.figures.data_root_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis",
+#
+#     bican.mccarroll.figures.out_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository",
+#
+#     bican.mccarroll.figures.cache_dir =
+#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository/data_cache"
+# )
 
 # cellTypeListFile <- metacell_dir <- age_de_results_dir <- contig_yaml_file <- reduced_gtf_file <- data_cache_dir <- outDir <- NULL
 
@@ -1165,7 +1165,7 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(cell_type_
   )
 
   ggplot2::ggsave(
-    filename = out_svg, plot = final_padded, device = "svg",
+    filename = out_svg, plot = final_padded, device = svglite_manuscript,
     width = 14, height = 8
   )
 
@@ -1322,7 +1322,7 @@ age_prediction_uncorrected_residual_pairwise_scatter_region <- function(cell_typ
   )
 
   ggplot2::ggsave(
-    filename = out_svg, plot = final_padded, device = "svg",
+    filename = out_svg, plot = final_padded, device = svglite_manuscript,
     width = 14, height = 8
   )
 
@@ -1463,7 +1463,7 @@ age_prediction_examples <- function(cell_type_list = c("astrocyte", "OPC", "micr
 
   output_svg <- file.path(paths$outDir, "age_prediction_cell_type_examples.svg")
   ggplot2::ggsave(
-    filename = output_svg, plot = final, device = "svg",
+    filename = output_svg, plot = final, device = svglite_manuscript,
     width = 16, height = 4
   )
 
@@ -1598,17 +1598,6 @@ read_age_prediction_results <- function(cache_dir) {
   }
 
   paste0("optimize_alpha_FALSE_alpha_fixed_", alpha_label)
-}
-
-save_plot_svg <- function(plot, out_file, out_dir = ".", width = 14, height = 7) {
-  out_svg <- file.path(out_dir, out_file)
-
-  svglite::svglite(file = out_svg, width = width, height = height)
-  on.exit(grDevices::dev.off(), add = TRUE)
-
-  print(plot)
-
-  invisible(out_svg)
 }
 
 .resolve_age_pred_paths <- function(cellTypeListFile = NULL,

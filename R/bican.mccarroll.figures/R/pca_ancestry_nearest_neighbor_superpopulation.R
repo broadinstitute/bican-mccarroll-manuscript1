@@ -97,6 +97,7 @@ estimate_donor_superpopulation <- function(
   ggplot2::ggsave(
     file.path(output_dir, "pca_superpopulation_light_dark.svg"),
     plot = plot,
+    device = svglite_manuscript,
     width = 8,
     height = 6
   )
@@ -185,6 +186,7 @@ plot_ancestry_pca <- function(
   ggplot2::ggsave(
     file.path(paths$outDir, "ancestry_pca.svg"),
     plot = plot,
+    device = svglite_manuscript,
     width = 8,
     height = 6
   )

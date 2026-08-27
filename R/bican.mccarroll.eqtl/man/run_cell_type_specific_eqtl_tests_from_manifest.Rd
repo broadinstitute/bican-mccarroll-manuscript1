@@ -12,7 +12,8 @@ run_cell_type_specific_eqtl_tests_from_manifest(
   cluster_assignment_file,
   covariates,
   eqtl_root,
-  force_factor_covariates
+  force_factor_covariates,
+  write_pdf = FALSE
 )
 }
 \arguments{
@@ -36,6 +37,14 @@ result files.}
 
 \item{force_factor_covariates}{Character vector of covariates that should
 be encoded as factors during linear-model testing.}
+
+\item{write_pdf}{Logical scalar. If \code{TRUE}, also write the
+multi-page \code{.linear_model_test.pdf} report for each analysis. This
+is a comparatively slow step (one page per gene-variant pair) and its
+content is not used by anything downstream (see
+\code{\link{run_cell_type_specific_eqtl_tests}}); the default,
+\code{FALSE}, skips it and only writes the plain-text results/summary
+files that plotting reads directly.}
 }
 \value{
 Invisibly returns a list with one element per manifest row. Each
@@ -66,10 +75,16 @@ regions. For example, cluster 10, astrocyte, and CaH produce the prefix
 \code{cluster10_astrocyte__CaH}.
 
 
-For each manifest row, the function first calls
-\code{\link{build_cluster_dataframe}} and then calls
+For each manifest row, the function calls
+\code{\link{build_cluster_dataframe}} and then
 \code{\link{run_cell_type_specific_eqtl_tests}} using the generated data
-and covariate-mapping files.
+and covariate-mapping files. This function always runs every row in
+\code{manifest_file}; it has no cache/skip logic of its own. Callers that
+want to skip already-computed analyses (see \code{\link{make_analysis_id}}
+and \code{\link{make_eqtl_analysis_output_paths}} for computing the
+expected output paths of a given manifest row without running it) should
+filter \code{manifest_file} down to the rows they actually want run before
+calling this function.
 
 Multiple values in the \code{in_cell_types} and \code{regions} manifest
 columns must be separated by commas without quoting the individual values.

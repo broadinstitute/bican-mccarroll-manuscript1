@@ -159,7 +159,7 @@ plot_de_filtering_trajectories <- function(data_dir = NULL,
 
   output_svg <- file.path(outDir, "de_filtering_plot.svg")
   ggplot2::ggsave(
-    filename = output_svg, plot = p, device = svglite::svglite,
+    filename = output_svg, plot = p, device = svglite_manuscript,
     width = 12, height = 4
   )
 
@@ -263,7 +263,7 @@ plot_de_filtering_examples <- function(cell_type_list = c("astrocyte", "microgli
   output_svg <- file.path(outDir, outFile)
   ggplot2::ggsave(
     filename = output_svg,
-    plot = combined_plot, device = svglite::svglite, width = 14, height = 7
+    plot = combined_plot, device = svglite_manuscript, width = 14, height = 7
   )
   logger::log_info("Saved DE filtering example plot to {output_svg}")
   invisible(NULL)
@@ -658,7 +658,7 @@ plot_eqtl_filtering_trajectories <- function(eqtl_data_dir = NULL,
 
   output_svg <- file.path(paths$outDir, "eqtl_filtering_plot.svg")
   ggplot2::ggsave(
-    filename = output_svg, plot = p, device = svglite::svglite,
+    filename = output_svg, plot = p, device = svglite_manuscript,
     width = 8, height = 8
   )
 
@@ -799,7 +799,7 @@ plot_eqtl_filtering_examples <- function(cell_type_list = c("astrocyte", "microg
 
   ggplot2::ggsave(
     filename = file.path(paths$outDir, outFile),
-    plot = combined_plot, device = svglite::svglite, width = 12, height = 6
+    plot = combined_plot, device = svglite_manuscript, width = 12, height = 6
   )
 
   invisible(NULL)

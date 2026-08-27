@@ -103,7 +103,7 @@ plot_de_cor_heatmaps_age <- function(de_region_interaction_dir = NULL,
   cor_mat_main <- clean_cor_mat_names(cor_mat_main)
 
   out_file <- file.path(paths$outDir, "de_cor_heatmap_age_main_CaH_DFC.svg")
-  grDevices::svg(out_file, width = 6, height = 6)
+  svglite_manuscript(out_file, width = 6, height = 6)
 
   # legend_title = "Spearman rho^2\nof age DE logFC"
   legend_title <- NULL
@@ -147,7 +147,7 @@ plot_de_cor_heatmaps_age <- function(de_region_interaction_dir = NULL,
   cor_mat_supp <- clean_cor_mat_names(cor_mat_supp)
 
   out_file <- file.path(paths$outDir, "de_cor_heatmap_age_supp_all_regions.svg")
-  grDevices::svg(out_file, width = 10, height = 10)
+  svglite_manuscript(out_file, width = 10, height = 10)
 
   # bican.mccarroll.de.analysis::plot_de_cor_heatmap(
   #     cor_mat_supp,
@@ -286,7 +286,7 @@ plot_de_cor_heatmap_bican_sea_ad_vs_pmid_39402379 <- function(
     bican_paths$outDir,
     sprintf("de_cor_heatmap_bican_sea_ad_vs_pmid_39402379_%s.svg", contrast)
   )
-  grDevices::svg(out_file, width = 12, height = 12)
+  svglite_manuscript(out_file, width = 12, height = 12)
 
   ht <- bican.mccarroll.de.analysis::plot_de_cor_heatmap_complex(
     cor_mat,
@@ -434,7 +434,7 @@ plot_de_cor_heatmap_bican_vs_kana_2026 <- function(
     bican_paths$outDir,
     sprintf("de_cor_heatmap_bican_vs_kana_2026_%s.svg", contrast)
   )
-  grDevices::svg(out_file, width = 8, height = 8)
+  svglite_manuscript(out_file, width = 8, height = 8)
 
   ht <- bican.mccarroll.de.analysis::plot_de_cor_heatmap_complex(
     cor_mat,

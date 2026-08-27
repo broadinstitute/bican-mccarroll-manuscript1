@@ -82,6 +82,11 @@ plot_sex_chromosome_leakage <- function(force_recompute = FALSE) {
   )
   nd_plots <- bican.mccarroll.differentialexpression::plot_leakage_numerator_denominator(leakage_df)
 
+  # geom_jitter()/position_jitter() draw their random offsets when the plot is
+  # rendered (i.e. inside save_plot_svg()'s print()), not when the ggplot
+  # object is built above, so the seed must be set immediately before each
+  # save call to make that specific plot's jitter reproducible.
+  set.seed(42)
   save_plot_svg(
     p_box,
     out_file = "sex_chromosome_leakage_boxplot.svg",
@@ -89,6 +94,7 @@ plot_sex_chromosome_leakage <- function(force_recompute = FALSE) {
     width = 11,
     height = 8
   )
+  set.seed(42)
   save_plot_svg(
     nd_plots$expression,
     out_file = "sex_chromosome_leakage_expression.svg",
@@ -96,6 +102,7 @@ plot_sex_chromosome_leakage <- function(force_recompute = FALSE) {
     width = 11,
     height = 8
   )
+  set.seed(42)
   save_plot_svg(
     nd_plots$expression_by_cell_type,
     out_file = "sex_chromosome_leakage_expression_by_cell_type.svg",

@@ -92,7 +92,7 @@ plot_kmeans_age <- function(ct_file = NULL,
   combined_obj$lfc_mat <- clean_matrix_colnames(combined_obj$lfc_mat)
 
   out_file <- file.path(paths$outDir, "kmeans_qc_age_heatmap_region_combined.svg")
-  grDevices::svg(out_file, width = 14, height = 7)
+  svglite_manuscript(out_file, width = 14, height = 7)
 
   gene_clusters <- bican.mccarroll.de.analysis::plot_kmeans_heatmap_with_cluster_labels(
     combined_obj$lfc_mat_z,
@@ -118,7 +118,7 @@ plot_kmeans_age <- function(ct_file = NULL,
   region_obj$lfc_mat <- clean_matrix_colnames(region_obj$lfc_mat)
 
   out_file <- file.path(paths$outDir, "kmeans_qc_age_heatmap_region_specific.svg")
-  grDevices::svg(out_file, width = 14, height = 7)
+  svglite_manuscript(out_file, width = 14, height = 7)
 
   z <- bican.mccarroll.de.analysis::plot_kmeans_heatmap_with_cluster_labels(
     region_obj$lfc_mat_z,

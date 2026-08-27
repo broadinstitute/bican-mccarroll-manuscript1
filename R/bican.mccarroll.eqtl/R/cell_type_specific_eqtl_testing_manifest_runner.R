@@ -36,15 +36,28 @@
 #'   result files.
 #' @param force_factor_covariates Character vector of covariates that should
 #'   be encoded as factors during linear-model testing.
+#' @param write_pdf Logical scalar. If \code{TRUE}, also write the
+#'   multi-page \code{.linear_model_test.pdf} report for each analysis. This
+#'   is a comparatively slow step (one page per gene-variant pair) and its
+#'   content is not used by anything downstream (see
+#'   \code{\link{run_cell_type_specific_eqtl_tests}}); the default,
+#'   \code{FALSE}, skips it and only writes the plain-text results/summary
+#'   files that plotting reads directly.
 #'
 #' @return Invisibly returns a list with one element per manifest row. Each
 #'   element contains the paths of the files generated for that analysis.
 #'
 #' @details
-#' For each manifest row, the function first calls
-#' \code{\link{build_cluster_dataframe}} and then calls
+#' For each manifest row, the function calls
+#' \code{\link{build_cluster_dataframe}} and then
 #' \code{\link{run_cell_type_specific_eqtl_tests}} using the generated data
-#' and covariate-mapping files.
+#' and covariate-mapping files. This function always runs every row in
+#' \code{manifest_file}; it has no cache/skip logic of its own. Callers that
+#' want to skip already-computed analyses (see \code{\link{make_analysis_id}}
+#' and \code{\link{make_eqtl_analysis_output_paths}} for computing the
+#' expected output paths of a given manifest row without running it) should
+#' filter \code{manifest_file} down to the rows they actually want run before
+#' calling this function.
 #'
 #' Multiple values in the \code{in_cell_types} and \code{regions} manifest
 #' columns must be separated by commas without quoting the individual values.
@@ -80,7 +93,8 @@ run_cell_type_specific_eqtl_tests_from_manifest <- function(manifest_file,
                                                             cluster_assignment_file,
                                                             covariates,
                                                             eqtl_root,
-                                                            force_factor_covariates) {
+                                                            force_factor_covariates,
+                                                            write_pdf = FALSE) {
   manifest <- data.table::fread(manifest_file)
 
   dir.create(
@@ -95,11 +109,11 @@ run_cell_type_specific_eqtl_tests_from_manifest <- function(manifest_file,
   )
 
   for (i in seq_len(nrow(manifest))) {
-    in_cell_types <- .parse_manifest_vector(
+    in_cell_types <- parse_manifest_vector(
       manifest$in_cell_types[[i]]
     )
 
-    regions <- .parse_manifest_vector(
+    regions <- parse_manifest_vector(
       manifest$regions[[i]]
     )
 
@@ -112,7 +126,8 @@ run_cell_type_specific_eqtl_tests_from_manifest <- function(manifest_file,
       cluster_assignment_file = cluster_assignment_file,
       covariates = covariates,
       eqtl_root = eqtl_root,
-      force_factor_covariates = force_factor_covariates
+      force_factor_covariates = force_factor_covariates,
+      write_pdf = write_pdf
     )
   }
 
@@ -139,11 +154,11 @@ run_private_eqtl_manifest <- function(manifest_file,
   )
 
   for (i in seq_len(nrow(manifest))) {
-    in_cell_types <- .parse_manifest_vector(
+    in_cell_types <- parse_manifest_vector(
       manifest$in_cell_types[[i]]
     )
 
-    regions <- .parse_manifest_vector(
+    regions <- parse_manifest_vector(
       manifest$regions[[i]]
     )
 
@@ -163,12 +178,38 @@ run_private_eqtl_manifest <- function(manifest_file,
   invisible(output_paths)
 }
 
-.parse_manifest_vector <- function(x) {
+#' Split a comma-separated manifest cell into a character vector
+#'
+#' Manifest columns like \code{in_cell_types} and \code{regions} allow
+#' multiple comma-separated values in a single cell; this splits one such
+#' cell into a character vector.
+#'
+#' @param x A single comma-separated character scalar.
+#'
+#' @return A character vector.
+#'
+#' @export
+parse_manifest_vector <- function(x) {
   strsplit(x, ",", fixed = TRUE)[[1]]
 }
 
 
-.make_analysis_id <- function(cluster, in_cell_types, regions) {
+#' Build the analysis ID for a private eQTL manifest row
+#'
+#' Constructs the same analysis-ID string used internally by
+#' \code{\link{run_cell_type_specific_eqtl_tests_from_manifest}} to name
+#' output files, so callers can compute expected output paths (e.g. to check
+#' whether an analysis has already been run) without duplicating the naming
+#' convention. See \code{\link{make_eqtl_analysis_output_paths}}.
+#'
+#' @param cluster Integer cluster identifier.
+#' @param in_cell_types Character vector of in-group cell types.
+#' @param regions Character vector of regions.
+#'
+#' @return A character scalar, e.g. \code{"cluster10_astrocyte__CaH"}.
+#'
+#' @export
+make_analysis_id <- function(cluster, in_cell_types, regions) {
   paste0(
     "cluster",
     cluster,
@@ -180,7 +221,29 @@ run_private_eqtl_manifest <- function(manifest_file,
 }
 
 
-.make_output_paths <- function(output_dir, analysis_id) {
+#' Build the output file paths for a private eQTL analysis
+#'
+#' Given an \code{output_dir} and \code{analysis_id} (see
+#' \code{\link{make_analysis_id}}), returns the paths
+#' \code{\link{run_cell_type_specific_eqtl_tests_from_manifest}} writes (or
+#' would write) for that analysis. Useful for callers that want to check
+#' which outputs already exist before deciding whether to (re-)run an
+#' analysis.
+#'
+#' @param output_dir Directory containing (or that will contain) the
+#'   analysis outputs.
+#' @param analysis_id Analysis ID, as returned by
+#'   \code{\link{make_analysis_id}}.
+#' @param write_pdf Logical scalar. If \code{FALSE} (the default),
+#'   \code{outPDF} is \code{NULL}; if \code{TRUE}, \code{outPDF} is the path
+#'   the PDF report would be written to.
+#'
+#' @return A named list of paths: \code{gathered_file},
+#'   \code{covariate_mapping_file}, \code{report_outfile},
+#'   \code{summary_outfile}, \code{results_outfile}, and \code{outPDF}.
+#'
+#' @export
+make_eqtl_analysis_output_paths <- function(output_dir, analysis_id, write_pdf = FALSE) {
   prefix <- file.path(output_dir, analysis_id)
 
   list(
@@ -189,7 +252,7 @@ run_private_eqtl_manifest <- function(manifest_file,
     report_outfile = paste0(prefix, ".report.txt"),
     summary_outfile = paste0(prefix, ".summary.txt"),
     results_outfile = paste0(prefix, ".linear_model_test.txt"),
-    outPDF = paste0(prefix, ".linear_model_test.pdf")
+    outPDF = if (isTRUE(write_pdf)) paste0(prefix, ".linear_model_test.pdf") else NULL
   )
 }
 
@@ -202,16 +265,18 @@ run_private_eqtl_manifest <- function(manifest_file,
                                        cluster_assignment_file,
                                        covariates,
                                        eqtl_root,
-                                       force_factor_covariates) {
-  analysis_id <- .make_analysis_id(
+                                       force_factor_covariates,
+                                       write_pdf = FALSE) {
+  analysis_id <- make_analysis_id(
     cluster = cluster,
     in_cell_types = in_cell_types,
     regions = regions
   )
 
-  paths <- .make_output_paths(
+  paths <- make_eqtl_analysis_output_paths(
     output_dir = output_dir,
-    analysis_id = analysis_id
+    analysis_id = analysis_id,
+    write_pdf = write_pdf
   )
 
   message("Running ", analysis_id)
