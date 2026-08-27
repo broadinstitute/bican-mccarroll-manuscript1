@@ -7,6 +7,7 @@ export(compare_all_eQTL_runs)
 export(compare_eqtl_runs)
 export(compare_eqtl_runs_ctr)
 export(compare_index_eqtls)
+export(count_eqtl_donors)
 export(eqtl_cluster_filtering_trajectories)
 export(filter_covariates_to_subpopulation)
 export(filter_metacells_to_subpopulation)
@@ -34,56 +35,72 @@ export(run_cell_type_specific_eqtl_tests_from_manifest)
 export(run_eqtl_manuscript_pipeline)
 export(run_eqtl_manuscript_pipeline_defaults)
 export(select_reference_pairs)
-importFrom(ComplexHeatmap,Heatmap)
-importFrom(ComplexHeatmap,draw)
+importFrom(ComplexHeatmap,
+  Heatmap,
+  draw
+)
 importFrom(circlize,colorRamp2)
-importFrom(cowplot,draw_label)
-importFrom(cowplot,ggdraw)
-importFrom(cowplot,plot_grid)
-importFrom(data.table,":=")
-importFrom(data.table,as.data.table)
-importFrom(data.table,fifelse)
-importFrom(data.table,frank)
-importFrom(data.table,fread)
-importFrom(data.table,fwrite)
-importFrom(data.table,is.data.table)
-importFrom(data.table,melt)
-importFrom(data.table,rbindlist)
-importFrom(data.table,setDF)
-importFrom(data.table,tstrsplit)
+importFrom(cowplot,
+  draw_label,
+  ggdraw,
+  plot_grid
+)
+importFrom(data.table,
+  ":=",
+  as.data.table,
+  fifelse,
+  frank,
+  fread,
+  fwrite,
+  is.data.table,
+  melt,
+  rbindlist,
+  setDF,
+  tstrsplit
+)
 importFrom(digest,digest)
 importFrom(ggbeeswarm,geom_beeswarm)
-importFrom(ggplot2,aes)
-importFrom(ggplot2,annotate)
-importFrom(ggplot2,element_blank)
-importFrom(ggplot2,element_text)
-importFrom(ggplot2,facet_wrap)
-importFrom(ggplot2,geom_abline)
-importFrom(ggplot2,geom_histogram)
-importFrom(ggplot2,geom_point)
-importFrom(ggplot2,geom_segment)
-importFrom(ggplot2,geom_text)
-importFrom(ggplot2,geom_violin)
-importFrom(ggplot2,ggplot)
-importFrom(ggplot2,ggtitle)
-importFrom(ggplot2,labs)
-importFrom(ggplot2,scale_color_manual)
-importFrom(ggplot2,theme)
-importFrom(ggplot2,theme_bw)
-importFrom(ggplot2,unit)
+importFrom(ggplot2,
+  aes,
+  annotate,
+  element_blank,
+  element_text,
+  facet_wrap,
+  geom_abline,
+  geom_histogram,
+  geom_point,
+  geom_segment,
+  geom_text,
+  geom_violin,
+  ggplot,
+  ggtitle,
+  labs,
+  scale_color_manual,
+  theme,
+  theme_bw,
+  unit
+)
 importFrom(ggvenn,ggvenn)
-importFrom(grDevices,dev.off)
-importFrom(grDevices,pdf)
-importFrom(grDevices,svg)
-importFrom(grid,gpar)
-importFrom(grid,grid.text)
-importFrom(grid,unit)
-importFrom(logger,log_info)
-importFrom(logger,log_warn)
+importFrom(grDevices,
+  dev.off,
+  pdf,
+  svg
+)
+importFrom(grid,
+  gpar,
+  grid.text,
+  unit
+)
+importFrom(logger,
+  log_info,
+  log_warn
+)
 importFrom(rlang,.data)
-importFrom(stats,lm)
-importFrom(stats,median)
-importFrom(stats,p.adjust)
-importFrom(stats,qchisq)
-importFrom(stats,sd)
+importFrom(stats,
+  lm,
+  median,
+  p.adjust,
+  qchisq,
+  sd
+)
 importFrom(utils,write.table)

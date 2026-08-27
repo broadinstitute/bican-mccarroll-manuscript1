@@ -17,6 +17,7 @@
 # plot_de_sign_test_pmid_40903571_bican()
 # plot_de_sign_test_pmid_39227716_bican()
 # plot_de_sign_test_pmid_39402379_bican()
+# plot_de_sign_test_kana_2026_bican()
 
 
 #' Plot BICAN vs. SNAP age-effect DE sign-test comparison
@@ -205,6 +206,54 @@ plot_de_sign_test_pmid_39402379_bican <- function(
 }
 
 
+#' Plot BICAN vs. Kana 2026 CaH CPS-effect DE sign-test comparison
+#'
+#' Wires the BICAN/Kana 2026 (bioRxiv) CaH age-vs-CPS overlap manifest into
+#' \code{bican.mccarroll.differentialexpression::plot_de_primary_secondary_manifest()}.
+#' The manifest is restricted to the six striatal cell types for which a
+#' Kana-to-BICAN cell type name mapping was defined (see
+#' \code{kana_2026_comparison_setup.R} in
+#' \code{adhoc_scripts/external_data_transforms/}); no renaming is needed
+#' here since the manifest already pairs each BICAN file with its
+#' differently-named Kana counterpart under one \code{cell_type} label.
+#' Writes per-cell-type scatter SVGs, a sign-concordance summary SVG, and a
+#' summary TSV to a \code{de_sign_test_kana_2026} subdirectory of the
+#' configured figure output directory (see \code{\link{get_out_dir}}).
+#'
+#' @param outDir Output directory for the generated SVGs/TSV. If \code{NULL},
+#'   resolved via configured output directory options.
+#' @param min_num_genes Minimum number of overlapping genes required for a
+#'   cell type to be included in the sign-concordance summary.
+#' @param alpha Adjusted P-value threshold used to select BICAN-significant
+#'   genes.
+#' @param scale_effects Logical scalar. If \code{TRUE}, each cell type's
+#'   BICAN and Kana 2026 logFC values are independently rescaled to
+#'   \code{[-1, 1]} before plotting, matching the treatment of the
+#'   PMID_39402379 comparison since both compare a BICAN age effect against
+#'   an AD pseudo-progression score effect on an unrelated native scale.
+#'   Defaults to \code{TRUE}.
+#'
+#' @return Invisibly returns the list produced by
+#'   \code{bican.mccarroll.differentialexpression::plot_de_primary_secondary_manifest()}.
+#'
+#' @export
+plot_de_sign_test_kana_2026_bican <- function(outDir = NULL, min_num_genes = 20, alpha = 0.05, scale_effects = TRUE) {
+  .plot_de_sign_test_figure(
+    manifest_file = "differential_expression/external_comparison_kana_2026_biorxiv/metadata/kana_2026_bican_ad_cps_de_overlap_manifest.tsv",
+    dataset_id = "kana_2026",
+    primary_dataset = "bican",
+    secondary_dataset = "KANA_2026",
+    primary_label = "BICAN",
+    secondary_label = "Kana et al. 2026",
+    effect_name = "age vs ad_cps effects",
+    min_num_genes = min_num_genes,
+    alpha = alpha,
+    scale_effects = scale_effects,
+    outDir = outDir
+  )
+}
+
+
 #' Plot BICAN vs. SNAP sex-effect DE sign-test comparison
 #'
 #' Wires the BICAN/SNAP sex-effect overlap manifest into
@@ -271,6 +320,8 @@ plot_de_sign_test_snap200_sex_bican <- function(gene_set = c("both", "autosome",
                                       data_cache_dir = NULL,
                                       force_recompute = FALSE,
                                       scale_effects = FALSE,
+                                      show_full_concordance_line = TRUE,
+                                      order_alphabetically = TRUE,
                                       outDir = NULL) {
   paths <- resolve_de_sign_test_paths(
     manifest_file = manifest_file,
@@ -340,7 +391,9 @@ plot_de_sign_test_snap200_sex_bican <- function(gene_set = c("both", "autosome",
     effect_name = effect_name,
     gene_set = gene_set,
     min_num_genes = min_num_genes,
-    scale_effects = scale_effects
+    scale_effects = scale_effects,
+    show_full_concordance_line = show_full_concordance_line,
+    order_alphabetically = order_alphabetically
   )
 
   logger::log_info(

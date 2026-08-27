@@ -260,7 +260,12 @@ compute_de_overlap_enrichment <- function(gene_dt,
 #'   implementation's figure.
 #' @param label_size Font size for the printed cell labels.
 #' @param panel_rel_widths Relative widths of the three panels, passed to
-#'   \code{cowplot::plot_grid()}.
+#'   \code{cowplot::plot_grid()}. Defaults to \code{c(2, 1, 1)} rather than
+#'   equal widths, because only the "Up" panel carries the cell type axis
+#'   labels (\code{show_y_axis = TRUE}) - at equal widths, those labels eat
+#'   into the "Up" panel's tile/legend space and, for longer cell type names
+#'   (e.g. BICAN's \verb{SPN_*}/\verb{GABA_*} names), can visually overlap the
+#'   in-tile odds-ratio/P-value text.
 #'
 #' @return A \code{cowplot} plot grid object combining all three panels.
 #'
@@ -272,7 +277,7 @@ plot_de_overlap_enrichment_heatmap <- function(fisher_dt,
                                                down_colors = c("#D7F5B7", "#4AC16D"),
                                                cor_colors = c("#ACDDF4", "#365C8D"),
                                                label_size = 3,
-                                               panel_rel_widths = c(1, 1, 1)) {
+                                               panel_rel_widths = c(2, 1, 1)) {
   # Make R CMD CHECK happy
   cell_type <- direction <- odds_ratio <- p_adj <- label_or_val <- label_p <- p_color <- NULL
   spearman_rho <- spearman_p_adj <- label_rho <- NULL

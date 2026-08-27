@@ -308,6 +308,13 @@ compute_de_primary_secondary_data <- function(manifest_file,
 #'   datasets on very different native scales. Does not affect the
 #'   sign-concordance statistics, which are scale-invariant. Defaults to
 #'   \code{FALSE}.
+#' @param show_full_concordance_line Logical scalar. If \code{TRUE}, draws a
+#'   dashed reference line at 100% (a sign test result of 1, i.e. full
+#'   concordance) on the sign-concordance summary plot, extending the axis if
+#'   needed so the line is always visible. Defaults to \code{FALSE}.
+#' @param order_alphabetically Logical scalar. If \code{TRUE}, orders cell
+#'   types on the sign-concordance summary plot alphabetically instead of by
+#'   sign-test result. Defaults to \code{FALSE}.
 #'
 #' @return Invisibly returns a list with elements \code{per_cell_type} (a list
 #'   of per-cell-type results), \code{sign_results} (a data frame of
@@ -328,7 +335,9 @@ plot_de_primary_secondary_from_data <- function(de_data,
                                                 min_num_genes = 20,
                                                 width = 7,
                                                 height = 7,
-                                                scale_effects = FALSE) {
+                                                scale_effects = FALSE,
+                                                show_full_concordance_line = FALSE,
+                                                order_alphabetically = FALSE) {
   if (is.null(primary_label)) {
     primary_label <- make_dataset_label(primary_dataset)
   }
@@ -413,6 +422,8 @@ plot_de_primary_secondary_from_data <- function(de_data,
     sign_results = sign_results,
     primary_label = primary_label,
     secondary_label = secondary_label,
+    show_full_concordance_line = show_full_concordance_line,
+    order_alphabetically = order_alphabetically,
     effect_name = effect_name
   )
 
@@ -630,11 +641,17 @@ plot_de_primary_secondary_from_df <- function(cell_type,
 plot_sign_test_summary <- function(sign_results,
                                    primary_label = "BICAN",
                                    secondary_label = "SNAP",
-                                   effect_name = "age effects") {
+                                   effect_name = "age effects",
+                                   show_full_concordance_line = FALSE,
+                                   order_alphabetically = FALSE) {
   # Make R CMD CHECK Happy
   cell_type <- percent <- k <- n <- NULL
 
-  sign_results <- sign_results[order(sign_results$percent), ]
+  if (order_alphabetically) {
+    sign_results <- sign_results[order(sign_results$cell_type, decreasing = TRUE), ]
+  } else {
+    sign_results <- sign_results[order(sign_results$percent), ]
+  }
 
   sign_results$cell_type <- factor(
     sign_results$cell_type,
@@ -648,14 +665,31 @@ plot_sign_test_summary <- function(sign_results,
     secondary_label
   )
 
-  ggplot2::ggplot(sign_results, ggplot2::aes(x = cell_type, y = percent)) +
+  # Full concordance (sign test result of 1, i.e. 100%) must stay on-axis
+  # even if every cell type's percent falls well short of it.
+  ylim_upper <- suppressWarnings(max(sign_results$percent, na.rm = TRUE))
+  if (!is.finite(ylim_upper)) {
+    ylim_upper <- 0
+  }
+  if (show_full_concordance_line) {
+    ylim_upper <- max(ylim_upper, 100)
+  }
+  ylim_upper <- ylim_upper + 5
+
+  p <- ggplot2::ggplot(sign_results, ggplot2::aes(x = cell_type, y = percent)) +
     ggplot2::geom_col(color = "black") +
     ggplot2::geom_text(
       ggplot2::aes(label = paste0(k, "/", n)),
       hjust = -0.1,
       size = 4
-    ) +
-    ggplot2::coord_flip(ylim = c(0, 105)) +
+    )
+
+  if (show_full_concordance_line) {
+    p <- p + ggplot2::geom_hline(yintercept = 100, linetype = "dashed", color = "red")
+  }
+
+  p +
+    ggplot2::coord_flip(ylim = c(0, ylim_upper)) +
     ggplot2::labs(
       x = NULL,
       y = "% same sign",

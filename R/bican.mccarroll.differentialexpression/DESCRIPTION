@@ -53,4 +53,4 @@ Remotes:
     bioc::ComplexHeatmap,
     bioc::BiocIO,
     github::jamesnemesh/TRADEtools@dd858958503fa8da441bce8eea8b2efa1b566a7b
-Config/roxygen2/version: 8.0.0
+Config/roxygen2/version: 8.1.0

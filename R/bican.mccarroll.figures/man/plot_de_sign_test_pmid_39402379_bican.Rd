@@ -7,7 +7,7 @@
 plot_de_sign_test_pmid_39402379_bican(
   contrast = c("ad_cps", "early_ad_cps", "late_ad_cps", "versus_all"),
   outDir = NULL,
-  min_num_genes = 1,
+  min_num_genes = 20,
   alpha = 0.05,
   data_cache_dir = NULL,
   force_recompute = FALSE,

@@ -2,18 +2,18 @@
 ## Set configuration (development only; comment out in package build)
 ## ------------------------------------------------------------------
 
-# source("R/paths.R")
-#
-# options(
-#     bican.mccarroll.figures.data_root_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis",
-#
-#     bican.mccarroll.figures.out_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository",
-#
-#     bican.mccarroll.figures.cache_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository/data_cache"
-# )
+source("R/paths.R")
+
+options(
+    bican.mccarroll.figures.data_root_dir =
+        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis",
+
+    bican.mccarroll.figures.out_dir =
+        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository",
+
+    bican.mccarroll.figures.cache_dir =
+        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository/data_cache"
+)
 
 # cellTypeListFile <- metacell_dir <- age_de_results_dir <- contig_yaml_file <- reduced_gtf_file <- data_cache_dir <- outDir <- NULL
 
@@ -156,6 +156,134 @@
     alpha_fixed = alpha_fixed
   )
 }
+
+
+# Transferability test: trains independently on the SNAP200 controls data set, using
+# SNAP200's own age DE results (rather than BICAN's) for initial gene selection.
+# SNAP200 region is BA46. predict_age_by_celltype_region() requires age DE result
+# filenames to carry a region token (<cell_type>__<region>__age_DE_results.txt), but
+# SNAP200's own DE pipeline never split by region (it only has one), so its files are
+# named without one. As with .age_prediction_snap200_bican_DE_genes(), the age DE
+# results are soft linked with the region token added so the results can be found;
+# see /broad/mccarroll/dropulation/analysis/SNAP200_controls/differential_expression/
+# results/sex_age/cell_type_region_interaction_absolute_effects.
+# Uses a distinct data_cache_dir/outDir suffix from .age_prediction_snap200_bican_DE_genes()
+# so the two analyses' cached results (both optimize_alpha=FALSE, alpha_fixed=0) don't collide.
+.age_prediction_snap200 <- function() {
+  metacell_dir <- "/broad/mccarroll/dropulation/analysis/SNAP200_controls/metacells/out"
+  age_de_results_dir <- "/broad/mccarroll/dropulation/analysis/SNAP200_controls/differential_expression/results/sex_age/cell_type_region_interaction_absolute_effects"
+  data_name <- "donor_rxn_DGEList"
+
+  paths <- .resolve_age_pred_paths(
+    cellTypeListFile = NULL,
+    metacell_dir = metacell_dir,
+    age_de_results_dir = age_de_results_dir,
+    contig_yaml_file = NULL,
+    reduced_gtf_file = NULL,
+    outDir = NULL,
+    data_cache_dir = NULL,
+    use_age_de_results = TRUE,
+    optimize_alpha = FALSE,
+    alpha_fixed = 0
+  )
+
+  # No cellTypeListFile restriction: unlike the BICAN-DE-genes version (limited to the 13
+  # cell types with a matching BICAN age DE result), SNAP200's own DE analysis covers all
+  # 15 of its cell types, so all of them can be trained.
+  cellTypeListFile <- NULL
+  age_de_results_dir <- paths$age_de_results_dir
+  use_age_de_results <- T
+  contig_yaml_file <- paths$contig_yaml_file
+  reduced_gtf_file <- paths$reduced_gtf_file
+  n_cores <- 12
+  data_cache_dir <- paste(paths$data_cache_dir, "/SNAP200_age_snap_DE_genes", sep = "")
+  outDir <- paste(paths$outDir, "/SNAP200_age_snap_DE_genes", sep = "")
+  optimize_alpha <- FALSE
+  alpha_fixed <- 0
+  region <- "BA46"
+  cell_type_list <- c("astrocyte", "OPC", "microglia", "glut_L23_IT")
+
+  age_prediction_error_plots(
+    cellTypeListFile = cellTypeListFile,
+    metacell_dir = metacell_dir,
+    data_name = data_name,
+    age_de_results_dir = age_de_results_dir,
+    use_age_de_results = use_age_de_results,
+    contig_yaml_file = contig_yaml_file,
+    reduced_gtf_file = reduced_gtf_file,
+    n_cores = n_cores,
+    data_cache_dir = data_cache_dir,
+    outDir = outDir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
+
+
+  age_prediction_residual_corr_and_jaccard_heatmaps_region(
+    region = region,
+    cellTypeListFile = cellTypeListFile,
+    metacell_dir = metacell_dir,
+    data_name = data_name,
+    age_de_results_dir = age_de_results_dir,
+    use_age_de_results = use_age_de_results,
+    contig_yaml_file = contig_yaml_file,
+    reduced_gtf_file = reduced_gtf_file,
+    n_cores = n_cores,
+    data_cache_dir = data_cache_dir,
+    outDir = outDir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
+
+  age_prediction_corrected_residual_pairwise_scatter_region(
+    cell_type_list = cell_type_list,
+    region = region,
+    metacell_dir = metacell_dir,
+    data_name = data_name,
+    age_de_results_dir = age_de_results_dir,
+    use_age_de_results = use_age_de_results,
+    contig_yaml_file = contig_yaml_file,
+    reduced_gtf_file = reduced_gtf_file,
+    n_cores = n_cores,
+    data_cache_dir = data_cache_dir,
+    outDir = outDir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
+
+  age_prediction_uncorrected_residual_pairwise_scatter_region(
+    cell_type_list = cell_type_list,
+    region = region,
+    metacell_dir = metacell_dir,
+    data_name = data_name,
+    age_de_results_dir = age_de_results_dir,
+    use_age_de_results = use_age_de_results,
+    contig_yaml_file = contig_yaml_file,
+    reduced_gtf_file = reduced_gtf_file,
+    n_cores = n_cores,
+    data_cache_dir = data_cache_dir,
+    outDir = outDir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
+
+  age_prediction_examples(
+    cell_type_list = cell_type_list,
+    region = region,
+    metacell_dir = metacell_dir,
+    data_name = data_name,
+    age_de_results_dir = age_de_results_dir,
+    use_age_de_results = use_age_de_results,
+    contig_yaml_file = contig_yaml_file,
+    reduced_gtf_file = reduced_gtf_file,
+    n_cores = n_cores,
+    data_cache_dir = data_cache_dir,
+    outDir = outDir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
+}
+
 
 .age_prediction_all_one <- function(cellTypeListFile = NULL,
                                     metacell_dir = NULL,
@@ -692,6 +820,12 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(region = "C
     legend_title = jaccard_legend_title
   )
 
+  # grid.grabExpr() requires an active graphics device to record onto; without
+  # one, R silently opens its default device (Rplots.pdf in the working
+  # directory). Use a null device so nothing is written to disk.
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
+
   g_corr <- grid::grid.grabExpr(
     ComplexHeatmap::draw(
       corr_out$heatmap,
@@ -838,6 +972,12 @@ age_prediction_residual_corr_and_jaccard_heatmaps_cell_type <- function(cell_typ
     legend_title = jaccard_legend_title
   )
 
+  # grid.grabExpr() requires an active graphics device to record onto; without
+  # one, R silently opens its default device (Rplots.pdf in the working
+  # directory). Use a null device so nothing is written to disk.
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
+
   g_corr <- grid::grid.grabExpr(
     ComplexHeatmap::draw(
       corr_out$heatmap,
@@ -963,7 +1103,13 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(cell_type_
     )
 
     p <- p +
-      ggplot2::labs(title = paste0(x_group, " vs ", y_group), x = NULL, y = NULL) +
+      ggplot2::labs(
+        title = paste0(
+          gsub("_", " ", x_group, fixed = TRUE), " vs ",
+          gsub("_", " ", y_group, fixed = TRUE)
+        ),
+        x = NULL, y = NULL
+      ) +
       ggplot2::theme(
         legend.position = "none",
         plot.title = ggplot2::element_text(hjust = 0, size = 16),
@@ -1116,7 +1262,13 @@ age_prediction_uncorrected_residual_pairwise_scatter_region <- function(cell_typ
     )
 
     p <- p +
-      ggplot2::labs(title = paste0(x_group, " vs ", y_group), x = NULL, y = NULL) +
+      ggplot2::labs(
+        title = paste0(
+          gsub("_", " ", x_group, fixed = TRUE), " vs ",
+          gsub("_", " ", y_group, fixed = TRUE)
+        ),
+        x = NULL, y = NULL
+      ) +
       ggplot2::theme(
         legend.position = "none",
         plot.title = ggplot2::element_text(hjust = 0, size = 16),
@@ -1262,7 +1414,7 @@ age_prediction_examples <- function(cell_type_list = c("astrocyte", "OPC", "micr
       alpha_points = 0.8,
       errorbar_width = 0.1
     ) +
-      ggplot2::labs(title = cell_type, subtitle = NULL, x = NULL, y = NULL) +
+      ggplot2::labs(title = gsub("_", " ", cell_type, fixed = TRUE), subtitle = NULL, x = NULL, y = NULL) +
       ggplot2::theme(
         plot.title = ggplot2::element_text(hjust = 0, size = 11),
         axis.title.x = ggplot2::element_blank(),

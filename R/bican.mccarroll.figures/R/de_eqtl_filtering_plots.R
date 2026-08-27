@@ -316,6 +316,8 @@ make_filtering_cluster_panels <- function(df,
     end_df <- end_df[!is.na(end_df$frac_genes_discovered), , drop = FALSE]
     end_df <- end_df[order(-end_df$frac_genes_discovered, end_df$cell_type), , drop = FALSE]
 
+    sub$cell_type <- gsub("_", " ", sub$cell_type, fixed = TRUE)
+    end_df$cell_type <- gsub("_", " ", end_df$cell_type, fixed = TRUE)
     sub$cell_type <- factor(sub$cell_type, levels = end_df$cell_type)
 
     ggplot2::ggplot(
