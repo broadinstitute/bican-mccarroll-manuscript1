@@ -840,9 +840,19 @@ read_de_results_datasets <- function(de_dir1, test1, dataset1,
 #' \code{cell_type x dataset} instead of \code{cell_type x region}, so a
 #' correlation matrix can span two DE datasets (e.g. BICAN vs. an external
 #' comparison paper) rather than one dataset's cell-type x region
-#' combinations. Cell type/dataset combinations with fewer than
-#' \code{min_num_genes} of their own significant genes are dropped entirely
-#' (as both a row and a column) rather than kept and left as an all-NA row.
+#' combinations. For each pair, the correlation is computed over genes
+#' significant in \emph{either} member of the pair (see \code{m_sig} below),
+#' so a cell type/dataset combination only needs \code{min_num_genes} genes
+#' in that union to yield a well-powered correlation with a given partner --
+#' it does not need \code{min_num_genes} of its own significant genes
+#' independent of any partner. A combination is only useful in the final
+#' matrix if it is comparable to every other retained combination, so
+#' combinations that fail to reach \code{min_num_genes} with some partner
+#' (an \code{NA} cell) are resolved by iteratively dropping whichever
+#' combination has the most \code{NA} partners, one at a time, until no
+#' \code{NA} remains -- rather than dropping every combination with any
+#' \code{NA} in a single pass, which could needlessly discard an
+#' otherwise-well-supported combination over one weak partner.
 #'
 #' @param de_dt A combined, prepared DE data.table (rbind of two
 #'   prep_de()/read_de_results() outputs) with an added \code{dataset}
@@ -851,21 +861,22 @@ read_de_results_datasets <- function(de_dir1, test1, dataset1,
 #' @param datasets_use Character vector of dataset labels to include (must
 #'   match values in the \code{dataset} column).
 #' @param fdr_cutoff Adjusted p-value threshold.
-#' @param min_num_genes Minimum number of a cell type/dataset combination's
-#'   own significant genes (\code{adj_p_val < fdr_cutoff}) required to keep
-#'   that combination in the matrix. Defaults to 20; raise (e.g. to 100) for
-#'   a stricter matrix, or lower for a more permissive one.
+#' @param min_num_genes Minimum number of genes significant in either member
+#'   of a pair (\code{adj_p_val.x < fdr_cutoff | adj_p_val.y < fdr_cutoff})
+#'   required to compute that pair's correlation. Defaults to 20; raise
+#'   (e.g. to 100) for a stricter matrix, or lower for a more permissive one.
 #' @return A square numeric matrix with dimnames "cell_type__dataset",
-#'   containing signed rho^2 (as in compute_de_cor_mat()). Dimensions may be
-#'   smaller than length(cell_types_use) * length(datasets_use) if any
-#'   combinations were dropped by the min_num_genes filter.
+#'   containing signed rho^2 (as in compute_de_cor_mat()), with no NA cells:
+#'   dimensions may be smaller than length(cell_types_use) *
+#'   length(datasets_use) if any combinations had to be pruned to reach a
+#'   fully comparable (NA-free) matrix.
 #' @export
 compute_de_cor_mat_datasets <- function(de_dt,
                                         cell_types_use,
                                         datasets_use,
                                         fdr_cutoff = 0.05,
                                         min_num_genes = 20) {
-  cell_type <- dataset <- cr <- gene <- adj_p_val <- log_fc <- n_sig <- NULL
+  cell_type <- dataset <- cr <- gene <- adj_p_val <- log_fc <- NULL
 
   dt <- data.table::copy(de_dt)
 
@@ -878,14 +889,7 @@ compute_de_cor_mat_datasets <- function(de_dt,
 
   data.table::setorderv(dt, c("cell_type", "dataset"))
 
-  # Drop cell type/dataset combinations with too few significant genes of
-  # their own, rather than keeping them and leaving an all-NA row/column.
-  sig_counts <- dt[, .(n_sig = sum(adj_p_val < fdr_cutoff, na.rm = TRUE)), by = cr]
-  keep_keys <- sig_counts[n_sig >= min_num_genes, cr]
-
   keys <- unique(dt$cr)
-  keys <- keys[keys %in% keep_keys]
-
   n <- length(keys)
 
   out_mat <- matrix(NA_real_,
@@ -911,11 +915,18 @@ compute_de_cor_mat_datasets <- function(de_dt,
 
       m_sig <- m[adj_p_val.x < fdr_cutoff | adj_p_val.y < fdr_cutoff]
 
-      # Defensive fallback: even after the per-key drop filter above, two
-      # surviving keys could still share too few genes for cor.test() to
-      # run (BICAN and the external dataset don't use identical gene
-      # panels/annotations). NA out rather than letting the whole matrix
-      # computation crash.
+      # Only one side of a pair needs to contribute enough of its own
+      # significant genes to this union for the correlation to be
+      # well-powered -- not both independently -- so min_num_genes is
+      # checked here, per pair, on the union actually fed to cor.test().
+      if (nrow(m_sig) < min_num_genes) {
+        out_mat[i, j] <- NA_real_
+        next
+      }
+
+      # Defensive fallback: cor.test() can still fail (e.g. zero-variance
+      # log_fc in one arm) even with enough rows. NA out rather than
+      # letting the whole matrix computation crash.
       ctest <- tryCatch(
         m_sig[, stats::cor.test(log_fc.x, log_fc.y, method = "spearman")],
         error = function(e) NULL
@@ -928,6 +939,23 @@ compute_de_cor_mat_datasets <- function(de_dt,
 
       out_mat[i, j] <- sign(ctest$estimate) * ctest$estimate^2
     }
+  }
+
+  # A combination is only useful in this matrix if it is comparable to every
+  # other retained combination, so iteratively drop the combination with the
+  # most unresolved (NA) partner correlations -- rather than every
+  # combination with any NA in one pass -- until none remain. This removes
+  # as few combinations as possible: a combination with a single NA against
+  # an otherwise-weak partner survives once that partner is dropped, instead
+  # of being discarded alongside it.
+  while (nrow(out_mat) > 1) {
+    na_counts <- rowSums(is.na(out_mat))
+    if (all(na_counts == 0)) {
+      break
+    }
+    worst <- names(which.max(na_counts))
+    keep <- setdiff(rownames(out_mat), worst)
+    out_mat <- out_mat[keep, keep, drop = FALSE]
   }
 
   out_mat
@@ -970,6 +998,22 @@ plot_de_cor_heatmap <- function(cor_mat,
 #' @param palette_colors Vector of colors used for the palette.
 #' @param legend_title Title for the color legend.  If set to NULL, suppress the legend entirely.
 #' @param show_dendrograms Logical; if FALSE, dendrograms are hidden but clustering order is preserved.
+#' @param group_labels Optional character vector, one element per row/column of
+#'   \code{cor_mat} in dimname order, giving a group/contrast label (e.g.
+#'   \code{"age"}, \code{"AD"}) to display alongside the row/column name and to
+#'   color a rug annotation. If supplied, \code{name_labels} must also be
+#'   supplied, and \code{cor_mat}'s own dimnames are no longer shown directly;
+#'   instead a two-part label (group, then name) is drawn via row/column
+#'   annotations so that the \code{name_labels} portion aligns vertically
+#'   across rows regardless of \code{group_labels} string length.
+#' @param name_labels Optional character vector, same length/order as
+#'   \code{group_labels}, giving the display name (e.g. cell type) shown after
+#'   the group label.
+#' @param group_colors Optional named character vector mapping each unique
+#'   value of \code{group_labels} to a rug color. Ignored if \code{group_labels}
+#'   is \code{NULL}. If \code{group_labels} is supplied but \code{group_colors}
+#'   is \code{NULL}, the group label text is still shown but no color rug is
+#'   drawn.
 #' @return A ComplexHeatmap heatmap object.
 #' @export
 plot_de_cor_heatmap_complex <- function(cor_mat,
@@ -977,13 +1021,74 @@ plot_de_cor_heatmap_complex <- function(cor_mat,
                                         breaks = seq(-1, 1, length.out = 101),
                                         palette_colors = c("steelblue", "white", "darkorange"),
                                         legend_title = "Correlation",
-                                        show_dendrograms = TRUE) {
+                                        show_dendrograms = TRUE,
+                                        group_labels = NULL,
+                                        name_labels = NULL,
+                                        group_colors = NULL) {
   col_fun <- circlize::colorRamp2(
     breaks = seq(min(breaks), max(breaks), length.out = length(palette_colors)),
     palette_colors
   )
 
   show_legend <- !is.null(legend_title)
+
+  use_split_labels <- !is.null(group_labels)
+
+  if (use_split_labels && is.null(name_labels)) {
+    stop("name_labels must be supplied when group_labels is supplied.")
+  }
+
+  label_gp <- grid::gpar(fontsize = 10)
+
+  row_annotation <- NULL
+  column_annotation <- NULL
+  show_row_names <- !use_split_labels
+  show_column_names <- !use_split_labels
+
+  if (use_split_labels) {
+    group_width <- ComplexHeatmap::max_text_width(group_labels, gp = label_gp)
+    name_width <- ComplexHeatmap::max_text_width(name_labels, gp = label_gp)
+    rug_size <- grid::unit(2, "mm")
+    gap <- grid::unit(1, "mm")
+
+    # "name" is a reserved slot on HeatmapAnnotation, so the cell type text
+    # annotation is called "celltype" here to avoid colliding with it.
+
+    # Rows: heatmap -> rug -> group text -> celltype text (reads left to
+    # right as "contrast, then cell type").
+    row_annotation <- ComplexHeatmap::rowAnnotation(
+      rug = ComplexHeatmap::anno_simple(group_labels, col = group_colors, width = rug_size),
+      group = ComplexHeatmap::anno_text(group_labels,
+        gp = label_gp, just = "left",
+        location = grid::unit(0, "npc"), width = group_width
+      ),
+      celltype = ComplexHeatmap::anno_text(name_labels,
+        gp = label_gp, just = "left",
+        location = grid::unit(0, "npc"), width = name_width
+      ),
+      gap = gap,
+      annotation_name_gp = grid::gpar(fontsize = 0)
+    )
+
+    # Columns: heatmap -> rug -> group text -> celltype text, same slot order
+    # as the rows (annotation slot order sets distance from the heatmap;
+    # verified empirically -- it is NOT reversed by the text rotation below),
+    # so "contrast" is nearest the heatmap on both axes.
+    column_annotation <- ComplexHeatmap::HeatmapAnnotation(
+      which = "column",
+      rug = ComplexHeatmap::anno_simple(group_labels, col = group_colors, height = rug_size),
+      group = ComplexHeatmap::anno_text(group_labels,
+        gp = label_gp, just = "right",
+        location = grid::unit(1, "npc"), rot = 90, height = group_width
+      ),
+      celltype = ComplexHeatmap::anno_text(name_labels,
+        gp = label_gp, just = "right",
+        location = grid::unit(1, "npc"), rot = 90, height = name_width
+      ),
+      gap = gap,
+      annotation_name_gp = grid::gpar(fontsize = 0)
+    )
+  }
 
   ComplexHeatmap::Heatmap(
     cor_mat,
@@ -997,9 +1102,13 @@ plot_de_cor_heatmap_complex <- function(cor_mat,
     column_dend_reorder = FALSE,
     show_row_dend = show_dendrograms,
     show_column_dend = show_dendrograms,
+    show_row_names = show_row_names,
+    show_column_names = show_column_names,
     column_names_rot = 90,
     column_names_gp = grid::gpar(fontsize = 10),
     row_names_gp = grid::gpar(fontsize = 10),
+    right_annotation = row_annotation,
+    bottom_annotation = column_annotation,
     rect_gp = grid::gpar(col = "grey85", lwd = 1),
     show_heatmap_legend = show_legend,
     heatmap_legend_param = list(

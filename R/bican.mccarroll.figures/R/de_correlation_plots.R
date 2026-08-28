@@ -179,20 +179,25 @@ plot_de_cor_heatmaps_age <- function(de_region_interaction_dir = NULL,
 #' BICAN DE results were generated. Each cell type appears twice (once per
 #' dataset), so hierarchical clustering can freely reveal whether a BICAN
 #' cell type's age-effect profile clusters tightly with its PMID counterpart,
-#' with some other PMID cell type, or with neither. Row/column labels are
-#' distinguished only by a dataset text suffix (no forced grouping/split),
-#' matching the existing \code{cell_type__region} labeling convention.
+#' with some other PMID cell type, or with neither (no forced grouping/split
+#' is applied to the clustering). Row/column labels show the contrast that
+#' was tested (\code{"age"} for BICAN, \code{"AD"} for PMID_39402379) followed
+#' by the cell type name, with a color rug (blue = age, green = AD) and cell
+#' type names aligned vertically -- see
+#' \code{bican.mccarroll.de.analysis::plot_de_cor_heatmap_complex()}.
 #'
 #' The correlation matrix is cached to a plain-text TSV file to speed up
 #' subsequent runs and to provide reviewer-inspectable intermediate data.
-#' Cell type/dataset combinations with fewer than \code{min_num_genes} of
-#' their own significant genes are dropped from the matrix (see
-#' \code{bican.mccarroll.de.analysis::compute_de_cor_mat_datasets()}), so a
-#' cache built at one \code{min_num_genes} value must be regenerated
-#' (\code{force_recompute = TRUE}) if that value changes.
+#' A cell type/dataset combination's correlation with a given partner is
+#' only computed if their shared/either-significant gene set reaches
+#' \code{min_num_genes} (see
+#' \code{bican.mccarroll.de.analysis::compute_de_cor_mat_datasets()}); a
+#' combination that never reaches that with any partner is dropped from the
+#' matrix entirely, so a cache built at one \code{min_num_genes} value must
+#' be regenerated (\code{force_recompute = TRUE}) if that value changes.
 #'
-#' @param min_num_genes Minimum number of a cell type/dataset combination's
-#'   own significant genes required to keep it in the matrix. Defaults to
+#' @param min_num_genes Minimum number of genes significant in either member
+#'   of a pair required to compute that pair's correlation. Defaults to
 #'   \code{20}; raise (e.g. to \code{100}) for a stricter matrix.
 #' @param outDir Output directory for generated SVG plots. If \code{NULL},
 #'   resolved via configured output directory options.
@@ -280,6 +285,17 @@ plot_de_cor_heatmap_bican_sea_ad_vs_pmid_39402379 <- function(
     )
   }
 
+  # Row/column labels are split into a contrast label ("age"/"AD") and a
+  # cleaned cell type name, rather than cleaned as a single combined string
+  # (see .split_cor_mat_labels()); this must run on the raw cell_type__dataset
+  # dimnames, before clean_cor_mat_names() collapses them into one string.
+  contrast_map <- data.frame(
+    dataset = c("BICAN", "PMID_39402379"),
+    contrast = c("age", "AD"),
+    stringsAsFactors = FALSE
+  )
+  cor_mat_labels <- .split_cor_mat_labels(cor_mat, contrast_map)
+
   cor_mat <- clean_cor_mat_names(cor_mat)
 
   out_file <- file.path(
@@ -294,7 +310,10 @@ plot_de_cor_heatmap_bican_sea_ad_vs_pmid_39402379 <- function(
     breaks = seq(-1, 1, length.out = 101),
     palette_colors = c("steelblue", "white", "darkorange"),
     legend_title = NULL,
-    show_dendrograms = TRUE
+    show_dendrograms = TRUE,
+    group_labels = cor_mat_labels$group_labels,
+    name_labels = cor_mat_labels$name_labels,
+    group_colors = .de_cor_contrast_colors
   )
 
   ComplexHeatmap::draw(ht)
@@ -316,10 +335,12 @@ plot_de_cor_heatmap_bican_sea_ad_vs_pmid_39402379 <- function(
 #' \code{adhoc_scripts/external_data_transforms/}). Each cell type appears
 #' twice (once per dataset), so hierarchical clustering can freely reveal
 #' whether a BICAN cell type's age-effect profile clusters tightly with its
-#' Kana counterpart, with some other Kana cell type, or with neither.
-#' Row/column labels are distinguished only by a dataset text suffix (no
-#' forced grouping/split), matching the existing \code{cell_type__region}
-#' labeling convention.
+#' Kana counterpart, with some other Kana cell type, or with neither (no
+#' forced grouping/split is applied to the clustering). Row/column labels
+#' show the contrast that was tested (\code{"age"} for BICAN, \code{"AD"} for
+#' KANA_2026) followed by the cell type name, with a color rug (blue = age,
+#' green = AD) and cell type names aligned vertically -- see
+#' \code{bican.mccarroll.de.analysis::plot_de_cor_heatmap_complex()}.
 #'
 #' Unlike \code{plot_de_cor_heatmap_bican_sea_ad_vs_pmid_39402379()}, the two
 #' datasets do not share a cell type vocabulary, so
@@ -332,8 +353,8 @@ plot_de_cor_heatmap_bican_sea_ad_vs_pmid_39402379 <- function(
 #' The correlation matrix is cached to a plain-text TSV file to speed up
 #' subsequent runs and to provide reviewer-inspectable intermediate data.
 #'
-#' @param min_num_genes Minimum number of a cell type/dataset combination's
-#'   own significant genes required to keep it in the matrix. Defaults to
+#' @param min_num_genes Minimum number of genes significant in either member
+#'   of a pair required to compute that pair's correlation. Defaults to
 #'   \code{20}; both datasets have thousands of significant genes for all six
 #'   cell types, so no cell type is expected to be dropped at this default.
 #' @param outDir Output directory for generated SVG plots. If \code{NULL},
@@ -428,6 +449,17 @@ plot_de_cor_heatmap_bican_vs_kana_2026 <- function(
     )
   }
 
+  # Row/column labels are split into a contrast label ("age"/"AD") and a
+  # cleaned cell type name, rather than cleaned as a single combined string
+  # (see .split_cor_mat_labels()); this must run on the raw cell_type__dataset
+  # dimnames, before clean_cor_mat_names() collapses them into one string.
+  contrast_map <- data.frame(
+    dataset = c("BICAN", "KANA_2026"),
+    contrast = c("age", "AD"),
+    stringsAsFactors = FALSE
+  )
+  cor_mat_labels <- .split_cor_mat_labels(cor_mat, contrast_map)
+
   cor_mat <- clean_cor_mat_names(cor_mat)
 
   out_file <- file.path(
@@ -442,7 +474,10 @@ plot_de_cor_heatmap_bican_vs_kana_2026 <- function(
     breaks = seq(-1, 1, length.out = 101),
     palette_colors = c("steelblue", "white", "darkorange"),
     legend_title = NULL,
-    show_dendrograms = TRUE
+    show_dendrograms = TRUE,
+    group_labels = cor_mat_labels$group_labels,
+    name_labels = cor_mat_labels$name_labels,
+    group_colors = .de_cor_contrast_colors
   )
 
   ComplexHeatmap::draw(ht)
@@ -451,6 +486,70 @@ plot_de_cor_heatmap_bican_vs_kana_2026 <- function(
   logger::log_info("DONE plotting DE correlation heatmap: {out_file}")
 
   invisible(cor_mat)
+}
+
+
+# Rug colors shared by the cross-dataset DE correlation heatmaps: blue for
+# the age contrast, green for the AD contrast. Chosen to be distinguishable
+# from the steelblue/white/darkorange correlation fill scale used by those
+# same plots.
+.de_cor_contrast_colors <- c(age = "#1F4E9C", AD = "#2E8B57")
+
+#' Split cell_type__dataset matrix dimnames into contrast + cell type labels
+#'
+#' Cross-dataset correlation matrices (see
+#' \code{bican.mccarroll.de.analysis::compute_de_cor_mat_datasets()}) have
+#' dimnames of the form \code{"<cell_type>__<dataset>"}. This splits each
+#' dimname on the *last* \code{"__"} (cell type names may themselves contain
+#' underscores, and some dataset labels, e.g. \code{PMID_39402379}, contain a
+#' single underscore too), maps the dataset half to a display contrast label
+#' (e.g. \code{"BICAN" -> "age"}) via \code{contrast_map}, and cleans the cell
+#' type half with the same \code{__}/\code{_} -> space rule used by
+#' \code{clean_cor_mat_names()}.
+#'
+#' Must be called on the raw (uncleaned) matrix dimnames, before
+#' \code{clean_cor_mat_names()} runs -- that function replaces \code{__} and
+#' \code{_} with the same space, which destroys the cell_type/dataset
+#' boundary irrecoverably.
+#'
+#' @param cor_mat A matrix whose row and column names are identical and of
+#'   the form \code{"<cell_type>__<dataset>"}.
+#' @param contrast_map A two-column data frame: column 1 is the dataset label
+#'   (as it appears in the dimnames), column 2 is the display contrast label.
+#' @return A list with \code{group_labels} (contrast) and \code{name_labels}
+#'   (cleaned cell type), both in \code{dimnames(cor_mat)} order.
+.split_cor_mat_labels <- function(cor_mat, contrast_map) {
+  labels <- rownames(cor_mat)
+  if (!identical(labels, colnames(cor_mat))) {
+    stop(".split_cor_mat_labels() expects a matrix with identical row/column names.")
+  }
+
+  # Cell type names use single underscores only; the "__" inserted by
+  # paste(cell_type, dataset, sep = "__") is the sole double-underscore in
+  # the string, so a greedy match up to the *last* "__" correctly splits on
+  # it even when the dataset half itself contains single underscores (e.g.
+  # "PMID_39402379").
+  cell_type <- sub("^(.+)__.*$", "\\1", labels)
+  dataset <- sub("^.+__", "", labels)
+
+  match_idx <- match(dataset, contrast_map[[1]])
+  if (anyNA(match_idx)) {
+    stop(
+      "Unmapped dataset(s) in contrast_map: ",
+      paste(unique(dataset[is.na(match_idx)]), collapse = ", ")
+    )
+  }
+  group_labels <- contrast_map[[2]][match_idx]
+
+  clean_vec <- function(x) {
+    x <- gsub("__", " ", x, fixed = TRUE)
+    gsub("_", " ", x, fixed = TRUE)
+  }
+
+  list(
+    group_labels = group_labels,
+    name_labels = clean_vec(cell_type)
+  )
 }
 
 

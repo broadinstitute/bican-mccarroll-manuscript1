@@ -16,7 +16,8 @@ Imports:
     ComplexHeatmap,
     circlize,
     gtable,
-    cowplot
+    cowplot,
+    grid
 Remotes:
     github::ajaynadig/TRADEtools,
     bioc::fgsea,

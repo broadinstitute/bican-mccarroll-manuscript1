@@ -28,6 +28,9 @@ run_all <- function() {
   bican.mccarroll.figures::plot_trade_analysis_bican_sea_ad_mtg_mmc()
   bican.mccarroll.figures::plot_trade_analysis_PMID_39402379()
   bican.mccarroll.figures::plot_trade_analysis_kana_2026()
+  bican.mccarroll.figures::plot_trade_composite_ling_frohlich()
+  bican.mccarroll.figures::plot_trade_composite_gabitto()
+  bican.mccarroll.figures::plot_trade_composite_kana()
   bican.mccarroll.figures::plot_kmeans_age()
   bican.mccarroll.figures::plot_ancestry_pca()
 

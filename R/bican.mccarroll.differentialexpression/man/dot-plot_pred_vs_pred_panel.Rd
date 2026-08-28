@@ -4,7 +4,13 @@
 \alias{.plot_pred_vs_pred_panel}
 \title{Build one scatter panel comparing predictions from two variants (no chronological age)}
 \usage{
-.plot_pred_vs_pred_panel(df, variant_x, variant_y, age_scale = 10)
+.plot_pred_vs_pred_panel(
+  df,
+  variant_x,
+  variant_y,
+  age_scale = 10,
+  reference_group_label = "Trained on Ling et al"
+)
 }
 \arguments{
 \item{df}{data.frame already restricted to one cell type, with columns
@@ -15,6 +21,11 @@
 \item{age_scale}{Multiplier applied to \code{pred} and the annotated mean
 absolute difference for display (e.g. \code{10} to convert decades to
 years). Default \code{10}.}
+
+\item{reference_group_label}{Display label substituted for
+\code{variant_x}/\code{variant_y} whenever it equals
+\code{.reference_variant_label} (matching the heatmap's reference
+column-group header). Default \code{"Trained on Ling et al"}.}
 }
 \value{
 A ggplot object, or \code{NULL} if the two variants share no donors.

@@ -8,7 +8,9 @@
   metrics_df,
   metric = "median_abs_error",
   age_scale = 10,
-  variant_order = NULL
+  variant_order = NULL,
+  reference_group_label = "Trained on Ling et al",
+  external_group_label = "Weights from this work"
 )
 }
 \arguments{
@@ -26,6 +28,11 @@
 to restrict/order \code{model_details}, and the row-sort key (rows are
 sorted ascending by the first entry's value). Default is all
 \code{model_details} present, in first-seen order.}
+
+\item{reference_group_label, external_group_label}{Heatmap column-group
+header labels for the reference variant vs. the variants derived from
+an externally-fit model's weights, respectively. Defaults
+\code{"Trained on Ling et al"} and \code{"Weights from this work"}.}
 }
 \value{
 A ggplot object.

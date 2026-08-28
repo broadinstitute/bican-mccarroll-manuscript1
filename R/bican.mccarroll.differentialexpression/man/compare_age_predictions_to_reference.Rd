@@ -12,11 +12,13 @@ compare_age_predictions_to_reference(
   age_col = "age",
   plot_pdf_file = NULL,
   cell_type_list = NULL,
-  variant_order = c(.reference_variant_label, names(.age_variant_specs)),
-  agreement_pairs = lapply(names(.age_variant_specs), function(v)
+  variant_order = c(.reference_variant_label, .default_display_variants),
+  agreement_pairs = lapply(.default_display_variants, function(v)
     c(.reference_variant_label, v)),
   overview_metric = c("median_abs_error", "mean_abs_error"),
   age_scale = 10,
+  reference_group_label = "Trained on Ling et al",
+  external_group_label = "Weights from this work",
   metrics_file = NULL
 )
 }
@@ -61,14 +63,15 @@ BICAN-only subtypes), which would otherwise produce all-blank pages.}
 \item{variant_order}{Character vector giving the variants to include on
 \code{plot_pdf_file}'s first per-cell-type page (and as heatmap
 columns), in order (up to 4 for the 2x2 page). Default
-\code{c("independent_model", "raw", "intercept_corrected",
-"mean_sd_intercept_corrected")}.}
+\code{c("independent_model", "raw", "intercept_corrected")} — excludes
+\code{"mean_sd_intercept_corrected"} unless explicitly requested.}
 
 \item{agreement_pairs}{List of one or more length-2 character vectors
 \code{c(variant_x, variant_y)} to compare on \code{plot_pdf_file}'s
 third page. Default plots the reference (\code{"independent_model"})
-on the x axis against each of \code{"raw"}, \code{"intercept_corrected"},
-and \code{"mean_sd_intercept_corrected"} on the y axis (3 panels).}
+on the x axis against each of \code{"raw"} and \code{"intercept_corrected"}
+on the y axis (2 panels) — excludes \code{"mean_sd_intercept_corrected"}
+unless explicitly requested.}
 
 \item{overview_metric}{Column of the returned metrics to show in the
 heatmap overview page: \code{"median_abs_error"} (default) or
@@ -80,6 +83,11 @@ panel's ages/predictions and annotated error metrics (e.g. \code{10} to
 convert decades to years). Does not affect the returned/written
 \code{metrics_file} data.frame, which stays in the input files' native
 units (typically decades). Default \code{10}.}
+
+\item{reference_group_label, external_group_label}{Heatmap column-group
+header labels for the reference variant vs. the variants derived from
+an externally-fit model's weights, respectively. Defaults
+\code{"Trained on Ling et al"} and \code{"Weights from this work"}.}
 
 \item{metrics_file}{Optional path to write the returned comparison
 data.frame to, tab-delimited.}

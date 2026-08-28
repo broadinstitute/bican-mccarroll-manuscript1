@@ -38,9 +38,12 @@ results, both restricted to the SEA-AD supertype cell types for which
 BICAN DE results were generated. Each cell type appears twice (once per
 dataset), so hierarchical clustering can freely reveal whether a BICAN
 cell type's age-effect profile clusters tightly with its PMID counterpart,
-with some other PMID cell type, or with neither. Row/column labels are
-distinguished only by a dataset text suffix (no forced grouping/split),
-matching the existing \code{cell_type__region} labeling convention.
+with some other PMID cell type, or with neither (no forced grouping/split
+is applied to the clustering). Row/column labels show the contrast that
+was tested (\code{"age"} for BICAN, \code{"AD"} for PMID_39402379) followed
+by the cell type name, with a color rug (blue = age, green = AD) and cell
+type names aligned vertically -- see
+\code{bican.mccarroll.de.analysis::plot_de_cor_heatmap_complex()}.
 }
 \details{
 The correlation matrix is cached to a plain-text TSV file to speed up

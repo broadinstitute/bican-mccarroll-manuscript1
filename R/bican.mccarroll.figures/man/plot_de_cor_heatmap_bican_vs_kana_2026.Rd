@@ -40,10 +40,12 @@ mapping was defined (see \code{kana_2026_comparison_setup.R} in
 \code{adhoc_scripts/external_data_transforms/}). Each cell type appears
 twice (once per dataset), so hierarchical clustering can freely reveal
 whether a BICAN cell type's age-effect profile clusters tightly with its
-Kana counterpart, with some other Kana cell type, or with neither.
-Row/column labels are distinguished only by a dataset text suffix (no
-forced grouping/split), matching the existing \code{cell_type__region}
-labeling convention.
+Kana counterpart, with some other Kana cell type, or with neither (no
+forced grouping/split is applied to the clustering). Row/column labels
+show the contrast that was tested (\code{"age"} for BICAN, \code{"AD"} for
+KANA_2026) followed by the cell type name, with a color rug (blue = age,
+green = AD) and cell type names aligned vertically -- see
+\code{bican.mccarroll.de.analysis::plot_de_cor_heatmap_complex()}.
 }
 \details{
 Unlike \code{plot_de_cor_heatmap_bican_sea_ad_vs_pmid_39402379()}, the two

@@ -10,10 +10,12 @@ plot_age_predictions_by_method_pdf(
   outPDFFile,
   cell_type_list = NULL,
   variant_order = NULL,
-  agreement_pairs = lapply(names(.age_variant_specs), function(v)
+  agreement_pairs = lapply(.default_display_variants, function(v)
     c(.reference_variant_label, v)),
   overview_metric = "median_abs_error",
-  age_scale = 10
+  age_scale = 10,
+  reference_group_label = "Trained on Ling et al",
+  external_group_label = "Weights from this work"
 )
 }
 \arguments{
@@ -37,6 +39,9 @@ plot. Default \code{NULL} = all cell types present in \code{combined_df}.}
 \item{age_scale}{Multiplier applied to ages/predictions/metrics for
 display throughout (heatmap and per-cell-type pages alike); e.g.
 \code{10} to convert decades to years. Default \code{10}.}
+
+\item{reference_group_label, external_group_label}{Passed to
+\code{\link{.plot_metrics_heatmap}}.}
 }
 \value{
 Invisibly, \code{NULL}.
