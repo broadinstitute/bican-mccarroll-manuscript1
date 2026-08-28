@@ -86,8 +86,7 @@ importFrom(ggplot2,
 importFrom(ggvenn,ggvenn)
 importFrom(grDevices,
   dev.off,
-  pdf,
-  svg
+  pdf
 )
 importFrom(grid,
   gpar,

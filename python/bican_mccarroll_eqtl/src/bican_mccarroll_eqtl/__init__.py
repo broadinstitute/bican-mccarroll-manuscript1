@@ -8,3 +8,6 @@ from .gene_expression_ordering import (
     order_genes_by_correlation,
     plot_expression_heatmap,
 )
+from .cluster_order_matching import (
+    match_cluster_order,
+)

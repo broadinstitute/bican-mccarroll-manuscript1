@@ -8,7 +8,7 @@ import anndata as ad
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
-import matplotlib as mpl
+from .fonts import check_manuscript_font, manuscript_font
 
 
 # Default cell type display order and label map
@@ -229,6 +229,8 @@ def run_kmeans_heatmap(
     input_matrix : DataFrame
         Original matrix with variant_id, useful for downstream analysis.
     """
+    check_manuscript_font()
+
     if celltype_label_map is None:
         celltype_label_map = DEFAULT_CELLTYPE_LABEL_MAP
 
@@ -312,71 +314,59 @@ def run_kmeans_heatmap(
             index=False,
         )
 
-    # Force the font to be consistent with other figures
-    old_font = mpl.rcParams["font.family"]
-    mpl.rcParams["font.family"] = "Arial"
-
     # --- Output 3: heatmap ---
-    sc.pl.heatmap(
-        adata,
-        var_names=adata.var_names,
-        groupby="gene_clusters",
-        dendrogram=False,
-        cmap="seismic",
-        vcenter=0,
-        vmin=-2,
-        vmax=2,
-        swap_axes=True,
-        figsize=figsize,
-        show=False,
-    )
-
-    fig = plt.gcf()
-
-    group_axis = None
-
-    for ax in fig.axes:
-        if ax.get_xlabel() == "gene_clusters":
-            group_axis = ax
-            break
-
-    if group_axis is not None:
-        group_axis.set_xlabel("Genes")
-
-    # Set all plot text to the default figure text size
-    for text in fig.findobj(match=plt.Text):
-        text.set_fontsize(16)
-
-    # Override the Y-axis cell-type label size
-    heatmap_axis = max(
-        fig.axes,
-        key=lambda ax: sum(
-            bool(label.get_text())
-            for label in ax.get_yticklabels()
-        ),
-    )
-
-    heatmap_axis.tick_params(
-        axis="y",
-        labelsize=y_axis_text_size,
-    )
-
-    #try to fix the font.
-    for label in heatmap_axis.get_yticklabels():
-        label.set_fontfamily("Arial")
-        label.set_fontweight("medium")
-        label.set_fontsize(y_axis_text_size)
-
-    if heatmap_output_path is not None:
-        plt.savefig(
-            heatmap_output_path,
-            bbox_inches="tight",
+    with manuscript_font():
+        sc.pl.heatmap(
+            adata,
+            var_names=adata.var_names,
+            groupby="gene_clusters",
+            dendrogram=False,
+            cmap="seismic",
+            vcenter=0,
+            vmin=-2,
+            vmax=2,
+            swap_axes=True,
+            figsize=figsize,
+            show=False,
         )
 
-    plt.close()
+        fig = plt.gcf()
 
-    # Restore the previous font
-    mpl.rcParams["font.family"] = old_font
+        group_axis = None
+
+        for ax in fig.axes:
+            if ax.get_xlabel() == "gene_clusters":
+                group_axis = ax
+                break
+
+        if group_axis is not None:
+            group_axis.set_xlabel("Genes")
+
+        # Set all plot text to the default figure text size
+        for text in fig.findobj(match=plt.Text):
+            text.set_fontsize(16)
+
+        # Override the Y-axis cell-type label size
+        heatmap_axis = max(
+            fig.axes,
+            key=lambda ax: sum(
+                bool(label.get_text())
+                for label in ax.get_yticklabels()
+            ),
+        )
+
+        heatmap_axis.tick_params(
+            axis="y",
+            labelsize=y_axis_text_size,
+        )
+
+        if heatmap_output_path is not None:
+            plt.savefig(
+                heatmap_output_path,
+                bbox_inches="tight",
+            )
+
+        plt.close()
 
     return adata, input_matrix
 

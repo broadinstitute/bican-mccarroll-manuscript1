@@ -30,7 +30,7 @@
 #' @importFrom ComplexHeatmap Heatmap draw
 #' @importFrom circlize colorRamp2
 #' @importFrom grid gpar unit grid.text
-#' @importFrom grDevices svg dev.off
+#' @importFrom grDevices dev.off
 #' @importFrom logger log_info
 plot_cell_type_pairwise_cor <- function(r_squared_path,
                                         output_path = NULL,
@@ -145,7 +145,7 @@ plot_cell_type_pairwise_cor <- function(r_squared_path,
   )
 
   if (!is.null(output_path)) {
-    grDevices::svg(output_path, width = width, height = height)
+    svglite_manuscript(output_path, width = width, height = height)
     ComplexHeatmap::draw(
       ht,
       heatmap_legend_side = "right",

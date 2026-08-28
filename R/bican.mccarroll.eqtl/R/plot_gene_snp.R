@@ -39,7 +39,7 @@
 #' @importFrom ggplot2 ggplot aes geom_violin geom_text facet_wrap labs
 #' @importFrom ggplot2 theme_bw theme element_text element_blank unit
 #' @importFrom ggbeeswarm geom_beeswarm
-#' @importFrom grDevices svg dev.off
+#' @importFrom grDevices dev.off
 #' @importFrom stats lm sd p.adjust
 #' @importFrom logger log_info
 plot_gene_snp <- function(gene,
@@ -272,7 +272,7 @@ plot_gene_snp <- function(gene,
     )
 
   if (!is.null(output_path)) {
-    grDevices::svg(output_path, width = width, height = height)
+    svglite_manuscript(output_path, width = width, height = height)
     print(p)
     grDevices::dev.off()
     logger::log_info("Saved to: {output_path}")

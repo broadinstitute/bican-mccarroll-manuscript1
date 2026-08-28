@@ -30,6 +30,7 @@ classifiers = [
 
 [project.scripts]
 test-eqtl-pipeline = "bican_mccarroll_eqtl.cli.test_eqtl_pipeline:main"
+match-cluster-order = "bican_mccarroll_eqtl.cli.match_cluster_order:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/bican_mccarroll_eqtl"]

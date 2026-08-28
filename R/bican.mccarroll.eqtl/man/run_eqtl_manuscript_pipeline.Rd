@@ -15,6 +15,8 @@ run_eqtl_manuscript_pipeline(
   celltype_label_map_file,
   qval = 0.01,
   force = FALSE,
+  force_plots = FALSE,
+  use_sequential_cluster_labels = TRUE,
   gene_snp_cases = list(list(gene = "XRRA1", chr = "chr11", pos = 74868704), list(gene =
     "NPAS3", chr = "chr14", pos = 32929955), list(gene = "CEP112", chr = "chr17", pos =
     66192315)),
@@ -60,6 +62,20 @@ union set of eGenes.}
 \item{force}{Logical scalar indicating whether to rerun steps even if their
 expected output files already exist.}
 
+\item{force_plots}{Logical scalar indicating whether to rerun only the
+plotting steps (the cell type-pairwise correlation heatmap, the gene-SNP
+plots, and the K-means cluster heatmap) even if their expected output
+files already exist, without forcing the (expensive) upstream
+data-generation steps. Ignored (treated as \code{TRUE}) when
+\code{force = TRUE}.}
+
+\item{use_sequential_cluster_labels}{Logical scalar passed through to the
+Python K-means step as \code{--use_sequential_cluster_labels}. When
+\code{TRUE} (the default, matching the manuscript figures), clusters are
+relabeled 1..K in \code{cluster_order} sequence in the heatmap, cluster
+assignments, and cluster counts outputs, rather than using the raw
+(arbitrary) K-means cluster IDs.}
+
 \item{gene_snp_cases}{List of named lists defining gene-SNP plots. Each
 element must contain \code{gene}, \code{chr}, and \code{pos}.}
 
@@ -92,6 +108,17 @@ all other paths are inferred from these inputs.
 When \code{force = FALSE}, a step is skipped if its expected output file
 already exists. When \code{force = TRUE}, all steps are rerun and existing
 outputs may be overwritten by the underlying functions.
+
+\code{force_plots} controls only the three plotting steps (the cell
+type-pairwise correlation heatmap, the gene-SNP plots, and the K-means
+cluster heatmap), independently of \code{force}. This is useful for
+iterating on plot appearance (e.g. font or styling changes) without
+rerunning the expensive upstream data-generation steps. Setting
+\code{force = TRUE} also forces the plotting steps, regardless of
+\code{force_plots}. Note that the K-means step is implemented in Python
+and only exposes a single \code{--force} flag, so forcing plots there also
+rewrites the (deterministic, so byte-identical) cluster assignment and
+cluster count TSVs.
 
 The K-means clustering step is implemented in Python and is executed via the
 external command \code{test-eqtl-pipeline}. See the Python component of the
