@@ -14,6 +14,17 @@
 #' already exists. When \code{force = TRUE}, all steps are rerun and existing
 #' outputs may be overwritten by the underlying functions.
 #'
+#' \code{force_plots} controls only the three plotting steps (the cell
+#' type-pairwise correlation heatmap, the gene-SNP plots, and the K-means
+#' cluster heatmap), independently of \code{force}. This is useful for
+#' iterating on plot appearance (e.g. font or styling changes) without
+#' rerunning the expensive upstream data-generation steps. Setting
+#' \code{force = TRUE} also forces the plotting steps, regardless of
+#' \code{force_plots}. Note that the K-means step is implemented in Python
+#' and only exposes a single \code{--force} flag, so forcing plots there also
+#' rewrites the (deterministic, so byte-identical) cluster assignment and
+#' cluster count TSVs.
+#'
 #' The K-means clustering step is implemented in Python and is executed via the
 #' external command \code{test-eqtl-pipeline}. See the Python component of the
 #' repository for installation instructions.
@@ -90,6 +101,18 @@
 #'   union set of eGenes.
 #' @param force Logical scalar indicating whether to rerun steps even if their
 #'   expected output files already exist.
+#' @param force_plots Logical scalar indicating whether to rerun only the
+#'   plotting steps (the cell type-pairwise correlation heatmap, the gene-SNP
+#'   plots, and the K-means cluster heatmap) even if their expected output
+#'   files already exist, without forcing the (expensive) upstream
+#'   data-generation steps. Ignored (treated as \code{TRUE}) when
+#'   \code{force = TRUE}.
+#' @param use_sequential_cluster_labels Logical scalar passed through to the
+#'   Python K-means step as \code{--use_sequential_cluster_labels}. When
+#'   \code{TRUE} (the default, matching the manuscript figures), clusters are
+#'   relabeled 1..K in \code{cluster_order} sequence in the heatmap, cluster
+#'   assignments, and cluster counts outputs, rather than using the raw
+#'   (arbitrary) K-means cluster IDs.
 #' @param gene_snp_cases List of named lists defining gene-SNP plots. Each
 #'   element must contain \code{gene}, \code{chr}, and \code{pos}.
 #' @param cor_plot_width Numeric scalar giving the width (in inches) of the
@@ -115,6 +138,8 @@ run_eqtl_manuscript_pipeline <- function(eqtl_dir,
                                          celltype_label_map_file,
                                          qval = 0.01,
                                          force = FALSE,
+                                         force_plots = FALSE,
+                                         use_sequential_cluster_labels = TRUE,
                                          gene_snp_cases = list(
                                            list(gene = "XRRA1", chr = "chr11", pos = 74868704),
                                            list(gene = "NPAS3", chr = "chr14", pos = 32929955),
@@ -131,10 +156,14 @@ run_eqtl_manuscript_pipeline <- function(eqtl_dir,
     cluster_order = cluster_order,
     qval = qval,
     force = force,
+    force_plots = force_plots,
+    use_sequential_cluster_labels = use_sequential_cluster_labels,
     celltype_order_file = celltype_order_file,
     celltype_label_map_file = celltype_label_map_file,
     gene_snp_cases = gene_snp_cases
   )
+
+  plot_force <- isTRUE(force) || isTRUE(force_plots)
 
   if (!dir.exists(out_dir)) {
     dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
@@ -233,7 +262,7 @@ run_eqtl_manuscript_pipeline <- function(eqtl_dir,
   .run_eqtl_manuscript_pipeline_step(
     step_label = "Step 7: plot_cell_type_pairwise_cor",
     output_path = paths$cor_plot_path,
-    force = force,
+    force = plot_force,
     fun = function() {
       bican.mccarroll.eqtl::plot_cell_type_pairwise_cor(
         r_squared_path = paths$r_squared_path,
@@ -279,7 +308,7 @@ run_eqtl_manuscript_pipeline <- function(eqtl_dir,
     vcf_path = vcf_path,
     expression_path = paths$combined_expression_path,
     gene_snp_cases = gene_snp_cases,
-    force = force,
+    force = plot_force,
     width = 30,
     height = 4
   )
@@ -289,9 +318,10 @@ run_eqtl_manuscript_pipeline <- function(eqtl_dir,
     out_dir = out_dir,
     K = K,
     cluster_order = cluster_order,
-    force = force,
+    force = plot_force,
     celltype_order_file = celltype_order_file,
-    celltype_label_map_file = celltype_label_map_file
+    celltype_label_map_file = celltype_label_map_file,
+    use_sequential_cluster_labels = use_sequential_cluster_labels
   )
 
   # .run_eqtl_manuscript_pipeline_step(
@@ -333,6 +363,8 @@ run_eqtl_manuscript_pipeline_defaults <- function(eqtl_dir = NULL,
                                                   celltype_label_map_file = NULL,
                                                   qval = 0.01,
                                                   force = TRUE,
+                                                  force_plots = FALSE,
+                                                  use_sequential_cluster_labels = TRUE,
                                                   gene_snp_cases = list(
                                                     list(gene = "XRRA1", chr = "chr11", pos = 74868704),
                                                     list(gene = "NPAS3", chr = "chr14", pos = 32929955),
@@ -370,6 +402,8 @@ run_eqtl_manuscript_pipeline_defaults <- function(eqtl_dir = NULL,
     celltype_label_map_file = celltype_label_map_file,
     qval = qval,
     force = force,
+    force_plots = force_plots,
+    use_sequential_cluster_labels = use_sequential_cluster_labels,
     gene_snp_cases = gene_snp_cases,
     cor_plot_width = cor_plot_width,
     cor_plot_height = cor_plot_height
@@ -401,7 +435,8 @@ run_eqtl_manuscript_pipeline_defaults <- function(eqtl_dir = NULL,
                                                  cluster_order,
                                                  force,
                                                  celltype_order_file,
-                                                 celltype_label_map_file) {
+                                                 celltype_label_map_file,
+                                                 use_sequential_cluster_labels) {
   cat("\n===== Step 10: K-means clustering (Python) =====\n")
 
   args <- c(
@@ -414,6 +449,10 @@ run_eqtl_manuscript_pipeline_defaults <- function(eqtl_dir = NULL,
 
   if (isTRUE(force)) {
     args <- c(args, "--force")
+  }
+
+  if (isTRUE(use_sequential_cluster_labels)) {
+    args <- c(args, "--use_sequential_cluster_labels")
   }
 
   cat("Running:", paste("test-eqtl-pipeline", paste(args, collapse = " ")), "\n")
@@ -523,6 +562,8 @@ run_eqtl_manuscript_pipeline_defaults <- function(eqtl_dir = NULL,
                                                           cluster_order,
                                                           qval,
                                                           force,
+                                                          force_plots,
+                                                          use_sequential_cluster_labels,
                                                           celltype_order_file,
                                                           celltype_label_map_file,
                                                           gene_snp_cases) {
@@ -580,6 +621,16 @@ run_eqtl_manuscript_pipeline_defaults <- function(eqtl_dir = NULL,
 
   if (!is.logical(force) || length(force) != 1L || is.na(force)) {
     stop("'force' must be TRUE or FALSE")
+  }
+
+  if (!is.logical(force_plots) || length(force_plots) != 1L || is.na(force_plots)) {
+    stop("'force_plots' must be TRUE or FALSE")
+  }
+
+  if (!is.logical(use_sequential_cluster_labels) ||
+    length(use_sequential_cluster_labels) != 1L ||
+    is.na(use_sequential_cluster_labels)) {
+    stop("'use_sequential_cluster_labels' must be TRUE or FALSE")
   }
 
   if (!is.character(celltype_order_file) ||

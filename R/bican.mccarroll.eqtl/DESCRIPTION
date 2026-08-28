@@ -23,6 +23,7 @@ Imports:
     scales,
     stats,
     svglite,
+    systemfonts,
     utils,
     lme4,
     lmerTest
