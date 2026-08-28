@@ -12,8 +12,8 @@ plot_de_cor_heatmap_bican_vs_kana_2026(
 )
 }
 \arguments{
-\item{min_num_genes}{Minimum number of a cell type/dataset combination's
-own significant genes required to keep it in the matrix. Defaults to
+\item{min_num_genes}{Minimum number of genes significant in either member
+of a pair required to compute that pair's correlation. Defaults to
 \code{20}; both datasets have thousands of significant genes for all six
 cell types, so no cell type is expected to be dropped at this default.}
 

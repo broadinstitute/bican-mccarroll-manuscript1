@@ -62,6 +62,7 @@ run_all <- function() {
   bican.mccarroll.figures::plot_de_sign_test_pmid_39402379_bican()
   bican.mccarroll.figures::plot_de_sign_test_kana_2026_bican()
   bican.mccarroll.figures::plot_de_sign_test_snap200_sex_bican()
+  bican.mccarroll.figures::plot_eqtl_sign_test_snap200_bican()
 
   bican.mccarroll.figures::run_private_eqtl_tests_bican()
   bican.mccarroll.figures::summarize_private_eqtl_tests_bican()

@@ -558,6 +558,7 @@ get_or_build_ancestry_pca_cache <- function(paths, n_pcs, k_neighbors) {
   k_neighbors
 ) {
   superpop_levels <- c("AFR", "AMR", "EAS", "EUR", "SAS")
+  bican_display_label <- "Burger et al."
 
   reference_colors <- c(
     AFR = "#A1D99B",
@@ -578,16 +579,17 @@ get_or_build_ancestry_pca_cache <- function(paths, n_pcs, k_neighbors) {
   pca_plot_df <- pca_df |>
     dplyr::filter(!is.na(predicted_superpop)) |>
     dplyr::mutate(
+      project_label = ifelse(project == "BICAN", bican_display_label, project),
       plot_group = paste(
         predicted_superpop,
-        project,
+        project_label,
         sep = " - "
       )
     )
 
   plot_group_levels <- c(
     paste(superpop_levels, "1000 Genomes", sep = " - "),
-    paste(superpop_levels, "BICAN", sep = " - ")
+    paste(superpop_levels, bican_display_label, sep = " - ")
   )
 
   pca_plot_df$plot_group <- factor(
@@ -602,7 +604,7 @@ get_or_build_ancestry_pca_cache <- function(paths, n_pcs, k_neighbors) {
     ),
     stats::setNames(
       bican_colors,
-      paste(superpop_levels, "BICAN", sep = " - ")
+      paste(superpop_levels, bican_display_label, sep = " - ")
     )
   )
 
@@ -651,7 +653,8 @@ get_or_build_ancestry_pca_cache <- function(paths, n_pcs, k_neighbors) {
     ggplot2::labs(
       title = "Donor PCA embedding with 1000 Genomes reference",
       subtitle = paste0(
-        "BICAN labels assigned by distance-weighted ",
+        bican_display_label,
+        " labels assigned by distance-weighted ",
         k_neighbors,
         "-nearest neighbors using PCs 1-",
         n_pcs

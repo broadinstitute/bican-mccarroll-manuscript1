@@ -12,8 +12,8 @@ plot_de_cor_heatmap_bican_sea_ad_vs_pmid_39402379(
 )
 }
 \arguments{
-\item{min_num_genes}{Minimum number of a cell type/dataset combination's
-own significant genes required to keep it in the matrix. Defaults to
+\item{min_num_genes}{Minimum number of genes significant in either member
+of a pair required to compute that pair's correlation. Defaults to
 \code{20}; raise (e.g. to \code{100}) for a stricter matrix.}
 
 \item{outDir}{Output directory for generated SVG plots. If \code{NULL},
@@ -48,9 +48,11 @@ type names aligned vertically -- see
 \details{
 The correlation matrix is cached to a plain-text TSV file to speed up
 subsequent runs and to provide reviewer-inspectable intermediate data.
-Cell type/dataset combinations with fewer than \code{min_num_genes} of
-their own significant genes are dropped from the matrix (see
-\code{bican.mccarroll.de.analysis::compute_de_cor_mat_datasets()}), so a
-cache built at one \code{min_num_genes} value must be regenerated
-(\code{force_recompute = TRUE}) if that value changes.
+A cell type/dataset combination's correlation with a given partner is
+only computed if their shared/either-significant gene set reaches
+\code{min_num_genes} (see
+\code{bican.mccarroll.de.analysis::compute_de_cor_mat_datasets()}); a
+combination that never reaches that with any partner is dropped from the
+matrix entirely, so a cache built at one \code{min_num_genes} value must
+be regenerated (\code{force_recompute = TRUE}) if that value changes.
 }
