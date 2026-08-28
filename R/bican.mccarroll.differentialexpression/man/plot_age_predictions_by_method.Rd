@@ -8,9 +8,10 @@ plot_age_predictions_by_method(
   combined_df,
   cell_type,
   variant_order = NULL,
-  agreement_pairs = lapply(names(.age_variant_specs), function(v)
+  agreement_pairs = lapply(.default_display_variants, function(v)
     c(.reference_variant_label, v)),
-  age_scale = 10
+  age_scale = 10,
+  reference_group_label = "Trained on Ling et al"
 )
 }
 \arguments{
@@ -25,12 +26,18 @@ in first-seen order.}
 \item{agreement_pairs}{List of one or more length-2 character vectors
 \code{c(variant_x, variant_y)} to plot on page 2 (up to 4 pairs).
 Default plots the reference (\code{"independent_model"}, x axis) against
-each of \code{"raw"}, \code{"intercept_corrected"}, and
-\code{"mean_sd_intercept_corrected"} (y axis) — 3 panels.}
+each of \code{"raw"} and \code{"intercept_corrected"} (y axis) — 2 panels
+— excludes \code{"mean_sd_intercept_corrected"} unless explicitly
+requested.}
 
 \item{age_scale}{Multiplier applied to ages/predictions and their
 annotated error metrics for display (e.g. \code{10} to convert decades
 to years). Default \code{10}.}
+
+\item{reference_group_label}{Display label substituted for the reference
+variant (\code{.reference_variant_label}) wherever it appears as a panel
+title or axis label, matching the heatmap's reference column-group
+header. Default \code{"Trained on Ling et al"}.}
 }
 \value{
 A list of two plot objects: \code{age_comparison} and

@@ -10,7 +10,10 @@ plot_de_cor_heatmap_complex(
   breaks = seq(-1, 1, length.out = 101),
   palette_colors = c("steelblue", "white", "darkorange"),
   legend_title = "Correlation",
-  show_dendrograms = TRUE
+  show_dendrograms = TRUE,
+  group_labels = NULL,
+  name_labels = NULL,
+  group_colors = NULL
 )
 }
 \arguments{
@@ -25,6 +28,25 @@ plot_de_cor_heatmap_complex(
 \item{legend_title}{Title for the color legend.  If set to NULL, suppress the legend entirely.}
 
 \item{show_dendrograms}{Logical; if FALSE, dendrograms are hidden but clustering order is preserved.}
+
+\item{group_labels}{Optional character vector, one element per row/column of
+\code{cor_mat} in dimname order, giving a group/contrast label (e.g.
+\code{"age"}, \code{"AD"}) to display alongside the row/column name and to
+color a rug annotation. If supplied, \code{name_labels} must also be
+supplied, and \code{cor_mat}'s own dimnames are no longer shown directly;
+instead a two-part label (group, then name) is drawn via row/column
+annotations so that the \code{name_labels} portion aligns vertically
+across rows regardless of \code{group_labels} string length.}
+
+\item{name_labels}{Optional character vector, same length/order as
+\code{group_labels}, giving the display name (e.g. cell type) shown after
+the group label.}
+
+\item{group_colors}{Optional named character vector mapping each unique
+value of \code{group_labels} to a rug color. Ignored if \code{group_labels}
+is \code{NULL}. If \code{group_labels} is supplied but \code{group_colors}
+is \code{NULL}, the group label text is still shown but no color rug is
+drawn.}
 }
 \value{
 A ComplexHeatmap heatmap object.

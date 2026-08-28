@@ -24,23 +24,34 @@ match values in the \code{dataset} column).}
 
 \item{fdr_cutoff}{Adjusted p-value threshold.}
 
-\item{min_num_genes}{Minimum number of a cell type/dataset combination's
-own significant genes (\code{adj_p_val < fdr_cutoff}) required to keep
-that combination in the matrix. Defaults to 20; raise (e.g. to 100) for
-a stricter matrix, or lower for a more permissive one.}
+\item{min_num_genes}{Minimum number of genes significant in either member
+of a pair (\code{adj_p_val.x < fdr_cutoff | adj_p_val.y < fdr_cutoff})
+required to compute that pair's correlation. Defaults to 20; raise
+(e.g. to 100) for a stricter matrix, or lower for a more permissive one.}
 }
 \value{
 A square numeric matrix with dimnames "cell_type__dataset",
-  containing signed rho^2 (as in compute_de_cor_mat()). Dimensions may be
-  smaller than length(cell_types_use) * length(datasets_use) if any
-  combinations were dropped by the min_num_genes filter.
+  containing signed rho^2 (as in compute_de_cor_mat()), with no NA cells:
+  dimensions may be smaller than length(cell_types_use) *
+  length(datasets_use) if any combinations had to be pruned to reach a
+  fully comparable (NA-free) matrix.
 }
 \description{
 Like \code{compute_de_cor_mat()}, but rows/columns are keyed by
 \code{cell_type x dataset} instead of \code{cell_type x region}, so a
 correlation matrix can span two DE datasets (e.g. BICAN vs. an external
 comparison paper) rather than one dataset's cell-type x region
-combinations. Cell type/dataset combinations with fewer than
-\code{min_num_genes} of their own significant genes are dropped entirely
-(as both a row and a column) rather than kept and left as an all-NA row.
+combinations. For each pair, the correlation is computed over genes
+significant in \emph{either} member of the pair (see \code{m_sig} below),
+so a cell type/dataset combination only needs \code{min_num_genes} genes
+in that union to yield a well-powered correlation with a given partner --
+it does not need \code{min_num_genes} of its own significant genes
+independent of any partner. A combination is only useful in the final
+matrix if it is comparable to every other retained combination, so
+combinations that fail to reach \code{min_num_genes} with some partner
+(an \code{NA} cell) are resolved by iteratively dropping whichever
+combination has the most \code{NA} partners, one at a time, until no
+\code{NA} remains -- rather than dropping every combination with any
+\code{NA} in a single pass, which could needlessly discard an
+otherwise-well-supported combination over one weak partner.
 }
