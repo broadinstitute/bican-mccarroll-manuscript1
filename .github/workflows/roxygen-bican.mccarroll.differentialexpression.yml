@@ -1,0 +1,32 @@
+---
+# Instructions for using this template:
+# 1. Replace <package_name> below with the short name of the python package.
+#    E.g. if the package is bican.mccarroll.mypackage, replace "<package_name>"
+#    with "mypackage".
+# 2. Name the workflow file roxygen-<package_name>.yml, e.g.
+#    roxygen-mypackage.yml
+# 3. Commit the above changes
+
+# Workflow derived from dplyr/.github/workflows/pr-commands.yaml
+# Need help debugging build failures?
+# Start at https://github.com/r-lib/actions#where-to-find-help
+"on":
+  issue_comment:
+    types:
+      - "created"
+    paths:
+      - "R/bican.mccarroll.differentialexpression/**"
+
+name: >
+  Run roxygen2 on R package bican.mccarroll..<package_name> and commit changes.
+  Triggered by a PR comment '/document.bican.mccarroll.differentialexpression'
+
+permissions: "write-all"
+
+jobs:
+  call-roxygen-reusable:
+    uses: "./.github/workflows/roxygen-reusable.yml"
+    with:
+      package_name: "bican.mccarroll.differentialexpression"
+    secrets: "inherit"
+
