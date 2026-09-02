@@ -71,4 +71,6 @@ run_all <- function() {
   bican.mccarroll.figures::summarize_private_eqtl_tests_downsampled_bican()
 
   bican.mccarroll.figures::write_eqtl_donor_counts_bican()
+
+  bican.mccarroll.figures::plot_rna_scope_validation()
 }
