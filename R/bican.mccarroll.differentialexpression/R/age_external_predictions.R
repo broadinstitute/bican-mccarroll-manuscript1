@@ -28,7 +28,9 @@
 #' @param region_map data.frame with columns \code{external_region} and
 #'   \code{model_region}, mapping each region label present in the external
 #'   data to the region label used in the fitted model.
-#' @param outPDFFile Path to write the PDF of per-cell-type scatter plots to.
+#' @param outPDFFile Optional path to write a PDF of per-cell-type scatter
+#'   plots to. Default \code{NULL} = skip the QC plots entirely (e.g. when
+#'   only \code{predictions_file} is needed).
 #' @param cell_type_list Optional character vector restricting cell types to
 #'   attempt. Default \code{NULL} = all cell types present in both the
 #'   external data and the model (for the mapped region).
@@ -63,7 +65,7 @@
 #' @export
 predict_age_external_by_celltype <- function(data_dir, data_prefix = "donor_rxn_DGEList",
                                              model_file, region_map,
-                                             outPDFFile,
+                                             outPDFFile = NULL,
                                              cell_type_list = NULL,
                                              variants = names(.age_variant_specs),
                                              title_prefix = NULL,
@@ -81,8 +83,10 @@ predict_age_external_by_celltype <- function(data_dir, data_prefix = "donor_rxn_
   results <- list()
   predictions_all <- list()
 
-  logger::log_info(paste0("Writing external age prediction QC plots to: ", outPDFFile))
-  grDevices::pdf(outPDFFile)
+  if (!is.null(outPDFFile)) {
+    logger::log_info(paste0("Writing external age prediction QC plots to: ", outPDFFile))
+    grDevices::pdf(outPDFFile)
+  }
 
   for (external_region in external_regions) {
     model_region <- resolve_model_region(region_map, external_region)
@@ -121,10 +125,12 @@ predict_age_external_by_celltype <- function(data_dir, data_prefix = "donor_rxn_
           next
         }
 
-        title_str <- paste0(region_title_prefix, " [", gsub("_", " ", variant, fixed = TRUE), "] ", cell_type, "\n")
+        if (!is.null(outPDFFile)) {
+          title_str <- paste0(region_title_prefix, " [", gsub("_", " ", variant, fixed = TRUE), "] ", cell_type, "\n")
 
-        p <- plot_age_pred_external(r$predictions, cell_type, title_str = title_str)
-        print(p)
+          p <- plot_age_pred_external(r$predictions, cell_type, title_str = title_str)
+          print(p)
+        }
 
         key <- paste(external_region, cell_type, variant, sep = "__")
         results[[key]] <- r
@@ -143,7 +149,9 @@ predict_age_external_by_celltype <- function(data_dir, data_prefix = "donor_rxn_
     }
   }
 
-  grDevices::dev.off()
+  if (!is.null(outPDFFile)) {
+    grDevices::dev.off()
+  }
 
   if (!is.null(predictions_file)) {
     logger::log_info(paste0("Writing external donor predictions to: ", predictions_file))
@@ -221,6 +229,8 @@ predict_age_external_by_celltype <- function(data_dir, data_prefix = "donor_rxn_
 #'   units (typically decades). Default \code{10}.
 #' @param metrics_file Optional path to write the returned comparison
 #'   data.frame to, tab-delimited.
+#' @param variant_labels Optional display-label overrides for non-reference
+#'   variants; see \code{\link{.variant_display_label}}.
 #'
 #' @return A long-format data.frame with columns \code{cell_type},
 #'   \code{model_details}, \code{num_donors}, \code{r}, \code{median_abs_error},
@@ -238,18 +248,17 @@ compare_age_predictions_to_reference <- function(predictions_file, reference_fil
                                                  age_scale = 10,
                                                  reference_group_label = "Trained on Ling et al",
                                                  external_group_label = "Weights from this work",
-                                                 metrics_file = NULL) {
+                                                 metrics_file = NULL,
+                                                 variant_labels = NULL) {
   overview_metric <- match.arg(overview_metric)
 
-  combined <- combine_age_predictions_for_comparison(
+  prepared <- .prepare_age_comparison(
     predictions_file, reference_file, model_region,
     reference_pred_col = reference_pred_col,
     age_col = age_col
   )
-
-  metrics <- compute_age_metrics_by_group(combined, group_cols = c("cell_type", "variant"), age_col = age_col, pred_col = "pred")
-  colnames(metrics)[colnames(metrics) == "variant"] <- "model_details"
-  colnames(metrics)[colnames(metrics) == "n"] <- "num_donors"
+  combined <- prepared$combined
+  metrics <- prepared$metrics
 
   if (!is.null(plot_pdf_file)) {
     # Restrict to cell types with actual external predictions; the reference file
@@ -265,7 +274,8 @@ compare_age_predictions_to_reference <- function(predictions_file, reference_fil
       cell_type_list = plot_cell_types, variant_order = variant_order,
       agreement_pairs = agreement_pairs,
       overview_metric = overview_metric, age_scale = age_scale,
-      reference_group_label = reference_group_label, external_group_label = external_group_label
+      reference_group_label = reference_group_label, external_group_label = external_group_label,
+      variant_labels = variant_labels
     )
   }
 
@@ -275,6 +285,62 @@ compare_age_predictions_to_reference <- function(predictions_file, reference_fil
   }
 
   metrics
+}
+
+
+#' Build (but do not write) the age-prediction method comparison plots
+#'
+#' Device-free counterpart to \code{\link{compare_age_predictions_to_reference}}'s
+#' \code{plot_pdf_file} argument: computes the same comparison metrics and
+#' builds the same set of ggplot pages, but returns the plot objects instead
+#' of printing them to a PDF. Intended for callers (e.g. a figures package)
+#' that want to emit each page as its own file (SVG, PNG, ...).
+#'
+#' @inheritParams compare_age_predictions_to_reference
+#' @return \code{list(metrics = <data.frame, as returned by
+#'   \link{compare_age_predictions_to_reference}>, plots = <named list of
+#'   ggplot objects>, metrics_heatmap_data = <data.frame with the exact
+#'   values plotted in \code{plots$metrics_heatmap}; see
+#'   \link{.prepare_metrics_heatmap_df}>)}.
+#' @export
+build_age_prediction_comparison_plots <- function(predictions_file, reference_file, model_region,
+                                                  reference_pred_col = "pred_mean",
+                                                  age_col = "age",
+                                                  cell_type_list = NULL,
+                                                  variant_order = c(.reference_variant_label, .default_display_variants),
+                                                  agreement_pairs = lapply(.default_display_variants, function(v) c(.reference_variant_label, v)),
+                                                  overview_metric = c("median_abs_error", "mean_abs_error"),
+                                                  age_scale = 10,
+                                                  reference_group_label = "Trained on Ling et al",
+                                                  external_group_label = "Weights from this work",
+                                                  variant_labels = NULL) {
+  overview_metric <- match.arg(overview_metric)
+
+  prepared <- .prepare_age_comparison(
+    predictions_file, reference_file, model_region,
+    reference_pred_col = reference_pred_col,
+    age_col = age_col
+  )
+  combined <- prepared$combined
+  metrics <- prepared$metrics
+
+  # Restrict to cell types with actual external predictions; the reference file
+  # typically covers additional cell types (e.g. BICAN-only subtypes) that have
+  # nothing to compare against and would otherwise produce all-blank pages.
+  plot_cell_types <- cell_type_list
+  if (is.null(plot_cell_types)) {
+    plot_cell_types <- unique(combined$cell_type[combined$variant != .reference_variant_label])
+  }
+
+  built <- .build_comparison_pages(
+    combined, metrics, cell_type_list = plot_cell_types,
+    variant_order = variant_order, agreement_pairs = agreement_pairs,
+    overview_metric = overview_metric, age_scale = age_scale,
+    reference_group_label = reference_group_label, external_group_label = external_group_label,
+    variant_labels = variant_labels
+  )
+
+  list(metrics = metrics, plots = built$pages, metrics_heatmap_data = built$metrics_heatmap_data)
 }
 
 
@@ -307,6 +373,28 @@ compare_age_predictions_to_reference <- function(predictions_file, reference_fil
 # the external cohort itself) unless the caller explicitly asks for it via variant_order
 # / agreement_pairs.
 .default_display_variants <- setdiff(names(.age_variant_specs), "mean_sd_intercept_corrected")
+
+#' Resolve a variant's display label (heatmap column / panel title / axis label)
+#'
+#' Non-reference variants display as \code{gsub("_", " ", v)} by default (see
+#' \code{.age_variant_specs}), unless \code{variant_labels} supplies a more
+#' descriptive override for that variant name. Never applied to the reference
+#' variant, which callers substitute with \code{reference_group_label}
+#' themselves wherever a display label is needed.
+#'
+#' @param v Variant name.
+#' @param variant_labels Optional named character vector/list mapping variant
+#'   names to a display string, e.g.
+#'   \code{list(intercept_corrected = "Burger et al. weights (offset-corrected)")}.
+#'   Default \code{NULL} = no overrides.
+#' @return Character scalar.
+#' @keywords internal
+.variant_display_label <- function(v, variant_labels = NULL) {
+  if (!is.null(variant_labels) && v %in% names(variant_labels)) {
+    return(variant_labels[[v]])
+  }
+  gsub("_", " ", v, fixed = TRUE)
+}
 
 
 #' Load an external DGEList for age prediction, rescaling age to decades
@@ -568,6 +656,35 @@ compute_age_metrics_by_group <- function(df, group_cols, age_col = "age", pred_c
 }
 
 
+#' Combine external predictions with a reference and compute comparison metrics
+#'
+#' Shared first step of \code{\link{compare_age_predictions_to_reference}} and
+#' \code{\link{build_age_prediction_comparison_plots}}: loads/combines
+#' \code{predictions_file} and \code{reference_file} and summarizes them into
+#' a metrics table, without touching any plotting or file output.
+#'
+#' @param predictions_file,reference_file,model_region,reference_pred_col,age_col
+#'   Passed to \code{\link{combine_age_predictions_for_comparison}}.
+#' @return \code{list(combined = <long-format data.frame>, metrics = <data.frame>)}.
+#'   \code{metrics} has the same columns/renames as the data.frame returned by
+#'   \code{\link{compare_age_predictions_to_reference}}.
+#' @keywords internal
+.prepare_age_comparison <- function(predictions_file, reference_file, model_region,
+                                    reference_pred_col = "pred_mean", age_col = "age") {
+  combined <- combine_age_predictions_for_comparison(
+    predictions_file, reference_file, model_region,
+    reference_pred_col = reference_pred_col,
+    age_col = age_col
+  )
+
+  metrics <- compute_age_metrics_by_group(combined, group_cols = c("cell_type", "variant"), age_col = age_col, pred_col = "pred")
+  colnames(metrics)[colnames(metrics) == "variant"] <- "model_details"
+  colnames(metrics)[colnames(metrics) == "n"] <- "num_donors"
+
+  list(combined = combined, metrics = metrics)
+}
+
+
 #' Pivot a long-format age-prediction comparison table to a wide display table
 #'
 #' @param comparison_df As returned by \code{\link{compare_age_predictions_to_reference}}.
@@ -659,8 +776,8 @@ pivot_age_prediction_comparison <- function(comparison_df, metric = "mean_abs_er
     ) +
     coord_equal(xlim = lims, ylim = lims) +
     labs(title = panel_title, x = "Chronological Age [years]", y = "Predicted Age [years]") +
-    theme_classic(base_size = 10) +
-    theme(plot.title = element_text(size = 9))
+    theme_classic(base_size = 14) +
+    theme(plot.title = element_text(size = 15, face = "bold"))
 }
 
 
@@ -681,11 +798,14 @@ pivot_age_prediction_comparison <- function(comparison_df, metric = "mean_abs_er
 #'   \code{variant_x}/\code{variant_y} whenever it equals
 #'   \code{.reference_variant_label} (matching the heatmap's reference
 #'   column-group header). Default \code{"Trained on Ling et al"}.
+#' @param variant_labels Optional display-label overrides; see
+#'   \code{\link{.variant_display_label}}.
 #'
 #' @return A ggplot object, or \code{NULL} if the two variants share no donors.
 #' @keywords internal
 .plot_pred_vs_pred_panel <- function(df, variant_x, variant_y, age_scale = 10,
-                                     reference_group_label = "Trained on Ling et al") {
+                                     reference_group_label = "Trained on Ling et al",
+                                     variant_labels = NULL) {
   dx <- df[df$variant == variant_x, c("donor", "pred")]
   dy <- df[df$variant == variant_y, c("donor", "pred")]
   colnames(dx)[2] <- "pred_x"
@@ -703,8 +823,8 @@ pivot_age_prediction_comparison <- function(comparison_df, metric = "mean_abs_er
   m$pred_x <- m$pred_x * age_scale
   m$pred_y <- m$pred_y * age_scale
 
-  display_x <- if (identical(variant_x, .reference_variant_label)) reference_group_label else gsub("_", " ", variant_x, fixed = TRUE)
-  display_y <- if (identical(variant_y, .reference_variant_label)) reference_group_label else gsub("_", " ", variant_y, fixed = TRUE)
+  display_x <- if (identical(variant_x, .reference_variant_label)) reference_group_label else .variant_display_label(variant_x, variant_labels)
+  display_y <- if (identical(variant_y, .reference_variant_label)) reference_group_label else .variant_display_label(variant_y, variant_labels)
 
   # Shared x/y range so the dashed y=x line is a true diagonal, not skewed by
   # independently-scaled axes.
@@ -726,32 +846,38 @@ pivot_age_prediction_comparison <- function(comparison_df, metric = "mean_abs_er
     ) +
     coord_equal(xlim = lims, ylim = lims) +
     labs(
-      title = paste(display_x, "vs", display_y),
       x = paste0(display_x, " [years]"),
       y = paste0(display_y, " [years]")
     ) +
-    theme_classic(base_size = 10) +
-    theme(plot.title = element_text(size = 8))
+    theme_classic(base_size = 14)
 }
 
 
-#' Arrange up to 4 panels into a titled 2x2 page, padding blanks as needed
+#' Arrange up to 4 panels into a titled grid page, sized to the panel count
 #'
-#' @param panels List of up to 4 ggplot objects (\code{NULL} entries become
-#'   blank panels).
-#' @param page_title Title drawn above the 2x2 grid.
+#' Drops \code{NULL} entries (rather than padding them as blank panels) and
+#' sizes the grid to however many panels remain: 1 panel fills the full page
+#' (1x1), 2 sit side by side (1x2), 3-4 form a 2x2 grid (with an empty cell
+#' for 3).
+#'
+#' @param panels List of up to 4 ggplot objects; \code{NULL} entries are
+#'   dropped.
+#' @param page_title Title drawn above the grid.
 #'
 #' @return A combined plot object (from \code{cowplot::plot_grid()}).
 #' @keywords internal
 .assemble_2x2_page <- function(panels, page_title) {
-  blank <- ggplot() + theme_void()
-  panels <- lapply(panels, function(p) if (is.null(p)) blank else p)
-  if (length(panels) < 4) {
-    panels <- c(panels, replicate(4 - length(panels), blank, simplify = FALSE))
+  panels <- panels[!vapply(panels, is.null, logical(1))]
+  if (length(panels) == 0) {
+    panels <- list(ggplot() + theme_void())
   }
 
-  grid <- cowplot::plot_grid(plotlist = panels[seq_len(4)], ncol = 2, nrow = 2)
-  title_gg <- cowplot::ggdraw() + cowplot::draw_label(page_title, fontface = "bold", size = 14)
+  ncol <- min(2, length(panels))
+  nrow <- ceiling(length(panels) / ncol)
+
+  grid <- cowplot::plot_grid(plotlist = panels, ncol = ncol, nrow = nrow)
+  title_gg <- cowplot::ggdraw() +
+    cowplot::draw_label(page_title, fontface = "bold", size = 18, x = 0.02, hjust = 0)
   cowplot::plot_grid(title_gg, grid, ncol = 1, rel_heights = c(0.08, 0.92))
 }
 
@@ -790,6 +916,8 @@ pivot_age_prediction_comparison <- function(comparison_df, metric = "mean_abs_er
 #'   variant (\code{.reference_variant_label}) wherever it appears as a panel
 #'   title or axis label, matching the heatmap's reference column-group
 #'   header. Default \code{"Trained on Ling et al"}.
+#' @param variant_labels Optional display-label overrides for non-reference
+#'   variants; see \code{\link{.variant_display_label}}.
 #'
 #' @return A list of two plot objects: \code{age_comparison} and
 #'   \code{method_agreement}.
@@ -797,7 +925,8 @@ pivot_age_prediction_comparison <- function(comparison_df, metric = "mean_abs_er
 plot_age_predictions_by_method <- function(combined_df, cell_type, variant_order = NULL,
                                            agreement_pairs = lapply(.default_display_variants, function(v) c(.reference_variant_label, v)),
                                            age_scale = 10,
-                                           reference_group_label = "Trained on Ling et al") {
+                                           reference_group_label = "Trained on Ling et al",
+                                           variant_labels = NULL) {
   df <- combined_df[combined_df$cell_type == cell_type, ]
 
   if (is.null(variant_order)) {
@@ -806,21 +935,30 @@ plot_age_predictions_by_method <- function(combined_df, cell_type, variant_order
   df <- df[df$variant %in% union(variant_order, unlist(agreement_pairs)), ]
 
   age_panels <- lapply(variant_order, function(v) {
-    title <- if (identical(v, .reference_variant_label)) reference_group_label else gsub("_", " ", v, fixed = TRUE)
+    title <- if (identical(v, .reference_variant_label)) reference_group_label else .variant_display_label(v, variant_labels)
     .plot_pred_vs_age_panel(df[df$variant == v, ], title, age_scale = age_scale)
   })
-  page1 <- .assemble_2x2_page(age_panels, paste(cell_type, "- predicted vs chronological age [years]"))
+  page1 <- .assemble_2x2_page(age_panels, cell_type)
 
   agreement_panels <- lapply(agreement_pairs, function(pair) {
-    .plot_pred_vs_pred_panel(df, pair[1], pair[2], age_scale = age_scale, reference_group_label = reference_group_label)
+    .plot_pred_vs_pred_panel(
+      df, pair[1], pair[2], age_scale = age_scale,
+      reference_group_label = reference_group_label, variant_labels = variant_labels
+    )
   })
-  page2 <- .assemble_2x2_page(agreement_panels, paste(cell_type, "- prediction agreement between methods"))
+  page2 <- .assemble_2x2_page(agreement_panels, cell_type)
 
   list(age_comparison = page1, method_agreement = page2)
 }
 
 
-#' Plot a model_details x cell_type heatmap overview of one metric
+#' Prepare the exact table underlying the metrics heatmap
+#'
+#' Data-preparation half of \code{\link{.plot_metrics_heatmap}}: filters,
+#' scales, relabels, and orders \code{metrics_df} exactly as the heatmap
+#' displays it. Split out so the tile values a caller sees in the plot can
+#' also be written to a flat file without recomputing (and risking drift
+#' from) the same logic twice.
 #'
 #' @param metrics_df data.frame with columns \code{cell_type},
 #'   \code{model_details}, and \code{metric} (e.g. as returned by
@@ -837,12 +975,18 @@ plot_age_predictions_by_method <- function(combined_df, cell_type, variant_order
 #'   header labels for the reference variant vs. the variants derived from
 #'   an externally-fit model's weights, respectively. Defaults
 #'   \code{"Trained on Ling et al"} and \code{"Weights from this work"}.
+#' @param variant_labels Optional display-label overrides for non-reference
+#'   variant column labels; see \code{\link{.variant_display_label}}.
 #'
-#' @return A ggplot object.
+#' @return A data.frame with one row per heatmap tile: \code{cell_type} and
+#'   \code{model_details} (both factors, in the plotted display order),
+#'   \code{model_group} (facet label), and \code{value} (the plotted metric,
+#'   after \code{age_scale}).
 #' @keywords internal
-.plot_metrics_heatmap <- function(metrics_df, metric = "median_abs_error", age_scale = 10, variant_order = NULL,
-                                  reference_group_label = "Trained on Ling et al",
-                                  external_group_label = "Weights from this work") {
+.prepare_metrics_heatmap_df <- function(metrics_df, metric = "median_abs_error", age_scale = 10, variant_order = NULL,
+                                        reference_group_label = "Trained on Ling et al",
+                                        external_group_label = "Weights from this work",
+                                        variant_labels = NULL) {
   if (is.null(variant_order)) {
     variant_order <- unique(metrics_df$model_details)
   }
@@ -855,35 +999,139 @@ plot_age_predictions_by_method <- function(combined_df, cell_type, variant_order
   group_order <- unique(vapply(variant_order, group_of, character(1)))
   df$model_group <- factor(vapply(df$model_details, group_of, character(1)), levels = group_order)
 
-  display_order <- gsub("_", " ", variant_order, fixed = TRUE)
-  df$model_details <- factor(gsub("_", " ", df$model_details, fixed = TRUE), levels = display_order)
+  display_order <- vapply(variant_order, .variant_display_label, character(1), variant_labels = variant_labels)
+  df$model_details <- factor(
+    vapply(df$model_details, .variant_display_label, character(1), variant_labels = variant_labels),
+    levels = display_order
+  )
 
   sort_values <- df[df$model_details == display_order[1], c("cell_type", "value")]
   cell_type_order <- sort_values$cell_type[order(sort_values$value)]
-  cell_type_order <- c(cell_type_order, setdiff(unique(df$cell_type), cell_type_order))
-  df$cell_type <- factor(df$cell_type, levels = rev(cell_type_order))
+  cell_type_order <- rev(c(cell_type_order, setdiff(unique(df$cell_type), cell_type_order)))
+  cell_type_display_order <- gsub("_", " ", cell_type_order, fixed = TRUE)
+  df$cell_type <- factor(gsub("_", " ", df$cell_type, fixed = TRUE), levels = cell_type_display_order)
 
-  metric_label <- switch(metric,
-    median_abs_error = "Median Abs. Error",
-    mean_abs_error = "Mean Abs. Error",
-    metric
-  )
-  unit_label <- switch(as.character(age_scale), "10" = "years", "1" = "decades", paste0("x", age_scale))
+  df
+}
 
+#' Render the metrics heatmap from its prepared table
+#'
+#' Plotting half of \code{\link{.plot_metrics_heatmap}}; takes the table
+#' produced by \code{\link{.prepare_metrics_heatmap_df}} and builds the
+#' \code{model_details} x \code{cell_type} heatmap ggplot.
+#'
+#' @param df As returned by \code{\link{.prepare_metrics_heatmap_df}}.
+#' @return A ggplot object.
+#' @keywords internal
+.render_metrics_heatmap <- function(df) {
   # Make R CMD CHECK happy
   model_details <- cell_type <- value <- model_group <- NULL
 
   ggplot(df, aes(x = model_details, y = cell_type)) +
     geom_tile(fill = "white", color = "grey80") +
-    geom_text(aes(label = sprintf("%.1f", value)), size = 3, color = "black") +
+    geom_text(aes(label = sprintf("%.1f", value)), size = 4.5, color = "black") +
     facet_grid(~model_group, scales = "free_x", space = "free_x") +
-    labs(title = paste0(metric_label, " [", unit_label, "] by cell type and model"), x = NULL, y = NULL) +
+    labs(x = NULL, y = NULL) +
     theme_classic(base_size = 11) +
     theme(
-      axis.text.x = element_text(angle = 30, hjust = 1),
+      axis.text.x = element_blank(),
+      axis.ticks.x = element_blank(),
+      axis.text.y = element_text(size = 13),
       strip.background = element_rect(fill = "grey90", color = NA),
-      strip.text = element_text(face = "bold")
+      strip.text = element_text(size = 15, face = "bold")
     )
+}
+
+#' Plot a model_details x cell_type heatmap overview of one metric
+#'
+#' Convenience wrapper combining \code{\link{.prepare_metrics_heatmap_df}}
+#' and \code{\link{.render_metrics_heatmap}}.
+#'
+#' @inheritParams .prepare_metrics_heatmap_df
+#' @return A ggplot object.
+#' @keywords internal
+.plot_metrics_heatmap <- function(metrics_df, metric = "median_abs_error", age_scale = 10, variant_order = NULL,
+                                  reference_group_label = "Trained on Ling et al",
+                                  external_group_label = "Weights from this work",
+                                  variant_labels = NULL) {
+  df <- .prepare_metrics_heatmap_df(
+    metrics_df,
+    metric = metric, age_scale = age_scale, variant_order = variant_order,
+    reference_group_label = reference_group_label, external_group_label = external_group_label,
+    variant_labels = variant_labels
+  )
+  .render_metrics_heatmap(df)
+}
+
+
+#' Build the per-page plots for the age-prediction method comparison
+#'
+#' Builds the same set of ggplot pages that
+#' \code{\link{plot_age_predictions_by_method_pdf}} would print to a PDF —
+#' a \code{model_details} x \code{cell_type} heatmap overview, then two
+#' pages per cell type (predicted-vs-chronological-age, then cross-method
+#' agreement) — but returns them as plot objects instead of writing a file.
+#' Shared by \code{\link{plot_age_predictions_by_method_pdf}} and
+#' \code{\link{build_age_prediction_comparison_plots}} so both stay in sync.
+#'
+#' @param combined_df As returned by \code{\link{combine_age_predictions_for_comparison}}.
+#' @param metrics_df As returned by \code{\link{compare_age_predictions_to_reference}}
+#'   (columns \code{cell_type}, \code{model_details}, and \code{overview_metric}),
+#'   used to build the first-page heatmap.
+#' @param cell_type_list Optional character vector restricting cell types to
+#'   plot. Default \code{NULL} = all cell types present in \code{combined_df}.
+#' @param variant_order,agreement_pairs Passed to
+#'   \code{plot_age_predictions_by_method()} and \code{\link{.plot_metrics_heatmap}}
+#'   (as its \code{variant_order}).
+#' @param overview_metric Passed to \code{\link{.plot_metrics_heatmap}}.
+#' @param age_scale Multiplier applied to ages/predictions/metrics for
+#'   display throughout (heatmap and per-cell-type pages alike); e.g.
+#'   \code{10} to convert decades to years. Default \code{10}.
+#' @param reference_group_label,external_group_label Passed to
+#'   \code{\link{.plot_metrics_heatmap}}.
+#' @param variant_labels Optional display-label overrides for non-reference
+#'   variants, passed to \code{\link{.plot_metrics_heatmap}} and
+#'   \code{plot_age_predictions_by_method()}; see
+#'   \code{\link{.variant_display_label}}.
+#'
+#' @return A list with \code{pages} (a named list of ggplot objects:
+#'   \code{metrics_heatmap}, plus \code{<cell_type>__age_comparison} and
+#'   \code{<cell_type>__method_agreement} for each cell type in
+#'   \code{cell_type_list} (or all present in \code{combined_df})) and
+#'   \code{metrics_heatmap_data} (the data.frame underlying
+#'   \code{pages$metrics_heatmap}; see \code{\link{.prepare_metrics_heatmap_df}}).
+#' @keywords internal
+.build_comparison_pages <- function(combined_df, metrics_df, cell_type_list = NULL,
+                                    variant_order = NULL,
+                                    agreement_pairs = lapply(.default_display_variants, function(v) c(.reference_variant_label, v)),
+                                    overview_metric = "median_abs_error", age_scale = 10,
+                                    reference_group_label = "Trained on Ling et al",
+                                    external_group_label = "Weights from this work",
+                                    variant_labels = NULL) {
+  cell_types <- unique(combined_df$cell_type)
+  if (!is.null(cell_type_list)) {
+    cell_types <- intersect(cell_types, cell_type_list)
+  }
+
+  overview_df <- metrics_df[metrics_df$cell_type %in% cell_types, ]
+  heatmap_df <- .prepare_metrics_heatmap_df(
+    overview_df, metric = overview_metric, age_scale = age_scale, variant_order = variant_order,
+    reference_group_label = reference_group_label, external_group_label = external_group_label,
+    variant_labels = variant_labels
+  )
+  pages <- list(metrics_heatmap = .render_metrics_heatmap(heatmap_df))
+
+  for (cell_type in cell_types) {
+    ct_pages <- plot_age_predictions_by_method(
+      combined_df, cell_type, variant_order = variant_order, agreement_pairs = agreement_pairs,
+      age_scale = age_scale, reference_group_label = reference_group_label,
+      variant_labels = variant_labels
+    )
+    pages[[paste0(cell_type, "__age_comparison")]] <- ct_pages$age_comparison
+    pages[[paste0(cell_type, "__method_agreement")]] <- ct_pages$method_agreement
+  }
+
+  list(pages = pages, metrics_heatmap_data = heatmap_df)
 }
 
 
@@ -892,7 +1140,8 @@ plot_age_predictions_by_method <- function(combined_df, cell_type, variant_order
 #' Writes a \code{model_details} x \code{cell_type} heatmap overview as the
 #' first page, then calls \code{plot_age_predictions_by_method()} once per
 #' cell type present in \code{combined_df}, writing its two pages
-#' (predicted-vs-chronological-age, then cross-method agreement).
+#' (predicted-vs-chronological-age, then cross-method agreement). Page
+#' construction is delegated to \code{\link{.build_comparison_pages}}.
 #'
 #' @param combined_df As returned by \code{\link{combine_age_predictions_for_comparison}}.
 #' @param metrics_df As returned by \code{\link{compare_age_predictions_to_reference}}
@@ -910,6 +1159,8 @@ plot_age_predictions_by_method <- function(combined_df, cell_type, variant_order
 #'   \code{10} to convert decades to years. Default \code{10}.
 #' @param reference_group_label,external_group_label Passed to
 #'   \code{\link{.plot_metrics_heatmap}}.
+#' @param variant_labels Optional display-label overrides for non-reference
+#'   variants; see \code{\link{.variant_display_label}}.
 #' @importFrom grDevices pdf dev.off
 #'
 #' @return Invisibly, \code{NULL}.
@@ -919,29 +1170,20 @@ plot_age_predictions_by_method_pdf <- function(combined_df, metrics_df, outPDFFi
                                                agreement_pairs = lapply(.default_display_variants, function(v) c(.reference_variant_label, v)),
                                                overview_metric = "median_abs_error", age_scale = 10,
                                                reference_group_label = "Trained on Ling et al",
-                                               external_group_label = "Weights from this work") {
-  cell_types <- unique(combined_df$cell_type)
-  if (!is.null(cell_type_list)) {
-    cell_types <- intersect(cell_types, cell_type_list)
-  }
+                                               external_group_label = "Weights from this work",
+                                               variant_labels = NULL) {
+  built <- .build_comparison_pages(
+    combined_df, metrics_df, cell_type_list = cell_type_list,
+    variant_order = variant_order, agreement_pairs = agreement_pairs,
+    overview_metric = overview_metric, age_scale = age_scale,
+    reference_group_label = reference_group_label, external_group_label = external_group_label,
+    variant_labels = variant_labels
+  )
 
   logger::log_info(paste0("Writing per-method age prediction comparison plots to: ", outPDFFile))
   grDevices::pdf(outPDFFile)
 
-  overview_df <- metrics_df[metrics_df$cell_type %in% cell_types, ]
-  print(.plot_metrics_heatmap(
-    overview_df, metric = overview_metric, age_scale = age_scale, variant_order = variant_order,
-    reference_group_label = reference_group_label, external_group_label = external_group_label
-  ))
-
-  for (cell_type in cell_types) {
-    pages <- plot_age_predictions_by_method(
-      combined_df, cell_type, variant_order = variant_order, agreement_pairs = agreement_pairs,
-      age_scale = age_scale, reference_group_label = reference_group_label
-    )
-    print(pages$age_comparison)
-    print(pages$method_agreement)
-  }
+  lapply(built$pages, print)
   grDevices::dev.off()
 
   invisible(NULL)

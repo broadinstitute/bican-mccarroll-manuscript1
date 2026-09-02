@@ -11,7 +11,8 @@ plot_age_predictions_by_method(
   agreement_pairs = lapply(.default_display_variants, function(v)
     c(.reference_variant_label, v)),
   age_scale = 10,
-  reference_group_label = "Trained on Ling et al"
+  reference_group_label = "Trained on Ling et al",
+  variant_labels = NULL
 )
 }
 \arguments{
@@ -38,6 +39,9 @@ to years). Default \code{10}.}
 variant (\code{.reference_variant_label}) wherever it appears as a panel
 title or axis label, matching the heatmap's reference column-group
 header. Default \code{"Trained on Ling et al"}.}
+
+\item{variant_labels}{Optional display-label overrides for non-reference
+variants; see \code{\link{.variant_display_label}}.}
 }
 \value{
 A list of two plot objects: \code{age_comparison} and

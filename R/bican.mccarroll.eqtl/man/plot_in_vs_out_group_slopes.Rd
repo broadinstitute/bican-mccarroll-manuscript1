@@ -6,7 +6,7 @@
 \usage{
 plot_in_vs_out_group_slopes(
   results,
-  fdr_cutoff = 0.05,
+  p_cutoff = 0.05,
   show_title = FALSE,
   label_significant = FALSE
 )
@@ -15,9 +15,9 @@ plot_in_vs_out_group_slopes(
 \item{results}{Results data.frame or data.table produced by
 \code{\link{run_cell_type_specific_eqtl_tests}}, containing at least
 \code{gene}, \code{pooled_out_group_slope}, \code{in_group_slope},
-\code{FDR}, and \code{n_comparator_cell_types}.}
+\code{p_value}, and \code{n_comparator_cell_types}.}
 
-\item{fdr_cutoff}{Adjusted P-value threshold used to call an interaction
+\item{p_cutoff}{P-value threshold used to call an interaction
 test significant.}
 
 \item{show_title}{If \code{TRUE}, add a descriptive plot title.}

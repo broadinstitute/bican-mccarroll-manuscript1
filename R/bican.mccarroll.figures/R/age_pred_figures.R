@@ -215,7 +215,8 @@
     data_cache_dir = data_cache_dir,
     outDir = outDir,
     optimize_alpha = optimize_alpha,
-    alpha_fixed = alpha_fixed
+    alpha_fixed = alpha_fixed,
+    mae_plot_width = 5
   )
 
 
@@ -525,6 +526,10 @@ age_prediction_mean_residual_correlation_plots <- function(cellTypeListFile = NU
 #'   parameter alpha is optimized rather than fixed.
 #' @param alpha_fixed Numeric elastic net mixing parameter used when
 #'   \code{optimize_alpha} is \code{FALSE}.
+#' @param mae_plot_width Width in inches of the saved mean absolute error
+#'   heatmap (\code{all_data_model_mean_absolute_errors_across_cell_type_region.svg}).
+#' @param mae_plot_height Height in inches of the saved mean absolute error
+#'   heatmap.
 #'
 #' @export
 age_prediction_error_plots <- function(cellTypeListFile = NULL,
@@ -538,7 +543,9 @@ age_prediction_error_plots <- function(cellTypeListFile = NULL,
                                        data_cache_dir = NULL,
                                        outDir = NULL,
                                        optimize_alpha = FALSE,
-                                       alpha_fixed = 0) {
+                                       alpha_fixed = 0,
+                                       mae_plot_width = 10,
+                                       mae_plot_height = 7) {
   paths <- .resolve_age_pred_paths(
     cellTypeListFile = cellTypeListFile, metacell_dir = metacell_dir,
     age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
@@ -597,7 +604,7 @@ age_prediction_error_plots <- function(cellTypeListFile = NULL,
   save_plot_svg(
     plot = mean_abs_error_all_plot,
     out_file = "all_data_model_mean_absolute_errors_across_cell_type_region.svg",
-    out_dir = paths$outDir, width = 10, height = 7
+    out_dir = paths$outDir, width = mae_plot_width, height = mae_plot_height
   )
 
   plot_list <- list(
@@ -1401,6 +1408,10 @@ age_prediction_examples <- function(cell_type_list = c("astrocyte", "OPC", "micr
   gam_fit$gam_pred <- gam_fit$gam_pred * 10
 
 
+  # shared axis breakpoints across all cell type panels in this figure
+  axis_breaks <- c(20, 40, 60, 80, 100)
+  axis_limits <- range(axis_breaks)
+
   make_one_plot <- function(cell_type) {
     dp <- donor_pred[donor_pred$cell_type == cell_type & donor_pred$region == region, ]
     gf <- gam_fit[gam_fit$cell_type == cell_type & gam_fit$region == region, ]
@@ -1421,7 +1432,10 @@ age_prediction_examples <- function(cell_type_list = c("astrocyte", "OPC", "micr
         axis.title.y = ggplot2::element_blank(),
         axis.text.x = ggplot2::element_text(size = ggplot2::rel(2)),
         axis.text.y = ggplot2::element_text(size = ggplot2::rel(2))
-      )
+      ) +
+      ggplot2::scale_x_continuous(breaks = axis_breaks) +
+      ggplot2::scale_y_continuous(breaks = axis_breaks) +
+      ggplot2::coord_equal(xlim = axis_limits, ylim = axis_limits)
 
 
     # change the point color to a single color

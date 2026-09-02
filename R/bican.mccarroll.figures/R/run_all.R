@@ -24,6 +24,7 @@ run_all <- function() {
   bican.mccarroll.figures::age_prediction_corrected_residual_pairwise_scatter_region()
   bican.mccarroll.figures::age_prediction_uncorrected_residual_pairwise_scatter_region()
   bican.mccarroll.figures::age_prediction_examples()
+  bican.mccarroll.figures::age_prediction_external_snap200_plots()
   bican.mccarroll.figures::plot_trade_analysis_bican()
   bican.mccarroll.figures::plot_trade_analysis_bican_sea_ad_mtg_mmc()
   bican.mccarroll.figures::plot_trade_analysis_PMID_39402379()
@@ -62,6 +63,7 @@ run_all <- function() {
   bican.mccarroll.figures::plot_de_sign_test_pmid_39402379_bican()
   bican.mccarroll.figures::plot_de_sign_test_kana_2026_bican()
   bican.mccarroll.figures::plot_de_sign_test_snap200_sex_bican()
+  bican.mccarroll.figures::plot_eqtl_sign_test_snap200_bican()
 
   bican.mccarroll.figures::run_private_eqtl_tests_bican()
   bican.mccarroll.figures::summarize_private_eqtl_tests_bican()
@@ -69,4 +71,6 @@ run_all <- function() {
   bican.mccarroll.figures::summarize_private_eqtl_tests_downsampled_bican()
 
   bican.mccarroll.figures::write_eqtl_donor_counts_bican()
+
+  bican.mccarroll.figures::plot_rna_scope_validation()
 }

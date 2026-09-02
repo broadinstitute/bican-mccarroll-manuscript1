@@ -40,7 +40,7 @@ that must be coerced to factors before fitting. Unknown columns are errors.}
 or TSV.GZ file. Existing files are overwritten.}
 
 \item{summary_outfile}{outfile contains the number of genes only expressed in the cell type / cluster,
-and the number of genes that are testable pass/fail the FDR threshold of 0.05.}
+and the number of genes that are testable pass/fail the nominal P-value threshold of 0.05.}
 
 \item{comparators_outfile}{Required writable path for the long comparator TSV
 or TSV.GZ file. Existing files are overwritten.}
