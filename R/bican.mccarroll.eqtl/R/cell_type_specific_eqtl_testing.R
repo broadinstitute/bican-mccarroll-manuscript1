@@ -22,7 +22,7 @@ library(data.table)
 #' @param results_outfile Required writable path for the gene-level results TSV
 #'   or TSV.GZ file. Existing files are overwritten.
 #' @param summary_outfile outfile contains the number of genes only expressed in the cell type / cluster,
-#' and the number of genes that are testable pass/fail the FDR threshold of 0.05.
+#' and the number of genes that are testable pass/fail the nominal P-value threshold of 0.05.
 #' @param comparators_outfile Required writable path for the long comparator TSV
 #'   or TSV.GZ file. Existing files are overwritten.
 #'
@@ -174,22 +174,24 @@ run_cell_type_specific_eqtl_tests <- function(
 buildSummaryDF <- function(results, eqtl_data) {
   cluster <- unique(results$cluster)
   cellTypes <- paste(unique(eqtl_data[eqtl_data$in_group == 1, ]$cell_type), collapse = ",")
-  z <- results[results$n_comparator_cell_types > 0 & !is.na(results$FDR), ]
+
+  z <- results[results$n_comparator_cell_types > 0 & !is.na(results$p_value), ]
 
   private_egenes <- dim(results[results$n_comparator_cell_types == 0, ])[1]
-  num_pass_fdr <- length(which(z$FDR < 0.05))
-  num_miss_fdr <- length(which(z$FDR > 0.05))
-  num_testable <- num_pass_fdr + num_miss_fdr
+  num_pass <- sum(z$p_value < 0.05)
+  num_miss <- sum(z$p_value >= 0.05)
+  num_testable <- num_pass + num_miss
+
   num_cluster_associated <- private_egenes + num_testable
   pct_private <- round(private_egenes / num_cluster_associated * 100, 1)
-  pct_interaction <- round(num_pass_fdr / num_testable * 100, 1)
+  pct_interaction <- round(num_pass / num_testable * 100, 1)
 
   df <- data.frame(
     cluster = cluster, cell_types = cellTypes,
     "Expression-private eGenes" = private_egenes,
     "Cluster-associated eGenes" = num_cluster_associated,
     "Cross-cell-type testable eGenes" = num_testable,
-    "Significant interaction eGenes" = num_pass_fdr,
+    "Nominal-significant interaction eGenes" = num_pass,
     "Expression-private %" = pct_private,
     "Interaction-supported %" = pct_interaction, check.names = F
   )
@@ -1816,14 +1818,14 @@ plot_gene_tpm_by_group <- function(geneName,
 #'
 #' @param results Results data.frame or data.table produced by
 #'   \code{\link{run_cell_type_specific_eqtl_tests}}, containing at least
-#'   \code{gene}, \code{n_comparator_cell_types}, and \code{FDR}.
-#' @param fdr_cutoff Adjusted P-value threshold used to call an interaction
+#'   \code{gene}, \code{n_comparator_cell_types}, and \code{p_value}.
+#' @param p_cutoff P-value threshold used to call an interaction
 #'   test significant.
 #'
 #' @return A ggplot object, or \code{NULL} if there is no plottable data.
 #' @export
 plot_fdr_fraction_by_outgroup_count <- function(results,
-                                                fdr_cutoff = 0.05) {
+                                                p_cutoff = 0.05) {
   if (!requireNamespace("ggplot2", quietly = TRUE)) {
     stop("Package 'ggplot2' is required.", call. = FALSE)
   }
@@ -1835,7 +1837,7 @@ plot_fdr_fraction_by_outgroup_count <- function(results,
   required_columns <- c(
     "gene",
     "n_comparator_cell_types",
-    "FDR"
+    "p_value"
   )
 
   missing_columns <- setdiff(
@@ -1852,13 +1854,13 @@ plot_fdr_fraction_by_outgroup_count <- function(results,
   }
 
   significant_label <- paste0(
-    "FDR < ",
-    fdr_cutoff
+    "P < ",
+    p_cutoff
   )
 
   nonsignificant_label <- paste0(
-    "FDR >= ",
-    fdr_cutoff
+    "P >= ",
+    p_cutoff
   )
 
   aggregate_significant_label <- paste0(
@@ -1890,7 +1892,7 @@ plot_fdr_fraction_by_outgroup_count <- function(results,
     d$n_comparator_cell_types
   )
 
-  d$FDR <- as.numeric(d$FDR)
+  d$p_value <- as.numeric(d$p_value)
 
   # Genes with no out-group expression cannot be tested.
   private_expression <- d[
@@ -1900,16 +1902,16 @@ plot_fdr_fraction_by_outgroup_count <- function(results,
   ]
 
   # For categories with at least one out-group cell type, rows with
-  # missing FDR are excluded from both numerator and denominator.
+  # missing p-value are excluded from both numerator and denominator.
   tested <- d[
     !is.na(d$n_comparator_cell_types) &
       d$n_comparator_cell_types > 0L &
-      !is.na(d$FDR), ,
+      !is.na(d$p_value), ,
     drop = FALSE
   ]
 
   tested$status <- ifelse(
-    tested$FDR < fdr_cutoff,
+    tested$p_value < p_cutoff,
     significant_label,
     nonsignificant_label
   )
@@ -2208,8 +2210,8 @@ plot_fdr_fraction_by_outgroup_count <- function(results,
 #' @param results Results data.frame or data.table produced by
 #'   \code{\link{run_cell_type_specific_eqtl_tests}}, containing at least
 #'   \code{gene}, \code{pooled_out_group_slope}, \code{in_group_slope},
-#'   \code{FDR}, and \code{n_comparator_cell_types}.
-#' @param fdr_cutoff Adjusted P-value threshold used to call an interaction
+#'   \code{p_value}, and \code{n_comparator_cell_types}.
+#' @param p_cutoff P-value threshold used to call an interaction
 #'   test significant.
 #' @param show_title If \code{TRUE}, add a descriptive plot title.
 #' @param label_significant If \code{TRUE}, label significant points with
@@ -2218,7 +2220,7 @@ plot_fdr_fraction_by_outgroup_count <- function(results,
 #' @return A ggplot object, or \code{NULL} if there is no plottable data.
 #' @export
 plot_in_vs_out_group_slopes <- function(results,
-                                        fdr_cutoff = 0.05,
+                                        p_cutoff = 0.05,
                                         show_title = FALSE,
                                         label_significant = FALSE) {
   if (!requireNamespace("ggplot2", quietly = TRUE)) {
@@ -2239,7 +2241,7 @@ plot_in_vs_out_group_slopes <- function(results,
     "gene",
     "pooled_out_group_slope",
     "in_group_slope",
-    "FDR",
+    "p_value",
     "n_comparator_cell_types"
   )
 
@@ -2283,10 +2285,10 @@ plot_in_vs_out_group_slopes <- function(results,
     d$in_group_slope
   )
 
-  d$FDR <- as.numeric(d$FDR)
+  d$p_value <- as.numeric(d$p_value)
 
   # Plot genes that had at least one comparator and finite slope estimates.
-  # Rows with missing FDR remain visible as "FDR unavailable".
+  # Rows with missing p-value remain visible as "P unavailable".
   d <- d[
     !is.na(d$n_comparator_cell_types) &
       d$n_comparator_cell_types > 0L &
@@ -2300,22 +2302,22 @@ plot_in_vs_out_group_slopes <- function(results,
   }
 
   significant_label <- paste0(
-    "FDR < ",
-    fdr_cutoff
+    "P < ",
+    p_cutoff
   )
 
   nonsignificant_label <- paste0(
-    "FDR >= ",
-    fdr_cutoff
+    "P >= ",
+    p_cutoff
   )
 
-  unavailable_label <- "FDR unavailable"
+  unavailable_label <- "P unavailable"
 
   d$significance <- ifelse(
-    is.na(d$FDR),
+    is.na(d$p_value),
     unavailable_label,
     ifelse(
-      d$FDR < fdr_cutoff,
+      d$p_value < p_cutoff,
       significant_label,
       nonsignificant_label
     )
@@ -2435,8 +2437,8 @@ plot_in_vs_out_group_slopes <- function(results,
 
   if (label_significant) {
     label_data <- d[
-      !is.na(d$FDR) &
-        d$FDR < fdr_cutoff, ,
+      !is.na(d$p_value) &
+        d$p_value < p_cutoff, ,
       drop = FALSE
     ]
 
@@ -2502,17 +2504,17 @@ write_eqtl_summary_pdf <- function(results,
   )
 
   # Summary page 1: fraction significant by number of out-group cell types.
-  p_fdr <- plot_fdr_fraction_by_outgroup_count(
+  p_interaction <- plot_fdr_fraction_by_outgroup_count(
     results = results
   )
 
-  if (!is.null(p_fdr)) {
-    print(p_fdr)
+  if (!is.null(p_interaction)) {
+    print(p_interaction)
 
     if (!is.null(svg_dir)) {
       ggplot2::ggsave(
-        file.path(svg_dir, paste0(svg_prefix, ".fdr_fraction_by_outgroup.svg")),
-        plot = p_fdr, device = svglite::svglite, width = 10, height = 6
+        file.path(svg_dir, paste0(svg_prefix, ".interaction_fraction_by_outgroup.svg")),
+        plot = p_interaction, device = svglite::svglite, width = 10, height = 6
       )
     }
   }

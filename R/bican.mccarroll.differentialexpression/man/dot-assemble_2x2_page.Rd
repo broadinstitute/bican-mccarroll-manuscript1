@@ -2,20 +2,23 @@
 % Please edit documentation in R/age_external_predictions.R
 \name{.assemble_2x2_page}
 \alias{.assemble_2x2_page}
-\title{Arrange up to 4 panels into a titled 2x2 page, padding blanks as needed}
+\title{Arrange up to 4 panels into a titled grid page, sized to the panel count}
 \usage{
 .assemble_2x2_page(panels, page_title)
 }
 \arguments{
-\item{panels}{List of up to 4 ggplot objects (\code{NULL} entries become
-blank panels).}
+\item{panels}{List of up to 4 ggplot objects; \code{NULL} entries are
+dropped.}
 
-\item{page_title}{Title drawn above the 2x2 grid.}
+\item{page_title}{Title drawn above the grid.}
 }
 \value{
 A combined plot object (from \code{cowplot::plot_grid()}).
 }
 \description{
-Arrange up to 4 panels into a titled 2x2 page, padding blanks as needed
+Drops \code{NULL} entries (rather than padding them as blank panels) and
+sizes the grid to however many panels remain: 1 panel fills the full page
+(1x1), 2 sit side by side (1x2), 3-4 form a 2x2 grid (with an empty cell
+for 3).
 }
 \keyword{internal}

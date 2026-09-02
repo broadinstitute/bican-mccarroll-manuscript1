@@ -46,6 +46,6 @@ A ggplot object.
 Row ordering matches the legacy pheatmap implementation: the first row
 of the wide table appears at the top of the heatmap. Numeric labels can
 optionally show TRADE values rescaled to a 0-1 range using percentile-based
-lower and upper bounds. Heatmap colors continue to represent the unscaled
-TRADE values.
+lower and upper bounds. Heatmap colors also represent these percentile-
+scaled values, and a color bar legend (0-1) is drawn alongside the tiles.
 }

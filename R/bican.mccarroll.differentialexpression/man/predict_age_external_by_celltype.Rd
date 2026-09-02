@@ -9,7 +9,7 @@ predict_age_external_by_celltype(
   data_prefix = "donor_rxn_DGEList",
   model_file,
   region_map,
-  outPDFFile,
+  outPDFFile = NULL,
   cell_type_list = NULL,
   variants = names(.age_variant_specs),
   title_prefix = NULL,
@@ -37,7 +37,9 @@ loaded via \code{\link{load_models}}.}
 \code{model_region}, mapping each region label present in the external
 data to the region label used in the fitted model.}
 
-\item{outPDFFile}{Path to write the PDF of per-cell-type scatter plots to.}
+\item{outPDFFile}{Optional path to write a PDF of per-cell-type scatter
+plots to. Default \code{NULL} = skip the QC plots entirely (e.g. when
+only \code{predictions_file} is needed).}
 
 \item{cell_type_list}{Optional character vector restricting cell types to
 attempt. Default \code{NULL} = all cell types present in both the

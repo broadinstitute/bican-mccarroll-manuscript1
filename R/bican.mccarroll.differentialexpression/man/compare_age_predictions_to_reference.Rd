@@ -19,7 +19,8 @@ compare_age_predictions_to_reference(
   age_scale = 10,
   reference_group_label = "Trained on Ling et al",
   external_group_label = "Weights from this work",
-  metrics_file = NULL
+  metrics_file = NULL,
+  variant_labels = NULL
 )
 }
 \arguments{
@@ -91,6 +92,9 @@ an externally-fit model's weights, respectively. Defaults
 
 \item{metrics_file}{Optional path to write the returned comparison
 data.frame to, tab-delimited.}
+
+\item{variant_labels}{Optional display-label overrides for non-reference
+variants; see \code{\link{.variant_display_label}}.}
 }
 \value{
 A long-format data.frame with columns \code{cell_type},

@@ -10,7 +10,8 @@
   age_scale = 10,
   variant_order = NULL,
   reference_group_label = "Trained on Ling et al",
-  external_group_label = "Weights from this work"
+  external_group_label = "Weights from this work",
+  variant_labels = NULL
 )
 }
 \arguments{
@@ -33,11 +34,15 @@ sorted ascending by the first entry's value). Default is all
 header labels for the reference variant vs. the variants derived from
 an externally-fit model's weights, respectively. Defaults
 \code{"Trained on Ling et al"} and \code{"Weights from this work"}.}
+
+\item{variant_labels}{Optional display-label overrides for non-reference
+variant column labels; see \code{\link{.variant_display_label}}.}
 }
 \value{
 A ggplot object.
 }
 \description{
-Plot a model_details x cell_type heatmap overview of one metric
+Convenience wrapper combining \code{\link{.prepare_metrics_heatmap_df}}
+and \code{\link{.render_metrics_heatmap}}.
 }
 \keyword{internal}

@@ -4,14 +4,14 @@
 \alias{plot_fdr_fraction_by_outgroup_count}
 \title{Fraction of significant eGenes by out-group cell-type count}
 \usage{
-plot_fdr_fraction_by_outgroup_count(results, fdr_cutoff = 0.05)
+plot_fdr_fraction_by_outgroup_count(results, p_cutoff = 0.05)
 }
 \arguments{
 \item{results}{Results data.frame or data.table produced by
 \code{\link{run_cell_type_specific_eqtl_tests}}, containing at least
-\code{gene}, \code{n_comparator_cell_types}, and \code{FDR}.}
+\code{gene}, \code{n_comparator_cell_types}, and \code{p_value}.}
 
-\item{fdr_cutoff}{Adjusted P-value threshold used to call an interaction
+\item{p_cutoff}{P-value threshold used to call an interaction
 test significant.}
 }
 \value{

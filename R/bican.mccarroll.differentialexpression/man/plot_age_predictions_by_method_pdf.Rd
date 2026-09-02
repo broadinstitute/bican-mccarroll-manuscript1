@@ -15,7 +15,8 @@ plot_age_predictions_by_method_pdf(
   overview_metric = "median_abs_error",
   age_scale = 10,
   reference_group_label = "Trained on Ling et al",
-  external_group_label = "Weights from this work"
+  external_group_label = "Weights from this work",
+  variant_labels = NULL
 )
 }
 \arguments{
@@ -42,6 +43,9 @@ display throughout (heatmap and per-cell-type pages alike); e.g.
 
 \item{reference_group_label, external_group_label}{Passed to
 \code{\link{.plot_metrics_heatmap}}.}
+
+\item{variant_labels}{Optional display-label overrides for non-reference
+variants; see \code{\link{.variant_display_label}}.}
 }
 \value{
 Invisibly, \code{NULL}.
@@ -50,6 +54,7 @@ Invisibly, \code{NULL}.
 Writes a \code{model_details} x \code{cell_type} heatmap overview as the
 first page, then calls \code{plot_age_predictions_by_method()} once per
 cell type present in \code{combined_df}, writing its two pages
-(predicted-vs-chronological-age, then cross-method agreement).
+(predicted-vs-chronological-age, then cross-method agreement). Page
+construction is delegated to \code{\link{.build_comparison_pages}}.
 }
 \keyword{internal}

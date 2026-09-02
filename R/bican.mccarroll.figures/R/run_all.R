@@ -24,6 +24,7 @@ run_all <- function() {
   bican.mccarroll.figures::age_prediction_corrected_residual_pairwise_scatter_region()
   bican.mccarroll.figures::age_prediction_uncorrected_residual_pairwise_scatter_region()
   bican.mccarroll.figures::age_prediction_examples()
+  bican.mccarroll.figures::age_prediction_external_snap200_plots()
   bican.mccarroll.figures::plot_trade_analysis_bican()
   bican.mccarroll.figures::plot_trade_analysis_bican_sea_ad_mtg_mmc()
   bican.mccarroll.figures::plot_trade_analysis_PMID_39402379()

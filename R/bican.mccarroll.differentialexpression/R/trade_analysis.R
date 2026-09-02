@@ -162,8 +162,8 @@ trade_barplot <- function(trade_results,
 #' Row ordering matches the legacy pheatmap implementation: the first row
 #' of the wide table appears at the top of the heatmap. Numeric labels can
 #' optionally show TRADE values rescaled to a 0-1 range using percentile-based
-#' lower and upper bounds. Heatmap colors continue to represent the unscaled
-#' TRADE values.
+#' lower and upper bounds. Heatmap colors also represent these percentile-
+#' scaled values, and a color bar legend (0-1) is drawn alongside the tiles.
 #'
 #' @param trade_results A data.table produced by run_trade().
 #' @param cell_types_use Optional character vector specifying order/subset.
@@ -248,18 +248,21 @@ trade_heatmap <- function(trade_results,
       option = "mako",
       limits = c(0, 1),
       na.value = "white",
-      guide = "none"
+      name = NULL,
+      guide = ggplot2::guide_colorbar()
     ) +
     ggplot2::scale_y_discrete(position = "right") +
     ggplot2::labs(x = NULL, y = NULL) +
     ggplot2::theme_classic() +
     ggplot2::theme(
-      axis.text.x = ggplot2::element_text(angle = 45, hjust = 1),
+      axis.text.x = ggplot2::element_text(size = 12, angle = 90, hjust = 1, vjust = 0.5),
+      axis.text.y = ggplot2::element_text(size = 12),
       axis.ticks.y = ggplot2::element_blank(),
       axis.line = ggplot2::element_blank(),
       legend.position = "right",
       legend.justification = "top",
-      legend.box.just = "top"
+      legend.box.just = "top",
+      legend.text = ggplot2::element_text(size = 10)
     )
 
   if (display_numbers) {

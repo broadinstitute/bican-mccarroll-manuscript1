@@ -16,7 +16,9 @@ age_prediction_error_plots(
   data_cache_dir = NULL,
   outDir = NULL,
   optimize_alpha = FALSE,
-  alpha_fixed = 0
+  alpha_fixed = 0,
+  mae_plot_width = 10,
+  mae_plot_height = 7
 )
 }
 \arguments{
@@ -47,6 +49,12 @@ parameter alpha is optimized rather than fixed.}
 
 \item{alpha_fixed}{Numeric elastic net mixing parameter used when
 \code{optimize_alpha} is \code{FALSE}.}
+
+\item{mae_plot_width}{Width in inches of the saved mean absolute error
+heatmap (\code{all_data_model_mean_absolute_errors_across_cell_type_region.svg}).}
+
+\item{mae_plot_height}{Height in inches of the saved mean absolute error
+heatmap.}
 }
 \description{
 Summarizes age prediction performance across cell types and generates

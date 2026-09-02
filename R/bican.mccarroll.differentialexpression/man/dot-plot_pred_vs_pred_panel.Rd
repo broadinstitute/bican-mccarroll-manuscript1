@@ -9,7 +9,8 @@
   variant_x,
   variant_y,
   age_scale = 10,
-  reference_group_label = "Trained on Ling et al"
+  reference_group_label = "Trained on Ling et al",
+  variant_labels = NULL
 )
 }
 \arguments{
@@ -26,6 +27,9 @@ years). Default \code{10}.}
 \code{variant_x}/\code{variant_y} whenever it equals
 \code{.reference_variant_label} (matching the heatmap's reference
 column-group header). Default \code{"Trained on Ling et al"}.}
+
+\item{variant_labels}{Optional display-label overrides; see
+\code{\link{.variant_display_label}}.}
 }
 \value{
 A ggplot object, or \code{NULL} if the two variants share no donors.
