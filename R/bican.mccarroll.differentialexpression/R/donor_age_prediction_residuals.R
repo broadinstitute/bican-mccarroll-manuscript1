@@ -799,7 +799,8 @@ plot_jaccard_heatmap <- function(J,
                                  cell_fontsize = 16,
                                  row_order_names = NULL,
                                  column_order_names = NULL,
-                                 legend_title = "Jaccard") {
+                                 legend_title = "Jaccard",
+                                 label_color_threshold = 0.8) {
   stopifnot(is.matrix(J))
 
   # Validate / map optional name-based ordering to indices
@@ -860,7 +861,11 @@ plot_jaccard_heatmap <- function(J,
 
   cf <- if (isTRUE(annotate_cells)) {
     function(j, i, x, y, width, height, fill) {
-      grid::grid.text(sprintf("%.2f", J[i, j]), x, y, gp = grid::gpar(fontsize = cell_fontsize))
+      text_col <- if (J[i, j] >= label_color_threshold) "white" else "black"
+      grid::grid.text(
+        sprintf("%.2f", J[i, j]), x, y,
+        gp = grid::gpar(fontsize = cell_fontsize, col = text_col)
+      )
     }
   } else {
     NULL
@@ -999,7 +1004,8 @@ load_model_predictions <- function(prediction_file, cellTypeListFile = NULL) {
                                                row_fontsize = 9,
                                                col_fontsize = 9,
                                                cell_fontsize = 9,
-                                               legend_title = "Correlation") {
+                                               legend_title = "Correlation",
+                                               label_color_threshold = 0.8) {
   stopifnot(is.matrix(res_mat))
 
   C <- stats::cor(res_mat, use = "pairwise.complete.obs")
@@ -1012,11 +1018,12 @@ load_model_predictions <- function(prediction_file, cellTypeListFile = NULL) {
 
   cf <- if (isTRUE(annotate_cells)) {
     function(j, i, x, y, width, height, fill) {
+      text_col <- if (abs(C[i, j]) >= label_color_threshold) "white" else "black"
       grid::grid.text(
         sprintf("%.2f", C[i, j]),
         x,
         y,
-        gp = grid::gpar(fontsize = cell_fontsize)
+        gp = grid::gpar(fontsize = cell_fontsize, col = text_col)
       )
     }
   } else {
