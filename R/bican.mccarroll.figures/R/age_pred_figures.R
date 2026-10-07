@@ -2,18 +2,18 @@
 ## Set configuration (development only; comment out in package build)
 ## ------------------------------------------------------------------
 
-# source("R/paths.R")
-#
-# options(
-#     bican.mccarroll.figures.data_root_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis",
-#
-#     bican.mccarroll.figures.out_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository",
-#
-#     bican.mccarroll.figures.cache_dir =
-#         "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository/data_cache"
-# )
+source("R/paths.R")
+
+options(
+    bican.mccarroll.figures.data_root_dir =
+        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis",
+
+    bican.mccarroll.figures.out_dir =
+        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository",
+
+    bican.mccarroll.figures.cache_dir =
+        "/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3.1_analysis/figure_repository/data_cache"
+)
 
 # cellTypeListFile <- metacell_dir <- age_de_results_dir <- contig_yaml_file <- reduced_gtf_file <- data_cache_dir <- outDir <- NULL
 
@@ -28,6 +28,9 @@
     optimize_alpha = FALSE,
     alpha_fixed = 0.5
   )
+
+  logger::log_info("Starting covariate adjusted residuals analysis")
+  age_prediction_covariate_adjusted_residual_plots()
 }
 
 # .age_prediction_all_optimize_alpha <- function() {
@@ -783,6 +786,22 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(region = "C
       all_models$cell_type %in% cell_types,
   ]
 
+  .plot_residual_corr_and_jaccard_region(
+    model_predictions = model_predictions,
+    all_models = all_models,
+    region = region,
+    out_dir = paths$outDir,
+    out_file = sprintf("age_prediction_residual_corr_and_jaccard_region_%s.svg", region)
+  )
+}
+
+# Shared by the published and covariate-adjusted figures. model_predictions and
+# all_models must already be restricted to the desired region/cell types.
+.plot_residual_corr_and_jaccard_region <- function(model_predictions,
+                                                   all_models,
+                                                   region,
+                                                   out_dir,
+                                                   out_file) {
   # corr_title <- sprintf(
   #     "Age Prediction residuals (predicted - actual)\nregion [%s]",
   #     region
@@ -856,10 +875,8 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(region = "C
 
   save_plot_svg(
     plot = final,
-    out_file = sprintf(
-      "age_prediction_residual_corr_and_jaccard_region_%s.svg", region
-    ),
-    out_dir = paths$outDir, width = 15, height = 6.2
+    out_file = out_file,
+    out_dir = out_dir, width = 15, height = 6.2
   )
 
   invisible(final)
@@ -1088,6 +1105,27 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(cell_type_
       donor_pred$cell_type %in% cell_type_list,
   ]
 
+  .plot_corrected_residual_pairwise_scatter_region(
+    donor_pred = donor_pred,
+    cell_type_list = cell_type_list,
+    region = region,
+    out_dir = paths$outDir,
+    out_file = sprintf(
+      "age_prediction_corrected_residual_pairwise_scatter_region_%s.svg", region
+    ),
+    ncol = ncol
+  )
+}
+
+# Shared by the published and covariate-adjusted figures. donor_pred must already
+# be restricted to region and cell_type_list.
+.plot_corrected_residual_pairwise_scatter_region <- function(donor_pred,
+                                                             cell_type_list,
+                                                             region,
+                                                             out_dir,
+                                                             out_file,
+                                                             ncol = 3,
+                                                             axis_label = "Corrected residual (predicted - actual)") {
   # To be consistent with other manuscript plots, format age in years instead of decades
   # This only changes the legend values.
   donor_pred$age <- donor_pred$age * 10
@@ -1141,7 +1179,7 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(cell_type_
   core <- cowplot::plot_grid(
     grid,
     cowplot::ggdraw() +
-      cowplot::draw_label("Corrected residual (predicted - actual)", size = 16),
+      cowplot::draw_label(axis_label, size = 16),
     ncol = 1, rel_heights = c(1, 0.12)
   )
 
@@ -1153,7 +1191,7 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(cell_type_
       width = 1 - left_pad, height = 1
     ) +
     cowplot::draw_label(
-      "Corrected residual (predicted - actual)",
+      axis_label,
       angle = 90, x = left_pad * 0.35, y = 0.5,
       vjust = 0.5, size = 16
     )
@@ -1164,12 +1202,7 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(cell_type_
       width = 1 - left_pad, height = 1
     )
 
-  out_svg <- file.path(
-    paths$outDir,
-    sprintf(
-      "age_prediction_corrected_residual_pairwise_scatter_region_%s.svg", region
-    )
-  )
+  out_svg <- file.path(out_dir, out_file)
 
   ggplot2::ggsave(
     filename = out_svg, plot = final_padded, device = svglite_manuscript,
@@ -1675,4 +1708,164 @@ read_age_prediction_results <- function(cache_dir) {
     outDir = out,
     data_cache_dir = cache
   )
+}
+
+#' Manuscript figure: covariate-adjusted age-prediction residual correlations
+#'
+#' Regresses each cell type x region's predicted age on PMI, RQS and library size
+#' (controlling for age), subtracts the covariate terms from the corrected
+#' residuals, and redraws the residual correlation heatmap (with the unchanged
+#' Jaccard overlap panel) and the pairwise corrected-residual scatter plots for
+#' one region. Only donors with complete PMI and RQS are used.
+#'
+#' Writes, to the alpha 0.5 output directory:
+#' \itemize{
+#'   \item \code{age_prediction_covariate_adjusted_residual_corr_and_jaccard_region_<region>.svg}
+#'   \item \code{age_prediction_covariate_adjusted_residual_pairwise_scatter_region_<region>.svg}
+#'   \item \code{age_prediction_covariate_subset_unadjusted_residual_corr_and_jaccard_region_<region>.svg}
+#'     and \code{age_prediction_covariate_subset_unadjusted_residual_pairwise_scatter_region_<region>.svg}:
+#'     the same two figures without the covariate adjustment, restricted to the same
+#'     donors, for a like-for-like comparison.
+#'   \item \code{age_prediction_covariate_regression_results.txt}: one row per cell type x
+#'     region x covariate (cell types in the cell type list, plus \code{cell_type_list}) with the estimated effect (change in predicted age
+#'     per SD of the covariate, in decades), standard error, p-value, BH-adjusted p-value and number of donors.
+#' }
+#' The adjusted donor predictions are cached next to the original predictions as
+#' \code{age_prediction_results_donor_predictions_covariate_adjusted.txt}.
+#'
+#' @param region Region to plot (e.g. "CaH").
+#' @param cell_type_list Cell types shown in the pairwise scatter plots. These are
+#'   analysed in addition to the cell types in the age-prediction cell type list.
+#'
+#' @return Invisibly, the list returned by
+#'   \code{bican.mccarroll.differentialexpression::residualize_age_predictions_on_covariates()}.
+#' @export
+age_prediction_covariate_adjusted_residual_plots <- function(region = "CaH",
+                                                             cell_type_list = c("astrocyte", "OPC", "microglia", "SPN_D1")) {
+  optimize_alpha <- FALSE
+  alpha_fixed <- 0.5
+
+  # Complete-cases DGEList (donors with PMI and RQS), relative to the data root.
+  dge_dir <- "metacells/LEVEL_6"
+  dge_prefix <- "age_pmi_rqs_complete_cases_DGEList"
+
+  # Matches .age_prediction_all_alpha_fixed_0_5()
+  paths <- .resolve_age_pred_paths(
+    use_age_de_results = FALSE,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
+
+  cell_types <- utils::read.table(paths$cellTypeListFile, header = FALSE)$V1
+
+  results <- get_age_prediction_results(
+    metacell_dir = paths$metacell_dir,
+    age_de_results_dir = paths$age_de_results_dir,
+    contig_yaml_file = paths$contig_yaml_file,
+    reduced_gtf_file = paths$reduced_gtf_file,
+    data_cache_dir = paths$data_cache_dir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
+
+  covariates <- bican.mccarroll.differentialexpression::load_age_prediction_covariates(
+    data_dir = file.path(paths$data_root_dir, dge_dir),
+    data_prefix = dge_prefix
+  )
+
+  # Restrict to the relevant cell types (excludes e.g. astrocyte_0): those in the
+  # cell type list, plus the scatter plot cell types so the scatter matches the
+  # published panel (its SPN_D1 is not in the list).
+  donor_predictions <- results$donor_predictions[
+    results$donor_predictions$cell_type %in% union(cell_types, cell_type_list),
+  ]
+
+  adjusted <- bican.mccarroll.differentialexpression::residualize_age_predictions_on_covariates(
+    donor_predictions = donor_predictions,
+    covariates = covariates
+  )
+
+  cache_dir <- file.path(
+    paths$data_cache_dir,
+    .age_prediction_cache_subdir(optimize_alpha = optimize_alpha, alpha_fixed = alpha_fixed)
+  )
+  utils::write.table(
+    adjusted$donor_predictions,
+    file = file.path(cache_dir, "age_prediction_results_donor_predictions_covariate_adjusted.txt"),
+    sep = "\t", quote = FALSE, row.names = FALSE
+  )
+
+  fits_file <- file.path(paths$outDir, "age_prediction_covariate_regression_results.txt")
+  utils::write.table(
+    adjusted$covariate_fits,
+    file = fits_file,
+    sep = "\t", quote = FALSE, row.names = FALSE
+  )
+  logger::log_info("Wrote covariate regression results to {fits_file}")
+
+  model_predictions <- adjusted$donor_predictions[
+    adjusted$donor_predictions$region == region &
+      adjusted$donor_predictions$cell_type %in% cell_types,
+  ]
+  all_models <- results$model_coefficients[
+    results$model_coefficients$region == region &
+      results$model_coefficients$cell_type %in% cell_types,
+  ]
+
+  .plot_residual_corr_and_jaccard_region(
+    model_predictions = model_predictions,
+    all_models = all_models,
+    region = region,
+    out_dir = paths$outDir,
+    out_file = sprintf(
+      "age_prediction_covariate_adjusted_residual_corr_and_jaccard_region_%s.svg", region
+    )
+  )
+
+  donor_pred <- adjusted$donor_predictions[
+    adjusted$donor_predictions$region == region &
+      adjusted$donor_predictions$cell_type %in% cell_type_list,
+  ]
+
+  .plot_corrected_residual_pairwise_scatter_region(
+    donor_pred = donor_pred,
+    cell_type_list = cell_type_list,
+    region = region,
+    out_dir = paths$outDir,
+    out_file = sprintf(
+      "age_prediction_covariate_adjusted_residual_pairwise_scatter_region_%s.svg", region
+    ),
+    axis_label = "Covariate-adjusted residual (predicted - actual)"
+  )
+
+  # Same donor subset (complete PMI and RQS), but without the covariate adjustment,
+  # so the adjusted and unadjusted figures can be compared like for like.
+  unadjusted <- adjusted$donor_predictions
+  unadjusted$resid_mean_corrected <- unadjusted$resid_mean_corrected_unadjusted
+
+  .plot_residual_corr_and_jaccard_region(
+    model_predictions = unadjusted[
+      unadjusted$region == region & unadjusted$cell_type %in% cell_types,
+    ],
+    all_models = all_models,
+    region = region,
+    out_dir = paths$outDir,
+    out_file = sprintf(
+      "age_prediction_covariate_subset_unadjusted_residual_corr_and_jaccard_region_%s.svg", region
+    )
+  )
+
+  .plot_corrected_residual_pairwise_scatter_region(
+    donor_pred = unadjusted[
+      unadjusted$region == region & unadjusted$cell_type %in% cell_type_list,
+    ],
+    cell_type_list = cell_type_list,
+    region = region,
+    out_dir = paths$outDir,
+    out_file = sprintf(
+      "age_prediction_covariate_subset_unadjusted_residual_pairwise_scatter_region_%s.svg", region
+    )
+  )
+
+  invisible(adjusted)
 }
