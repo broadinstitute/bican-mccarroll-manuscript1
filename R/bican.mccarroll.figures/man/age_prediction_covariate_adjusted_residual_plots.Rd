@@ -6,7 +6,8 @@
 \usage{
 age_prediction_covariate_adjusted_residual_plots(
   region = "CaH",
-  cell_type_list = c("astrocyte", "OPC", "microglia", "SPN_D1")
+  cell_type_list = c("astrocyte", "OPC", "microglia", "SPN_D1"),
+  filter_ic_to_non_neurons = TRUE
 )
 }
 \arguments{
@@ -14,6 +15,10 @@ age_prediction_covariate_adjusted_residual_plots(
 
 \item{cell_type_list}{Cell types shown in the pairwise scatter plots. These are
 analysed in addition to the cell types in the age-prediction cell type list.}
+
+\item{filter_ic_to_non_neurons}{Logical; if \code{TRUE} (default), restrict the
+internal capsule (\code{ic}) to non-neuronal cell types (astrocyte, OPC,
+oligodendrocyte, microglia), matching the TRADE analysis.}
 }
 \value{
 Invisibly, the list returned by
@@ -27,7 +32,7 @@ Jaccard overlap panel) and the pairwise corrected-residual scatter plots for
 one region. Only donors with complete PMI and RQS are used.
 }
 \details{
-Writes, to the alpha 0.5 output directory:
+Writes, to the \code{covariate_adjusted} subdirectory of the alpha 0.5 output directory:
 \itemize{
   \item \code{age_prediction_covariate_adjusted_residual_corr_and_jaccard_region_<region>.svg}
   \item \code{age_prediction_covariate_adjusted_residual_pairwise_scatter_region_<region>.svg}
@@ -35,6 +40,9 @@ Writes, to the alpha 0.5 output directory:
     and \code{age_prediction_covariate_subset_unadjusted_residual_pairwise_scatter_region_<region>.svg}:
     the same two figures without the covariate adjustment, restricted to the same
     donors, for a like-for-like comparison.
+  \item \code{age_prediction_covariate_adjusted_residual_corr_region_<region>.txt}: one row per pair of
+    \code{cell_type_list} cell types (as in the scatter plots) with the residual correlation before (same donors, unadjusted) and after covariate
+    adjustment, the number of donors, and the change.
   \item \code{age_prediction_covariate_regression_results.txt}: one row per cell type x
     region x covariate (cell types in the cell type list, plus \code{cell_type_list}) with the estimated effect (change in predicted age
     per SD of the covariate, in decades), standard error, p-value, BH-adjusted p-value and number of donors.

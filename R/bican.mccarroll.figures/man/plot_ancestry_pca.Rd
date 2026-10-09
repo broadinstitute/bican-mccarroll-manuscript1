@@ -13,7 +13,8 @@ plot_ancestry_pca(
   outDir = NULL,
   data_cache_dir = NULL,
   n_pcs = 5,
-  k_neighbors = 15
+  k_neighbors = 15,
+  remove_title = FALSE
 )
 }
 \arguments{
@@ -42,6 +43,8 @@ neighbors.}
 
 \item{k_neighbors}{Number of nearest 1000 Genomes reference samples used
 for classification.}
+
+\item{remove_title}{If \code{TRUE}, omit the plot title and subtitle.}
 }
 \value{
 Invisibly returns a data frame containing the BICAN donor

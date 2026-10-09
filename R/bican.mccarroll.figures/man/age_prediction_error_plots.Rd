@@ -18,7 +18,9 @@ age_prediction_error_plots(
   optimize_alpha = FALSE,
   alpha_fixed = 0,
   mae_plot_width = 10,
-  mae_plot_height = 7
+  mae_plot_height = 7,
+  filter_ic_to_non_neurons = TRUE,
+  use_de_gene_counts_for_num_features = FALSE
 )
 }
 \arguments{
@@ -55,6 +57,19 @@ heatmap (\code{all_data_model_mean_absolute_errors_across_cell_type_region.svg})
 
 \item{mae_plot_height}{Height in inches of the saved mean absolute error
 heatmap.}
+
+\item{filter_ic_to_non_neurons}{Logical; if \code{TRUE} (default), restrict the
+internal capsule (\code{ic}) to non-neuronal cell types (astrocyte, OPC,
+oligodendrocyte, microglia), matching the TRADE analysis.}
+
+\item{use_de_gene_counts_for_num_features}{Logical; if \code{TRUE}, replace
+\code{num_features} in the predictions with the number of age DE genes
+(adjusted p-value <= 0.05, no fold change filter) for each cell type and
+region, read from \code{age_de_results_dir}. Intended for "all genes"
+models, where \code{num_features} is the number of genes given to the
+model rather than the number of DE genes. Models with no DE genes get
+\code{NA}. Leave \code{FALSE} for DE gene models, where
+\code{num_features} is already the DE gene count.}
 }
 \description{
 Summarizes age prediction performance across cell types and generates

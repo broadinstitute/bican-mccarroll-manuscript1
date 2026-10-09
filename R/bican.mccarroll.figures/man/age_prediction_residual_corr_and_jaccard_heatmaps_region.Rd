@@ -21,7 +21,8 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region(
   data_cache_dir = NULL,
   outDir = NULL,
   optimize_alpha = FALSE,
-  alpha_fixed = 0
+  alpha_fixed = 0,
+  filter_ic_to_non_neurons = TRUE
 )
 }
 \arguments{
@@ -54,6 +55,10 @@ parameter alpha is optimized rather than fixed.}
 
 \item{alpha_fixed}{Numeric elastic net mixing parameter used when
 \code{optimize_alpha} is \code{FALSE}.}
+
+\item{filter_ic_to_non_neurons}{Logical; if \code{TRUE} (default), restrict the
+internal capsule (\code{ic}) to non-neuronal cell types (astrocyte, OPC,
+oligodendrocyte, microglia), matching the TRADE analysis.}
 }
 \value{
 Invisibly returns a list with components `corr_out`, `jaccard_out`, and `out_svg`.
