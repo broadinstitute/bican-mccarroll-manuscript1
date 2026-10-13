@@ -141,6 +141,7 @@ estimate_donor_superpopulation <- function(
 #'   neighbors.
 #' @param k_neighbors Number of nearest 1000 Genomes reference samples used
 #'   for classification.
+#' @param remove_title If \code{TRUE}, omit the plot title and subtitle.
 #'
 #' @return Invisibly returns a data frame containing the BICAN donor
 #'   predictions and population scores.
@@ -154,7 +155,8 @@ plot_ancestry_pca <- function(
   outDir = NULL,
   data_cache_dir = NULL,
   n_pcs = 5,
-  k_neighbors = 15
+  k_neighbors = 15,
+  remove_title = FALSE
 ) {
   paths <- resolve_ancestry_pca_paths(
     kgp_donors_file = kgp_donors_file,
@@ -180,7 +182,8 @@ plot_ancestry_pca <- function(
   plot <- .plot_superpopulations(
     pca_df,
     n_pcs,
-    k_neighbors
+    k_neighbors,
+    remove_title = remove_title
   )
 
   ggplot2::ggsave(
@@ -555,7 +558,8 @@ get_or_build_ancestry_pca_cache <- function(paths, n_pcs, k_neighbors) {
 .plot_superpopulations <- function(
   pca_df,
   n_pcs,
-  k_neighbors
+  k_neighbors,
+  remove_title = FALSE
 ) {
   superpop_levels <- c("AFR", "AMR", "EAS", "EUR", "SAS")
   bican_display_label <- "Burger et al."
@@ -611,6 +615,20 @@ get_or_build_ancestry_pca_cache <- function(paths, n_pcs, k_neighbors) {
   # Make R CMD CHECK Happy
   PC1 <- PC2 <- plot_group <- predicted_superpop <- project <- NULL
 
+  plot_title <- "Donor PCA embedding with 1000 Genomes reference"
+  plot_subtitle <- paste0(
+    bican_display_label,
+    " labels assigned by distance-weighted ",
+    k_neighbors,
+    "-nearest neighbors using PCs 1-",
+    n_pcs
+  )
+
+  if (remove_title) {
+    plot_title <- NULL
+    plot_subtitle <- NULL
+  }
+
   ggplot2::ggplot() +
     ggplot2::geom_point(
       data = pca_plot_df[
@@ -650,15 +668,14 @@ get_or_build_ancestry_pca_cache <- function(paths, n_pcs, k_neighbors) {
       )
     ) +
     ggplot2::theme_bw() +
+    ggplot2::theme(
+      legend.text = ggplot2::element_text(size = 14),
+      legend.title = ggplot2::element_text(size = 14),
+      axis.text = ggplot2::element_text(size = 12)
+    ) +
     ggplot2::labs(
-      title = "Donor PCA embedding with 1000 Genomes reference",
-      subtitle = paste0(
-        bican_display_label,
-        " labels assigned by distance-weighted ",
-        k_neighbors,
-        "-nearest neighbors using PCs 1-",
-        n_pcs
-      ),
+      title = plot_title,
+      subtitle = plot_subtitle,
       color = "Population and dataset",
       x = "PC1",
       y = "PC2"

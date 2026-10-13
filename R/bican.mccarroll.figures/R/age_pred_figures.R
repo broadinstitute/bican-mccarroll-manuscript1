@@ -18,16 +18,123 @@
 # cellTypeListFile <- metacell_dir <- age_de_results_dir <- contig_yaml_file <- reduced_gtf_file <- data_cache_dir <- outDir <- NULL
 
 # Private
-.age_prediction_all <- function() {
-  .age_prediction_all_one()
+.age_prediction_all <- function(filter_ic_to_non_neurons = TRUE) {
+  .age_prediction_all_one(filter_ic_to_non_neurons = filter_ic_to_non_neurons)
 }
 
-.age_prediction_all_alpha_fixed_0_5 <- function() {
+.age_prediction_all_alpha_fixed_0_5 <- function(filter_ic_to_non_neurons = TRUE) {
   .age_prediction_all_one(
+    use_age_de_results = FALSE,
+    optimize_alpha = FALSE,
+    alpha_fixed = 0.5,
+    filter_ic_to_non_neurons = filter_ic_to_non_neurons,
+    use_de_gene_counts_for_num_features = TRUE
+  )
+
+  logger::log_info("Starting covariate adjusted residuals analysis")
+  age_prediction_covariate_adjusted_residual_plots(
+    filter_ic_to_non_neurons = filter_ic_to_non_neurons
+  )
+}
+
+# Ad hoc: compares model-level mean absolute error (years) between the default
+# method (DE genes, alpha 0) and the all genes method (alpha 0.5), for the cell
+# type x region models in the age prediction cell type list (same models as the
+# mean absolute error heatmap).  Reads the cached predictions of both methods.
+# Writes a scatter plot faceted by region (points colored by cell type) and a table of both MAEs per model.
+.age_prediction_compare_default_vs_all_genes <- function(filter_ic_to_non_neurons = TRUE) {
+  paths_default <- .resolve_age_pred_paths(
+    use_age_de_results = TRUE,
+    optimize_alpha = FALSE,
+    alpha_fixed = 0
+  )
+  paths_all_genes <- .resolve_age_pred_paths(
     use_age_de_results = FALSE,
     optimize_alpha = FALSE,
     alpha_fixed = 0.5
   )
+
+  cell_types <- utils::read.table(paths_default$cellTypeListFile, header = FALSE)$V1
+
+  model_mae <- function(paths, alpha_fixed) {
+    results <- get_age_prediction_results(
+      metacell_dir = paths$metacell_dir,
+      age_de_results_dir = paths$age_de_results_dir,
+      contig_yaml_file = paths$contig_yaml_file,
+      reduced_gtf_file = paths$reduced_gtf_file,
+      data_cache_dir = paths$data_cache_dir,
+      optimize_alpha = FALSE,
+      alpha_fixed = alpha_fixed
+    )
+    d <- results$donor_predictions
+    d <- d[d$cell_type %in% cell_types, , drop = FALSE]
+    if (filter_ic_to_non_neurons) {
+      d <- .filter_ic_to_non_neurons(d)
+    }
+    # predictions and ages are in decades; report years
+    d$abs_error_years <- abs(d$pred_mean - d$age) * 10
+    stats::aggregate(abs_error_years ~ cell_type + region, data = d, FUN = mean)
+  }
+
+  mae_default <- model_mae(paths_default, alpha_fixed = 0)
+  mae_all_genes <- model_mae(paths_all_genes, alpha_fixed = 0.5)
+
+  mae <- merge(mae_default, mae_all_genes,
+    by = c("cell_type", "region"), all = TRUE,
+    suffixes = c("_default", "_all_genes")
+  )
+  mae$mae_de_priors <- mae$abs_error_years_default
+  mae$mae_all_genes <- mae$abs_error_years_all_genes
+  mae$mae_difference <- mae$mae_all_genes - mae$mae_de_priors
+  mae <- mae[, c("cell_type", "region", "mae_de_priors", "mae_all_genes", "mae_difference")]
+  mae <- mae[order(mae$mae_difference, decreasing = TRUE), ]
+
+  out_dir <- paths_default$outDir
+  table_file <- file.path(out_dir, "age_prediction_mae_default_vs_all_genes.txt")
+  # Publication table: fixed 3 decimals (the plot below uses the unrounded values)
+  mae_table <- mae
+  mae_cols <- c("mae_de_priors", "mae_all_genes", "mae_difference")
+  mae_table[mae_cols] <- lapply(mae_table[mae_cols], sprintf, fmt = "%.3f")
+  utils::write.table(mae_table, table_file, sep = "\t", quote = FALSE, row.names = FALSE)
+
+  # models present in only one method cannot be plotted
+  mae_plot <- mae[stats::complete.cases(mae), ]
+  axis_limits <- range(c(mae_plot$mae_de_priors, mae_plot$mae_all_genes))
+
+  cell_type_levels <- sort(unique(mae_plot$cell_type))
+  mae_plot$cell_type <- factor(mae_plot$cell_type, levels = cell_type_levels)
+  cell_type_colors <- stats::setNames(
+    grDevices::hcl.colors(length(cell_type_levels), palette = "Dark 3"),
+    cell_type_levels
+  )
+
+  p <- ggplot2::ggplot(mae_plot, ggplot2::aes(x = mae_de_priors, y = mae_all_genes, color = cell_type)) +
+    ggplot2::geom_abline(linetype = "dashed", color = "grey50") +
+    ggplot2::geom_point(size = 2.5, alpha = 0.9) +
+    ggplot2::facet_wrap(~region) +
+    ggplot2::scale_color_manual(values = cell_type_colors, name = "Cell type") +
+    ggplot2::coord_equal(xlim = axis_limits, ylim = axis_limits) +
+    ggplot2::labs(
+      x = "Mean absolute error, DE genes model (years)",
+      y = "Mean absolute error, all genes model (years)"
+    ) +
+    ggplot2::theme_classic(base_size = 14) +
+    ggplot2::theme(
+      panel.border = ggplot2::element_rect(color = "black", fill = NA, linewidth = 0.5),
+      strip.background = ggplot2::element_blank(),
+      strip.text = ggplot2::element_text(size = 14),
+      legend.position = "right"
+    ) +
+    ggplot2::guides(color = ggplot2::guide_legend(override.aes = list(size = 3.5, alpha = 1)))
+
+  save_plot_svg(
+    plot = p,
+    out_file = "age_prediction_mae_default_vs_all_genes_by_region.svg",
+    out_dir = out_dir, width = 11, height = 7
+  )
+
+  logger::log_info("Wrote {table_file}")
+  invisible(mae)
 }
 
 # .age_prediction_all_optimize_alpha <- function() {
@@ -297,7 +404,9 @@
                                     data_cache_dir = NULL,
                                     outDir = NULL,
                                     optimize_alpha = FALSE,
-                                    alpha_fixed = 0) {
+                                    alpha_fixed = 0,
+                                    filter_ic_to_non_neurons = TRUE,
+                                    use_de_gene_counts_for_num_features = FALSE) {
   age_prediction_error_plots(
     cellTypeListFile = cellTypeListFile,
     metacell_dir = metacell_dir,
@@ -310,7 +419,9 @@
     data_cache_dir = data_cache_dir,
     outDir = outDir,
     optimize_alpha = optimize_alpha,
-    alpha_fixed = alpha_fixed
+    alpha_fixed = alpha_fixed,
+    filter_ic_to_non_neurons = filter_ic_to_non_neurons,
+    use_de_gene_counts_for_num_features = use_de_gene_counts_for_num_features
   )
 
   age_prediction_residual_corr_and_jaccard_heatmaps_region(
@@ -325,7 +436,8 @@
     data_cache_dir = data_cache_dir,
     outDir = outDir,
     optimize_alpha = optimize_alpha,
-    alpha_fixed = alpha_fixed
+    alpha_fixed = alpha_fixed,
+    filter_ic_to_non_neurons = filter_ic_to_non_neurons
   )
 
   age_prediction_residual_corr_and_jaccard_heatmaps_cell_type(
@@ -504,6 +616,14 @@ age_prediction_mean_residual_correlation_plots <- function(cellTypeListFile = NU
   invisible(NULL)
 }
 
+# Restrict the internal capsule (ic) to non-neuronal cell types, replicating the
+# filtering done in the TRADE analysis (trade_plots.R). Works on data frames with
+# `region` and `cell_type` columns.
+.filter_ic_to_non_neurons <- function(df) {
+  non_neuron_types <- c("astrocyte", "OPC", "oligodendrocyte", "microglia")
+  df[!(df$region == "ic" & !(df$cell_type %in% non_neuron_types)), , drop = FALSE]
+}
+
 #' Plot age prediction error summaries
 #'
 #' Summarizes age prediction performance across cell types and generates
@@ -530,6 +650,17 @@ age_prediction_mean_residual_correlation_plots <- function(cellTypeListFile = NU
 #'   heatmap (\code{all_data_model_mean_absolute_errors_across_cell_type_region.svg}).
 #' @param mae_plot_height Height in inches of the saved mean absolute error
 #'   heatmap.
+#' @param filter_ic_to_non_neurons Logical; if \code{TRUE} (default), restrict the
+#'   internal capsule (\code{ic}) to non-neuronal cell types (astrocyte, OPC,
+#'   oligodendrocyte, microglia), matching the TRADE analysis.
+#' @param use_de_gene_counts_for_num_features Logical; if \code{TRUE}, replace
+#'   \code{num_features} in the predictions with the number of age DE genes
+#'   (adjusted p-value <= 0.05, no fold change filter) for each cell type and
+#'   region, read from \code{age_de_results_dir}. Intended for "all genes"
+#'   models, where \code{num_features} is the number of genes given to the
+#'   model rather than the number of DE genes. Models with no DE genes get
+#'   \code{NA}. Leave \code{FALSE} for DE gene models, where
+#'   \code{num_features} is already the DE gene count.
 #'
 #' @export
 age_prediction_error_plots <- function(cellTypeListFile = NULL,
@@ -545,7 +676,9 @@ age_prediction_error_plots <- function(cellTypeListFile = NULL,
                                        optimize_alpha = FALSE,
                                        alpha_fixed = 0,
                                        mae_plot_width = 10,
-                                       mae_plot_height = 7) {
+                                       mae_plot_height = 7,
+                                       filter_ic_to_non_neurons = TRUE,
+                                       use_de_gene_counts_for_num_features = FALSE) {
   paths <- .resolve_age_pred_paths(
     cellTypeListFile = cellTypeListFile, metacell_dir = metacell_dir,
     age_de_results_dir = age_de_results_dir, contig_yaml_file = contig_yaml_file,
@@ -569,13 +702,41 @@ age_prediction_error_plots <- function(cellTypeListFile = NULL,
   )
 
   model_predictions <- results$donor_predictions
+  if (filter_ic_to_non_neurons) {
+    model_predictions <- .filter_ic_to_non_neurons(model_predictions)
+  }
+
+  # num_features is recorded at model fit time as the number of genes given to the
+  # elastic net.  For the default DE gene model that is the set of age DE genes
+  # (FDR <= 0.05), so it is the number of DE genes.  For the "all genes" model it is
+  # every expressed autosomal gene, so it says nothing about DE genes.  (It is also
+  # not the number of genes with a non-zero elastic net weight.)  The plots and the
+  # R2 fits below treat num_features as the number of DE genes, so for the all genes
+  # model we replace it with the true number of age DE genes for each cell type and
+  # region.  This only changes the x axis of the predictor plots and the R2 fits; the
+  # predictions and errors are untouched.
+  if (use_de_gene_counts_for_num_features) {
+    # paths$age_de_results_dir is NULL when use_age_de_results = FALSE (the all genes
+    # model does not use DE results to select features), so resolve it again here
+    # with use_age_de_results = TRUE to find the DE results used for counting.
+    de_paths <- .resolve_age_pred_paths(
+      age_de_results_dir = age_de_results_dir,
+      use_age_de_results = TRUE
+    )
+    model_predictions <- .replace_num_features_with_de_gene_counts(
+      model_predictions, de_paths$age_de_results_dir
+    )
+  }
 
   # change outputs to be in years instead of decades
   model_predictions$age <- model_predictions$age * 10
   model_predictions$pred_mean <- model_predictions$pred_mean * 10
   model_predictions$pred_mean_corrected <- model_predictions$pred_mean_corrected * 10
 
-  model_mae_summary <- compute_model_level_mae(model_predictions)
+  # restrict to the plotted cell types so the logged summary matches the heatmap
+  model_mae_summary <- compute_model_level_mae(
+    model_predictions[model_predictions$cell_type %in% cell_types, , drop = FALSE]
+  )
 
   logger::log_info(sprintf(
     "Model-level mean absolute error: median %.1f years; range %.1f-%.1f years",
@@ -664,6 +825,46 @@ age_prediction_error_plots <- function(cellTypeListFile = NULL,
   invisible(NULL)
 }
 
+# Replace num_features in the donor level predictions with the number of age DE
+# genes (adj.P.Val <= 0.05, no fold change filter) for each cell type x region,
+# counted from the age DE results in age_de_results_dir.  Models with no DE genes
+# (or no DE results file) get NA so they drop out of the num_features plots/fits
+# rather than appearing as 0.  See the comment in age_prediction_error_plots().
+.replace_num_features_with_de_gene_counts <- function(model_predictions, age_de_results_dir,
+                                                      fdr_threshold = 0.05) {
+  de <- bican.mccarroll.differentialexpression::parse_de_inputs(
+    in_dir = age_de_results_dir,
+    file_pattern = "__age_DE_results\\.txt$"
+  )
+  de <- de[!is.na(de$adj.P.Val) & de$adj.P.Val <= fdr_threshold, , drop = FALSE]
+
+  counts <- data.frame(
+    cell_type = character(), region = character(), n_de = integer(),
+    stringsAsFactors = FALSE
+  )
+  if (nrow(de) > 0) {
+    counts <- stats::aggregate(
+      gene ~ cell_type + interaction,
+      data = de, FUN = length
+    )
+    colnames(counts) <- c("cell_type", "region", "n_de")
+  }
+
+  key_pred <- paste(model_predictions$cell_type, model_predictions$region, sep = "__")
+  key_de <- paste(counts$cell_type, counts$region, sep = "__")
+  n_de <- counts$n_de[match(key_pred, key_de)]
+
+  no_de <- unique(key_pred[is.na(n_de)])
+  if (length(no_de) > 0) {
+    logger::log_warn(
+      "No age DE genes at FDR <= {fdr_threshold}; num_features set to NA for: {paste(no_de, collapse = ', ')}"
+    )
+  }
+
+  model_predictions$num_features <- as.numeric(n_de)
+  model_predictions
+}
+
 compute_model_level_mae <- function(a) {
   a$abs_error_years <- abs(a$resid_mean) * 10
 
@@ -731,6 +932,9 @@ add_style_age_feature_errors <- function(p) {
 #'   parameter alpha is optimized rather than fixed.
 #' @param alpha_fixed Numeric elastic net mixing parameter used when
 #'   \code{optimize_alpha} is \code{FALSE}.
+#' @param filter_ic_to_non_neurons Logical; if \code{TRUE} (default), restrict the
+#'   internal capsule (\code{ic}) to non-neuronal cell types (astrocyte, OPC,
+#'   oligodendrocyte, microglia), matching the TRADE analysis.
 #'
 #' @return Invisibly returns a list with components `corr_out`, `jaccard_out`, and `out_svg`.
 #' @export
@@ -746,7 +950,8 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(region = "C
                                                                      data_cache_dir = NULL,
                                                                      outDir = NULL,
                                                                      optimize_alpha = FALSE,
-                                                                     alpha_fixed = 0) {
+                                                                     alpha_fixed = 0,
+                                                                     filter_ic_to_non_neurons = TRUE) {
   paths <- .resolve_age_pred_paths(
     cellTypeListFile = cellTypeListFile, metacell_dir = metacell_dir,
     age_de_results_dir = age_de_results_dir,
@@ -783,6 +988,27 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(region = "C
       all_models$cell_type %in% cell_types,
   ]
 
+  if (filter_ic_to_non_neurons) {
+    model_predictions <- .filter_ic_to_non_neurons(model_predictions)
+    all_models <- .filter_ic_to_non_neurons(all_models)
+  }
+
+  .plot_residual_corr_and_jaccard_region(
+    model_predictions = model_predictions,
+    all_models = all_models,
+    region = region,
+    out_dir = paths$outDir,
+    out_file = sprintf("age_prediction_residual_corr_and_jaccard_region_%s.svg", region)
+  )
+}
+
+# Shared by the published and covariate-adjusted figures. model_predictions and
+# all_models must already be restricted to the desired region/cell types.
+.plot_residual_corr_and_jaccard_region <- function(model_predictions,
+                                                   all_models,
+                                                   region,
+                                                   out_dir,
+                                                   out_file) {
   # corr_title <- sprintf(
   #     "Age Prediction residuals (predicted - actual)\nregion [%s]",
   #     region
@@ -856,10 +1082,8 @@ age_prediction_residual_corr_and_jaccard_heatmaps_region <- function(region = "C
 
   save_plot_svg(
     plot = final,
-    out_file = sprintf(
-      "age_prediction_residual_corr_and_jaccard_region_%s.svg", region
-    ),
-    out_dir = paths$outDir, width = 15, height = 6.2
+    out_file = out_file,
+    out_dir = out_dir, width = 15, height = 6.2
   )
 
   invisible(final)
@@ -1088,6 +1312,27 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(cell_type_
       donor_pred$cell_type %in% cell_type_list,
   ]
 
+  .plot_corrected_residual_pairwise_scatter_region(
+    donor_pred = donor_pred,
+    cell_type_list = cell_type_list,
+    region = region,
+    out_dir = paths$outDir,
+    out_file = sprintf(
+      "age_prediction_corrected_residual_pairwise_scatter_region_%s.svg", region
+    ),
+    ncol = ncol
+  )
+}
+
+# Shared by the published and covariate-adjusted figures. donor_pred must already
+# be restricted to region and cell_type_list.
+.plot_corrected_residual_pairwise_scatter_region <- function(donor_pred,
+                                                             cell_type_list,
+                                                             region,
+                                                             out_dir,
+                                                             out_file,
+                                                             ncol = 3,
+                                                             axis_label = "Corrected residual (predicted - actual)") {
   # To be consistent with other manuscript plots, format age in years instead of decades
   # This only changes the legend values.
   donor_pred$age <- donor_pred$age * 10
@@ -1141,7 +1386,7 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(cell_type_
   core <- cowplot::plot_grid(
     grid,
     cowplot::ggdraw() +
-      cowplot::draw_label("Corrected residual (predicted - actual)", size = 16),
+      cowplot::draw_label(axis_label, size = 16),
     ncol = 1, rel_heights = c(1, 0.12)
   )
 
@@ -1153,7 +1398,7 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(cell_type_
       width = 1 - left_pad, height = 1
     ) +
     cowplot::draw_label(
-      "Corrected residual (predicted - actual)",
+      axis_label,
       angle = 90, x = left_pad * 0.35, y = 0.5,
       vjust = 0.5, size = 16
     )
@@ -1164,12 +1409,7 @@ age_prediction_corrected_residual_pairwise_scatter_region <- function(cell_type_
       width = 1 - left_pad, height = 1
     )
 
-  out_svg <- file.path(
-    paths$outDir,
-    sprintf(
-      "age_prediction_corrected_residual_pairwise_scatter_region_%s.svg", region
-    )
-  )
+  out_svg <- file.path(out_dir, out_file)
 
   ggplot2::ggsave(
     filename = out_svg, plot = final_padded, device = svglite_manuscript,
@@ -1674,5 +1914,236 @@ read_age_prediction_results <- function(cache_dir) {
     reduced_gtf_file = pick_in(reduced_gtf_file, "reduced_gtf_file"),
     outDir = out,
     data_cache_dir = cache
+  )
+}
+
+#' Manuscript figure: covariate-adjusted age-prediction residual correlations
+#'
+#' Regresses each cell type x region's predicted age on PMI, RQS and library size
+#' (controlling for age), subtracts the covariate terms from the corrected
+#' residuals, and redraws the residual correlation heatmap (with the unchanged
+#' Jaccard overlap panel) and the pairwise corrected-residual scatter plots for
+#' one region. Only donors with complete PMI and RQS are used.
+#'
+#' Writes, to the \code{covariate_adjusted} subdirectory of the alpha 0.5 output directory:
+#' \itemize{
+#'   \item \code{age_prediction_covariate_adjusted_residual_corr_and_jaccard_region_<region>.svg}
+#'   \item \code{age_prediction_covariate_adjusted_residual_pairwise_scatter_region_<region>.svg}
+#'   \item \code{age_prediction_covariate_subset_unadjusted_residual_corr_and_jaccard_region_<region>.svg}
+#'     and \code{age_prediction_covariate_subset_unadjusted_residual_pairwise_scatter_region_<region>.svg}:
+#'     the same two figures without the covariate adjustment, restricted to the same
+#'     donors, for a like-for-like comparison.
+#'   \item \code{age_prediction_covariate_adjusted_residual_corr_region_<region>.txt}: one row per pair of
+#'     \code{cell_type_list} cell types (as in the scatter plots) with the residual correlation before (same donors, unadjusted) and after covariate
+#'     adjustment, the number of donors, and the change.
+#'   \item \code{age_prediction_covariate_regression_results.txt}: one row per cell type x
+#'     region x covariate (cell types in the cell type list, plus \code{cell_type_list}) with the estimated effect (change in predicted age
+#'     per SD of the covariate, in decades), standard error, p-value, BH-adjusted p-value and number of donors.
+#' }
+#' The adjusted donor predictions are cached next to the original predictions as
+#' \code{age_prediction_results_donor_predictions_covariate_adjusted.txt}.
+#'
+#' @param region Region to plot (e.g. "CaH").
+#' @param cell_type_list Cell types shown in the pairwise scatter plots. These are
+#'   analysed in addition to the cell types in the age-prediction cell type list.
+#' @param filter_ic_to_non_neurons Logical; if \code{TRUE} (default), restrict the
+#'   internal capsule (\code{ic}) to non-neuronal cell types (astrocyte, OPC,
+#'   oligodendrocyte, microglia), matching the TRADE analysis.
+#'
+#' @return Invisibly, the list returned by
+#'   \code{bican.mccarroll.differentialexpression::residualize_age_predictions_on_covariates()}.
+#' @export
+age_prediction_covariate_adjusted_residual_plots <- function(region = "CaH",
+                                                             cell_type_list = c("astrocyte", "OPC", "microglia", "SPN_D1"),
+                                                             filter_ic_to_non_neurons = TRUE) {
+  optimize_alpha <- FALSE
+  alpha_fixed <- 0.5
+
+  # Complete-cases DGEList (donors with PMI and RQS), relative to the data root.
+  dge_dir <- "metacells/LEVEL_6"
+  dge_prefix <- "age_pmi_rqs_complete_cases_DGEList"
+
+  # Matches .age_prediction_all_alpha_fixed_0_5()
+  paths <- .resolve_age_pred_paths(
+    use_age_de_results = FALSE,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
+
+  # Own subdirectory: the file names are similar to the main age prediction figures.
+  out_dir <- file.path(paths$outDir, "covariate_adjusted")
+  .ensure_dir(out_dir)
+
+  cell_types <- utils::read.table(paths$cellTypeListFile, header = FALSE)$V1
+
+  results <- get_age_prediction_results(
+    metacell_dir = paths$metacell_dir,
+    age_de_results_dir = paths$age_de_results_dir,
+    contig_yaml_file = paths$contig_yaml_file,
+    reduced_gtf_file = paths$reduced_gtf_file,
+    data_cache_dir = paths$data_cache_dir,
+    optimize_alpha = optimize_alpha,
+    alpha_fixed = alpha_fixed
+  )
+
+  covariates <- bican.mccarroll.differentialexpression::load_age_prediction_covariates(
+    data_dir = file.path(paths$data_root_dir, dge_dir),
+    data_prefix = dge_prefix
+  )
+
+  # Restrict to the relevant cell types (excludes e.g. astrocyte_0): those in the
+  # cell type list, plus the scatter plot cell types so the scatter matches the
+  # published panel (its SPN_D1 is not in the list).
+  donor_predictions <- results$donor_predictions[
+    results$donor_predictions$cell_type %in% union(cell_types, cell_type_list),
+  ]
+  if (filter_ic_to_non_neurons) {
+    donor_predictions <- .filter_ic_to_non_neurons(donor_predictions)
+  }
+
+  adjusted <- bican.mccarroll.differentialexpression::residualize_age_predictions_on_covariates(
+    donor_predictions = donor_predictions,
+    covariates = covariates
+  )
+
+  cache_dir <- file.path(
+    paths$data_cache_dir,
+    .age_prediction_cache_subdir(optimize_alpha = optimize_alpha, alpha_fixed = alpha_fixed)
+  )
+  utils::write.table(
+    adjusted$donor_predictions,
+    file = file.path(cache_dir, "age_prediction_results_donor_predictions_covariate_adjusted.txt"),
+    sep = "\t", quote = FALSE, row.names = FALSE
+  )
+
+  fits_file <- file.path(out_dir, "age_prediction_covariate_regression_results.txt")
+  utils::write.table(
+    adjusted$covariate_fits,
+    file = fits_file,
+    sep = "\t", quote = FALSE, row.names = FALSE
+  )
+  logger::log_info("Wrote covariate regression results to {fits_file}")
+
+  model_predictions <- adjusted$donor_predictions[
+    adjusted$donor_predictions$region == region &
+      adjusted$donor_predictions$cell_type %in% cell_types,
+  ]
+  all_models <- results$model_coefficients[
+    results$model_coefficients$region == region &
+      results$model_coefficients$cell_type %in% cell_types,
+  ]
+
+  .plot_residual_corr_and_jaccard_region(
+    model_predictions = model_predictions,
+    all_models = all_models,
+    region = region,
+    out_dir = out_dir,
+    out_file = sprintf(
+      "age_prediction_covariate_adjusted_residual_corr_and_jaccard_region_%s.svg", region
+    )
+  )
+
+  donor_pred <- adjusted$donor_predictions[
+    adjusted$donor_predictions$region == region &
+      adjusted$donor_predictions$cell_type %in% cell_type_list,
+  ]
+
+  .plot_corrected_residual_pairwise_scatter_region(
+    donor_pred = donor_pred,
+    cell_type_list = cell_type_list,
+    region = region,
+    out_dir = out_dir,
+    out_file = sprintf(
+      "age_prediction_covariate_adjusted_residual_pairwise_scatter_region_%s.svg", region
+    ),
+    axis_label = "Covariate-adjusted residual (predicted - actual)"
+  )
+
+  # Same donor subset (complete PMI and RQS), but without the covariate adjustment,
+  # so the adjusted and unadjusted figures can be compared like for like.
+  unadjusted <- adjusted$donor_predictions
+  unadjusted$resid_mean_corrected <- unadjusted$resid_mean_corrected_unadjusted
+
+  .plot_residual_corr_and_jaccard_region(
+    model_predictions = unadjusted[
+      unadjusted$region == region & unadjusted$cell_type %in% cell_types,
+    ],
+    all_models = all_models,
+    region = region,
+    out_dir = out_dir,
+    out_file = sprintf(
+      "age_prediction_covariate_subset_unadjusted_residual_corr_and_jaccard_region_%s.svg", region
+    )
+  )
+
+  .plot_corrected_residual_pairwise_scatter_region(
+    donor_pred = unadjusted[
+      unadjusted$region == region & unadjusted$cell_type %in% cell_type_list,
+    ],
+    cell_type_list = cell_type_list,
+    region = region,
+    out_dir = out_dir,
+    out_file = sprintf(
+      "age_prediction_covariate_subset_unadjusted_residual_pairwise_scatter_region_%s.svg", region
+    )
+  )
+
+  # same cell types as the pairwise scatter plots
+  corr_table <- .residual_corr_before_after_table(
+    unadjusted = unadjusted[unadjusted$region == region & unadjusted$cell_type %in% cell_type_list, ],
+    adjusted = donor_pred
+  )
+  corr_file <- file.path(
+    out_dir,
+    sprintf("age_prediction_covariate_adjusted_residual_corr_region_%s.txt", region)
+  )
+  utils::write.table(corr_table, file = corr_file, sep = "\t", quote = FALSE, row.names = FALSE)
+  logger::log_info("Wrote residual correlations before and after covariate adjustment to {corr_file}")
+
+  invisible(adjusted)
+}
+
+# One row per pair of cell types within a region: the donor-level Pearson
+# correlation of corrected residuals (pairwise complete donors, as in the
+# heatmap) before and after covariate adjustment, in the same donors.
+.residual_corr_before_after_table <- function(unadjusted, adjusted) {
+  donor_by_cell_type <- function(d, value_col) {
+    tapply(d[[value_col]], list(d$donor, d$cell_type), mean)
+  }
+  before <- donor_by_cell_type(unadjusted, "resid_mean_corrected_unadjusted")
+  after <- donor_by_cell_type(adjusted, "resid_mean_corrected")
+  cell_types <- colnames(after)
+
+  pairs <- utils::combn(cell_types, 2)
+  out <- data.frame(
+    cell_type_1 = pairs[1, ],
+    cell_type_2 = pairs[2, ],
+    stringsAsFactors = FALSE
+  )
+  out$n_donors <- NA_integer_
+  out$corr_unadjusted <- NA_real_
+  out$corr_adjusted <- NA_real_
+
+  for (i in seq_len(nrow(out))) {
+    a <- out$cell_type_1[i]
+    b <- out$cell_type_2[i]
+    out$n_donors[i] <- sum(stats::complete.cases(after[, c(a, b)]))
+    out$corr_unadjusted[i] <- stats::cor(before[, a], before[, b], use = "pairwise.complete.obs")
+    out$corr_adjusted[i] <- stats::cor(after[, a], after[, b], use = "pairwise.complete.obs")
+  }
+  out$corr_change <- out$corr_adjusted - out$corr_unadjusted
+
+  # Publication table: one label per pair, matching the scatter plot titles
+  # ("astrocyte vs OPC"), and values at a fixed 3 decimals.
+  data.frame(
+    pair = paste0(
+      gsub("_", " ", out$cell_type_1, fixed = TRUE), " vs ",
+      gsub("_", " ", out$cell_type_2, fixed = TRUE)
+    ),
+    n_donors = out$n_donors,
+    corr_unadjusted = sprintf("%.3f", out$corr_unadjusted),
+    corr_adjusted = sprintf("%.3f", out$corr_adjusted),
+    corr_change = sprintf("%.3f", out$corr_change),
+    stringsAsFactors = FALSE
   )
 }
